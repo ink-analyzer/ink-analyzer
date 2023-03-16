@@ -4,7 +4,7 @@ A library for semantic analysis of [ink!](https://use.ink/) smart contract code.
 
 **NOTE:** This project is still work in progress and implements very limited functionality at this time.
 
-## Quick Start
+## Architecture
 
 This project currently contains 2 main modules:
 
@@ -19,6 +19,47 @@ You can find its core implementation in the [diagnostics](./src/analysis/diagnos
 
 ### 2. [ir](./src/ir/mod.rs)
 This module implements ink! intermediate representations (IRs) and abstractions.
+
+## Installation
+
+Run the following Cargo command in your project directory
+
+```shell
+cargo add ink-analyzer
+```
+
+Or add the following line to your Cargo.toml under `[dependencies]`
+
+```toml
+ink-analyzer = "0.1.0"
+```
+
+## Usage
+
+### Example: Get diagnostics for ink! smart contract code
+
+
+```rust
+use ink_analyzer::Analysis;
+
+fn do_analysis() {
+    let code = r#"
+        #[ink::contract]
+        mod flipper {
+
+            #[ink(storage)]
+            pub struct Flipper {
+                value: bool,
+            }
+
+            // --snip--
+        }
+    "#;
+
+    let diagnostics = Analysis.diagnostics(&code);
+    dbg!(&diagnostics);
+}
+```
 
 ## Documentation
 
