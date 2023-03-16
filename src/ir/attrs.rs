@@ -1,6 +1,6 @@
 //! ink! attribute intermediate representations (IRs) and abstractions.
 use ra_ap_syntax::ast::{Attr, PathSegment};
-use ra_ap_syntax::AstNode;
+use ra_ap_syntax::{AstNode, SyntaxKind};
 
 /// Either an ink! specific attribute, or another uninterpreted attribute.
 #[derive(Debug, PartialEq, Eq)]
@@ -13,35 +13,62 @@ pub enum Attribute {
 
 impl From<Attr> for Attribute {
     fn from(attr: Attr) -> Self {
-        let path_segments: Vec<String> = attr
-            .syntax()
-            .descendants()
-            .filter_map(PathSegment::cast)
-            .map(|item| item.syntax().text().to_string())
-            .collect();
+        if let Some(meta) = attr.meta() {
+            let mut path_segments: Vec<String> = Vec::new();
+            let mut args: Vec<String> = Vec::new();
 
-        let num_segments = path_segments.len();
-        if num_segments > 0 && path_segments[0] == "ink" {
-            let ink_attr_kind = match num_segments {
-                // 1 path segment indicates an ink! argument attribute
-                1 => InkAttributeKind::Arg(InkArgAttributeKind::Unknown),
-                // 2 path segments indicates an ink! macro attribute
-                2 => {
-                    let ink_macro_kind =
-                        match InkMacroAttributeKind::try_from(&path_segments[1][..]) {
-                            Ok(kind) => kind,
-                            _ => InkMacroAttributeKind::Unknown,
-                        };
-                    InkAttributeKind::Macro(ink_macro_kind)
+            if let Some(path) = meta.path() {
+                path_segments = path
+                    .syntax()
+                    .descendants()
+                    .filter_map(PathSegment::cast)
+                    .map(|item| item.syntax().text().to_string())
+                    .collect();
+            }
+
+            if let Some(token_tree) = meta.token_tree() {
+                for item in token_tree.syntax().descendants_with_tokens() {
+                    if let Some(token) = item.as_token() {
+                        if token.kind() == SyntaxKind::IDENT {
+                            args.push(token.text().to_string());
+                            // TODO: Parse argument values
+                        }
+                    }
                 }
-                // treat anything more than 2 path segments as unknown
-                _ => InkAttributeKind::Unknown,
-            };
-            return Attribute::Ink(InkAttribute {
-                ast: attr,
-                kind: ink_attr_kind,
-            });
+            }
+
+            let num_segments = path_segments.len();
+            if num_segments > 0 && path_segments[0] == "ink" {
+                let ink_attr_kind = match num_segments {
+                    // 1 path segment indicates an ink! argument attribute
+                    1 => {
+                        let mut ink_arg_kind = InkArgAttributeKind::Unknown;
+                        if args.len() > 0 {
+                            if let Ok(kind) = InkArgAttributeKind::try_from(&args[0][..]) {
+                                ink_arg_kind = kind;
+                            }
+                        }
+                        InkAttributeKind::Arg(ink_arg_kind)
+                    }
+                    // 2 path segments indicates an ink! macro attribute
+                    2 => {
+                        let ink_macro_kind =
+                            match InkMacroAttributeKind::try_from(&path_segments[1][..]) {
+                                Ok(kind) => kind,
+                                _ => InkMacroAttributeKind::Unknown,
+                            };
+                        InkAttributeKind::Macro(ink_macro_kind)
+                    }
+                    // treat anything more than 2 path segments as unknown
+                    _ => InkAttributeKind::Unknown,
+                };
+                return Attribute::Ink(InkAttribute {
+                    ast: attr,
+                    kind: ink_attr_kind,
+                });
+            }
         }
+
         Attribute::Other(attr)
     }
 }
@@ -52,8 +79,9 @@ pub struct InkAttribute {
     /// AST Node for ink! attribute.
     pub ast: Attr,
     /// The kind of the ink! attribute e.g macro attributes like `#[ink::contract]`
-    /// or an argument attribute like `#[ink(storage)]`.
+    /// or argument attribute like `#[ink(storage)]`.
     pub kind: InkAttributeKind,
+    // TODO: Add attribute arguments
 }
 
 /// The kind of the ink! attribute.
@@ -70,15 +98,15 @@ pub enum InkAttributeKind {
 /// The kind of the ink! macro attribute.
 #[derive(Debug, PartialEq, Eq)]
 pub enum InkMacroAttributeKind {
-    /// `#[ink::chain_extension]`.
+    /// `#[ink::chain_extension]`
     ChainExtension,
-    /// `#[ink::contract]`.
+    /// `#[ink::contract]`
     Contract,
-    /// `#[ink::storage_item]`.
+    /// `#[ink::storage_item]`
     StorageItem,
-    /// `#[ink::test]`.
+    /// `#[ink::test]`
     Test,
-    /// `#[ink::trait_definition]`.
+    /// `#[ink::trait_definition]`
     TraitDefinition,
     /// Fallback for unrecognized ink macro attributes.
     Unknown,
@@ -108,7 +136,65 @@ impl TryFrom<&str> for InkMacroAttributeKind {
 /// The kind of the ink! argument attribute.
 #[derive(Debug, PartialEq, Eq)]
 pub enum InkArgAttributeKind {
-    // TODO: Add argument attributes e.g `#[ink(storage)]`
+    /// `#[ink(anonymous)]`
+    Anonymous,
+    /// `#[ink(constructor)]`
+    Constructor,
+    /// `#[ink(event)]`
+    Event,
+    /// `#[ink(extension)]`
+    Extension,
+    /// `#[ink(handle_status)]`
+    HandleStatus,
+    /// `#[ink(impl)]`
+    Impl,
+    /// `#[ink(message)]`
+    Message,
+    /// `#[ink(namespace)]`
+    Namespace,
+    /// `#[ink(payable)]`
+    Payable,
+    /// `#[ink(selector)]`
+    Selector,
+    /// `#[ink(storage)]`
+    Storage,
+    /// `#[ink(topic)]`
+    Topic,
     /// Fallback for unrecognized ink macro attributes.
     Unknown,
+}
+
+impl TryFrom<&str> for InkArgAttributeKind {
+    type Error = &'static str;
+
+    fn try_from(path_segment: &str) -> Result<Self, Self::Error> {
+        match path_segment {
+            // `#[ink::constructor]`
+            "anonymous" => Ok(InkArgAttributeKind::Anonymous),
+            // `#[ink::constructor]`
+            "constructor" => Ok(InkArgAttributeKind::Constructor),
+            // `#[ink::constructor]`
+            "event" => Ok(InkArgAttributeKind::Event),
+            // `#[ink::constructor]`
+            "extension" => Ok(InkArgAttributeKind::Extension),
+            // `#[ink::constructor]`
+            "handle_status" => Ok(InkArgAttributeKind::HandleStatus),
+            // `#[ink::constructor]`
+            "impl" => Ok(InkArgAttributeKind::Impl),
+            // `#[ink::constructor]`
+            "message" => Ok(InkArgAttributeKind::Message),
+            // `#[ink::constructor]`
+            "namespace" => Ok(InkArgAttributeKind::Namespace),
+            // `#[ink::constructor]`
+            "payable" => Ok(InkArgAttributeKind::Payable),
+            // `#[ink::constructor]`
+            "selector" => Ok(InkArgAttributeKind::Selector),
+            // `#[ink::constructor]`
+            "storage" => Ok(InkArgAttributeKind::Storage),
+            // `#[ink::constructor]`
+            "topic" => Ok(InkArgAttributeKind::Topic),
+            // unknown attribute
+            _ => Err("Unknown ink! attribute argument"),
+        }
+    }
 }

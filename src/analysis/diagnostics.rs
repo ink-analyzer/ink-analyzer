@@ -2,7 +2,7 @@
 use ra_ap_syntax::ast::Attr;
 use ra_ap_syntax::{AstNode, SourceFile, SyntaxKind, TextRange};
 
-use crate::ir::attrs::{Attribute, InkAttributeKind, InkMacroAttributeKind};
+use crate::ir::attrs::{Attribute, InkArgAttributeKind, InkAttributeKind, InkMacroAttributeKind};
 
 /// A diagnostic error or warning.
 #[derive(Debug)]
@@ -16,7 +16,7 @@ pub struct Diagnostic {
 }
 
 /// The severity level of the diagnostic.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Severity {
     /// An diagnostic error.
     Error,
@@ -39,7 +39,10 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
                 InkAttributeKind::Macro(ink_macro_kind) => {
                     if ink_macro_kind == InkMacroAttributeKind::Unknown {
                         diagnostic_errors.push(Diagnostic {
-                            message: format!("Unknown ink! attribute"),
+                            message: format!(
+                                "Unknown ink! attribute: '{}'",
+                                node.text().to_string()
+                            ),
                             range: node.text_range(),
                             severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
                         });
@@ -61,14 +64,25 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
                         }
                     }
                 }
-                // Validate ink! macro attributes
-                InkAttributeKind::Arg(_) => {
-                    // TODO: Validate ink! argument attributes
+                // Validate ink! argument attributes
+                InkAttributeKind::Arg(ink_arg_kind) => {
+                    if ink_arg_kind == InkArgAttributeKind::Unknown {
+                        diagnostic_errors.push(Diagnostic {
+                            message: format!(
+                                "Unknown ink! attribute: '{}'",
+                                node.text().to_string()
+                            ),
+                            range: node.text_range(),
+                            severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
+                        });
+                    } else {
+                        // TODO: Validate ink! argument attributes
+                    }
                 }
                 // Handle generic unknown ink! attributes
                 _ => {
                     diagnostic_errors.push(Diagnostic {
-                        message: format!("Unknown ink! attribute"),
+                        message: format!("Unknown ink! attribute: '{}'", node.text().to_string()),
                         range: node.text_range(),
                         severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
                     });

@@ -24,6 +24,7 @@ impl Analysis {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analysis::diagnostics::Severity;
 
     #[test]
     fn ink_contract_attribute_on_mod_works() {
@@ -60,7 +61,8 @@ mod tests {
         "#;
 
         let diagnostics = Analysis.diagnostics(code);
-        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(1, diagnostics.len());
+        assert_eq!(Severity::Error, diagnostics[0].severity);
     }
 
     #[test]
@@ -72,7 +74,8 @@ mod tests {
         "#;
 
         let diagnostics = Analysis.diagnostics(code);
-        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(1, diagnostics.len());
+        assert_eq!(Severity::Error, diagnostics[0].severity);
     }
 
     #[test]
@@ -84,7 +87,8 @@ mod tests {
         "#;
 
         let diagnostics = Analysis.diagnostics(code);
-        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(1, diagnostics.len());
+        assert_eq!(Severity::Error, diagnostics[0].severity);
     }
 
     #[test]
@@ -96,7 +100,21 @@ mod tests {
         "#;
 
         let diagnostics = Analysis.diagnostics(code);
-        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(1, diagnostics.len());
+        assert_eq!(Severity::Warning, diagnostics[0].severity);
+    }
+
+    #[test]
+    fn ink_unknown_arg_attribute_fails() {
+        let code = r#"
+        #[ink(xyz)]
+        struct Flipper {
+        }
+        "#;
+
+        let diagnostics = Analysis.diagnostics(code);
+        assert_eq!(1, diagnostics.len());
+        assert_eq!(Severity::Warning, diagnostics[0].severity);
     }
 
     #[test]
@@ -108,6 +126,7 @@ mod tests {
         "#;
 
         let diagnostics = Analysis.diagnostics(code);
-        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(1, diagnostics.len());
+        assert_eq!(Severity::Warning, diagnostics[0].severity);
     }
 }
