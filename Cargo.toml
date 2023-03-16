@@ -9,7 +9,7 @@ authors = ["David Semakula <hello@davidsemakula.com>"]
 readme = "README.md"
 repository = "https://github.com/ink-analyzer/ink-analyzer"
 homepage = "https://github.com/ink-analyzer/ink-analyzer"
-keywords = ["ink!", "smart contract", "polkadot", "blockchain"]
+keywords = ["ink!", "smart contract", "polkadot", "substrate", "blockchain"]
 categories = ["development-tools"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
