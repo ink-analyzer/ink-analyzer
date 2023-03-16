@@ -17,7 +17,7 @@ impl From<Attr> for Attribute {
             .syntax()
             .descendants()
             .filter_map(PathSegment::cast)
-            .map(|expr| expr.syntax().text().to_string())
+            .map(|item| item.syntax().text().to_string())
             .collect();
 
         let num_segments = path_segments.len();
