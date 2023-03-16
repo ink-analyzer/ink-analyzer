@@ -33,10 +33,10 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
 
     for attr in attrs {
         if let Attribute::Ink(ink_attr) = Attribute::from(attr) {
+            let node = ink_attr.ast.syntax();
             match ink_attr.kind {
                 // Validate ink! macro attributes
                 InkAttributeKind::Macro(ink_macro_kind) => {
-                    let node = ink_attr.ast.syntax();
                     if ink_macro_kind == InkMacroAttributeKind::Unknown {
                         diagnostic_errors.push(Diagnostic {
                             message: format!("Unknown ink! attribute"),
@@ -61,10 +61,18 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
                         }
                     }
                 }
+                // Validate ink! macro attributes
                 InkAttributeKind::Arg(_) => {
                     // TODO: Validate ink! argument attributes
                 }
-                _ => (),
+                // Handle generic unknown ink! attributes
+                _ => {
+                    diagnostic_errors.push(Diagnostic {
+                        message: format!("Unknown ink! attribute"),
+                        range: node.text_range(),
+                        severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
+                    });
+                }
             }
         }
     }
