@@ -70,9 +70,16 @@ pub enum InkAttributeKind {
 /// The kind of the ink! macro attribute.
 #[derive(Debug, PartialEq, Eq)]
 pub enum InkMacroAttributeKind {
+    /// `#[ink::chain_extension]`.
+    ChainExtension,
     /// `#[ink::contract]`.
     Contract,
-    // TODO: Add more macro attributes
+    /// `#[ink::storage_item]`.
+    StorageItem,
+    /// `#[ink::test]`.
+    Test,
+    /// `#[ink::trait_definition]`.
+    TraitDefinition,
     /// Fallback for unrecognized ink macro attributes.
     Unknown,
 }
@@ -82,9 +89,16 @@ impl TryFrom<&str> for InkMacroAttributeKind {
 
     fn try_from(path_segment: &str) -> Result<Self, Self::Error> {
         match path_segment {
+            // `#[ink::chain_extension]`
+            "chain_extension" => Ok(InkMacroAttributeKind::ChainExtension),
             // `#[ink::contract]`
             "contract" => Ok(InkMacroAttributeKind::Contract),
-            // TODO: Add more macro attributes e.g `#[ink::chain_extension]`
+            // `#[ink::contract]`
+            "storage_item" => Ok(InkMacroAttributeKind::StorageItem),
+            // `#[ink::contract]`
+            "test" => Ok(InkMacroAttributeKind::Test),
+            // `#[ink::contract]`
+            "trait_definition" => Ok(InkMacroAttributeKind::TraitDefinition),
             _ => Err("Unknown ink! macro attribute"),
         }
     }

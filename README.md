@@ -12,10 +12,11 @@ This project currently contains 2 main modules:
 This module implements types and abstractions for performing semantic analysis of ink! smart contract code.
 It therefore implements the core functionality of this library.
 
-Currently only a diagnostic that detects when the `#[ink::contract]` attribute is applied to anything
-other than a `mod` item and returns a diagnostic model that includes an error message
-and the text range to which the diagnostic applies is implemented.
-You can find its core implementation in the [diagnostics](./src/analysis/diagnostics.rs) submodule.
+Currently only 2 diagnostics that return a diagnostic model that includes an error/warning message, the text range to which the diagnostic applies and its severity are implemented:
+1. an error diagnostic that detects when the `#[ink::contract]` attribute is applied to anything other than a `mod` item.
+2. a warning diagnostic for unknown ink! macro attributes (e.g. `#[ink::xyz]`).
+
+You can find its core implementations in the [diagnostics](./src/analysis/diagnostics.rs) submodule.
 
 ### 2. [ir](./src/ir/mod.rs)
 This module implements ink! intermediate representations (IRs) and abstractions.

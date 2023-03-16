@@ -11,6 +11,17 @@ pub struct Diagnostic {
     pub message: String,
     /// Text range to highlight.
     pub range: TextRange,
+    /// The severity level of the diagnostic.
+    pub severity: Severity,
+}
+
+/// The severity level of the diagnostic.
+#[derive(Debug, Copy, Clone)]
+pub enum Severity {
+    /// An diagnostic error.
+    Error,
+    /// A diagnostic warning.
+    Warning,
 }
 
 /// Computes diagnostics for the source file.
@@ -23,21 +34,31 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
     for attr in attrs {
         if let Attribute::Ink(ink_attr) = Attribute::from(attr) {
             match ink_attr.kind {
+                // Validate ink! macro attributes
                 InkAttributeKind::Macro(ink_macro_kind) => {
-                    // Validate ink! macro attributes
-                    match ink_macro_kind {
-                        InkMacroAttributeKind::Contract => {
-                            let node = ink_attr.ast.syntax();
-                            let parent_kind = node.parent().unwrap().kind();
-
-                            if parent_kind != SyntaxKind::MODULE {
-                                diagnostic_errors.push(Diagnostic {
-                                    message: format!("This attribute can only be applied to a mod"),
-                                    range: node.text_range(),
-                                });
+                    let node = ink_attr.ast.syntax();
+                    if ink_macro_kind == InkMacroAttributeKind::Unknown {
+                        diagnostic_errors.push(Diagnostic {
+                            message: format!("Unknown ink! attribute"),
+                            range: node.text_range(),
+                            severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
+                        });
+                    } else {
+                        match ink_macro_kind {
+                            InkMacroAttributeKind::Contract => {
+                                let parent_kind = node.parent().unwrap().kind();
+                                if parent_kind != SyntaxKind::MODULE {
+                                    diagnostic_errors.push(Diagnostic {
+                                        message: format!(
+                                            "This ink! attribute can only be applied to a mod"
+                                        ),
+                                        range: node.text_range(),
+                                        severity: Severity::Error,
+                                    });
+                                }
                             }
+                            _ => (), // TODO: Validate other ink! macro attributes
                         }
-                        _ => (), // TODO: Validate other ink! macro attributes
                     }
                 }
                 InkAttributeKind::Arg(_) => {

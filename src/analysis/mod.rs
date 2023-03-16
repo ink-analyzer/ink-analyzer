@@ -86,4 +86,16 @@ mod tests {
         let diagnostics = Analysis.diagnostics(code);
         assert_eq!(diagnostics.len(), 1);
     }
+
+    #[test]
+    fn ink_unknown_macro_attribute_fails() {
+        let code = r#"
+        #[ink::xyz]
+        mod flipper {
+        }
+        "#;
+
+        let diagnostics = Analysis.diagnostics(code);
+        assert_eq!(diagnostics.len(), 1);
+    }
 }
