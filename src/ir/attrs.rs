@@ -25,8 +25,8 @@ impl From<Attr> for Attribute {
             let ink_attr_kind = match num_segments {
                 // 1 path segment indicates an ink! argument attribute
                 1 => InkAttributeKind::Arg(InkArgAttributeKind::Unknown),
+                // 2 path segments indicates an ink! macro attribute
                 2 => {
-                    // 2 path segments indicates an ink! macro attribute
                     let ink_macro_kind =
                         match InkMacroAttributeKind::try_from(&path_segments[1][..]) {
                             Ok(kind) => kind,
