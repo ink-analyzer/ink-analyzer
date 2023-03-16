@@ -99,6 +99,7 @@ impl TryFrom<&str> for InkMacroAttributeKind {
             "test" => Ok(InkMacroAttributeKind::Test),
             // `#[ink::contract]`
             "trait_definition" => Ok(InkMacroAttributeKind::TraitDefinition),
+            // unknown attribute
             _ => Err("Unknown ink! macro attribute"),
         }
     }
