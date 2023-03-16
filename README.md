@@ -29,12 +29,6 @@ Run the following Cargo command in your project directory
 cargo add ink-analyzer
 ```
 
-Or add the following line to your Cargo.toml under `[dependencies]`
-
-```toml
-ink-analyzer = "0.1.0"
-```
-
 ## Usage
 
 ### Example: Get diagnostics for ink! smart contract code
