@@ -22,7 +22,9 @@ This module implements ink! intermediate representations (IRs) and abstractions.
 
 ## Documentation
 
-You can access documentation for this project locally by running the following command from the project root
+[https://docs.rs/ink-analyzer/latest/ink_analyzer/](https://docs.rs/ink-analyzer/latest/ink_analyzer/)
+
+Or you can access documentation locally by running the following command from the project root
 
 ```shell
 cargo doc --open
