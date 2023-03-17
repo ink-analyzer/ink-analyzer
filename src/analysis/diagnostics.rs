@@ -2,7 +2,7 @@
 use ra_ap_syntax::ast::Attr;
 use ra_ap_syntax::{AstNode, SourceFile, SyntaxKind, TextRange};
 
-use crate::ir::attrs::{Attribute, InkArgAttributeKind, InkAttributeKind, InkMacroAttributeKind};
+use crate::ir::attrs::{Attribute, InkArgAttributeKind, InkAttributeKind, InkPathAttributeKind};
 
 /// A diagnostic error or warning.
 #[derive(Debug)]
@@ -35,20 +35,20 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
         if let Attribute::Ink(ink_attr) = Attribute::from(attr) {
             let node = ink_attr.ast.syntax();
             match ink_attr.kind {
-                // Validate ink! macro attributes
-                InkAttributeKind::Macro(ink_macro_kind) => {
-                    if ink_macro_kind == InkMacroAttributeKind::Unknown {
+                // Validate ink! path attributes
+                InkAttributeKind::Path(ink_path_kind) => {
+                    if ink_path_kind == InkPathAttributeKind::Unknown {
                         diagnostic_errors.push(Diagnostic {
                             message: format!(
-                                "Unknown ink! attribute: '{}'",
+                                "Unknown ink! path attribute: '{}'",
                                 node.text().to_string()
                             ),
                             range: node.text_range(),
                             severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
                         });
                     } else {
-                        match ink_macro_kind {
-                            InkMacroAttributeKind::Contract => {
+                        match ink_path_kind {
+                            InkPathAttributeKind::Contract => {
                                 let parent_kind = node.parent().unwrap().kind();
                                 if parent_kind != SyntaxKind::MODULE {
                                     diagnostic_errors.push(Diagnostic {
@@ -60,7 +60,7 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
                                     });
                                 }
                             }
-                            _ => (), // TODO: Validate other ink! macro attributes
+                            _ => (), // TODO: Validate other ink! path attributes
                         }
                     }
                 }
@@ -69,7 +69,7 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
                     if ink_arg_kind == InkArgAttributeKind::Unknown {
                         diagnostic_errors.push(Diagnostic {
                             message: format!(
-                                "Unknown ink! attribute: '{}'",
+                                "Unknown ink! argument attribute: '{}'",
                                 node.text().to_string()
                             ),
                             range: node.text_range(),
@@ -78,14 +78,6 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
                     } else {
                         // TODO: Validate ink! argument attributes
                     }
-                }
-                // Handle generic unknown ink! attributes
-                _ => {
-                    diagnostic_errors.push(Diagnostic {
-                        message: format!("Unknown ink! attribute: '{}'", node.text().to_string()),
-                        range: node.text_range(),
-                        severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
-                    });
                 }
             }
         }

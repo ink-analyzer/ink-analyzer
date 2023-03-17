@@ -50,17 +50,17 @@ impl From<Attr> for Attribute {
                         }
                         InkAttributeKind::Arg(ink_arg_kind)
                     }
-                    // 2 path segments indicates an ink! macro attribute
+                    // 2 path segments indicates an ink! path attribute
                     2 => {
-                        let ink_macro_kind =
-                            match InkMacroAttributeKind::try_from(&path_segments[1][..]) {
+                        let ink_path_kind =
+                            match InkPathAttributeKind::try_from(&path_segments[1][..]) {
                                 Ok(kind) => kind,
-                                _ => InkMacroAttributeKind::Unknown,
+                                _ => InkPathAttributeKind::Unknown,
                             };
-                        InkAttributeKind::Macro(ink_macro_kind)
+                        InkAttributeKind::Path(ink_path_kind)
                     }
-                    // treat anything more than 2 path segments as unknown
-                    _ => InkAttributeKind::Unknown,
+                    // treat attributes with more than 2 path segments as unknown path
+                    _ => InkAttributeKind::Path(InkPathAttributeKind::Unknown),
                 };
                 return Attribute::Ink(InkAttribute {
                     ast: attr,
@@ -78,7 +78,7 @@ impl From<Attr> for Attribute {
 pub struct InkAttribute {
     /// AST Node for ink! attribute.
     pub ast: Attr,
-    /// The kind of the ink! attribute e.g macro attributes like `#[ink::contract]`
+    /// The kind of the ink! attribute e.g path attribute like `#[ink::contract]`
     /// or argument attribute like `#[ink(storage)]`.
     pub kind: InkAttributeKind,
     // TODO: Add attribute arguments
@@ -87,17 +87,15 @@ pub struct InkAttribute {
 /// The kind of the ink! attribute.
 #[derive(Debug, PartialEq, Eq)]
 pub enum InkAttributeKind {
-    /// ink! macro attributes e.g `#[ink::contract]`.
-    Macro(InkMacroAttributeKind),
+    /// ink! path attributes e.g `#[ink::contract]`.
+    Path(InkPathAttributeKind),
     /// ink! argument attributes e.g `#[ink(storage)]`.
     Arg(InkArgAttributeKind),
-    /// Fallback for unrecognized ink attributes.
-    Unknown,
 }
 
-/// The kind of the ink! macro attribute.
+/// An ink! path attribute kind.
 #[derive(Debug, PartialEq, Eq)]
-pub enum InkMacroAttributeKind {
+pub enum InkPathAttributeKind {
     /// `#[ink::chain_extension]`
     ChainExtension,
     /// `#[ink::contract]`
@@ -108,32 +106,32 @@ pub enum InkMacroAttributeKind {
     Test,
     /// `#[ink::trait_definition]`
     TraitDefinition,
-    /// Fallback for unrecognized ink macro attributes.
+    /// Fallback for unrecognized ink! path attributes.
     Unknown,
 }
 
-impl TryFrom<&str> for InkMacroAttributeKind {
+impl TryFrom<&str> for InkPathAttributeKind {
     type Error = &'static str;
 
     fn try_from(path_segment: &str) -> Result<Self, Self::Error> {
         match path_segment {
             // `#[ink::chain_extension]`
-            "chain_extension" => Ok(InkMacroAttributeKind::ChainExtension),
+            "chain_extension" => Ok(InkPathAttributeKind::ChainExtension),
             // `#[ink::contract]`
-            "contract" => Ok(InkMacroAttributeKind::Contract),
+            "contract" => Ok(InkPathAttributeKind::Contract),
             // `#[ink::contract]`
-            "storage_item" => Ok(InkMacroAttributeKind::StorageItem),
+            "storage_item" => Ok(InkPathAttributeKind::StorageItem),
             // `#[ink::contract]`
-            "test" => Ok(InkMacroAttributeKind::Test),
+            "test" => Ok(InkPathAttributeKind::Test),
             // `#[ink::contract]`
-            "trait_definition" => Ok(InkMacroAttributeKind::TraitDefinition),
+            "trait_definition" => Ok(InkPathAttributeKind::TraitDefinition),
             // unknown attribute
-            _ => Err("Unknown ink! macro attribute"),
+            _ => Err("Unknown ink! path attribute."),
         }
     }
 }
 
-/// The kind of the ink! argument attribute.
+/// An ink! argument attribute kind.
 #[derive(Debug, PartialEq, Eq)]
 pub enum InkArgAttributeKind {
     /// `#[ink(anonymous)]`
@@ -160,7 +158,7 @@ pub enum InkArgAttributeKind {
     Storage,
     /// `#[ink(topic)]`
     Topic,
-    /// Fallback for unrecognized ink macro attributes.
+    /// Fallback for unrecognized ink! argument attribute.
     Unknown,
 }
 
@@ -194,7 +192,7 @@ impl TryFrom<&str> for InkArgAttributeKind {
             // `#[ink::constructor]`
             "topic" => Ok(InkArgAttributeKind::Topic),
             // unknown attribute
-            _ => Err("Unknown ink! attribute argument"),
+            _ => Err("Unknown ink! argument attribute."),
         }
     }
 }

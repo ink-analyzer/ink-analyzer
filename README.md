@@ -14,8 +14,8 @@ It therefore implements the core functionality of this library.
 
 Currently only 3 diagnostics that return a diagnostic model that includes an error/warning message, the text range to which the diagnostic applies and its severity are implemented:
 1. an error diagnostic that detects when the `#[ink::contract]` attribute is applied to anything other than a `mod` item.
-2. a warning diagnostic for unknown ink! macro attributes (e.g. `#[ink::xyz]`, `#[ink::abc::xyz]`).
-3. a warning diagnostic for unknown ink! attribute arguments (e.g. `#[ink(xyz)]`).
+2. a warning diagnostic for unknown ink! path attribute (e.g. `#[ink::xyz]`, `#[ink::abc::xyz]`).
+3. a warning diagnostic for unknown ink! argument attribute (e.g. `#[ink(xyz)]`).
 
 You can find its core implementations in the [diagnostics](./src/analysis/diagnostics.rs) submodule.
 
