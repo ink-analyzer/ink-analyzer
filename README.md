@@ -52,7 +52,7 @@ fn do_analysis() {
         }
     "#;
 
-    let diagnostics = Analysis.diagnostics(&code);
+    let diagnostics = Analysis.diagnostics(code);
     dbg!(&diagnostics);
 }
 ```
