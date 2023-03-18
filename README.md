@@ -14,10 +14,10 @@ It therefore implements the core functionality of this library.
 
 Currently only 3 diagnostics that return a diagnostic model that includes an error/warning message, the text range to which the diagnostic applies and its severity are implemented:
 1. an error diagnostic that detects when the `#[ink::contract]` attribute is applied to anything other than a `mod` item.
-2. a warning diagnostic for unknown ink! macro/path attributes (e.g. `#[ink::xyz]`, `#[ink::abc::xyz]`).
-3. a warning diagnostic for unknown ink! argument attributes (e.g. `#[ink(xyz)]`).
+2. a warning diagnostic for unknown ink! path-based attributes (e.g. `#[ink::xyz]`, `#[ink::abc::xyz]`).
+3. a warning diagnostic for unknown ink! argument-based attributes (e.g. `#[ink(xyz)]`).
 
-You can find its core implementations in the [diagnostics](./src/analysis/diagnostics.rs) submodule.
+You can find their core implementations in the [diagnostics](./src/analysis/diagnostics.rs) submodule.
 
 ### 2. [ir](./src/ir/mod.rs)
 This module implements ink! intermediate representations (IRs) and abstractions.
@@ -75,7 +75,7 @@ You can run unit tests for all the core functionality by running the following c
 cargo test
 ```
 
-Implementations of the unit tests (and hence a good overview of the current functionality) can be found in the [analysis module](./src/analysis/mod.rs).
+Implementations of the unit tests (and hence a good overview of the current functionality) can be found in the [diagnostics submodule](./src/analysis/diagnostics.rs) of the [analysis module](./src/analysis/mod.rs).
 
 ## License
 
