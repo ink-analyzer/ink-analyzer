@@ -103,10 +103,10 @@ mod tests {
         fn ink_contract_attribute_on_mod_works() {
             let file = parse(
                 r#"
-        #[ink::contract]
-        mod flipper {
-        }
-        "#,
+                #[ink::contract]
+                mod flipper {
+                }
+                "#,
             );
 
             let results = diagnostics(&file);
@@ -117,12 +117,12 @@ mod tests {
         fn ink_contract_attribute_with_args_on_mod_works() {
             let file = parse(
                 r#"
-        #[ink::contract(keep_attr="foo, bar")]
-        mod flipper {
-            // #[foo]
-            // #[bar]
-        }
-        "#,
+                #[ink::contract(keep_attr="foo, bar")]
+                mod flipper {
+                    // #[foo]
+                    // #[bar]
+                }
+                "#,
             );
 
             let results = diagnostics(&file);
@@ -133,10 +133,10 @@ mod tests {
         fn ink_contract_attribute_in_mod_body_fails() {
             let file = parse(
                 r#"
-        mod flipper {
-            #[ink::contract]
-        }
-        "#,
+                mod flipper {
+                    #[ink::contract]
+                }
+                "#,
             );
 
             let results = diagnostics(&file);
@@ -148,10 +148,10 @@ mod tests {
         fn ink_contract_attribute_on_fn_fails() {
             let file = parse(
                 r#"
-        #[ink::contract]
-        fn flipper() {
-        }
-        "#,
+                #[ink::contract]
+                fn flipper() {
+                }
+                "#,
             );
 
             let results = diagnostics(&file);
@@ -163,10 +163,10 @@ mod tests {
         fn ink_contract_attribute_on_struct_fails() {
             let file = parse(
                 r#"
-        #[ink::contract]
-        struct Flipper {
-        }
-        "#,
+                #[ink::contract]
+                struct Flipper {
+                }
+                "#,
             );
 
             let results = diagnostics(&file);
@@ -183,10 +183,10 @@ mod tests {
         fn ink_unknown_path_attribute_fails() {
             let file = parse(
                 r#"
-        #[ink::xyz]
-        mod flipper {
-        }
-        "#,
+                #[ink::xyz]
+                mod flipper {
+                }
+                "#,
             );
 
             let results = diagnostics(&file);
@@ -198,10 +198,10 @@ mod tests {
         fn ink_unknown_multi_path_attribute_fails() {
             let file = parse(
                 r#"
-        #[ink::abc::xyz]
-        mod flipper {
-        }
-        "#,
+                #[ink::abc::xyz]
+                mod flipper {
+                }
+                "#,
             );
 
             let results = diagnostics(&file);
@@ -213,10 +213,10 @@ mod tests {
         fn ink_unknown_arg_attribute_fails() {
             let file = parse(
                 r#"
-        #[ink(xyz)]
-        struct Flipper {
-        }
-        "#,
+                #[ink(xyz)]
+                struct Flipper {
+                }
+                "#,
             );
 
             let results = diagnostics(&file);
