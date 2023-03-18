@@ -35,44 +35,40 @@ pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
     for attr in attrs {
         if let Attribute::Ink(ink_attr) = Attribute::from(attr) {
             let node = ink_attr.ast.syntax();
+            let attr_text = node.text().to_string();
             match ink_attr.kind {
                 // Validate ink! path attributes
                 InkAttributeKind::Path(ink_path_kind) => {
-                    if ink_path_kind == InkPathAttributeKind::Unknown {
-                        results.push(Diagnostic {
-                            message: format!(
-                                "Unknown ink! path attribute: '{}'",
-                                node.text().to_string()
-                            ),
-                            range: node.text_range(),
-                            severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
-                        });
-                    } else {
-                        match ink_path_kind {
-                            InkPathAttributeKind::Contract => {
-                                let parent_kind = node.parent().unwrap().kind();
-                                if parent_kind != SyntaxKind::MODULE {
-                                    results.push(Diagnostic {
-                                        message: format!(
-                                            "This ink! attribute can only be applied to a mod"
-                                        ),
-                                        range: node.text_range(),
-                                        severity: Severity::Error,
-                                    });
-                                }
+                    match ink_path_kind {
+                        InkPathAttributeKind::Contract => {
+                            let parent_kind = node.parent().unwrap().kind();
+                            if parent_kind != SyntaxKind::MODULE {
+                                results.push(Diagnostic {
+                                    message: format!(
+                                        "This ink! attribute can only be applied to a mod: '{}'",
+                                        attr_text
+                                    ),
+                                    range: node.text_range(),
+                                    severity: Severity::Error,
+                                });
                             }
-                            _ => (), // TODO: Validate other ink! path attributes
                         }
+                        // TODO: Validate other ink! path attributes
+                        InkPathAttributeKind::Unknown => {
+                            results.push(Diagnostic {
+                                message: format!("Unknown ink! path attribute: '{}'", attr_text),
+                                range: node.text_range(),
+                                severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
+                            });
+                        }
+                        _ => (), // TODO: Remove when other attributes are handled
                     }
                 }
                 // Validate ink! argument attributes
                 InkAttributeKind::Arg(ink_arg_kind) => {
                     if ink_arg_kind == InkArgAttributeKind::Unknown {
                         results.push(Diagnostic {
-                            message: format!(
-                                "Unknown ink! argument attribute: '{}'",
-                                node.text().to_string()
-                            ),
+                            message: format!("Unknown ink! argument attribute: '{}'", attr_text),
                             range: node.text_range(),
                             severity: Severity::Warning, // warning because it's possible ink-analyzer is just outdated
                         });

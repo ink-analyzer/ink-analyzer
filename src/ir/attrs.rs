@@ -43,7 +43,7 @@ impl From<Attr> for Attribute {
                     // 1 path segment indicates an ink! argument attribute
                     1 => {
                         let mut ink_arg_kind = InkArgAttributeKind::Unknown;
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             if let Ok(kind) = InkArgAttributeKind::try_from(&args[0][..]) {
                                 ink_arg_kind = kind;
                             }
