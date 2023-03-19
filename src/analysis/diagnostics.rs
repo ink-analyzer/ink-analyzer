@@ -19,7 +19,7 @@ pub struct Diagnostic {
 /// The severity level of the diagnostic.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Severity {
-    /// An diagnostic error.
+    /// A diagnostic error.
     Error,
     /// A diagnostic warning.
     Warning,
@@ -29,10 +29,8 @@ pub enum Severity {
 pub fn diagnostics(file: &SourceFile) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Get all attributes
-    let attrs = file.syntax().descendants().filter_map(Attr::cast);
-
-    for attr in attrs {
+    // Validate all attributes
+    for attr in file.syntax().descendants().filter_map(Attr::cast) {
         if let Attribute::Ink(ink_attr) = Attribute::from(attr) {
             let node = ink_attr.ast.syntax();
             let attr_text = node.text().to_string();

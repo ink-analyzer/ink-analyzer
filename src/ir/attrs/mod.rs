@@ -1,6 +1,7 @@
 //! ink! attribute intermediate representations (IRs) and abstractions.
-use ra_ap_syntax::ast::{Attr};
 use crate::ir::attrs::utils::{get_args, get_path_segments};
+use ra_ap_syntax::ast::{Attr, Ident, PathSegment};
+use ra_ap_syntax::AstToken;
 
 mod utils;
 
@@ -15,17 +16,18 @@ pub enum Attribute {
 
 impl From<Attr> for Attribute {
     fn from(attr: Attr) -> Self {
-        let path_segments: Vec<String> = get_path_segments(&attr);
-        let args: Vec<String> = get_args(&attr);
+        let path_segments: Vec<PathSegment> = get_path_segments(&attr);
+        let args: Vec<Ident> = get_args(&attr);
 
         let num_segments = path_segments.len();
-        if num_segments > 0 && path_segments[0] == "ink" {
+        if num_segments > 0 && path_segments[0].to_string() == "ink" {
             let ink_attr_kind = match num_segments {
                 // 1 path segment indicates an ink! argument attribute
                 1 => {
                     let mut ink_arg_kind = InkArgAttributeKind::Unknown;
                     if !args.is_empty() {
-                        if let Ok(kind) = InkArgAttributeKind::try_from(&args[0][..]) {
+                        let arg_name = args[0].text();
+                        if let Ok(kind) = InkArgAttributeKind::try_from(arg_name) {
                             ink_arg_kind = kind;
                         }
                     }
@@ -33,7 +35,7 @@ impl From<Attr> for Attribute {
                 }
                 // 2 path segments indicates an ink! path attribute
                 2 => {
-                    let attr_path = &path_segments[1][..];
+                    let attr_path = &path_segments[1].to_string()[..];
                     let ink_path_kind = match InkPathAttributeKind::try_from(attr_path) {
                         Ok(kind) => kind,
                         _ => InkPathAttributeKind::Unknown,

@@ -1,10 +1,10 @@
 //! Utilities for creating ink! attribute intermediate representations (IRs) and abstractions.
-use ra_ap_syntax::ast::{Attr, PathSegment};
-use ra_ap_syntax::{AstNode, SyntaxKind};
+use ra_ap_syntax::ast::{Attr, Ident, PathSegment};
+use ra_ap_syntax::{AstNode, AstToken};
 
 /// Parse attribute path segments.
-pub fn get_path_segments(attr: &Attr) -> Vec<String> {
-    let mut path_segments: Vec<String> = Vec::new();
+pub fn get_path_segments(attr: &Attr) -> Vec<PathSegment> {
+    let mut path_segments: Vec<PathSegment> = Vec::new();
 
     if let Some(meta) = attr.meta() {
         if let Some(path) = meta.path() {
@@ -12,7 +12,6 @@ pub fn get_path_segments(attr: &Attr) -> Vec<String> {
                 .syntax()
                 .descendants()
                 .filter_map(PathSegment::cast)
-                .map(|item| item.syntax().text().to_string())
                 .collect();
         }
     }
@@ -21,19 +20,17 @@ pub fn get_path_segments(attr: &Attr) -> Vec<String> {
 }
 
 /// Parse attribute arguments.
-pub fn get_args(attr: &Attr) -> Vec<String> {
-    let mut args: Vec<String> = Vec::new();
+pub fn get_args(attr: &Attr) -> Vec<Ident> {
+    let mut args: Vec<Ident> = Vec::new();
 
     if let Some(meta) = attr.meta() {
         if let Some(token_tree) = meta.token_tree() {
-            for item in token_tree.syntax().descendants_with_tokens() {
-                if let Some(token) = item.as_token() {
-                    if token.kind() == SyntaxKind::IDENT {
-                        args.push(token.text().to_string());
-                        // TODO: Parse argument values
-                    }
-                }
-            }
+            args = token_tree
+                .syntax()
+                .descendants_with_tokens()
+                .filter_map(|item| item.into_token())
+                .filter_map(Ident::cast)
+                .collect();
         }
     }
 
