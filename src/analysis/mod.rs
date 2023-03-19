@@ -1,9 +1,9 @@
 //! Types and abstractions for performing semantic analysis of ink! smart contract code.
 use ra_ap_syntax::SourceFile;
 
-use crate::analysis::diagnostics::Diagnostic;
+pub use crate::analysis::diagnostics::{Diagnostic, Severity};
 
-pub mod diagnostics;
+mod diagnostics;
 
 /// Analysis is the main entry point for asking for semantic information about source code.
 #[derive(Debug)]

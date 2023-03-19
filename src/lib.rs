@@ -4,7 +4,7 @@
 //! **NOTE:** This project is still work in progress
 //! and implements very limited functionality at this time.
 
-pub mod analysis;
-pub mod ir;
+pub use crate::analysis::Analysis;
 
-pub use crate::{analysis::diagnostics::Diagnostic, analysis::Analysis};
+pub mod analysis;
+mod ir;

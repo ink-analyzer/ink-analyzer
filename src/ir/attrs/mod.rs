@@ -1,6 +1,8 @@
 //! ink! attribute intermediate representations (IRs) and abstractions.
-use ra_ap_syntax::ast::{Attr, PathSegment};
-use ra_ap_syntax::{AstNode, SyntaxKind};
+use ra_ap_syntax::ast::{Attr};
+use crate::ir::attrs::utils::{get_args, get_path_segments};
+
+mod utils;
 
 /// Either an ink! specific attribute, or another uninterpreted attribute.
 #[derive(Debug, PartialEq, Eq)]
@@ -13,60 +15,39 @@ pub enum Attribute {
 
 impl From<Attr> for Attribute {
     fn from(attr: Attr) -> Self {
-        if let Some(meta) = attr.meta() {
-            let mut path_segments: Vec<String> = Vec::new();
-            let mut args: Vec<String> = Vec::new();
+        let path_segments: Vec<String> = get_path_segments(&attr);
+        let args: Vec<String> = get_args(&attr);
 
-            if let Some(path) = meta.path() {
-                path_segments = path
-                    .syntax()
-                    .descendants()
-                    .filter_map(PathSegment::cast)
-                    .map(|item| item.syntax().text().to_string())
-                    .collect();
-            }
-
-            if let Some(token_tree) = meta.token_tree() {
-                for item in token_tree.syntax().descendants_with_tokens() {
-                    if let Some(token) = item.as_token() {
-                        if token.kind() == SyntaxKind::IDENT {
-                            args.push(token.text().to_string());
-                            // TODO: Parse argument values
+        let num_segments = path_segments.len();
+        if num_segments > 0 && path_segments[0] == "ink" {
+            let ink_attr_kind = match num_segments {
+                // 1 path segment indicates an ink! argument attribute
+                1 => {
+                    let mut ink_arg_kind = InkArgAttributeKind::Unknown;
+                    if !args.is_empty() {
+                        if let Ok(kind) = InkArgAttributeKind::try_from(&args[0][..]) {
+                            ink_arg_kind = kind;
                         }
                     }
+                    InkAttributeKind::Arg(ink_arg_kind)
                 }
-            }
+                // 2 path segments indicates an ink! path attribute
+                2 => {
+                    let attr_path = &path_segments[1][..];
+                    let ink_path_kind = match InkPathAttributeKind::try_from(attr_path) {
+                        Ok(kind) => kind,
+                        _ => InkPathAttributeKind::Unknown,
+                    };
+                    InkAttributeKind::Path(ink_path_kind)
+                }
+                // treat attributes with more than 2 path segments as unknown path
+                _ => InkAttributeKind::Path(InkPathAttributeKind::Unknown),
+            };
 
-            let num_segments = path_segments.len();
-            if num_segments > 0 && path_segments[0] == "ink" {
-                let ink_attr_kind = match num_segments {
-                    // 1 path segment indicates an ink! argument attribute
-                    1 => {
-                        let mut ink_arg_kind = InkArgAttributeKind::Unknown;
-                        if !args.is_empty() {
-                            if let Ok(kind) = InkArgAttributeKind::try_from(&args[0][..]) {
-                                ink_arg_kind = kind;
-                            }
-                        }
-                        InkAttributeKind::Arg(ink_arg_kind)
-                    }
-                    // 2 path segments indicates an ink! path attribute
-                    2 => {
-                        let ink_path_kind =
-                            match InkPathAttributeKind::try_from(&path_segments[1][..]) {
-                                Ok(kind) => kind,
-                                _ => InkPathAttributeKind::Unknown,
-                            };
-                        InkAttributeKind::Path(ink_path_kind)
-                    }
-                    // treat attributes with more than 2 path segments as unknown path
-                    _ => InkAttributeKind::Path(InkPathAttributeKind::Unknown),
-                };
-                return Attribute::Ink(InkAttribute {
-                    ast: attr,
-                    kind: ink_attr_kind,
-                });
-            }
+            return Attribute::Ink(InkAttribute {
+                ast: attr,
+                kind: ink_attr_kind,
+            });
         }
 
         Attribute::Other(attr)
@@ -165,8 +146,8 @@ pub enum InkArgAttributeKind {
 impl TryFrom<&str> for InkArgAttributeKind {
     type Error = &'static str;
 
-    fn try_from(path_segment: &str) -> Result<Self, Self::Error> {
-        match path_segment {
+    fn try_from(arg_name: &str) -> Result<Self, Self::Error> {
+        match arg_name {
             // `#[ink::constructor]`
             "anonymous" => Ok(InkArgAttributeKind::Anonymous),
             // `#[ink::constructor]`
