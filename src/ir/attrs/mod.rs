@@ -1,6 +1,6 @@
 //! ink! attribute intermediate representations (IRs) and abstractions.
 use crate::ir::attrs::utils::{get_args, get_path_segments};
-use ra_ap_syntax::ast::{Attr, Ident, PathSegment};
+use ra_ap_syntax::ast::Attr;
 use ra_ap_syntax::AstToken;
 
 mod utils;
@@ -16,8 +16,8 @@ pub enum Attribute {
 
 impl From<Attr> for Attribute {
     fn from(attr: Attr) -> Self {
-        let path_segments: Vec<PathSegment> = get_path_segments(&attr);
-        let args: Vec<Ident> = get_args(&attr);
+        let path_segments = get_path_segments(&attr);
+        let args = get_args(&attr);
 
         let num_segments = path_segments.len();
         if num_segments > 0 && path_segments[0].to_string() == "ink" {
@@ -102,11 +102,11 @@ impl TryFrom<&str> for InkPathAttributeKind {
             "chain_extension" => Ok(InkPathAttributeKind::ChainExtension),
             // `#[ink::contract]`
             "contract" => Ok(InkPathAttributeKind::Contract),
-            // `#[ink::contract]`
+            // `#[ink::storage_item]`
             "storage_item" => Ok(InkPathAttributeKind::StorageItem),
-            // `#[ink::contract]`
+            // `#[ink::test]`
             "test" => Ok(InkPathAttributeKind::Test),
-            // `#[ink::contract]`
+            // `#[ink::trait_definition]`
             "trait_definition" => Ok(InkPathAttributeKind::TraitDefinition),
             // unknown attribute
             _ => Err("Unknown ink! path attribute."),
