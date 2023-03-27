@@ -8,7 +8,7 @@ A library for semantic analysis of [ink!](https://use.ink/) smart contract code.
 
 This project currently contains 2 main modules:
 
-### 1. [analysis](./src/analysis/mod.rs)
+### 1. [analysis](./src/analysis.rs)
 This module implements types and abstractions for performing semantic analysis of ink! smart contract code.
 It therefore implements the core functionality of this library.
 
@@ -19,7 +19,7 @@ Currently only 3 diagnostics that return a diagnostic model that includes an err
 
 You can find their core implementations in the [diagnostics](./src/analysis/diagnostics.rs) submodule.
 
-### 2. [ir](./src/ir/mod.rs)
+### 2. [ir](./src/ir.rs)
 This module implements ink! intermediate representations (IRs) and abstractions.
 
 ## Installation
@@ -75,7 +75,7 @@ You can run unit tests for all the core functionality by running the following c
 cargo test
 ```
 
-Implementations of the unit tests (and hence a good overview of the current functionality) can be found in the [diagnostics submodule](./src/analysis/diagnostics.rs) of the [analysis module](./src/analysis/mod.rs).
+Implementations of the unit tests (and hence a good overview of the current functionality) can be found in the [diagnostics submodule](./src/analysis/diagnostics.rs) of the [analysis module](./src/analysis.rs).
 
 ## License
 
