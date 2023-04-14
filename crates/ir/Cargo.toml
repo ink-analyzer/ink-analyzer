@@ -1,0 +1,19 @@
+[package]
+name = "ink-analyzer-ir"
+version = "0.1.0"
+edition = "2021"
+description = "Intermediate representations (IRs) and abstractions of ink! smart contract code for ink! analyzer."
+license = "MIT OR Apache-2.0"
+authors = ["David Semakula <hello@davidsemakula.com>"]
+
+readme = "README.md"
+repository = "https://github.com/ink-analyzer/ink-analyzer"
+homepage = "https://github.com/ink-analyzer/ink-analyzer"
+keywords = ["ink", "smart-contract", "polkadot", "substrate", "blockchain"]
+categories = ["development-tools"]
+
+[dependencies]
+ink-analyzer-macro = { path = "../macro" }
+itertools = "0.10.5"
+ra_ap_syntax = "0.0.149"
+
