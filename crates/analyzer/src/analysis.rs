@@ -1,18 +1,19 @@
 //! Types and abstractions for performing semantic analysis of ink! smart contract code.
-use ra_ap_syntax::SourceFile;
 
-pub use crate::analysis::diagnostics::{Diagnostic, Severity};
+use ink_analyzer_ir::InkFile;
+
+pub use diagnostics::{Diagnostic, Severity};
 
 mod diagnostics;
 
-/// Analysis is the main entry point for asking for semantic information about source code.
+/// Analysis is the main entry point for asking for semantic information about ink! smart contract code.
 #[derive(Debug)]
 pub struct Analysis;
 
 impl Analysis {
-    /// Gets the syntax tree of the smart contract code.
-    pub fn parse(&self, code: &str) -> SourceFile {
-        SourceFile::parse(code).tree()
+    /// Returns the intermediate representation (IR) of the smart contract code.
+    pub fn parse(&self, code: &str) -> InkFile {
+        InkFile::parse(code)
     }
 
     /// Computes diagnostics for the smart contract code.
