@@ -19,3 +19,6 @@ proc-macro = true
 proc-macro2 = "1.0.56"
 quote = "1.0.26"
 syn = { version = "2.0.15", features = ["parsing", "full", "extra-traits"] }
+
+[dev-dependencies]
+ink-analyzer-ir = { version = "0.1", path = "../ir" }

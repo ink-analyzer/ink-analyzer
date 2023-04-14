@@ -14,12 +14,12 @@ cargo add ink-analyzer-macro
 
 ## Usage
 
-### Example: Use the custom derive macro for the `FromInkAttribute` trait.
+### Example: Using the custom derive macro for the `FromInkAttribute` trait.
 
 
 ```rust
 use ink_analyzer_macro::FromInkAttribute;
-// -- snip --
+use ink_analyzer_ir::{FromInkAttribute, InkAttribute};
 
 #[derive(FromInkAttribute)]
 struct Contract {
