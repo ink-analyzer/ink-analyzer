@@ -11,7 +11,7 @@ pub trait FromSyntax {
 }
 
 /// Implemented by IR items that wrap an AST node.
-pub trait FromAST: FromSyntax {
+pub trait FromAST {
     /// Associated AST node type.
     type AST: AstNode;
 
@@ -27,7 +27,7 @@ impl<T: FromAST> FromSyntax for T {
 }
 
 /// Implemented by IR items that wrap an ink! attribute item.
-pub trait FromInkAttribute: FromSyntax {
+pub trait FromInkAttribute {
     /// Returns the ink! attribute item for the IR item.
     fn ink_attr(&self) -> &InkAttribute;
 }
