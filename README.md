@@ -26,6 +26,10 @@ This crate implements procedural macros used by other crates e.g. custom derive 
 
 Check the readme of each crate for installation and usage instructions and links to documentation.
 
+- Analyzer: [/crates/analyzer](./crates/analyzer)
+- IR: [/crates/ir](./crates/ir)
+- Proc-macros: [/crates/macro](./crates/macro)
+
 ## Documentation
 
 - Analyzer: [https://docs.rs/ink-analyzer/latest/ink_analyzer/](https://docs.rs/ink-analyzer/latest/ink_analyzer/)
