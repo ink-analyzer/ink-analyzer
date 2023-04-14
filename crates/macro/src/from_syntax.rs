@@ -6,7 +6,7 @@ use syn::{DeriveInput, Expr};
 use crate::utils::parse_struct_fields;
 
 /// Returns an implementation of the `FromSyntax` trait
-/// for any `struct` with a `syntax` or `ink_attr` field.
+/// for any `struct` with a `syntax`, `ast` or `ink_attr` field.
 pub fn impl_from_syntax(ast: &DeriveInput) -> Option<TokenStream> {
     let name = &ast.ident;
 
@@ -14,6 +14,8 @@ pub fn impl_from_syntax(ast: &DeriveInput) -> Option<TokenStream> {
         let mut expr: Option<Expr> = None;
         if utils::contains_field(fields, "syntax") {
             expr = Some(syntax_field_return_expr());
+        } else if utils::contains_field(fields, "ast") {
+            expr = Some(ast_field_return_expr());
         } else if utils::contains_field(fields, "ink_attr") {
             expr = Some(ink_attr_field_return_expr());
         }
@@ -35,6 +37,10 @@ pub fn impl_from_syntax(ast: &DeriveInput) -> Option<TokenStream> {
 
 fn syntax_field_return_expr() -> Expr {
     syn::parse2::<Expr>(quote! { &self.syntax }).expect("Should be able to parse expression.")
+}
+
+fn ast_field_return_expr() -> Expr {
+    syn::parse2::<Expr>(quote! { &self.ast.syntax() }).expect("Should be able to parse expression.")
 }
 
 fn ink_attr_field_return_expr() -> Expr {
@@ -80,6 +86,22 @@ mod tests {
     }
 
     #[test]
+    fn struct_with_ast_field_works() {
+        let name = format_ident!("Contract");
+        let input = syn::parse2::<DeriveInput>(quote! {
+            struct #name {
+                ast: Module,
+            }
+        })
+        .unwrap();
+
+        assert_eq!(
+            parse_actual_impl(input),
+            expected_impl(name, ast_field_return_expr())
+        );
+    }
+
+    #[test]
     fn struct_with_ink_attr_field_works() {
         let name = format_ident!("Contract");
         let input = syn::parse2::<DeriveInput>(quote! {
@@ -96,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn struct_with_neither_syntax_nor_ink_attr_field_fails() {
+    fn struct_with_none_of_expected_fields_fails() {
         let name = format_ident!("Contract");
         let input = syn::parse2::<DeriveInput>(quote! {
             struct #name {

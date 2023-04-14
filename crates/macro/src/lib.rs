@@ -52,7 +52,7 @@ pub fn from_ink_attribute_derive(input: TokenStream) -> TokenStream {
 }
 
 /// Derive macro that implements the `FromSyntax` trait
-/// for any `struct` with either a `syntax` or `ink_attr` field.
+/// for any `struct` with a `syntax`, `ast` or `ink_attr` field.
 ///
 /// # Example
 /// ```
@@ -70,6 +70,6 @@ pub fn from_syntax_derive(input: TokenStream) -> TokenStream {
     utils::parse_syntax_tree_and_call_derive_impl(
         input,
         from_syntax::impl_from_syntax,
-        "#[derive(FromSyntax)] can only be applied to a `struct` with a `syntax` field.",
+        "#[derive(FromSyntax)] can only be applied to a `struct` with a `syntax`, `ast` or `ink_attr` field.",
     )
 }
