@@ -7,7 +7,7 @@ It therefore implements the core functionality of this library.
 
 Currently only diagnostics that return a diagnostic model that includes an error/warning message, the text range to which the diagnostic applies and its severity are implemented.
 
-You can find their core implementations in the [diagnostics](./crates/analyzer/src/analysis/diagnostics.rs) submodule.
+You can find their core implementations in the [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) submodule.
 
 **NOTE:** This project is still work in progress, check back over the next few weeks for regular updates.
 
@@ -64,7 +64,7 @@ You can run unit tests for all the core functionality by running the following c
 cargo test -p ink-analyzer-ir
 ```
 
-Implementations of the unit tests (and hence a good overview of the current functionality) can be found in the [diagnostics submodule](./crates/analyzer/src/analysis/diagnostics.rs) of the [ink-analyzer crate](./crates/analyzer).
+Implementations of the unit tests (and hence a good overview of the current functionality) can be found in the [diagnostics submodule](/crates/analyzer/src/analysis/diagnostics.rs) of the [ink-analyzer crate](/crates/analyzer).
 
 ## License
 

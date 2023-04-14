@@ -8,27 +8,27 @@ A collection of modular and reusable libraries and tools for semantic analysis o
 
 This repository contains 3 crates:
 
-### 1. [Semantic Analyzer (ink-analyzer)](./crates/analyzer)
+### 1. [Semantic Analyzer (ink-analyzer)](/crates/analyzer)
 This crate implements types and abstractions for performing semantic analysis of ink! smart contract code.
 It therefore implements the core functionality of this library.
 
 Currently only diagnostics that return a diagnostic model that includes an error/warning message, the text range to which the diagnostic applies and its severity are implemented.
 
-You can find their core implementations in the [diagnostics](./crates/analyzer/src/analysis/diagnostics.rs) submodule.
+You can find their core implementations in the [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) submodule.
 
-### 2. [IR (ink-analyzer-ir)](./crates/ir)
+### 2. [IR (ink-analyzer-ir)](/crates/ir)
 This crate implements ink! intermediate representations (IRs) and abstractions.
 
-### 3. [Proc-macros (ink-analyzer-macro)](./crates/macro)
+### 3. [Proc-macros (ink-analyzer-macro)](/crates/macro)
 This crate implements procedural macros used by other crates e.g. custom derive macros for IR traits.
 
 ## Installation and Usage Instructions
 
 Check the readme of each crate for installation and usage instructions and links to documentation.
 
-- Analyzer: [/crates/analyzer](./crates/analyzer)
-- IR: [/crates/ir](./crates/ir)
-- Proc-macros: [/crates/macro](./crates/macro)
+- Analyzer: [/crates/analyzer](/crates/analyzer)
+- IR: [/crates/ir](/crates/ir)
+- Proc-macros: [/crates/macro](/crates/macro)
 
 ## Documentation
 
