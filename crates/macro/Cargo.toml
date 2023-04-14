@@ -1,6 +1,6 @@
 [package]
 name = "ink-analyzer-macro"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = "Procedural macros for ink! analyzer."
 license = "MIT OR Apache-2.0"
