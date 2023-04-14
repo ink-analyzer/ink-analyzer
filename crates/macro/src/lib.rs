@@ -34,11 +34,12 @@ pub fn from_ast_derive(input: TokenStream) -> TokenStream {
 /// # Example
 /// ```
 /// use ink_analyzer_macro::FromInkAttribute;
-/// use ink_analyzer_ir::{FromInkAttribute, InkAttribute};
+/// use ink_analyzer_ir::{FromInkAttribute, InkAttrData, InkAttribute};
+/// use ink_analyzer_ir::ast::Module;
 ///
 /// #[derive(FromInkAttribute)]
 /// struct Contract {
-///     ink_attr: InkAttribute,
+///     ink_attr: InkAttrData<Module>,
 /// }
 /// ```
 #[proc_macro_derive(FromInkAttribute)]
@@ -50,7 +51,8 @@ pub fn from_ink_attribute_derive(input: TokenStream) -> TokenStream {
     )
 }
 
-/// Derive macro that implements the `FromSyntax` trait for any `struct` with an `syntax` field.
+/// Derive macro that implements the `FromSyntax` trait
+/// for any `struct` with either a `syntax` or `ink_attr` field.
 ///
 /// # Example
 /// ```

@@ -1,31 +1,28 @@
+use crate::utils;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::DeriveInput;
+use syn::{DeriveInput, Expr};
 
 use crate::utils::parse_struct_fields;
 
-/// Returns an implementation of the `FromSyntax` trait for any `struct` with a `syntax` field.
+/// Returns an implementation of the `FromSyntax` trait
+/// for any `struct` with a `syntax` or `ink_attr` field.
 pub fn impl_from_syntax(ast: &DeriveInput) -> Option<TokenStream> {
     let name = &ast.ident;
 
     if let Some(fields) = parse_struct_fields(ast) {
-        let has_syntax = fields
-            .named
-            .iter()
-            .filter(|field| {
-                if let Some(ident) = &field.ident {
-                    return ident == "syntax";
-                }
-                false
-            })
-            .count()
-            == 1;
+        let mut expr: Option<Expr> = None;
+        if utils::contains_field(fields, "syntax") {
+            expr = Some(syntax_field_return_expr());
+        } else if utils::contains_field(fields, "ink_attr") {
+            expr = Some(ink_attr_field_return_expr());
+        }
 
-        if has_syntax {
+        if let Some(return_expr) = expr {
             let gen = quote! {
                 impl FromSyntax for #name {
                     fn syntax(&self) -> &SyntaxNode {
-                        &self.syntax
+                        #return_expr
                     }
                 }
             };
@@ -36,17 +33,26 @@ pub fn impl_from_syntax(ast: &DeriveInput) -> Option<TokenStream> {
     None
 }
 
+fn syntax_field_return_expr() -> Expr {
+    syn::parse2::<Expr>(quote! { &self.syntax }).expect("Should be able to parse expression.")
+}
+
+fn ink_attr_field_return_expr() -> Expr {
+    syn::parse2::<Expr>(quote! { &self.ink_attr.parent_syntax() })
+        .expect("Should be able to parse expression.")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use quote::format_ident;
     use syn::{Ident, ItemImpl};
 
-    fn expected_impl(name: Ident) -> ItemImpl {
+    fn expected_impl(name: Ident, return_expr: Expr) -> ItemImpl {
         syn::parse2::<ItemImpl>(quote! {
             impl FromSyntax for #name {
                 fn syntax(&self) -> &SyntaxNode {
-                    &self.syntax
+                    #return_expr
                 }
             }
         })
@@ -67,11 +73,30 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(parse_actual_impl(input), expected_impl(name));
+        assert_eq!(
+            parse_actual_impl(input),
+            expected_impl(name, syntax_field_return_expr())
+        );
     }
 
     #[test]
-    fn struct_without_syntax_field_fails() {
+    fn struct_with_ink_attr_field_works() {
+        let name = format_ident!("Contract");
+        let input = syn::parse2::<DeriveInput>(quote! {
+            struct #name {
+                ink_attr: InkAttrData<Module>,
+            }
+        })
+        .unwrap();
+
+        assert_eq!(
+            parse_actual_impl(input),
+            expected_impl(name, ink_attr_field_return_expr())
+        );
+    }
+
+    #[test]
+    fn struct_with_neither_syntax_nor_ink_attr_field_fails() {
         let name = format_ident!("Contract");
         let input = syn::parse2::<DeriveInput>(quote! {
             struct #name {

@@ -3,7 +3,7 @@
 
 pub use self::{
     attrs::{
-        InkArgKind, InkAttribute, InkAttributeKind, InkPathKind, MetaArg, MetaOption,
+        InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkPathKind, MetaArg, MetaOption,
         MetaSeparator, MetaValue,
     },
     contract::Contract,

@@ -19,11 +19,12 @@ cargo add ink-analyzer-macro
 
 ```rust
 use ink_analyzer_macro::FromInkAttribute;
-use ink_analyzer_ir::{FromInkAttribute, InkAttribute};
+use ink_analyzer_ir::{FromInkAttribute, InkAttrData, InkAttribute};
+use ink_analyzer_ir::ast::Module;
 
 #[derive(FromInkAttribute)]
 struct Contract {
-    ink_attr: InkAttribute,
+    ink_attr: InkAttrData<Module>,
 }
 ```
 

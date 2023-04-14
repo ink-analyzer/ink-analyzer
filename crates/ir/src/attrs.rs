@@ -2,9 +2,9 @@
 
 use ink_analyzer_macro::FromAST;
 use ra_ap_syntax::ast::Attr;
-use ra_ap_syntax::AstToken;
+use ra_ap_syntax::{AstNode, AstToken, SyntaxNode};
 
-use crate::FromAST;
+use crate::{FromAST, IRItem};
 
 pub use meta::{MetaArg, MetaOption, MetaSeparator, MetaValue};
 
@@ -180,5 +180,42 @@ impl InkArgKind {
             // unknown ink! attribute argument.
             _ => None,
         }
+    }
+}
+
+/// Standard data for an IR item derived from an ink! attribute.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InkAttrData<T: AstNode> {
+    /// ink! contract attributes.
+    attr: InkAttribute,
+    /// Annotated module (if any).
+    ast: Option<T>,
+    /// Syntax node for ink! contract.
+    syntax: SyntaxNode,
+}
+
+impl<T: AstNode> From<InkAttribute> for InkAttrData<T> {
+    fn from(attr: InkAttribute) -> Self {
+        Self {
+            ast: attr.syntax_parent().and_then(T::cast),
+            syntax: attr
+                .syntax_parent()
+                .expect("An attribute should always have a parent."),
+            attr,
+        }
+    }
+}
+
+impl<T: AstNode> InkAttrData<T> {
+    pub fn attr(&self) -> &InkAttribute {
+        &self.attr
+    }
+
+    pub fn parent_ast(&self) -> Option<&T> {
+        Option::from(&self.ast)
+    }
+
+    pub fn parent_syntax(&self) -> &SyntaxNode {
+        &self.syntax
     }
 }

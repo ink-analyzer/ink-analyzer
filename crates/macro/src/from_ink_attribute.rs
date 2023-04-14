@@ -1,3 +1,4 @@
+use crate::utils;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::DeriveInput;
@@ -9,23 +10,11 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> Option<TokenStream> {
     let name = &ast.ident;
 
     if let Some(fields) = parse_struct_fields(ast) {
-        let has_ink_attr = fields
-            .named
-            .iter()
-            .filter(|field| {
-                if let Some(ident) = &field.ident {
-                    return ident == "ink_attr";
-                }
-                false
-            })
-            .count()
-            == 1;
-
-        if has_ink_attr {
+        if utils::contains_field(fields, "ink_attr") {
             let gen = quote! {
                 impl FromInkAttribute for #name {
                     fn ink_attr(&self) -> &InkAttribute {
-                        &self.ink_attr
+                        &self.ink_attr.attr()
                     }
                 }
             };
@@ -46,7 +35,7 @@ mod tests {
         syn::parse2::<ItemImpl>(quote! {
             impl FromInkAttribute for #name {
                 fn ink_attr(&self) -> &InkAttribute {
-                    &self.ink_attr
+                    &self.ink_attr.attr()
                 }
             }
         })
@@ -62,7 +51,7 @@ mod tests {
         let name = format_ident!("Contract");
         let input = syn::parse2::<DeriveInput>(quote! {
             struct #name {
-                ink_attr: InkAttribute,
+                ink_attr: InkAttrData<Module>,
             }
         })
         .unwrap();
