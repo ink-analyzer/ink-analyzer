@@ -56,7 +56,7 @@ pub fn from_ink_attribute_derive(input: TokenStream) -> TokenStream {
 pub fn from_syntax_derive(input: TokenStream) -> TokenStream {
     utils::parse_syntax_tree_and_call_derive_impl(
         input,
-        from_syntax::impl_from_syntax_attribute,
+        from_syntax::impl_from_syntax,
         "#[derive(FromSyntax)] can only be applied to a `struct` with a `syntax` field.",
     )
 }
