@@ -13,7 +13,7 @@ keywords = ["ink", "smart-contract", "polkadot", "substrate", "blockchain"]
 categories = ["development-tools"]
 
 [dependencies]
-ink-analyzer-macro = { path = "../macro" }
+ink-analyzer-macro = { version = "0.1", path = "../macro" }
 itertools = "0.10.5"
 ra_ap_syntax = "0.0.149"
 

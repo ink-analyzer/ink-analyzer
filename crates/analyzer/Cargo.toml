@@ -13,4 +13,4 @@ keywords = ["ink", "smart-contract", "polkadot", "substrate", "blockchain"]
 categories = ["development-tools"]
 
 [dependencies]
-ink-analyzer-ir = { path = "../ir" }
+ink-analyzer-ir = { version = "0.1", path = "../ir" }
