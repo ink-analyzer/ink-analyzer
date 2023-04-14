@@ -1,6 +1,6 @@
 # ink! Analyzer Proc-macros
 
-Procedural macros for [ink-analyzer](./crates/analyzer) and [ink-analyzer-ir](./crates/ir).
+Procedural macros for [ink-analyzer](/crates/analyzer) and [ink-analyzer-ir](/crates/ir).
 
 **NOTE:** This project is still work in progress, check back over the next few weeks for regular updates.
 
