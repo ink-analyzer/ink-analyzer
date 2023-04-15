@@ -24,6 +24,7 @@ use ink_analyzer_ir::ast::Module;
 
 #[derive(FromInkAttribute)]
 struct Contract {
+    #[path_kind(Contract)]
     ink_attr: InkAttrData<Module>,
 }
 ```

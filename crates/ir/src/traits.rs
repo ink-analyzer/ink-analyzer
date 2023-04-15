@@ -26,13 +26,21 @@ impl<T: FromAST> FromSyntax for T {
     }
 }
 
-/// Implemented by IR items that wrap an ink! attribute item.
+/// Implemented by IR items derived from an ink! attribute item.
 pub trait FromInkAttribute {
-    /// Returns the ink! attribute item for the IR item.
+    /// Returns true if the IR item can be derived for the ink! attribute.
+    fn can_cast(attr: &InkAttribute) -> bool;
+
+    /// Returns an IR item if one can be derived for the ink! attribute.
+    fn cast(attr: InkAttribute) -> Option<Self>
+    where
+        Self: Sized;
+
+    /// Returns the ink! attribute the IR item was derived from.
     fn ink_attr(&self) -> &InkAttribute;
 }
 
-/// Convenience methods implemented by IR items.
+/// Convenience methods for navigating the IR that implemented by all IR items.
 pub trait IRItem {
     /// Returns the syntax kind for the IR item.
     fn syntax_kind(&self) -> SyntaxKind;

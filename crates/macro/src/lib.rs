@@ -39,10 +39,11 @@ pub fn from_ast_derive(input: TokenStream) -> TokenStream {
 ///
 /// #[derive(FromInkAttribute)]
 /// struct Contract {
+///     #[path_kind(Contract)]
 ///     ink_attr: InkAttrData<Module>,
 /// }
 /// ```
-#[proc_macro_derive(FromInkAttribute)]
+#[proc_macro_derive(FromInkAttribute, attributes(path_kind, arg_kind))]
 pub fn from_ink_attribute_derive(input: TokenStream) -> TokenStream {
     utils::parse_syntax_tree_and_call_derive_impl(
         input,

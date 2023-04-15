@@ -3,7 +3,7 @@
 use ink_analyzer_macro::FromAST;
 use ra_ap_syntax::{AstNode, SourceFile};
 
-use crate::{utils, Contract, FromAST, InkAttributeKind, InkPathKind};
+use crate::{utils, Contract, FromAST, FromInkAttribute, InkAttributeKind, InkPathKind};
 
 /// An ink! source file.
 #[derive(Debug, Clone, PartialEq, Eq, FromAST)]
@@ -18,12 +18,9 @@ impl From<SourceFile> for InkFile {
     fn from(file: SourceFile) -> Self {
         let mut contracts = Vec::new();
         let ink_descendants = utils::ink_attrs_closest_descendants(file.syntax());
-        for ink_attr in ink_descendants {
-            if let InkAttributeKind::Path(InkPathKind::Contract) = ink_attr.kind() {
-                contracts.push(
-                    Contract::cast(ink_attr)
-                        .expect("Should be able to cast a contract attribute to Contract IR"),
-                )
+        for item in ink_descendants {
+            if let InkAttributeKind::Path(InkPathKind::Contract) = item.kind() {
+                contracts.push(Contract::cast(item).expect("Should be able to cast contract"))
             }
         }
         Self {

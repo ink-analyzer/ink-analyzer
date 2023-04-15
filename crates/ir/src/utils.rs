@@ -66,7 +66,7 @@ pub fn ink_attrs_closest_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
     attrs
 }
 
-/// Return ink! attributes for all the syntax node's ancestors.
+/// Returns ink! attributes for all the syntax node's ancestors.
 pub fn ink_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
     // Calling ancestors directly would include the current node.
     // (it's a rowan/ra_ap_syntax quirk https://github.com/rust-analyzer/rowan/blob/v0.15.11/src/cursor.rs#L625).
