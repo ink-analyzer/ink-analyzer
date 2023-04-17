@@ -1,12 +1,13 @@
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::spanned::Spanned;
 use syn::DeriveInput;
 
 use crate::utils;
 
 /// Returns an implementation of the `FromSyntax` trait
 /// for any `struct` with a `syntax`, `ast` or `ink_attr` field.
-pub fn impl_from_syntax(ast: &DeriveInput) -> Option<TokenStream> {
+pub fn impl_from_syntax(ast: &DeriveInput) -> syn::Result<TokenStream> {
     let name = &ast.ident;
 
     if let Some(fields) = utils::parse_struct_fields(ast) {
@@ -19,19 +20,20 @@ pub fn impl_from_syntax(ast: &DeriveInput) -> Option<TokenStream> {
             expr = Some(ink_attr_field_return_expr());
         }
 
+        let ir_crate_path = utils::get_normalized_ir_crate_path();
         if let Some(return_expr) = expr {
             let gen = quote! {
                 impl FromSyntax for #name {
-                    fn syntax(&self) -> &SyntaxNode {
+                    fn syntax(&self) -> &#ir_crate_path::syntax::SyntaxNode {
                         #return_expr
                     }
                 }
             };
-            return Some(gen);
+            return Ok(gen);
         }
     }
 
-    None
+    Err(syn::Error::new(ast.span(), "#[derive(FromSyntax)] can only be applied to a `struct` with a `syntax`, `ast` or `ink_attr` field."))
 }
 
 fn syntax_field_return_expr() -> TokenStream {
@@ -53,9 +55,10 @@ mod tests {
     use syn::{Ident, ItemImpl};
 
     fn expected_impl(name: Ident, return_expr: TokenStream) -> ItemImpl {
+        let ir_crate_path = utils::get_normalized_ir_crate_path();
         syn::parse_quote! {
             impl FromSyntax for #name {
-                fn syntax(&self) -> &SyntaxNode {
+                fn syntax(&self) -> &#ir_crate_path::syntax::SyntaxNode {
                     #return_expr
                 }
             }
@@ -122,6 +125,6 @@ mod tests {
 
         let output = impl_from_syntax(&input);
 
-        assert!(output.is_none());
+        assert!(output.is_err());
     }
 }

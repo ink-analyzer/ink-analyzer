@@ -14,18 +14,23 @@ cargo add ink-analyzer-macro
 
 ## Usage
 
-### Example: Using the custom derive macro for the `FromInkAttribute` trait.
-
+### Example:
+Using custom derive macros for the `FromInkAttribute` and `FromSyntax` traits to create a `Contract` IR type.
 
 ```rust
-use ink_analyzer_macro::FromInkAttribute;
-use ink_analyzer_ir::{FromInkAttribute, InkAttrData, InkAttribute};
+use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
+use ink_analyzer_ir::{Event, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Message};
 use ink_analyzer_ir::ast::Module;
 
-#[derive(FromInkAttribute)]
+#[derive(FromInkAttribute, FromSyntax)]
 struct Contract {
     #[path_kind(Contract)]
     ink_attr: InkAttrData<Module>,
+    #[arg_kind(Event)]
+    events: Vec<Event>,
+    #[arg_kind(Message)]
+    messages: Vec<Message>,
+    // --snip--
 }
 ```
 

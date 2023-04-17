@@ -2,21 +2,18 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
+use quote::quote;
 use syn::{Attribute, Data, DeriveInput, Field, Fields, FieldsNamed};
 
 /// Parses a syntax tree for the input token stream, calls derive the derive implementation function
 /// and either returns the output token or panics with the supplied error message.
 pub fn parse_syntax_tree_and_call_derive_impl(
     input: TokenStream,
-    derive_impl: fn(&DeriveInput) -> Option<TokenStream2>,
-    error: &str,
+    derive_impl: fn(&DeriveInput) -> syn::Result<TokenStream2>,
 ) -> TokenStream {
-    if let Ok(ast) = syn::parse(input) {
-        if let Some(output) = derive_impl(&ast) {
-            return output.into();
-        }
-    }
-    panic!("{}", error);
+    derive_impl(&syn::parse_macro_input!(input as DeriveInput))
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
 /// Returns struct fields if any from a syntax tree.
@@ -47,6 +44,17 @@ pub fn contains_field(fields: &FieldsNamed, name: &str) -> bool {
 /// Returns attribute if the list of attributes includes an attribute with the name.
 pub fn find_attribute_by_path<'a>(attrs: &'a [Attribute], name: &str) -> Option<&'a Attribute> {
     attrs.iter().find(|attr| attr.path().is_ident(name))
+}
+
+/// Returns the normalized crate root path of the `ink_analyzer_ir` crate.
+/// i.e `crate` when the calling crate is `ink_analyzer_ir` itself and `ink_analyzer_ir` otherwise.
+pub fn get_normalized_ir_crate_path() -> proc_macro2::TokenStream {
+    if let Ok(pkg_name) = std::env::var("CARGO_PKG_NAME") {
+        if pkg_name == "ink-analyzer-ir" {
+            return quote! { crate };
+        }
+    }
+    quote! { ink_analyzer_ir }
 }
 
 #[cfg(test)]
