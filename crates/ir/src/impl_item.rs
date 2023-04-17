@@ -5,7 +5,7 @@ use ra_ap_syntax::ast::Impl as ASTImpl;
 
 use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
 
-/// An ink! contract implementation.
+/// An ink! contract `impl` block.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
 pub struct Impl {
     /// ink! attribute IR data.

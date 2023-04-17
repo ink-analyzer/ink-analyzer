@@ -14,14 +14,14 @@ cargo add ink-analyzer-ir
 
 ## Usage
 
-### Example: Generate an IR of ink! smart contract code
-
+### Example:
+Generate an IR of ink! smart contract code.
 
 ```rust
-use ink_analyzer_ir::InkFile;
+use ink_analyzer_ir::{InkFile, quote_as_str};
 
 fn generate_ir() {
-    let code = r#"
+    let file = InkFile::parse(quote_as_str! {
         #[ink::contract]
         mod flipper {
 
@@ -30,12 +30,24 @@ fn generate_ir() {
                 value: bool,
             }
 
+            #[ink(event)]
+            pub struct Flip {
+                #[ink(topic)]
+                flipped: bool,
+            }
+
             // --snip--
         }
-    "#;
-
-    let file = InkFile::parse(code);
+    });
     dbg!(&file);
+
+    let contracts = file.contracts();
+    dbg!(&contracts);
+
+    if let Some(contract) = contracts.first() {
+        let events = contract.events();
+        dbg!(&events);
+    }
 }
 ```
 

@@ -1,5 +1,42 @@
 //! [ink!](https://use.ink/) intermediate representations (IRs) and abstractions
 //! for [ink! analyzer](https://docs.rs/ink-analyzer/latest/ink_analyzer/).
+//!
+//! # Example
+//! Generate an IR of ink! smart contract code.
+//!
+//! ```
+//! use ink_analyzer_ir::{InkFile, quote_as_str};
+//!
+//! fn generate_ir() {
+//!         let file = InkFile::parse(quote_as_str! {
+//!             #[ink::contract]
+//!             mod flipper {
+//!
+//!                 #[ink(storage)]
+//!                 pub struct Flipper {
+//!                     value: bool,
+//!                 }
+//!
+//!                 #[ink(event)]
+//!                 pub struct Flip {
+//!                     #[ink(topic)]
+//!                     flipped: bool,
+//!                 }
+//!
+//!                 // --snip--
+//!             }
+//!         });
+//!         dbg!(&file);
+//!
+//!         let contracts = file.contracts();
+//!         dbg!(&contracts);
+//!
+//!         if let Some(contract) = contracts.first() {
+//!             let events = contract.events();
+//!             dbg!(&events);
+//!         }
+//!     }
+//! ```
 
 pub use self::{
     attrs::{InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkPathKind},

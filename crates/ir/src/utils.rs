@@ -110,7 +110,7 @@ pub fn parent_ast_item(node: &SyntaxNode) -> Option<Item> {
 /// and returns string slice (`&str`) instead of a `TokenStream`.
 #[macro_export]
 macro_rules! quote_as_str {
-        ($($tt:tt)*) => {
-            quote::quote!($($tt)*).to_string().as_str()
-        };
-    }
+    ($($tt:tt)*) => {
+        quote::quote!($($tt)*).to_string().as_str()
+    };
+}
