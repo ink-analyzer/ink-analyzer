@@ -2,7 +2,6 @@
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::RecordField;
-use ra_ap_syntax::SyntaxNode;
 
 use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
 

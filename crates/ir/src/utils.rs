@@ -1,7 +1,7 @@
 //! ink! IR utilities.
 
 use itertools::{Either, Itertools};
-use ra_ap_syntax::ast::Attr;
+use ra_ap_syntax::ast::{Attr, Item};
 use ra_ap_syntax::{AstNode, SyntaxKind, SyntaxNode};
 
 use crate::InkAttribute;
@@ -94,3 +94,23 @@ pub fn ink_closest_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
     }
     attrs
 }
+
+/// Returns parent [AST Item](https://github.com/rust-lang/rust-analyzer/blob/master/crates/syntax/src/ast/generated/nodes.rs#L1589-L1610)
+/// for the syntax node.
+pub fn parent_ast_item(node: &SyntaxNode) -> Option<Item> {
+    let parent = node.parent()?;
+    if let Some(item) = Item::cast(parent.clone()) {
+        Some(item)
+    } else {
+        parent_ast_item(&parent)
+    }
+}
+
+/// Quasi-quotation macro that accepts input like the `quote!` macro
+/// and returns string slice (`&str`) instead of a `TokenStream`.
+#[macro_export]
+macro_rules! quote_as_str {
+        ($($tt:tt)*) => {
+            quote::quote!($($tt)*).to_string().as_str()
+        };
+    }

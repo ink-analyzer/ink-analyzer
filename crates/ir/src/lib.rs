@@ -2,10 +2,7 @@
 //! for [ink! analyzer](https://docs.rs/ink-analyzer/latest/ink_analyzer/).
 
 pub use self::{
-    attrs::{
-        InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkPathKind, MetaArg, MetaOption,
-        MetaSeparator, MetaValue,
-    },
+    attrs::{InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkPathKind},
     constructor::Constructor,
     contract::Contract,
     event::Event,
@@ -14,10 +11,10 @@ pub use self::{
     message::Message,
     storage::Storage,
     topic::Topic,
-    traits::{FromAST, FromInkAttribute, FromSyntax, IRItem},
+    traits::{AsInkFn, AsInkStruct, FromAST, FromInkAttribute, FromSyntax, IRItem},
     utils::{
         ink_ancestors, ink_attrs, ink_attrs_closest_descendants, ink_attrs_descendants,
-        ink_closest_ancestors,
+        ink_closest_ancestors, parent_ast_item,
     },
 };
 
@@ -38,4 +35,5 @@ mod storage;
 mod topic;
 
 mod traits;
+#[macro_use]
 mod utils;

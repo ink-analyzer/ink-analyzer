@@ -2,7 +2,6 @@
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Module;
-use ra_ap_syntax::SyntaxNode;
 
 use crate::{
     Constructor, Event, FromInkAttribute, FromSyntax, Impl, InkAttrData, InkAttribute, Message,
@@ -36,5 +35,30 @@ impl Contract {
     /// Returns the module item (if any) for the ink! contract.
     pub fn module(&self) -> Option<&Module> {
         self.ink_attr.parent_ast()
+    }
+
+    /// Returns the storage items for the ink! contract.
+    pub fn storage(&self) -> &Vec<Storage> {
+        &self.storage
+    }
+
+    /// Returns the events for the ink! contract.
+    pub fn events(&self) -> &Vec<Event> {
+        &self.events
+    }
+
+    /// Returns the impl blocks for the ink! contract.
+    pub fn impls(&self) -> &Vec<Impl> {
+        &self.impls
+    }
+
+    /// Returns the constructors for the ink! contract.
+    pub fn constructors(&self) -> &Vec<Constructor> {
+        &self.constructors
+    }
+
+    /// Returns the messages for the ink! contract.
+    pub fn messages(&self) -> &Vec<Message> {
+        &self.messages
     }
 }

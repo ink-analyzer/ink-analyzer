@@ -1,9 +1,9 @@
-//! ink! attribute argument meta item separator.
+//! ink! attribute meta item separator.
 
 use ra_ap_syntax::SyntaxKind::EQ;
 use ra_ap_syntax::{AstToken, SyntaxKind, SyntaxToken};
 
-/// An ink! attribute argument separator (=).
+/// An ink! attribute meta item separator (i.e `=` symbol).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MetaSeparator {
     syntax: SyntaxToken,

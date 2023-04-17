@@ -2,9 +2,8 @@
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Struct;
-use ra_ap_syntax::SyntaxNode;
 
-use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Topic};
+use crate::{AsInkStruct, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Topic};
 
 /// An ink! contract event.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
@@ -17,9 +16,15 @@ pub struct Event {
     topics: Vec<Topic>,
 }
 
-impl Event {
-    /// Returns the struct item (if any) for the ink! contract event.
-    pub fn struct_item(&self) -> Option<&Struct> {
+impl AsInkStruct for Event {
+    fn struct_item(&self) -> Option<&Struct> {
         self.ink_attr.parent_ast()
+    }
+}
+
+impl Event {
+    /// Returns the topic fields for the ink! contract event.
+    pub fn topics(&self) -> &Vec<Topic> {
+        &self.topics
     }
 }

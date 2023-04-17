@@ -1,5 +1,6 @@
 //! ink! IR traits.
 
+use ra_ap_syntax::ast::{Fn, Struct};
 use ra_ap_syntax::{AstNode, SyntaxKind, SyntaxNode};
 
 use crate::{utils, InkAttribute};
@@ -38,6 +39,18 @@ pub trait FromInkAttribute {
 
     /// Returns the ink! attribute the IR item was derived from.
     fn ink_attr(&self) -> &InkAttribute;
+}
+
+/// Implemented by IR items whose valid AST node is a `struct`.
+pub trait AsInkStruct {
+    /// Returns the `struct` item (if any) for the ink! item.
+    fn struct_item(&self) -> Option<&Struct>;
+}
+
+/// Implemented by IR items whose valid AST node is an `fn`.
+pub trait AsInkFn {
+    /// Returns the `fn` item (if any) for the ink! item.
+    fn fn_item(&self) -> Option<&Fn>;
 }
 
 /// Convenience methods for navigating the IR that implemented by all IR items.

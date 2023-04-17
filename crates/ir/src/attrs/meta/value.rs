@@ -1,10 +1,10 @@
-//! ink! attribute argument meta item value.
+//! ink! attribute meta item value.
 
 use itertools::Itertools;
 use ra_ap_syntax::ast::Expr;
 use ra_ap_syntax::{AstNode, SyntaxElement, SyntaxKind, TextRange, TextSize};
 
-/// An ink! attribute argument value.
+/// An ink! attribute meta item value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MetaValue {
     expr: Expr,
@@ -12,7 +12,10 @@ pub struct MetaValue {
 }
 
 impl MetaValue {
-    // See https://doc.rust-lang.org/reference/attributes.html#meta-item-attribute-syntax for grammar
+    /// Parse (if possible) a sequence of `SyntaxElement`s into a `Expr` that represents meta value.
+    ///
+    /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ast/attr_args.rs#L40-L49>.
+    /// Ref: <https://doc.rust-lang.org/reference/attributes.html#meta-item-attribute-syntax>.
     pub fn parse(elems: Vec<SyntaxElement>) -> Option<Self> {
         let arg_text = elems
             .clone()
@@ -35,18 +38,22 @@ impl MetaValue {
         })
     }
 
+    /// Returns the syntax elements.
     pub fn elements(&self) -> &Vec<SyntaxElement> {
         &self.elements
     }
 
-    pub fn as_expr_with_wrong_text_range(&self) -> &Expr {
+    /// Returns the equivalent expression with an inaccurate text range.
+    pub fn as_expr_with_inaccurate_text_range(&self) -> &Expr {
         &self.expr
     }
 
+    /// Returns the `SyntaxKind` of the parsed expression.
     pub fn kind(&self) -> SyntaxKind {
-        self.as_expr_with_wrong_text_range().syntax().kind()
+        self.as_expr_with_inaccurate_text_range().syntax().kind()
     }
 
+    /// Returns the accurate `TextRange` for the parsed `Expr` (i.e meta value).
     pub fn text_range(&self) -> Option<TextRange> {
         let mut first: Option<TextSize> = None;
         let mut last: Option<TextSize> = None;
