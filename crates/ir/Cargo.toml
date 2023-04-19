@@ -1,6 +1,6 @@
 [package]
 name = "ink-analyzer-ir"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Intermediate representations (IRs) and abstractions of ink! smart contract code for ink! analyzer."
 license = "MIT OR Apache-2.0"
