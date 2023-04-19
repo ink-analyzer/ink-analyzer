@@ -1,4 +1,4 @@
-//! ink! contract impl IR.
+//! ink! contract `impl` IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Impl as ASTImpl;
@@ -14,7 +14,7 @@ pub struct Impl {
 }
 
 impl Impl {
-    /// Returns the impl item (if any) for the ink! contract implementation.
+    /// Returns the `impl` item (if any) for the ink! `contract` implementation.
     pub fn impl_item(&self) -> Option<&ASTImpl> {
         self.ink_attr.parent_ast()
     }

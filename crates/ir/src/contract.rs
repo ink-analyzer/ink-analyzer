@@ -1,4 +1,4 @@
-//! ink! contract IR.
+//! ink! `contract` IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Module;
@@ -8,7 +8,7 @@ use crate::{
     Storage,
 };
 
-/// An ink! contract.
+/// An ink! `contract`.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
 pub struct Contract {
     /// ink! attribute IR data.
@@ -32,32 +32,32 @@ pub struct Contract {
 }
 
 impl Contract {
-    /// Returns the module item (if any) for the ink! contract.
+    /// Returns the `mod` item (if any) for the ink! `contract`.
     pub fn module(&self) -> Option<&Module> {
         self.ink_attr.parent_ast()
     }
 
-    /// Returns the storage items for the ink! contract.
+    /// Returns the `storage` items for the ink! `contract`.
     pub fn storage(&self) -> &Vec<Storage> {
         &self.storage
     }
 
-    /// Returns the events for the ink! contract.
+    /// Returns the `event`s for the ink! `contract`.
     pub fn events(&self) -> &Vec<Event> {
         &self.events
     }
 
-    /// Returns the impl blocks for the ink! contract.
+    /// Returns the `impl` blocks for the ink! `contract`.
     pub fn impls(&self) -> &Vec<Impl> {
         &self.impls
     }
 
-    /// Returns the constructors for the ink! contract.
+    /// Returns the `constructor`s for the ink! `contract`.
     pub fn constructors(&self) -> &Vec<Constructor> {
         &self.constructors
     }
 
-    /// Returns the messages for the ink! contract.
+    /// Returns the `message`s for the ink! `contract`.
     pub fn messages(&self) -> &Vec<Message> {
         &self.messages
     }

@@ -1,18 +1,17 @@
 //! ink! attribute IR utilities.
 
 use itertools::Itertools;
-use ra_ap_syntax::ast::{Attr, Ident, TokenTree};
+use ra_ap_syntax::ast::{Attr, TokenTree};
 use ra_ap_syntax::{AstNode, AstToken, SyntaxElement, SyntaxToken, T};
 
+use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaSeparator, MetaValue};
 use crate::{InkArg, InkArgKind};
 
-use super::meta::{MetaNameValue, MetaOption, MetaSeparator, MetaValue};
-
 /// Parse ink! attribute arguments.
-pub fn get_ink_args(attr: &Attr) -> Vec<InkArg> {
+pub fn parse_ink_args(attr: &Attr) -> Vec<InkArg> {
     if let Some(meta) = attr.meta() {
         if let Some(token_tree) = meta.token_tree() {
-            return get_args(&token_tree)
+            return parse_args(&token_tree)
                 .into_iter()
                 .map(InkArg::from)
                 .collect();
@@ -49,43 +48,58 @@ pub fn sort_ink_args_by_kind(args: &[InkArg]) -> Vec<InkArg> {
 }
 
 /// Parse attribute arguments.
-pub fn get_args(token_tree: &TokenTree) -> Vec<MetaNameValue> {
+pub fn parse_args(token_tree: &TokenTree) -> Vec<MetaNameValue> {
     let l_paren = token_tree.l_paren_token();
     let r_paren = token_tree.r_paren_token();
+
+    let mut last_separator_offset = if let Some(start_token) = l_paren.as_ref() {
+        start_token.text_range().end()
+    } else {
+        token_tree.syntax().text_range().start()
+    };
+
     token_tree
         .syntax()
         .children_with_tokens()
-        // Skip starting parenthesis if present
+        // Skip starting parenthesis if present.
         .skip(if l_paren.is_some() { 1 } else { 0 })
-        // Ignore closing parenthesis if present
+        // Ignore closing parenthesis if present.
         .take_while(|it| r_paren.is_none() || it.as_token() != r_paren.as_ref())
-        // Comma separated groups
+        // Comma separated groups.
         .group_by(|token| token.kind() == T![,])
         .into_iter()
-        .filter_map(|(is_sep, group)| (!is_sep).then_some(group))
-        .map(|group| {
-            let arg_elems: Vec<SyntaxElement> = group.into_iter().collect();
-            if arg_elems.is_empty() {
-                // Empty argument
-                MetaNameValue::default()
+        //.filter_map(|(is_sep, group)| (!is_sep || true).then_some(group))
+        .filter_map(|(is_sep, mut group)| {
+            if is_sep {
+                // This is the comma token, so we update last separator offset.
+                last_separator_offset = group.next().unwrap().text_range().end();
+                None
             } else {
-                let arg_item_groups: Vec<Vec<SyntaxElement>> = arg_elems
-                    .into_iter()
-                    // Equal sign (=) separated groups
-                    .group_by(|token| token.kind() == T![=])
-                    .into_iter()
-                    .map(|(_, group)| group.into_iter().collect())
-                    .collect();
+                let arg_elems: Vec<SyntaxElement> = group.into_iter().collect();
+                if arg_elems.is_empty() {
+                    // Empty argument.
+                    // Use last operator offset as the offset for the empty argument.
+                    Some(MetaNameValue::empty(last_separator_offset))
+                } else {
+                    let arg_item_groups: Vec<Vec<SyntaxElement>> = arg_elems
+                        .into_iter()
+                        // Equal sign (=) separated groups.
+                        .group_by(|token| token.kind() == T![=])
+                        .into_iter()
+                        .map(|(_, group)| group.into_iter().collect())
+                        .collect();
 
-                let empty = Vec::new();
-                let arg_name = arg_item_groups.get(0).unwrap_or(&empty);
-                let arg_eq = arg_item_groups.get(1).unwrap_or(&empty);
-                let arg_value = arg_item_groups.get(2).unwrap_or(&empty);
+                    let empty = Vec::new();
+                    let arg_name = arg_item_groups.get(0).unwrap_or(&empty);
+                    let arg_eq = arg_item_groups.get(1).unwrap_or(&empty);
+                    let arg_value = arg_item_groups.get(2).unwrap_or(&empty);
 
-                MetaNameValue {
-                    name: get_arg_name(arg_name),
-                    eq: get_arg_eq(arg_eq),
-                    value: get_arg_value(arg_value),
+                    Some(MetaNameValue::new(
+                        get_arg_name(arg_name),
+                        get_arg_eq(arg_eq),
+                        get_arg_value(arg_value),
+                        last_separator_offset,
+                    ))
                 }
             }
         })
@@ -103,15 +117,15 @@ fn get_token_at_index<'a>(elems: &'a [&SyntaxElement], idx: usize) -> Option<&'a
     elems.get(idx)?.as_token()
 }
 
-fn get_arg_name(elems: &[SyntaxElement]) -> MetaOption<Ident> {
+fn get_arg_name(elems: &[SyntaxElement]) -> MetaOption<MetaName> {
     let non_trivia_elems = only_non_trivia_elements(elems);
     match non_trivia_elems.len() {
         0 => MetaOption::None,
         1 => {
             let mut name = MetaOption::Err(elems.to_owned());
             if let Some(token) = get_token_at_index(&non_trivia_elems, 0) {
-                if let Some(ident) = Ident::cast(token.to_owned()) {
-                    name = MetaOption::Ok(ident);
+                if let Some(meta_name) = MetaName::cast(token.to_owned()) {
+                    name = MetaOption::Ok(meta_name);
                 }
             }
             name

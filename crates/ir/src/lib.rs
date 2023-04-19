@@ -39,7 +39,7 @@
 //! ```
 
 pub use self::{
-    attrs::{InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkPathKind},
+    attrs::{meta, InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkPathKind},
     constructor::Constructor,
     contract::Contract,
     event::Event,
@@ -50,8 +50,8 @@ pub use self::{
     topic::Topic,
     traits::{AsInkFn, AsInkStruct, FromAST, FromInkAttribute, FromSyntax, IRItem},
     utils::{
-        ink_ancestors, ink_attrs, ink_attrs_closest_descendants, ink_attrs_descendants,
-        ink_closest_ancestors, parent_ast_item,
+        ink_attrs, ink_attrs_ancestors, ink_attrs_closest_ancestors, ink_attrs_closest_descendants,
+        ink_attrs_descendants, parent_ast_item,
     },
 };
 

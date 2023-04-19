@@ -66,8 +66,19 @@ pub fn ink_attrs_closest_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
     attrs
 }
 
+/// Returns ink! attributes in the syntax node's scope.
+/// This includes both the nodes own ink! attributes and those of all of it's descendants.
+pub fn ink_attrs_in_scope(node: &SyntaxNode) -> Vec<InkAttribute> {
+    // Get node's ink! attributes.
+    let mut attrs = ink_attrs(node);
+    // Append ink! attributes of all descendants.
+    attrs.append(&mut ink_attrs_descendants(node));
+
+    attrs
+}
+
 /// Returns ink! attributes for all the syntax node's ancestors.
-pub fn ink_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
+pub fn ink_attrs_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
     // Calling ancestors directly would include the current node.
     // (it's a rowan/ra_ap_syntax quirk https://github.com/rust-analyzer/rowan/blob/v0.15.11/src/cursor.rs#L625).
     // So we get the parent first and then call ancestors on that.
@@ -83,13 +94,13 @@ pub fn ink_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
 
 /// Returns ink! attributes for all the syntax node's ancestors
 /// that don't have any ink! ancestors between them and the current node.
-pub fn ink_closest_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
+pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
     let mut attrs = Vec::new();
     if let Some(parent) = node.parent() {
         attrs = ink_attrs(&parent);
         if attrs.is_empty() {
             // Only recurse if parent node has no ink! attributes.
-            attrs = ink_closest_ancestors(&parent);
+            attrs = ink_attrs_closest_ancestors(&parent);
         }
     }
     attrs

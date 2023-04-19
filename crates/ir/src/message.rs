@@ -1,11 +1,11 @@
-//! ink! contract message IR.
+//! ink! contract `message` IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Fn;
 
 use crate::{AsInkFn, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
 
-/// An ink! contract message.
+/// An ink! contract `message`.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
 pub struct Message {
     /// ink! attribute IR data.

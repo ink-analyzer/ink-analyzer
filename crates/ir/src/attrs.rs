@@ -9,7 +9,7 @@ use crate::{FromAST, IRItem};
 pub use arg::{InkArg, InkArgKind};
 
 mod arg;
-mod meta;
+pub mod meta;
 mod utils;
 
 /// An ink! specific attribute.
@@ -33,9 +33,9 @@ impl InkAttribute {
 
         let first_segment = path_segments.next()?;
         if first_segment.to_string() == "ink" {
-            let args = utils::get_ink_args(&attr);
+            let args = utils::parse_ink_args(&attr);
             let ink_attr_kind = if let Some(second_segment) = path_segments.next() {
-                // More than one path segment means an ink! path attribute e.g `#[ink::contract]`.
+                // More than one path segment means an ink! path-based attribute e.g `#[ink::contract]`.
                 if path_segments.next().is_some() {
                     // Any more path segments means an unknown path/macro e.g `#[ink::abc::xyz]`.
                     InkAttributeKind::Path(InkPathKind::Unknown)
@@ -43,7 +43,7 @@ impl InkAttribute {
                     InkAttributeKind::Path(InkPathKind::from(&second_segment.to_string()))
                 }
             } else {
-                // No additional path segments means an ink! argument attribute e.g ``#[ink(storage)]`.
+                // No additional path segments means an ink! argument-based attribute e.g ``#[ink(storage)]`.
                 let ink_arg_kind = if args.is_empty() {
                     InkArgKind::Unknown
                 } else {
@@ -73,6 +73,11 @@ impl InkAttribute {
     pub fn kind(&self) -> &InkAttributeKind {
         &self.kind
     }
+
+    /// Returns the ink! attribute arguments.
+    pub fn args(&self) -> &Vec<InkArg> {
+        &self.args
+    }
 }
 
 /// The kind of the ink! attribute.
@@ -84,7 +89,7 @@ pub enum InkAttributeKind {
     Arg(InkArgKind),
 }
 
-/// An ink! path attribute kind.
+/// An ink! attribute path kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InkPathKind {
     /// `#[ink::chain_extension]`
@@ -97,12 +102,12 @@ pub enum InkPathKind {
     Test,
     /// `#[ink::trait_definition]`
     TraitDefinition,
-    /// Fallback for unknown ink! path attributes (i.e unknown ink! attribute macros).
+    /// Unknown ink! attribute path (i.e unknown ink! attribute macro).
     Unknown,
 }
 
 impl InkPathKind {
-    /// Cast a string slice representing an attribute path into an ink! path attribute kind.
+    /// Convert a string slice representing an attribute path segment into an ink! attribute path kind.
     pub fn from(path_segment: &str) -> Self {
         match path_segment {
             // `#[ink::chain_extension]`

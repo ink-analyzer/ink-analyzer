@@ -1,11 +1,11 @@
-//! ink! contract storage IR.
+//! ink! contract `storage` IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Struct;
 
 use crate::{AsInkStruct, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
 
-/// An ink! contract's storage.
+/// An ink! contract's `storage`.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
 pub struct Storage {
     /// ink! attribute IR data.

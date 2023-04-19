@@ -1,7 +1,7 @@
 //! ink! attribute argument IR.
+use ra_ap_syntax::{AstToken, TextRange};
 
-use super::meta::{MetaNameValue, MetaOption};
-use ra_ap_syntax::AstToken;
+use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaValue};
 
 /// An ink! attribute argument.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +15,7 @@ pub struct InkArg {
 impl From<MetaNameValue> for InkArg {
     fn from(meta: MetaNameValue) -> Self {
         Self {
-            kind: if let MetaOption::Ok(name) = &meta.name {
+            kind: if let MetaOption::Ok(name) = meta.name() {
                 InkArgKind::from(name.text())
             } else {
                 InkArgKind::Unknown
@@ -34,6 +34,25 @@ impl InkArg {
     /// Returns the meta item for ink! attribute argument.
     pub fn meta(&self) -> &MetaNameValue {
         &self.meta
+    }
+
+    /// Returns the text range of the ink! attribute argument.
+    pub fn text_range(&self) -> TextRange {
+        self.meta.text_range()
+    }
+
+    /// Returns valid meta name (if any).
+    ///
+    /// Convenience method for cases when we only care about valid names.
+    pub fn name(&self) -> Option<&MetaName> {
+        self.meta.name().result().ok()
+    }
+
+    /// Returns the valid meta value (if any).
+    ///
+    /// Convenience method for cases when we only care about valid values.
+    pub fn value(&self) -> Option<&MetaValue> {
+        self.meta.value().result().ok()
     }
 }
 
@@ -70,7 +89,7 @@ pub enum InkArgKind {
     Storage,
     /// `#[ink(topic)]`
     Topic,
-    /// Fallback for unknown ink! attribute argument.
+    /// Unknown ink! attribute argument.
     Unknown,
 }
 

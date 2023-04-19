@@ -70,16 +70,20 @@ pub trait IRItem {
     /// Returns ink! attributes for all the IR item's descendants.
     fn ink_attrs_descendants(&self) -> Vec<InkAttribute>;
 
+    /// Returns ink! attributes in the IR item's scope.
+    /// This includes both the nodes own ink! attributes and those of all of it's descendants.
+    fn ink_attrs_in_scope(&self) -> Vec<InkAttribute>;
+
     /// Returns ink! attributes for all the IR item's descendants
     /// that don't have any ink! ancestors between them and the item.
     fn ink_attrs_closest_descendants(&self) -> Vec<InkAttribute>;
 
     /// Returns ink! attributes for all the IR item's ancestors.
-    fn ink_ancestors(&self) -> Vec<InkAttribute>;
+    fn ink_attrs_ancestors(&self) -> Vec<InkAttribute>;
 
     /// Returns ink! attributes for all the IR item's ancestors
     /// that don't have any ink! ancestors between them and the item.
-    fn ink_closest_ancestors(&self) -> Vec<InkAttribute>;
+    fn ink_attrs_closest_ancestors(&self) -> Vec<InkAttribute>;
 }
 
 /// Blanket implementation of IRItem for syntax node wrappers.
@@ -107,15 +111,19 @@ where
         utils::ink_attrs_descendants(self.syntax())
     }
 
+    fn ink_attrs_in_scope(&self) -> Vec<InkAttribute> {
+        utils::ink_attrs_in_scope(self.syntax())
+    }
+
     fn ink_attrs_closest_descendants(&self) -> Vec<InkAttribute> {
         utils::ink_attrs_closest_descendants(self.syntax())
     }
 
-    fn ink_ancestors(&self) -> Vec<InkAttribute> {
-        utils::ink_ancestors(self.syntax())
+    fn ink_attrs_ancestors(&self) -> Vec<InkAttribute> {
+        utils::ink_attrs_ancestors(self.syntax())
     }
 
-    fn ink_closest_ancestors(&self) -> Vec<InkAttribute> {
-        utils::ink_closest_ancestors(self.syntax())
+    fn ink_attrs_closest_ancestors(&self) -> Vec<InkAttribute> {
+        utils::ink_attrs_closest_ancestors(self.syntax())
     }
 }

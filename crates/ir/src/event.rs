@@ -1,11 +1,11 @@
-//! ink! contract event IR.
+//! ink! contract `event` IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Struct;
 
 use crate::{AsInkStruct, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Topic};
 
-/// An ink! contract event.
+/// An ink! contract `event`.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
 pub struct Event {
     /// ink! attribute IR data.
@@ -23,7 +23,7 @@ impl AsInkStruct for Event {
 }
 
 impl Event {
-    /// Returns the topic fields for the ink! contract event.
+    /// Returns the `topic` fields for the ink! contract `event`.
     pub fn topics(&self) -> &Vec<Topic> {
         &self.topics
     }
