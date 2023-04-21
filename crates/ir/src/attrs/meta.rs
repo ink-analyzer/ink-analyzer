@@ -62,8 +62,8 @@ impl MetaNameValue {
     }
 
     /// Returns the name-value pair separator (if any) of meta item.
-    pub fn eq(&self) -> &Option<MetaSeparator> {
-        &self.eq
+    pub fn eq(&self) -> Option<&MetaSeparator> {
+        self.eq.as_ref()
     }
 
     /// Returns the value of meta item.

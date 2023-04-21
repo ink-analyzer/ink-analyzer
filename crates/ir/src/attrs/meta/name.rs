@@ -1,6 +1,7 @@
 //! ink! attribute meta item name.
 
 use ra_ap_syntax::{AstToken, SyntaxKind, SyntaxToken};
+use std::fmt;
 
 /// An ink! attribute meta item name.
 // We need a custom type because can't simply use `Ident`
@@ -28,8 +29,8 @@ impl AstToken for MetaName {
     }
 }
 
-impl ToString for MetaName {
-    fn to_string(&self) -> String {
-        self.syntax.to_string()
+impl fmt::Display for MetaName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.syntax.fmt(f)
     }
 }

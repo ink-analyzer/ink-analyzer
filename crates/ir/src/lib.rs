@@ -39,7 +39,7 @@
 //! ```
 
 pub use self::{
-    attrs::{meta, InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkPathKind},
+    attrs::{meta, InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkMacroKind},
     constructor::Constructor,
     contract::Contract,
     event::Event,

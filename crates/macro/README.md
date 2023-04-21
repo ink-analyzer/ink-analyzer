@@ -24,7 +24,7 @@ use ink_analyzer_ir::ast::Module;
 
 #[derive(FromInkAttribute, FromSyntax)]
 struct Contract {
-    #[path_kind(Contract)]
+    #[macro_kind(Contract)]
     ink_attr: InkAttrData<Module>,
     #[arg_kind(Event)]
     events: Vec<Event>,

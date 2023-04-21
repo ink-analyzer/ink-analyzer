@@ -24,7 +24,7 @@ impl AsInkStruct for Event {
 
 impl Event {
     /// Returns the `topic` fields for the ink! contract `event`.
-    pub fn topics(&self) -> &Vec<Topic> {
+    pub fn topics(&self) -> &[Topic] {
         &self.topics
     }
 }

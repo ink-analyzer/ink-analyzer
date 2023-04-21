@@ -27,21 +27,28 @@ pub fn sort_ink_args_by_kind(args: &[InkArg]) -> Vec<InkArg> {
     let mut sorted_args = args.to_owned();
     sorted_args.sort_by_key(|arg| {
         match arg.kind() {
-            // Required (e.g `#[ink(storage)]`) and/or standalone (e.g `#[ink(event)]`)
+            // Required (e.g `storage`) and/or root-level/unambiguous (e.g `event`)
             // arguments get highest priority.
             InkArgKind::Constructor
             | InkArgKind::Event
             | InkArgKind::Extension
             | InkArgKind::Impl
             | InkArgKind::Message
+            | InkArgKind::Storage => 0,
+            // Optional (e.g `anonymous`, `payable`, `selector` e.t.c) and/or non root-level (e.g `topic`)
+            // and/or ambiguous (e.g `namespace`) get the next tier.
+            InkArgKind::Anonymous
+            | InkArgKind::Default
+            | InkArgKind::HandleStatus
             | InkArgKind::Namespace
-            | InkArgKind::Storage
-            | InkArgKind::Topic => 0,
-            // Macro-specific arguments get the next priority level.
-            InkArgKind::Env | InkArgKind::KeepAttr => 1,
+            | InkArgKind::Payable
+            | InkArgKind::Selector
+            | InkArgKind::Topic => 1,
+            // Macro-only arguments get the next priority level.
+            InkArgKind::Env | InkArgKind::KeepAttr | InkArgKind::Derive => 2,
             // Everything else gets the lowest priority.
-            // This group includes optional attributes (e.g anonymous, payable, selector e.t.c)
-            _ => 2,
+            // Unknown gets a special tier.
+            InkArgKind::Unknown => 10,
         }
     });
     sorted_args
@@ -146,7 +153,7 @@ fn get_arg_eq(elems: &[SyntaxElement]) -> Option<MetaSeparator> {
 fn get_arg_value(elems: &[SyntaxElement]) -> MetaOption<MetaValue> {
     if elems.is_empty() {
         MetaOption::None
-    } else if let Some(path_or_lit) = MetaValue::parse(elems.to_owned()) {
+    } else if let Some(path_or_lit) = MetaValue::parse(elems) {
         MetaOption::Ok(path_or_lit)
     } else {
         MetaOption::Err(elems.to_owned())

@@ -1,11 +1,13 @@
 //! ink! attribute IR.
 
 use ink_analyzer_macro::FromAST;
-use ra_ap_syntax::ast::Attr;
+use ra_ap_syntax::ast::{Attr, PathSegment};
 use ra_ap_syntax::{AstNode, SyntaxNode};
+use std::fmt;
 
 use crate::{FromAST, IRItem};
 
+use crate::meta::MetaName;
 pub use arg::{InkArg, InkArgKind};
 
 mod arg;
@@ -15,14 +17,20 @@ mod utils;
 /// An ink! specific attribute.
 #[derive(Debug, Clone, PartialEq, Eq, FromAST)]
 pub struct InkAttribute {
-    /// The kind of the ink! attribute e.g path attribute like `#[ink::contract]`
-    /// or argument attribute like `#[ink(storage)]`.
+    /// The kind of the ink! attribute e.g attribute macro like `#[ink::contract]`
+    /// or attribute argument like `#[ink(storage)]`.
     kind: InkAttributeKind,
     /// ink! attribute arguments e.g message, payable, selector = 1
     /// for `#[ink(message, payable, selector = 1)]`
     args: Vec<InkArg>,
     /// AST Node for ink! attribute.
     ast: Attr,
+    /// ink! path segment node.
+    ink: PathSegment,
+    /// ink! macro path segment node (if any) from which the attribute macro kind is derived.
+    ink_macro: Option<PathSegment>,
+    /// ink! argument name (if any) from which the attribute argument kind is derived.
+    ink_arg_name: Option<MetaName>,
 }
 
 impl InkAttribute {
@@ -31,19 +39,23 @@ impl InkAttribute {
         // Get attribute path segments.
         let mut path_segments = attr.path()?.segments();
 
-        let first_segment = path_segments.next()?;
-        if first_segment.to_string() == "ink" {
+        let ink_segment = path_segments.next()?;
+        if ink_segment.to_string() == "ink" {
             let args = utils::parse_ink_args(&attr);
-            let ink_attr_kind = if let Some(second_segment) = path_segments.next() {
-                // More than one path segment means an ink! path-based attribute e.g `#[ink::contract]`.
+            let possible_ink_macro_segment = path_segments.next();
+            let mut possible_ink_arg_name: Option<MetaName> = None;
+            let ink_attr_kind = if let Some(ink_macro_segment) = &possible_ink_macro_segment {
+                // More than one path segment means an ink! attribute macro e.g `#[ink::contract]`.
                 if path_segments.next().is_some() {
-                    // Any more path segments means an unknown path/macro e.g `#[ink::abc::xyz]`.
-                    InkAttributeKind::Path(InkPathKind::Unknown)
+                    // Any more path segments means an unknown attribute macro e.g `#[ink::abc::xyz]`.
+                    InkAttributeKind::Macro(InkMacroKind::Unknown)
                 } else {
-                    InkAttributeKind::Path(InkPathKind::from(&second_segment.to_string()))
+                    InkAttributeKind::Macro(InkMacroKind::from(
+                        ink_macro_segment.to_string().as_str(),
+                    ))
                 }
             } else {
-                // No additional path segments means an ink! argument-based attribute e.g ``#[ink(storage)]`.
+                // No additional path segments means an ink! attribute argument e.g ``#[ink(storage)]`.
                 let ink_arg_kind = if args.is_empty() {
                     InkArgKind::Unknown
                 } else {
@@ -51,7 +63,9 @@ impl InkAttribute {
                     // See `utils::sort_ink_args_by_kind` doc.
                     // Returns a new list so we don't change the original order for later analysis.
                     let sorted_args = utils::sort_ink_args_by_kind(&args);
-                    *sorted_args[0].kind()
+                    let primary_arg = &sorted_args[0];
+                    possible_ink_arg_name = primary_arg.name().map(|name| name.to_owned());
+                    *primary_arg.kind()
                 };
                 InkAttributeKind::Arg(ink_arg_kind)
             };
@@ -60,6 +74,9 @@ impl InkAttribute {
                 ast: attr,
                 kind: ink_attr_kind,
                 args,
+                ink: ink_segment,
+                ink_macro: possible_ink_macro_segment,
+                ink_arg_name: possible_ink_arg_name,
             });
         }
 
@@ -68,30 +85,45 @@ impl InkAttribute {
 
     /// Returns the ink! attribute kind.
     ///
-    /// Differentiates path-based attributes (e.g `#[ink::contract]`)
-    /// from argument/meta-based attributes (e.g `#[ink(storage)]`).
+    /// Differentiates ink! attribute macros (e.g `#[ink::contract]`)
+    /// from ink! attribute arguments (e.g `#[ink(storage)]`).
     pub fn kind(&self) -> &InkAttributeKind {
         &self.kind
     }
 
     /// Returns the ink! attribute arguments.
-    pub fn args(&self) -> &Vec<InkArg> {
+    pub fn args(&self) -> &[InkArg] {
         &self.args
+    }
+
+    /// Returns the ink! path segment node.
+    pub fn ink(&self) -> &PathSegment {
+        &self.ink
+    }
+
+    /// Returns the ink! macro path segment node (if any) from which the attribute macro kind is derived.
+    pub fn ink_macro(&self) -> Option<&PathSegment> {
+        self.ink_macro.as_ref()
+    }
+
+    /// Returns the ink! argument name (if any) from which the attribute argument kind is derived.
+    pub fn ink_arg_name(&self) -> Option<&MetaName> {
+        self.ink_arg_name.as_ref()
     }
 }
 
 /// The kind of the ink! attribute.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InkAttributeKind {
-    /// ink! path-based attributes e.g `#[ink::contract]`.
-    Path(InkPathKind),
-    /// ink! argument/meta-based attributes e.g `#[ink(storage)]`.
+    /// ink! attribute macros e.g `#[ink::contract]`.
+    Macro(InkMacroKind),
+    /// ink! attributes arguments e.g `#[ink(storage)]`.
     Arg(InkArgKind),
 }
 
 /// An ink! attribute path kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InkPathKind {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InkMacroKind {
     /// `#[ink::chain_extension]`
     ChainExtension,
     /// `#[ink::contract]`
@@ -102,27 +134,50 @@ pub enum InkPathKind {
     Test,
     /// `#[ink::trait_definition]`
     TraitDefinition,
-    /// Unknown ink! attribute path (i.e unknown ink! attribute macro).
+    /// Unknown ink! attribute macro.
     Unknown,
 }
 
-impl InkPathKind {
-    /// Convert a string slice representing an attribute path segment into an ink! attribute path kind.
-    pub fn from(path_segment: &str) -> Self {
+impl From<&str> for InkMacroKind {
+    /// Convert a string slice representing an attribute path segment into an ink! attribute macro kind.
+    fn from(path_segment: &str) -> Self {
         match path_segment {
             // `#[ink::chain_extension]`
-            "chain_extension" => InkPathKind::ChainExtension,
+            "chain_extension" => InkMacroKind::ChainExtension,
             // `#[ink::contract]`
-            "contract" => InkPathKind::Contract,
+            "contract" => InkMacroKind::Contract,
             // `#[ink::storage_item]`
-            "storage_item" => InkPathKind::StorageItem,
+            "storage_item" => InkMacroKind::StorageItem,
             // `#[ink::test]`
-            "test" => InkPathKind::Test,
+            "test" => InkMacroKind::Test,
             // `#[ink::trait_definition]`
-            "trait_definition" => InkPathKind::TraitDefinition,
+            "trait_definition" => InkMacroKind::TraitDefinition,
             // unknown ink! attribute path (i.e unknown ink! attribute macro).
-            _ => InkPathKind::Unknown,
+            _ => InkMacroKind::Unknown,
         }
+    }
+}
+
+impl fmt::Display for InkMacroKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                // `#[ink::chain_extension]`
+                InkMacroKind::ChainExtension => "chain_extension",
+                // `#[ink::contract]`
+                InkMacroKind::Contract => "contract",
+                // `#[ink::storage_item]`
+                InkMacroKind::StorageItem => "storage_item",
+                // `#[ink::test]`
+                InkMacroKind::Test => "test",
+                // `#[ink::trait_definition]`
+                InkMacroKind::TraitDefinition => "trait_definition",
+                // unknown ink! attribute path (i.e unknown ink! attribute macro).
+                InkMacroKind::Unknown => "unknown",
+            }
+        )
     }
 }
 
@@ -157,7 +212,7 @@ impl<T: AstNode> InkAttrData<T> {
 
     /// Returns the ink! attribute's parent `ASTNode`.
     pub fn parent_ast(&self) -> Option<&T> {
-        Option::from(&self.ast)
+        self.ast.as_ref()
     }
 
     /// Returns the ink! attribute's parent `SyntaxNode`.

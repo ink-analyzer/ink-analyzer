@@ -1,5 +1,7 @@
 //! ink! attribute argument IR.
+
 use ra_ap_syntax::{AstToken, TextRange};
+use std::fmt;
 
 use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaValue};
 
@@ -57,7 +59,7 @@ impl InkArg {
 }
 
 /// An ink! attribute argument kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InkArgKind {
     /// `#[ink(anonymous)]`
     Anonymous,
@@ -65,6 +67,8 @@ pub enum InkArgKind {
     Constructor,
     /// `#[ink(default)]`
     Default,
+    /// `#[ink(derive)]`
+    Derive,
     /// `#[ink(env)]`
     Env,
     /// `#[ink(event)]`
@@ -103,6 +107,8 @@ impl From<&str> for InkArgKind {
             "constructor" => InkArgKind::Constructor,
             // `#[ink(default)]`
             "default" => InkArgKind::Default,
+            // `#[ink(derive)]`
+            "derive" => InkArgKind::Derive,
             // `#[ink(env)]`
             "env" => InkArgKind::Env,
             // `#[ink(event)]`
@@ -130,5 +136,50 @@ impl From<&str> for InkArgKind {
             // unknown ink! attribute argument.
             _ => InkArgKind::Unknown,
         }
+    }
+}
+
+impl fmt::Display for InkArgKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                // `#[ink(anonymous)]`
+                InkArgKind::Anonymous => "anonymous",
+                // `#[ink(constructor)]`
+                InkArgKind::Constructor => "constructor",
+                // `#[ink(default)]`
+                InkArgKind::Default => "default",
+                // `#[ink(derive)]`
+                InkArgKind::Derive => "derive",
+                // `#[ink(env)]`
+                InkArgKind::Env => "env",
+                // `#[ink(event)]`
+                InkArgKind::Event => "event",
+                // `#[ink(extension)]`
+                InkArgKind::Extension => "extension",
+                // `#[ink(handle_status)]`
+                InkArgKind::HandleStatus => "handle_status",
+                // `#[ink(impl)]`
+                InkArgKind::Impl => "impl",
+                // `#[ink(keep_attr)]`
+                InkArgKind::KeepAttr => "keep_attr",
+                // `#[ink(message)]`
+                InkArgKind::Message => "message",
+                // `#[ink(namespace)]`
+                InkArgKind::Namespace => "namespace",
+                // `#[ink(payable)]`
+                InkArgKind::Payable => "payable",
+                // `#[ink(selector)]`
+                InkArgKind::Selector => "selector",
+                // `#[ink(storage)]`
+                InkArgKind::Storage => "storage",
+                // `#[ink(topic)]`
+                InkArgKind::Topic => "topic",
+                // unknown ink! attribute argument.
+                InkArgKind::Unknown => "unkown",
+            }
+        )
     }
 }

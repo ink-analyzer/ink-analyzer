@@ -10,7 +10,7 @@
 //!
 //! #[derive(FromInkAttribute, FromSyntax)]
 //! struct Contract {
-//!     #[path_kind(Contract)]
+//!     #[macro_kind(Contract)]
 //!     ink_attr: InkAttrData<Module>,
 //!     #[arg_kind(Event)]
 //!     events: Vec<Event>,
@@ -53,11 +53,11 @@ pub fn from_ast_derive(input: TokenStream) -> TokenStream {
 /// The format of the attribute is `attr_kind(attr_type)` where:
 ///
 /// `attr_kind` is one of:
-/// - `path_kind` - for path based ink! attributes e.g `#[ink::contract]`.
-/// - `arg_kind` - for argument based ink! attributes e.g `#[ink(event)]`.
+/// - `macro_kind` - for ink! attribute macros e.g `#[ink::contract]`.
+/// - `arg_kind` - for ink! attributes arguments e.g `#[ink(event)]`.
 ///
 /// And `attr_type` is an IR type e.g:
-/// - `Contract`, `ChainExtension`e.t.c for `path_kind` attributes.
+/// - `Contract`, `ChainExtension`e.t.c for `macro_kind` attributes.
 /// - `Storage`, `Event`, `Constructor` e.t.c for `arg_kind` attributes.
 ///
 /// Apart from the `ink_attr` which is required,
@@ -73,14 +73,14 @@ pub fn from_ast_derive(input: TokenStream) -> TokenStream {
 /// #[derive(FromInkAttribute)]
 /// struct Contract {
 ///     // Required `ink_attr` field.
-///     #[path_kind(Contract)]
+///     #[macro_kind(Contract)]
 ///     ink_attr: InkAttrData<Module>,
 ///     // Optional ink! events field whose IR type matches it's annotated `attr_type`.
 ///     #[arg_kind(Event)]
 ///     events: Vec<Event>,
 /// }
 /// ```
-#[proc_macro_derive(FromInkAttribute, attributes(path_kind, arg_kind))]
+#[proc_macro_derive(FromInkAttribute, attributes(macro_kind, arg_kind))]
 pub fn from_ink_attribute_derive(input: TokenStream) -> TokenStream {
     utils::parse_syntax_tree_and_call_derive_impl(
         input,

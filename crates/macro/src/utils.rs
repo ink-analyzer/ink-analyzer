@@ -120,15 +120,15 @@ mod tests {
     #[test]
     fn find_attribute_by_path_works() {
         let ast: ItemStruct = syn::parse_quote! {
-            #[path_kind(Contract)]
+            #[macro_kind(Contract)]
             #[arg_kind(Storage)]
             struct Dummy;
         };
 
-        let path_kind_attr = find_attribute_by_path(&ast.attrs, "path_kind");
-        assert!(path_kind_attr.is_some());
-        assert!(&path_kind_attr.unwrap().path().is_ident("path_kind"));
-        assert!(&path_kind_attr
+        let macro_kind_attr = find_attribute_by_path(&ast.attrs, "macro_kind");
+        assert!(macro_kind_attr.is_some());
+        assert!(&macro_kind_attr.unwrap().path().is_ident("macro_kind"));
+        assert!(&macro_kind_attr
             .unwrap()
             .parse_args::<Path>()
             .unwrap()

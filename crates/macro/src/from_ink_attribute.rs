@@ -27,22 +27,52 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                         let kind_type = field_config.kind_type;
                         let kind_type_variant = field_config.kind_type_variant;
 
+                        let constructor_type: Path = syn::parse_quote! { Constructor };
+                        let message_type: Path = syn::parse_quote! { Message };
+
+                        let single_level_filter = quote! {
+                            .filter_map(|item| {
+                                if *item.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::#kind_type_variant) {
+                                    return Some(#ir_crate_path::#kind_type_variant::cast(item).expect("Should be able to cast"));
+                                }
+                                None
+                            })
+                        };
+
+                        // For We look for ink! `constructors` and ink! `messages` one level deeper inside `impl` blocks as well.
+                        let filter = if kind_type_variant == constructor_type
+                            || kind_type_variant == message_type
+                        {
+                            quote! {
+                                .flat_map(|item| {
+                                    if *item.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::#kind_type_variant) {
+                                        return vec![#ir_crate_path::#kind_type_variant::cast(item).expect("Should be able to cast")];
+                                    } else if *item.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::Impl) {
+                                        let ink_attr_data: InkAttrData<#ir_crate_path::ast::Impl> = #ir_crate_path::InkAttrData::from(item);
+                                        return #ir_crate_path::ink_attrs_closest_descendants(ink_attr_data.parent_syntax())
+                                            .into_iter()
+                                            #single_level_filter
+                                            .collect::<Vec<#ir_crate_path::#kind_type_variant>>();
+                                    }
+                                    Vec::new()
+                                })
+                            }
+                        } else {
+                            // For everything else, we only go one level deep
+                            single_level_filter
+                        };
+
                         field_values.push(quote! {
                             #ident: #ir_crate_path::ink_attrs_closest_descendants(ink_attr_data.parent_syntax())
                                 .into_iter()
-                                .filter_map(|item| {
-                                    if *item.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::#kind_type_variant) {
-                                        return Some(#ir_crate_path::#kind_type_variant::cast(item).expect("Should be able to cast"));
-                                    }
-                                    None
-                                })
+                                #filter
                                 .collect(),
                         });
                     }
                 } else {
                     let error = syn::Error::new(
                         ident.span(),
-                        format!("`{ident}` field must be annotated with ink! attribute kind info e.g `#[path_kind(Contract)]`"),
+                        format!("`{ident}` field must be annotated with ink! attribute kind info e.g `#[macro_kind(Contract)]`"),
                     );
                     if let Some(combined_error) = &mut field_errors {
                         combined_error.combine(error);
@@ -99,7 +129,7 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
 }
 
 fn get_ink_field_kind_attr(field: &Field) -> Option<&Attribute> {
-    if let Some(attr) = utils::find_attribute_by_path(&field.attrs, "path_kind") {
+    if let Some(attr) = utils::find_attribute_by_path(&field.attrs, "macro_kind") {
         return Some(attr);
     }
     utils::find_attribute_by_path(&field.attrs, "arg_kind")
@@ -114,8 +144,8 @@ struct FieldConfig {
 impl FieldConfig {
     pub fn build(ink_attr_field: &Field) -> Option<Self> {
         let field_kind_attr = get_ink_field_kind_attr(ink_attr_field)?;
-        let (kind_variant, kind_type) = if field_kind_attr.path().is_ident("path_kind") {
-            (quote! { Path }, quote! { InkPathKind })
+        let (kind_variant, kind_type) = if field_kind_attr.path().is_ident("macro_kind") {
+            (quote! { Macro }, quote! { InkMacroKind })
         } else {
             (quote! { Arg }, quote! { InkArgKind })
         };
@@ -146,7 +176,7 @@ mod tests {
                 }
 
                 fn can_cast(attr: &InkAttribute) -> bool {
-                    *attr.kind() == #ir_crate_path::InkAttributeKind::Path(#ir_crate_path::InkPathKind::Contract)
+                    *attr.kind() == #ir_crate_path::InkAttributeKind::Macro(#ir_crate_path::InkMacroKind::Contract)
                 }
 
                 fn cast(attr: #ir_crate_path::InkAttribute) -> Option<Self> {
@@ -171,7 +201,7 @@ mod tests {
         let name = format_ident!("Contract");
         let input = syn::parse_quote! {
             struct #name {
-                #[path_kind(Contract)]
+                #[macro_kind(Contract)]
                 ink_attr: InkAttrData<Module>,
             }
         };

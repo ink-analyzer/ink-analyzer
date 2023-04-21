@@ -12,7 +12,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
 pub struct Contract {
     /// ink! attribute IR data.
-    #[path_kind(Contract)]
+    #[macro_kind(Contract)]
     ink_attr: InkAttrData<Module>,
     /// List of top level ink! storage items.
     #[arg_kind(Storage)]
@@ -38,27 +38,27 @@ impl Contract {
     }
 
     /// Returns the `storage` items for the ink! `contract`.
-    pub fn storage(&self) -> &Vec<Storage> {
+    pub fn storage(&self) -> &[Storage] {
         &self.storage
     }
 
     /// Returns the `event`s for the ink! `contract`.
-    pub fn events(&self) -> &Vec<Event> {
+    pub fn events(&self) -> &[Event] {
         &self.events
     }
 
     /// Returns the `impl` blocks for the ink! `contract`.
-    pub fn impls(&self) -> &Vec<Impl> {
+    pub fn impls(&self) -> &[Impl] {
         &self.impls
     }
 
     /// Returns the `constructor`s for the ink! `contract`.
-    pub fn constructors(&self) -> &Vec<Constructor> {
+    pub fn constructors(&self) -> &[Constructor] {
         &self.constructors
     }
 
     /// Returns the `message`s for the ink! `contract`.
-    pub fn messages(&self) -> &Vec<Message> {
+    pub fn messages(&self) -> &[Message] {
         &self.messages
     }
 }

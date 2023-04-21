@@ -3,6 +3,7 @@
 use itertools::Itertools;
 use ra_ap_syntax::ast::Expr;
 use ra_ap_syntax::{AstNode, SyntaxElement, SyntaxKind, TextRange, TextSize};
+use std::fmt;
 
 /// An ink! attribute meta item value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -17,13 +18,9 @@ impl MetaValue {
     /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ast/attr_args.rs#L40-L49>.
     ///
     /// Ref: <https://doc.rust-lang.org/reference/attributes.html#meta-item-attribute-syntax>.
-    pub fn parse(elems: Vec<SyntaxElement>) -> Option<Self> {
+    pub fn parse(elems: &[SyntaxElement]) -> Option<Self> {
         if !elems.is_empty() {
-            let arg_text = elems
-                .clone()
-                .into_iter()
-                .map(|elem| elem.to_string())
-                .join("");
+            let arg_text = elems.iter().map(|elem| elem.to_string()).join("");
 
             // Try to parse as an expression
             // For ink!, we're specifically interested in:
@@ -36,14 +33,14 @@ impl MetaValue {
             let expr = ra_ap_syntax::hacks::parse_expr_from_str(&arg_text);
             return expr.map(|exp| Self {
                 expr: exp,
-                elements: elems,
+                elements: elems.to_owned(),
             });
         }
         None
     }
 
     /// Returns the syntax elements.
-    pub fn elements(&self) -> &Vec<SyntaxElement> {
+    pub fn elements(&self) -> &[SyntaxElement] {
         &self.elements
     }
 
@@ -108,8 +105,8 @@ impl MetaValue {
     }
 }
 
-impl ToString for MetaValue {
-    fn to_string(&self) -> String {
-        self.expr.to_string()
+impl fmt::Display for MetaValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.expr.fmt(f)
     }
 }

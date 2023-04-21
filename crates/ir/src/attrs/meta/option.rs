@@ -1,10 +1,11 @@
 //! ink! attribute meta item option.
 
 use ra_ap_syntax::SyntaxElement;
+use std::fmt;
 
 /// An ink! attribute meta item option.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub enum MetaOption<T: ToString> {
+pub enum MetaOption<T: fmt::Display> {
     /// A valid item.
     Ok(T),
     /// An invalid item(s).
@@ -14,7 +15,7 @@ pub enum MetaOption<T: ToString> {
     None,
 }
 
-impl<T: ToString> MetaOption<T> {
+impl<T: fmt::Display> MetaOption<T> {
     /// Returns true if variant is valid.
     pub fn is_ok(&self) -> bool {
         matches!(self, Self::Ok(_))
@@ -36,7 +37,7 @@ impl<T: ToString> MetaOption<T> {
     }
 
     /// `Option<Result<T, E>>` wrapper.
-    pub fn option(&self) -> Option<Result<&T, &Vec<SyntaxElement>>> {
+    pub fn option(&self) -> Option<Result<&T, &[SyntaxElement]>> {
         match self {
             Self::Ok(value) => Some(Ok(value)),
             Self::Err(value) => Some(Err(value)),
@@ -45,7 +46,7 @@ impl<T: ToString> MetaOption<T> {
     }
 
     /// `Result<T, Option<E>>` wrapper.
-    pub fn result(&self) -> Result<&T, Option<&Vec<SyntaxElement>>> {
+    pub fn result(&self) -> Result<&T, Option<&[SyntaxElement]>> {
         match self {
             Self::Ok(value) => Ok(value),
             Self::Err(value) => Err(Some(value)),
@@ -54,7 +55,7 @@ impl<T: ToString> MetaOption<T> {
     }
 
     /// `Result<Option<T>, E>` wrapper.
-    pub fn result_option(&self) -> Result<Option<&T>, &Vec<SyntaxElement>> {
+    pub fn result_option(&self) -> Result<Option<&T>, &[SyntaxElement]> {
         match self {
             Self::Ok(value) => Ok(Some(value)),
             Self::Err(value) => Err(value),
@@ -63,16 +64,20 @@ impl<T: ToString> MetaOption<T> {
     }
 }
 
-impl<T: ToString> ToString for MetaOption<T> {
-    fn to_string(&self) -> String {
+impl<T: fmt::Display> fmt::Display for MetaOption<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Ok(value) => value.to_string(),
-            Self::Err(value) => value
-                .iter()
-                .map(|elem| elem.to_string())
-                .collect::<Vec<String>>()
-                .join(""),
-            Self::None => String::new(),
+            Self::Ok(value) => value.fmt(f),
+            Self::Err(value) => write!(
+                f,
+                "{}",
+                value
+                    .iter()
+                    .map(|elem| elem.to_string())
+                    .collect::<Vec<String>>()
+                    .join("")
+            ),
+            Self::None => write!(f, "{}", String::new()),
         }
     }
 }
