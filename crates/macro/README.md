@@ -2,8 +2,6 @@
 
 Procedural macros for [ink-analyzer](/crates/analyzer) and [ink-analyzer-ir](/crates/ir).
 
-**NOTE:** This project is still work in progress, check back over the next few weeks for regular updates.
-
 ## Installation
 
 Run the following Cargo command in your project directory

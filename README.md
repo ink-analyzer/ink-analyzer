@@ -42,13 +42,17 @@ Or you can access documentation locally by running the following command from th
 cargo doc --open
 ```
 
+To open crate specific docs, see instructions in the readme in each crate's directory.
+
 ## Testing
 
-You can run unit tests for all the core functionality by running the following command from the project root
+You can run unit tests for all the core functionality for all crates by running the following command from the project root
 
 ```shell
 cargo test
 ```
+
+To run only crate specific tests, see instructions in the readme in each crate's directory.
 
 ## License
 

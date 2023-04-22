@@ -35,19 +35,22 @@ pub fn sort_ink_args_by_kind(args: &[InkArg]) -> Vec<InkArg> {
             | InkArgKind::Impl
             | InkArgKind::Message
             | InkArgKind::Storage => 0,
-            // Optional (e.g `anonymous`, `payable`, `selector` e.t.c) and/or non root-level (e.g `topic`)
-            // and/or ambiguous (e.g `namespace`) get the next tier.
+            // Everything else apart from "unknown" gets the next priority level.
+            // This includes optional (e.g `anonymous`, `payable`, `selector` e.t.c) and/or non root-level (e.g `topic`)
+            // and/or ambiguous (e.g `namespace`) and/or macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c).
+            // This group is explicitly enumerated to force explicit decisions about
+            // the priority level of new `InkArgKind` additions.
             InkArgKind::Anonymous
             | InkArgKind::Default
+            | InkArgKind::Derive
+            | InkArgKind::Env
             | InkArgKind::HandleStatus
+            | InkArgKind::KeepAttr
             | InkArgKind::Namespace
             | InkArgKind::Payable
             | InkArgKind::Selector
             | InkArgKind::Topic => 1,
-            // Macro-only arguments get the next priority level.
-            InkArgKind::Env | InkArgKind::KeepAttr | InkArgKind::Derive => 2,
-            // Everything else gets the lowest priority.
-            // Unknown gets a special tier.
+            // "Unknown" gets a special priority level.
             InkArgKind::Unknown => 10,
         }
     });

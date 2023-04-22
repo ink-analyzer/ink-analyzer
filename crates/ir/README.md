@@ -2,8 +2,6 @@
 
 [ink!](https://use.ink/) intermediate representations (IRs) and abstractions for [ink! analyzer](/crates/analyzer).
 
-**NOTE:** This project is still work in progress, check back over the next few weeks for regular updates.
-
 ## Installation
 
 Run the following Cargo command in your project directory
