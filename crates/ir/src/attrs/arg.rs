@@ -178,7 +178,7 @@ impl fmt::Display for InkArgKind {
                 // `#[ink(topic)]`
                 InkArgKind::Topic => "topic",
                 // unknown ink! attribute argument.
-                InkArgKind::Unknown => "unkown",
+                InkArgKind::Unknown => "unknown",
             }
         )
     }
