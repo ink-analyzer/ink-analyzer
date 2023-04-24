@@ -36,10 +36,5 @@ pub enum Severity {
 
 /// Runs diagnostics for the source file.
 pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
-    // Run ink! file diagnostics.
-    utils::append_diagnostics(&mut results, &mut file::diagnostics(file));
-
-    results
+    file::diagnostics(file)
 }
