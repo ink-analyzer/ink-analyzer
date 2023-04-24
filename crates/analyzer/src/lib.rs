@@ -1,5 +1,30 @@
 //! # ink! Analyzer
 //! A library for semantic analysis of [ink!](https://use.ink/) smart contract code.
+//!
+//! # Example
+//! Run diagnostics for ink! smart contract code.
+//!
+//! ```
+//! use ink_analyzer::Analysis;
+//!
+//! fn do_analysis() {
+//!     let code = r#"
+//!         #[ink::contract]
+//!         mod flipper {
+//!
+//!             #[ink(storage)]
+//!             pub struct Flipper {
+//!                 value: bool,
+//!             }
+//!
+//!             // --snip--
+//!         }
+//!     "#;
+//!
+//!     let diagnostics = Analysis.diagnostics(code);
+//!     dbg!(&diagnostics);
+//! }
+//! ```
 
 pub use self::{analysis::Analysis, analysis::Diagnostic, analysis::Severity};
 

@@ -16,7 +16,7 @@ impl Analysis {
         InkFile::parse(code)
     }
 
-    /// Computes diagnostics for the smart contract code.
+    /// Runs diagnostics for the smart contract code.
     pub fn diagnostics(&self, code: &str) -> Vec<Diagnostic> {
         diagnostics::diagnostics(&self.parse(code))
     }

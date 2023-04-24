@@ -3,9 +3,16 @@
 use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::InkFile;
 
-mod contract;
 mod file;
-pub mod utils;
+mod utils;
+
+mod constructor;
+mod contract;
+mod event;
+mod ink_test;
+mod message;
+mod storage;
+mod topic;
 
 /// A diagnostic error or warning.
 #[derive(Debug)]
@@ -27,22 +34,12 @@ pub enum Severity {
     Warning,
 }
 
-/// Computes diagnostics for the source file.
+/// Runs diagnostics for the source file.
 pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // ink! file level diagnostics.
+    // Run ink! file diagnostics.
     utils::append_diagnostics(&mut results, &mut file::diagnostics(file));
-
-    // ink! contract diagnostics.
-    utils::append_diagnostics(
-        &mut results,
-        &mut file
-            .contracts()
-            .iter()
-            .flat_map(contract::diagnostics)
-            .collect::<Vec<Diagnostic>>(),
-    );
 
     results
 }

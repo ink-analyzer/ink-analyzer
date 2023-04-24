@@ -1,9 +1,8 @@
 //! ink! file level diagnostics.
 
-use ink_analyzer_ir::syntax::TextRange;
-use ink_analyzer_ir::{FromSyntax, InkFile};
+use ink_analyzer_ir::{InkAttributeKind, InkFile};
 
-use super::utils;
+use super::{contract, ink_test, utils};
 use crate::{Diagnostic, Severity};
 
 /// Runs ink! file level diagnostics.
@@ -13,96 +12,188 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
     // Runs generic diagnostics `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(file));
 
-    // Ensure exactly one ink! contract, See `ensure_contract_quantity`.
-    if let Some(diagnostic) = ensure_contract_quantity(file) {
-        utils::push_diagnostic(&mut results, diagnostic);
-    }
+    // Ensure at most one ink! contract, See `ensure_contract_quantity`.
+    utils::append_diagnostics(&mut results, &mut ensure_contract_quantity(file));
+
+    // ink! contract diagnostics.
+    utils::append_diagnostics(
+        &mut results,
+        &mut file
+            .contracts()
+            .iter()
+            .flat_map(contract::diagnostics)
+            .collect(),
+    );
+
+    // Run ink! test diagnostics, see `ink_test::diagnostics` doc.
+    utils::append_diagnostics(
+        &mut results,
+        &mut file
+            .tests()
+            .iter()
+            .flat_map(ink_test::diagnostics)
+            .collect(),
+    );
+
+    // Ensure only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors),
+    // See `ensure_valid_quasi_direct_ink_descendants` doc.
+    utils::append_diagnostics(
+        &mut results,
+        &mut ensure_valid_quasi_direct_ink_descendants(file),
+    );
 
     results
 }
 
-/// Ensures that an ink! contract is not missing and that there are not multiple ink! contract definitions.
+/// Ensure there are not multiple ink! contract definitions.
 ///
 /// Multiple ink! contract definitions in a single file generate conflicting metadata definitions.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/codegen/src/generator/metadata.rs#L51>.
-fn ensure_contract_quantity(file: &InkFile) -> Option<Diagnostic> {
-    let num_contracts = file.contracts().len();
-    if num_contracts == 0 {
-        return Some(Diagnostic {
-            message: "Missing ink! contract definition".to_string(),
-            range: file.syntax().text_range(),
-            severity: Severity::Error,
-        });
-    } else if num_contracts > 1 {
-        let mut text_range = file.contracts()[1].syntax().text_range();
-        if num_contracts > 2 {
-            text_range = TextRange::new(
-                text_range.start(),
-                file.contracts().last().unwrap().syntax().text_range().end(),
-            );
-        }
-        return Some(Diagnostic {
-            message: "Only one ink! contract per file is currently supported.".to_string(),
-            range: text_range,
-            severity: Severity::Warning,
-        });
-    }
-    None
+fn ensure_contract_quantity(file: &InkFile) -> Vec<Diagnostic> {
+    utils::ensure_at_most_one_item(
+        file.contracts(),
+        "Only one ink! contract per file is currently supported.",
+        Severity::Error,
+    )
+}
+
+/// Ensure only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors).
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L98-L114>.
+fn ensure_valid_quasi_direct_ink_descendants(file: &InkFile) -> Vec<Diagnostic> {
+    utils::ensure_valid_quasi_direct_ink_descendants(file, |attr| {
+        matches!(attr.kind(), InkAttributeKind::Macro(_))
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::InkFile;
+    use ink_analyzer_ir::{quote_as_str, InkFile};
+    use quote::format_ident;
 
     #[test]
     fn one_contract_definition_works() {
-        let file = InkFile::parse(
-            r#"
+        let file = InkFile::parse(quote_as_str! {
             #[ink::contract]
             mod flipper {
             }
-            "#,
-        );
+        });
 
-        let result = ensure_contract_quantity(&file);
-        assert!(result.is_none());
+        let results = ensure_contract_quantity(&file);
+        assert!(results.is_empty());
     }
 
     #[test]
-    fn no_contract_definitions_fails() {
+    fn no_contract_definitions_works() {
         let file = InkFile::parse("");
 
-        let result = ensure_contract_quantity(&file);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+        let results = ensure_contract_quantity(&file);
+        assert!(results.is_empty());
     }
 
     #[test]
     fn multiple_contract_definitions_fails() {
         // Tests snippets with btn 2 and 5 contract definitions.
         for idx in 2..=5 {
-            // Creates code snippets with multiple contract definitions
+            // Creates code snippets with multiple contract definitions.
             let code = (1..=idx)
                 .map(|i| {
-                    format!(
-                        r#"
-                    #[ink::contract]
-                    mod flipper{} {{
-                    }}
-                    "#,
-                        i
-                    )
+                    let name = format_ident!("flipper{i}");
+                    (quote_as_str! {
+                        #[ink::contract]
+                        mod #name {
+                        }
+                    })
+                    .to_string()
                 })
                 .collect::<Vec<String>>()
                 .join("");
 
             let file = InkFile::parse(&code);
 
-            let result = ensure_contract_quantity(&file);
-            assert!(result.is_some());
-            assert_eq!(result.unwrap().severity, Severity::Warning);
+            let results = ensure_contract_quantity(&file);
+            // There should be `idx-1` extraneous contract definitions.
+            assert_eq!(results.len(), idx - 1);
+            // All diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                idx - 1
+            );
         }
+    }
+
+    #[test]
+    fn valid_quasi_direct_descendant_works() {
+        let contract = InkFile::parse(quote_as_str! {
+            #[ink::contract]
+            mod flipper {
+            }
+
+            #[ink::trait_definition]
+            trait FlipperTrait {
+            }
+
+            #[ink::chain_extension]
+            trait FlipperExtension {
+            }
+
+            #[ink::storage_item]
+            struct FlipperStorage {
+            }
+
+            #[cfg(test)]
+            mod tests {
+                #[ink::test]
+                fn it_works() {
+
+                }
+            }
+        });
+
+        let results = ensure_valid_quasi_direct_ink_descendants(&contract);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn invalid_quasi_direct_descendant_fails() {
+        let contract = InkFile::parse(quote_as_str! {
+            #[ink(storage)]
+            struct Flipper {
+            }
+
+            #[ink(event)]
+            struct Flip {
+                #[ink(topic)]
+                flipped: bool,
+            }
+
+            impl Flipper {
+                #[ink(constructor)]
+                pub fn new() -> Self {
+                }
+
+                #[ink(message)]
+                pub fn flip(&mut self) {
+                }
+            }
+        });
+
+        let results = ensure_valid_quasi_direct_ink_descendants(&contract);
+        // There should be 4 errors (i.e `storage`, `event`, `constructor` and `message`,
+        // `topic` is not a quasi-direct dependant because it has `event` as a parent).
+        assert_eq!(results.len(), 4);
+        // All diagnostics should be errors.
+        assert_eq!(
+            results
+                .iter()
+                .filter(|item| item.severity == Severity::Error)
+                .count(),
+            4
+        );
     }
 }

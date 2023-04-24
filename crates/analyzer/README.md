@@ -21,7 +21,8 @@ cargo add ink-analyzer
 
 ## Usage
 
-### Example: Get diagnostics for ink! smart contract code
+### Example:
+Run diagnostics for ink! smart contract code.
 
 
 ```rust
