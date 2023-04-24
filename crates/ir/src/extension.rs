@@ -1,19 +1,19 @@
-//! ink! constructor IR.
+//! ink! extension IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Fn;
 
 use crate::{AsInkFn, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
 
-/// An ink! constructor.
+/// An ink! extension.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
-pub struct Constructor {
+pub struct Extension {
     /// ink! attribute IR data.
-    #[arg_kind(Constructor)]
+    #[arg_kind(Extension)]
     ink_attr: InkAttrData<Fn>,
 }
 
-impl AsInkFn for Constructor {
+impl AsInkFn for Extension {
     fn fn_item(&self) -> Option<&Fn> {
         self.ink_attr.parent_ast()
     }

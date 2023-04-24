@@ -53,7 +53,7 @@ pub trait AsInkFn {
     fn fn_item(&self) -> Option<&Fn>;
 }
 
-/// Convenience methods for navigating the IR that implemented by all IR items.
+/// Convenience methods for navigating the IR that are implemented by all IR items.
 pub trait IRItem {
     /// Returns the syntax kind for the IR item.
     fn syntax_kind(&self) -> SyntaxKind;

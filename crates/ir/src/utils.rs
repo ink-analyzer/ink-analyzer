@@ -4,9 +4,9 @@ use itertools::{Either, Itertools};
 use ra_ap_syntax::ast::{Attr, Item};
 use ra_ap_syntax::{AstNode, SyntaxKind, SyntaxNode};
 
-use crate::InkAttribute;
+use crate::{FromInkAttribute, InkAttribute};
 
-/// Casts a syntax nodes to an ink! attribute or returns None.
+/// Casts a syntax node to an ink! attribute (if possible).
 fn ink_attribute_from_node(node: SyntaxNode) -> Option<InkAttribute> {
     Attr::cast(node).and_then(InkAttribute::cast)
 }
@@ -35,7 +35,7 @@ pub fn ink_attrs_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
 }
 
 /// Returns ink! attributes for all the syntax node's descendants
-/// that don't have any ink! ancestors between them and the current node.
+/// that don't have any ink! ancestor between them and the current node.
 pub fn ink_attrs_closest_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
     // Simply calling children on the syntax node directly would include the syntax node's own ink! attributes.
     // So we get the non-attribute children first and then either get their ink! attributes or return them if they have none.
@@ -93,7 +93,7 @@ pub fn ink_attrs_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
 }
 
 /// Returns ink! attributes for all the syntax node's ancestors
-/// that don't have any ink! ancestors between them and the current node.
+/// that don't have any ink! descendant between them and the current node.
 pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
     let mut attrs = Vec::new();
     if let Some(parent) = node.parent() {
@@ -117,8 +117,66 @@ pub fn parent_ast_item(node: &SyntaxNode) -> Option<Item> {
     }
 }
 
+/// Returns the syntax node's descendant ink! items of IR type `T`.
+pub fn ink_descendants<T>(node: &SyntaxNode) -> Vec<T>
+where
+    T: FromInkAttribute,
+{
+    ink_attrs_descendants(node)
+        .into_iter()
+        .filter_map(T::cast)
+        .collect()
+}
+
+/// Returns the syntax node's descendant ink! items of IR type `T` that don't have any
+/// ink! ancestor between them and the current node.
+pub fn ink_closest_descendants<T>(node: &SyntaxNode) -> Vec<T>
+where
+    T: FromInkAttribute,
+{
+    ink_attrs_closest_descendants(node)
+        .into_iter()
+        .filter_map(T::cast)
+        .collect()
+}
+
+/// Returns the syntax node's parent ink! item of IR type `T` (if any).
+pub fn ink_parent<T>(node: &SyntaxNode) -> Option<T>
+where
+    T: FromInkAttribute,
+{
+    if let Some(parent) = parent_ast_item(node) {
+        return ink_attrs(parent.syntax()).into_iter().find_map(T::cast);
+    }
+
+    None
+}
+
+/// Returns the syntax node's ancestor ink! items of IR type `T`.
+pub fn ink_ancestors<T>(node: &SyntaxNode) -> Vec<T>
+where
+    T: FromInkAttribute,
+{
+    ink_attrs_ancestors(node)
+        .into_iter()
+        .filter_map(T::cast)
+        .collect()
+}
+
+/// Returns the syntax node's ancestor ink! items of IR type `T` that don't have any
+/// ink! descendant between them and the current node.
+pub fn ink_closest_ancestors<T>(node: &SyntaxNode) -> Vec<T>
+where
+    T: FromInkAttribute,
+{
+    ink_attrs_closest_ancestors(node)
+        .into_iter()
+        .filter_map(T::cast)
+        .collect()
+}
+
 /// Quasi-quotation macro that accepts input like the `quote!` macro
-/// and returns string slice (`&str`) instead of a `TokenStream`.
+/// but returns a string slice (`&str`) instead of a `TokenStream`.
 #[macro_export]
 macro_rules! quote_as_str {
     ($($tt:tt)*) => {

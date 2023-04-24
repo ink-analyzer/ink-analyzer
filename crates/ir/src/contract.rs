@@ -1,64 +1,72 @@
-//! ink! `contract` IR.
+//! ink! contract IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Module;
 
 use crate::{
-    Constructor, Event, FromInkAttribute, FromSyntax, Impl, InkAttrData, InkAttribute, Message,
-    Storage,
+    Constructor, Event, FromInkAttribute, FromSyntax, Impl, InkAttrData, InkAttribute, InkTest,
+    Message, Storage,
 };
 
-/// An ink! `contract`.
+/// An ink! contract.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
 pub struct Contract {
     /// ink! attribute IR data.
     #[macro_kind(Contract)]
     ink_attr: InkAttrData<Module>,
-    /// List of top level ink! storage items.
+    /// ink! storage items.
     #[arg_kind(Storage)]
     storage: Vec<Storage>,
-    /// List of top level ink! event items.
+    /// ink! events.
     #[arg_kind(Event)]
     events: Vec<Event>,
-    /// List of top level ink! impl items.
+    /// ink! impl items.
     #[arg_kind(Impl)]
     impls: Vec<Impl>,
-    /// List of top level ink! constructor items.
+    /// ink! constructors.
     #[arg_kind(Constructor)]
     constructors: Vec<Constructor>,
-    /// List of top level ink! message items.
+    /// ink! messages.
     #[arg_kind(Message)]
     messages: Vec<Message>,
+    /// ink! tests.
+    #[macro_kind(Test)]
+    tests: Vec<InkTest>,
 }
 
 impl Contract {
-    /// Returns the `mod` item (if any) for the ink! `contract`.
+    /// Returns the ink! `mod` item (if any) for the ink! contract.
     pub fn module(&self) -> Option<&Module> {
         self.ink_attr.parent_ast()
     }
 
-    /// Returns the `storage` items for the ink! `contract`.
+    /// Returns the ink! storage items for the ink! contract.
     pub fn storage(&self) -> &[Storage] {
         &self.storage
     }
 
-    /// Returns the `event`s for the ink! `contract`.
+    /// Returns the ink! events for the ink! contract.
     pub fn events(&self) -> &[Event] {
         &self.events
     }
 
-    /// Returns the `impl` blocks for the ink! `contract`.
+    /// Returns the ink! impl blocks for the ink! contract.
     pub fn impls(&self) -> &[Impl] {
         &self.impls
     }
 
-    /// Returns the `constructor`s for the ink! `contract`.
+    /// Returns the ink! constructors for the ink! contract.
     pub fn constructors(&self) -> &[Constructor] {
         &self.constructors
     }
 
-    /// Returns the `message`s for the ink! `contract`.
+    /// Returns the ink! messages for the ink! contract.
     pub fn messages(&self) -> &[Message] {
         &self.messages
+    }
+
+    /// Returns the ink! tests for the ink! contract.
+    pub fn tests(&self) -> &[InkTest] {
+        &self.tests
     }
 }

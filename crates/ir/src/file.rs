@@ -3,28 +3,33 @@
 use ink_analyzer_macro::FromAST;
 use ra_ap_syntax::{AstNode, SourceFile};
 
-use crate::{utils, Contract, FromAST, FromInkAttribute, InkAttributeKind, InkMacroKind};
+use crate::{utils, ChainExtension, Contract, FromAST, InkTest, StorageItem, TraitDefinition};
 
 /// An ink! source file.
 #[derive(Debug, Clone, PartialEq, Eq, FromAST)]
 pub struct InkFile {
-    /// List of top level (i.e not nested) ink! contracts in source file.
+    /// ink! contracts in source file.
     contracts: Vec<Contract>,
+    /// ink! trait definitions in source file.
+    trait_definitions: Vec<TraitDefinition>,
+    /// ink! chain extensions in source file.
+    chain_extensions: Vec<ChainExtension>,
+    /// ink! storage items in source file.
+    storage_items: Vec<StorageItem>,
+    /// ink! tests in source file.
+    tests: Vec<InkTest>,
     /// AST Node for ink! source file.
     ast: SourceFile,
 }
 
 impl From<SourceFile> for InkFile {
     fn from(file: SourceFile) -> Self {
-        let mut contracts = Vec::new();
-        let ink_descendants = utils::ink_attrs_closest_descendants(file.syntax());
-        for item in ink_descendants {
-            if let InkAttributeKind::Macro(InkMacroKind::Contract) = item.kind() {
-                contracts.push(Contract::cast(item).expect("Should be able to cast contract"))
-            }
-        }
         Self {
-            contracts,
+            contracts: utils::ink_closest_descendants(file.syntax()),
+            trait_definitions: utils::ink_closest_descendants(file.syntax()),
+            chain_extensions: utils::ink_closest_descendants(file.syntax()),
+            storage_items: utils::ink_closest_descendants(file.syntax()),
+            tests: utils::ink_closest_descendants(file.syntax()),
             ast: file,
         }
     }
@@ -36,8 +41,28 @@ impl InkFile {
         Self::from(SourceFile::parse(code).tree())
     }
 
-    /// Returns list of top level (i.e not nested) ink! contracts in source file.
+    /// Returns ink! contracts in source file.
     pub fn contracts(&self) -> &[Contract] {
         &self.contracts
+    }
+
+    /// Returns ink! trait definitions in source file.
+    pub fn trait_definitions(&self) -> &[TraitDefinition] {
+        &self.trait_definitions
+    }
+
+    /// Returns ink! chain extensions in source file.
+    pub fn chain_extensions(&self) -> &[ChainExtension] {
+        &self.chain_extensions
+    }
+
+    /// Returns ink! storage items in source file.
+    pub fn storage_items(&self) -> &[StorageItem] {
+        &self.storage_items
+    }
+
+    /// Returns ink! tests in source file.
+    pub fn tests(&self) -> &[InkTest] {
+        &self.tests
     }
 }
