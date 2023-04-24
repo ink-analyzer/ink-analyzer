@@ -23,42 +23,41 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                         // Field value for `ink_attr` field is handled differently and has to be the last.
                         ink_attr_field_config = Some(field_config);
                     } else {
-                        let kind_variant = field_config.kind_variant;
-                        let kind_type = field_config.kind_type;
-                        let kind_type_variant = field_config.kind_type_variant;
+                        let kind_variant = field_config.kind_variant; // e.g `Macro` or `Arg`
+                        let kind_type = field_config.kind_type; // e.g `InkMacroKind` or `InkArgKind`
+                        let kind_type_variant = field_config.kind_type_variant; // e.g `Contract`, `Storage` e.t.c.
 
-                        let constructor_type: Path = syn::parse_quote! { Constructor };
-                        let message_type: Path = syn::parse_quote! { Message };
-
-                        let single_level_filter = quote! {
-                            .filter_map(|item| {
-                                if *item.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::#kind_type_variant) {
-                                    return Some(#ir_crate_path::#kind_type_variant::cast(item).expect("Should be able to cast"));
-                                }
-                                None
-                            })
+                        let kind_ir_type = if kind_type_variant == syn::parse_quote! { Test } {
+                            syn::parse_quote! { InkTest }
+                        } else {
+                            kind_type_variant.clone()
                         };
 
-                        // For We look for ink! `constructors` and ink! `messages` one level deeper inside `impl` blocks as well.
-                        let filter = if kind_type_variant == constructor_type
-                            || kind_type_variant == message_type
+                        let single_level_filter = quote! {
+                            .filter_map(#ir_crate_path::#kind_ir_type::cast)
+                        };
+
+                        // For ink! `constructors` and ink! `messages`, we look one level deeper inside `impl` blocks as well.
+                        let filter = if kind_type_variant == syn::parse_quote! { Constructor }
+                            || kind_type_variant == syn::parse_quote! { Message }
                         {
                             quote! {
-                                .flat_map(|item| {
-                                    if *item.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::#kind_type_variant) {
-                                        return vec![#ir_crate_path::#kind_type_variant::cast(item).expect("Should be able to cast")];
-                                    } else if *item.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::Impl) {
-                                        let ink_attr_data: InkAttrData<#ir_crate_path::ast::Impl> = #ir_crate_path::InkAttrData::from(item);
-                                        return #ir_crate_path::ink_attrs_closest_descendants(ink_attr_data.parent_syntax())
+                                .flat_map(|attr| {
+                                    if let Some(item) = #ir_crate_path::#kind_ir_type::cast(attr.clone()) {
+                                        vec![item]
+                                    } else if *attr.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::Impl) {
+                                        let ink_attr_data: InkAttrData<#ir_crate_path::ast::Impl> = #ir_crate_path::InkAttrData::from(attr);
+                                        #ir_crate_path::ink_attrs_closest_descendants(ink_attr_data.parent_syntax())
                                             .into_iter()
                                             #single_level_filter
-                                            .collect::<Vec<#ir_crate_path::#kind_type_variant>>();
+                                            .collect()
+                                    } else {
+                                        Vec::new()
                                     }
-                                    Vec::new()
                                 })
                             }
                         } else {
-                            // For everything else, we only go one level deep
+                            // For everything else, we only go one level deep.
                             single_level_filter
                         };
 
