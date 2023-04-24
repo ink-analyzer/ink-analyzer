@@ -535,7 +535,6 @@ mod tests {
                 impl Flipper {
                     #[ink(message)]
                     pub fn flip(&mut self) {
-                        self.value = !self.value;
                     }
                 }
             }

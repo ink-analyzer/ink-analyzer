@@ -18,7 +18,7 @@ pub fn diagnostics(ink_test: &InkTest) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(ink_test));
 
-    // Ensure ink! test is applied to an `fn` item., see `ensure_fn` doc.
+    // Ensure ink! test is an `fn` item., see `ensure_fn` doc.
     if let Some(diagnostic) = ensure_fn(ink_test) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
@@ -32,7 +32,7 @@ pub fn diagnostics(ink_test: &InkTest) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! test is applied to an `fn` item.
+/// Ensure ink! test is an `fn` item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
 fn ensure_fn(ink_test: &InkTest) -> Option<Diagnostic> {
@@ -115,7 +115,6 @@ mod tests {
         let ink_test = parse_first_ink_test(quote_as_str! {
             #[ink::test]
             fn it_works() {
-                self.value = !self.value;
             }
         });
 

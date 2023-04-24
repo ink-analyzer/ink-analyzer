@@ -12,6 +12,7 @@ mod event;
 mod ink_test;
 mod message;
 mod storage;
+mod storage_item;
 mod topic;
 
 /// A diagnostic error or warning.
