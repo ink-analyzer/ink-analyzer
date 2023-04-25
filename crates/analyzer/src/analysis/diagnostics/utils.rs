@@ -433,6 +433,7 @@ fn ensure_no_conflicting_attributes_and_arguments(attrs: &[InkAttribute]) -> Vec
                         InkAttributeKind::Macro(InkMacroKind::Contract),
                         InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
                     ],
+                    InkArgKind::HandleStatus => vec![InkAttributeKind::Arg(InkArgKind::Extension)],
                     InkArgKind::Namespace => vec![
                         InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
                         InkAttributeKind::Arg(InkArgKind::Impl),
@@ -680,7 +681,6 @@ fn get_valid_sibling_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
                 InkArgKind::Env => vec![InkArgKind::KeepAttr],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L476-L487>.
                 InkArgKind::Extension => vec![InkArgKind::HandleStatus],
-                InkArgKind::HandleStatus => vec![InkArgKind::Extension],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
                 InkArgKind::Derive => Vec::new(),
 
@@ -697,6 +697,8 @@ fn get_valid_sibling_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L316-L321>.
                 // See `trait_definition` and `impl` patterns above for more references.
                 InkArgKind::Namespace => vec![InkArgKind::Impl],
+                // See `extension` pattern above for references.
+                InkArgKind::HandleStatus => vec![InkArgKind::Extension],
                 // See `constructor` and `message` patterns above for references.
                 InkArgKind::Payable => vec![
                     InkArgKind::Constructor,
@@ -1207,7 +1209,7 @@ mod tests {
                 },
                 // Arguments that should have a boolean value.
                 quote_as_str! {
-                    #[ink(handle_status=true)]
+                    #[ink(extension=1, handle_status=true)] // `handle_status` is incomplete without `extension`.
                 },
                 quote_as_str! {
                     #[ink::storage_item(derive=false)]
@@ -1580,6 +1582,13 @@ mod tests {
                 #[ink(event)]
             },
             quote_as_str! {
+                #[ink(handle_status=true, extension=1)] // `extension` should come first.
+            },
+            quote_as_str! {
+                #[ink(handle_status=true)] // `extension` should come first.
+                #[ink(extension=1)]
+            },
+            quote_as_str! {
                 #[ink(payable, message, default, selector=1)] // `message` should come first.
             },
             quote_as_str! {
@@ -1601,7 +1610,10 @@ mod tests {
             },
             // Incomplete and/or ambiguous.
             quote_as_str! {
-                #[ink(anonymous)] // incomplete.
+                #[ink(anonymous)] // missing `event`.
+            },
+            quote_as_str! {
+                #[ink(handle_status=true)] // missing `extension`.
             },
             quote_as_str! {
                 #[ink(payable, default, selector=1)] // incomplete and ambiguous.
