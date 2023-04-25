@@ -1,9 +1,10 @@
 //! ink! trait definition diagnostics.
 
-use ink_analyzer_ir::ast::AstNode;
+use ink_analyzer_ir::ast::{AstNode, Trait};
 use ink_analyzer_ir::syntax::SyntaxKind;
 use ink_analyzer_ir::{
-    FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, Message, TraitDefinition,
+    AsInkTrait, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, Message,
+    TraitDefinition,
 };
 
 use super::{message, utils};
@@ -25,20 +26,25 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
         &mut utils::run_generic_diagnostics(trait_definition),
     );
 
-    // Ensure ink! trait definition is a `trait` item that satisfies all common invariants of trait-based ink! entities,
-    // see `utils::ensure_trait_invariants` doc.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_trait_invariants(trait_definition),
-    );
+    // Ensure ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
+    if let Some(diagnostic) = utils::ensure_trait(trait_definition) {
+        utils::push_diagnostic(&mut results, diagnostic);
+    }
 
-    // Ensure ink! trait definition is a `trait` item whose associated items satisfy all invariants,
-    // see `ensure_trait_item_invariants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ensure_trait_item_invariants(trait_definition),
-    );
+    if let Some(trait_item) = trait_definition.trait_item() {
+        // Ensure ink! trait definition `trait` item satisfies all common invariants of trait-based ink! entities,
+        // see `utils::ensure_trait_invariants` doc.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
+        utils::append_diagnostics(
+            &mut results,
+            &mut utils::ensure_trait_invariants(trait_item, "trait definition"),
+        );
+
+        // Ensure ink! trait definition `trait` item's associated items satisfy all invariants,
+        // see `ensure_trait_item_invariants` doc.
+        utils::append_diagnostics(&mut results, &mut ensure_trait_item_invariants(trait_item));
+    }
 
     // Ensure at least one ink! message, see `ensure_contains_message` doc.
     if let Some(diagnostic) = ensure_contains_message(trait_definition) {
@@ -58,12 +64,14 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
 /// Ensure ink! trait definition is a `trait` item whose associated items satisfy all invariants.
 ///
 /// See reference below for details about checked invariants.
-/// This utility also runs `message::diagnostics` on trait methods with a ink! message attribute.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L150-L208>.
-fn ensure_trait_item_invariants(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
+///
+/// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
+/// This utility also runs `message::diagnostics` on trait methods with a ink! message attribute.
+fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
     utils::ensure_trait_item_invariants(
-        trait_definition,
+        trait_item,
         "trait definition",
         |fn_item| {
             let mut results = Vec::new();
@@ -158,7 +166,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, IRItem, InkFile, InkMacroKind};
+    use ink_analyzer_ir::{quote_as_str, AsInkTrait, IRItem, InkFile, InkMacroKind};
     use quote::{format_ident, quote};
 
     fn parse_first_trait_definition(code: &str) -> TraitDefinition {
@@ -236,7 +244,10 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_trait_invariants(&trait_definition);
+            let results = utils::ensure_trait_invariants(
+                trait_definition.trait_item().unwrap(),
+                "trait definition",
+            );
             assert!(results.is_empty(), "trait definition: {}", code);
         }
     }
@@ -290,7 +301,10 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_trait_invariants(&trait_definition);
+            let results = utils::ensure_trait_invariants(
+                trait_definition.trait_item().unwrap(),
+                "trait definition",
+            );
             assert_eq!(results.len(), 1, "trait definition: {}", code);
             assert_eq!(
                 results[0].severity,
@@ -309,7 +323,7 @@ mod tests {
                 #code
             });
 
-            let results = ensure_trait_item_invariants(&trait_definition);
+            let results = ensure_trait_item_invariants(trait_definition.trait_item().unwrap());
             assert!(results.is_empty(), "trait definition: {}", code);
         }
     }
@@ -472,7 +486,7 @@ mod tests {
                 #code
             });
 
-            let results = ensure_trait_item_invariants(&trait_definition);
+            let results = ensure_trait_item_invariants(trait_definition.trait_item().unwrap());
             assert_eq!(results.len(), 1, "trait definition: {}", code);
             assert_eq!(
                 results[0].severity,

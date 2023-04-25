@@ -1,7 +1,8 @@
 //! Utilities for ink! diagnostics.
 
 use ink_analyzer_ir::ast::{
-    AssocItem, AstNode, AstToken, HasGenericParams, HasTypeBounds, HasVisibility, Ident, TypeAlias,
+    AssocItem, AstNode, AstToken, HasGenericParams, HasTypeBounds, HasVisibility, Ident, Trait,
+    TypeAlias,
 };
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
@@ -813,6 +814,21 @@ where
     })
 }
 
+/// Ensure ink! entity is a `trait` item.
+pub fn ensure_trait<T>(item: &T) -> Option<Diagnostic>
+where
+    T: FromInkAttribute + FromSyntax + AsInkTrait,
+{
+    item.trait_item().is_none().then_some(Diagnostic {
+        message: format!(
+            "`{}` can only be applied to a `trait` item.",
+            item.ink_attr().syntax()
+        ),
+        range: item.syntax().text_range(),
+        severity: Severity::Error,
+    })
+}
+
 /// Ensure item is a `fn` that satisfies all common invariants of externally callable ink! entities
 /// (i.e `constructor`s and `message`s).
 ///
@@ -907,91 +923,62 @@ pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Ve
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
-pub fn ensure_trait_invariants<T>(item: &T) -> Vec<Diagnostic>
-where
-    T: FromInkAttribute + FromSyntax + AsInkTrait,
-{
-    let ink_attr = item.ink_attr();
+pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<Diagnostic> {
+    let mut results = Vec::new();
 
-    if let Some(trait_item) = item.trait_item() {
-        let mut results = Vec::new();
-
-        if let Some(unsafe_token) = trait_item.unsafe_token() {
-            results.push(Diagnostic {
-                message: format!(
-                    "A `trait` item annotated with `{}` must not be `unsafe`.",
-                    ink_attr.syntax()
-                ),
-                range: unsafe_token.text_range(),
-                severity: Severity::Error,
-            });
-        }
-
-        if let Some(auto_token) = trait_item.auto_token() {
-            results.push(Diagnostic {
-                message: format!(
-                    "A `trait` item annotated with `{}` cannot be `auto` implemented.",
-                    ink_attr.syntax()
-                ),
-                range: auto_token.text_range(),
-                severity: Severity::Error,
-            });
-        }
-
-        if let Some(generics) = trait_item.generic_param_list() {
-            results.push(Diagnostic {
-                message: format!(
-                    "Generic parameters on a `trait` item annotated with `{}` aren't currently supported.",
-                    ink_attr.syntax()
-                ),
-                range: generics.syntax().text_range(),
-                severity: Severity::Error,
-            });
-        }
-
-        let (has_pub_visibility, visibility) = if let Some(visibility) = trait_item.visibility() {
-            (visibility.syntax().to_string() == "pub", Some(visibility))
-        } else {
-            (false, None)
-        };
-
-        if !has_pub_visibility {
-            results.push(Diagnostic {
-                message: format!(
-                    "A `trait` item annotated with `{}` must have `pub` visibility.",
-                    ink_attr.syntax()
-                ),
-                range: if let Some(vis) = visibility {
-                    vis.syntax().text_range()
-                } else {
-                    trait_item.syntax().text_range()
-                },
-                severity: Severity::Error,
-            });
-        }
-
-        if let Some(type_bound_list) = trait_item.type_bound_list() {
-            results.push(Diagnostic {
-                message: format!(
-                    "A `trait` item annotated with `{}` must not have any `supertraits`.",
-                    ink_attr.syntax()
-                ),
-                range: type_bound_list.syntax().text_range(),
-                severity: Severity::Error,
-            });
-        }
-
-        results
-    } else {
-        vec![Diagnostic {
-            message: format!(
-                "`{}` can only be applied to a `trait` item.",
-                item.ink_attr().syntax()
-            ),
-            range: item.syntax().text_range(),
+    if let Some(unsafe_token) = trait_item.unsafe_token() {
+        results.push(Diagnostic {
+            message: format!("ink! {ink_scope_name}s must not be `unsafe`."),
+            range: unsafe_token.text_range(),
             severity: Severity::Error,
-        }]
+        });
     }
+
+    if let Some(auto_token) = trait_item.auto_token() {
+        results.push(Diagnostic {
+            message: format!("ink! {ink_scope_name}s cannot be `auto` implemented."),
+            range: auto_token.text_range(),
+            severity: Severity::Error,
+        });
+    }
+
+    if let Some(generics) = trait_item.generic_param_list() {
+        results.push(Diagnostic {
+            message: format!(
+                "Generic parameters on ink! {ink_scope_name}s aren't currently supported."
+            ),
+            range: generics.syntax().text_range(),
+            severity: Severity::Error,
+        });
+    }
+
+    let (has_pub_visibility, visibility) = if let Some(visibility) = trait_item.visibility() {
+        (visibility.syntax().to_string() == "pub", Some(visibility))
+    } else {
+        (false, None)
+    };
+
+    if !has_pub_visibility {
+        results.push(Diagnostic {
+            message: format!("ink! {ink_scope_name}s must have `pub` visibility."),
+            range: if let Some(vis) = visibility {
+                vis.syntax().text_range()
+            } else {
+                trait_item.syntax().text_range()
+            },
+            severity: Severity::Error,
+        });
+    }
+
+    if let Some(type_bound_list) = trait_item.type_bound_list() {
+        results.push(Diagnostic {
+            message: format!("ink! {ink_scope_name}s must not have any `supertraits`."),
+            range: type_bound_list.syntax().text_range(),
+            severity: Severity::Error,
+        });
+    }
+
+    results
 }
 
 /// Ensure item is a `trait` whose associated items satisfy all common invariants of associated items for ink! entities
@@ -1003,59 +990,56 @@ where
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L150-L208>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L309-L393>.
-pub fn ensure_trait_item_invariants<T, F, G>(
-    item: &T,
+pub fn ensure_trait_item_invariants<F, G>(
+    trait_item: &Trait,
     ink_scope_name: &str,
     assoc_fn_handler: F,
     assoc_type_handler: G,
 ) -> Vec<Diagnostic>
 where
-    T: FromInkAttribute + FromSyntax + AsInkTrait,
     F: Fn(&ast::Fn) -> Vec<Diagnostic>,
     G: Fn(&TypeAlias) -> Vec<Diagnostic>,
 {
-    if let Some(trait_item) = item.trait_item() {
-        if let Some(assoc_item_list) = trait_item.assoc_item_list() {
-            return assoc_item_list.assoc_items().flat_map(|assoc_item| {
-                match assoc_item {
-                    AssocItem::Const(node) => vec![Diagnostic {
-                        message: format!(
-                            "Associated `const` items in ink! {ink_scope_name}s are not yet supported."
-                        ),
-                        range: node.syntax().text_range(),
-                        severity: Severity::Error,
-                    }],
-                    AssocItem::MacroCall(node) => vec![Diagnostic {
-                        message: format!(
-                            "Macros in ink! {ink_scope_name}s are not supported."
-                        ),
-                        range: node.syntax().text_range(),
-                        severity: Severity::Error,
-                    }],
-                    AssocItem::TypeAlias(type_alias) => assoc_type_handler(&type_alias),
+    if let Some(assoc_item_list) = trait_item.assoc_item_list() {
+        assoc_item_list.assoc_items().flat_map(|assoc_item| {
+            match assoc_item {
+                AssocItem::Const(node) => vec![Diagnostic {
+                    message: format!(
+                        "Associated `const` items in ink! {ink_scope_name}s are not yet supported."
+                    ),
+                    range: node.syntax().text_range(),
+                    severity: Severity::Error,
+                }],
+                AssocItem::MacroCall(node) => vec![Diagnostic {
+                    message: format!(
+                        "Macros in ink! {ink_scope_name}s are not supported."
+                    ),
+                    range: node.syntax().text_range(),
+                    severity: Severity::Error,
+                }],
+                AssocItem::TypeAlias(type_alias) => assoc_type_handler(&type_alias),
+                // No default implementations.
+                AssocItem::Fn(fn_item) => {
+                    let mut results = Vec::new();
+
                     // No default implementations.
-                    AssocItem::Fn(fn_item) => {
-                        let mut results = Vec::new();
+                    if let Some(body) = fn_item.body() {
+                        results.push(Diagnostic {
+                            message: format!("ink! {ink_scope_name}s methods with a default implementation are not currently supported."),
+                            range: body.syntax().text_range(),
+                            severity: Severity::Error,
+                        });
+                    }
 
-                        // No default implementations.
-                        if let Some(body) = fn_item.body() {
-                            results.push(Diagnostic {
-                                message: format!("ink! {ink_scope_name}s methods with a default implementation are not currently supported."),
-                                range: body.syntax().text_range(),
-                                severity: Severity::Error,
-                            });
-                        }
+                    results.append(&mut assoc_fn_handler(&fn_item));
 
-                        results.append(&mut assoc_fn_handler(&fn_item));
-
-                        results
-                    },
-                }
-            }).collect();
-        }
+                    results
+                },
+            }
+        }).collect()
+    } else {
+        Vec::new()
     }
-
-    Vec::new()
 }
 
 /// Ensure item is defined in the root of an ink! contract.
