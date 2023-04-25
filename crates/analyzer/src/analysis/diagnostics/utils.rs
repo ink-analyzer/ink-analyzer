@@ -725,7 +725,7 @@ fn get_valid_sibling_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
 }
 
 /// Ensure at least one item is defined.
-pub fn ensure_at_least_one_item<T: FromSyntax>(
+pub fn ensure_at_least_one_item<T>(
     items: &[T],
     empty_diagnostic: Diagnostic,
 ) -> Option<Diagnostic> {
@@ -774,10 +774,12 @@ where
 {
     let ink_attr = item.ink_attr();
     let mut error = None;
+    let mut marker_token = None;
 
     if let Some(struct_item) = item.struct_item() {
         let has_pub_visibility = if let Some(visibility) = struct_item.visibility() {
-            visibility.syntax().to_string() == "pub"
+            marker_token = Some(visibility.clone());
+            visibility.to_string() == "pub"
         } else {
             false
         };
@@ -796,7 +798,11 @@ where
 
     error.map(|message| Diagnostic {
         message,
-        range: item.syntax().text_range(),
+        range: if let Some(marker) = marker_token {
+            marker.syntax().text_range()
+        } else {
+            item.syntax().text_range()
+        },
         severity: Severity::Error,
     })
 }
@@ -831,43 +837,45 @@ where
     })
 }
 
-/// Ensure item is a `fn` that satisfies all common invariants of externally callable ink! entities
-/// (i.e `constructor`s and `message`s).
+/// Ensure item is has no generic parameters.
+pub fn ensure_no_generics<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
+where
+    T: HasGenericParams,
+{
+    item.generic_param_list().map(|generics| Diagnostic {
+        message: format!(
+            "Generic parameters on ink! {ink_scope_name}s are not currently supported."
+        ),
+        range: generics.syntax().text_range(),
+        severity: Severity::Error,
+    })
+}
+
+/// Ensure item is has no trait bounds.
+pub fn ensure_no_trait_bounds<T>(item: &T, message: &str) -> Option<Diagnostic>
+where
+    T: HasTypeBounds,
+{
+    item.type_bound_list().map(|type_bound_list| Diagnostic {
+        message: message.to_string(),
+        range: type_bound_list.syntax().text_range(),
+        severity: Severity::Error,
+    })
+}
+
+/// Ensure `fn` item satisfies all common invariants of method-based ink! entities
+/// (i.e `constructor`s, `message`s and `extension`s).
 ///
 /// See reference below for details about checked invariants.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<Diagnostic> {
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L395-L465>.
+pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<Diagnostic> {
     let mut results = Vec::new();
 
-    let (has_pub_or_inherited_visibility, visibility) =
-        if let Some(visibility) = fn_item.visibility() {
-            (visibility.syntax().to_string() == "pub", Some(visibility))
-        } else {
-            // Inherited visibility.
-            (true, None)
-        };
-
-    if !has_pub_or_inherited_visibility {
-        results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must have `pub` or inherited visibility."),
-            range: if let Some(vis) = visibility {
-                vis.syntax().text_range()
-            } else {
-                fn_item.syntax().text_range()
-            },
-            severity: Severity::Error,
-        });
-    }
-
-    if let Some(generics) = fn_item.generic_param_list() {
-        results.push(Diagnostic {
-            message: format!(
-                "Generic parameters on ink! {ink_scope_name}s aren't currently supported."
-            ),
-            range: generics.syntax().text_range(),
-            severity: Severity::Error,
-        });
+    if let Some(diagnostic) = ensure_no_generics(fn_item, ink_scope_name) {
+        results.push(diagnostic);
     }
 
     if let Some(const_token) = fn_item.const_token() {
@@ -917,6 +925,41 @@ pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Ve
     results
 }
 
+/// Ensure `fn` item satisfies all common invariants of externally callable ink! entities
+/// (i.e `constructor`s and `message`s).
+///
+/// See reference below for details about checked invariants.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
+pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<Diagnostic> {
+    let mut results = Vec::new();
+
+    let (has_pub_or_inherited_visibility, visibility) =
+        if let Some(visibility) = fn_item.visibility() {
+            (visibility.syntax().to_string() == "pub", Some(visibility))
+        } else {
+            // Inherited visibility.
+            (true, None)
+        };
+
+    if !has_pub_or_inherited_visibility {
+        results.push(Diagnostic {
+            message: format!("ink! {ink_scope_name}s must have `pub` or inherited visibility."),
+            range: if let Some(vis) = visibility {
+                vis.syntax().text_range()
+            } else {
+                fn_item.syntax().text_range()
+            },
+            severity: Severity::Error,
+        });
+    }
+
+    // See `ensure_method_invariants` doc.
+    results.append(&mut ensure_method_invariants(fn_item, ink_scope_name));
+
+    results
+}
+
 /// Ensure item is a `trait` that satisfies all common invariants of trait-based ink! entities
 /// (i.e `trait_definition`s and `chain_extension`s).
 ///
@@ -944,18 +987,12 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
         });
     }
 
-    if let Some(generics) = trait_item.generic_param_list() {
-        results.push(Diagnostic {
-            message: format!(
-                "Generic parameters on ink! {ink_scope_name}s aren't currently supported."
-            ),
-            range: generics.syntax().text_range(),
-            severity: Severity::Error,
-        });
+    if let Some(diagnostic) = ensure_no_generics(trait_item, ink_scope_name) {
+        results.push(diagnostic);
     }
 
     let (has_pub_visibility, visibility) = if let Some(visibility) = trait_item.visibility() {
-        (visibility.syntax().to_string() == "pub", Some(visibility))
+        (visibility.to_string() == "pub", Some(visibility))
     } else {
         (false, None)
     };
@@ -972,12 +1009,11 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
         });
     }
 
-    if let Some(type_bound_list) = trait_item.type_bound_list() {
-        results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must not have any `supertraits`."),
-            range: type_bound_list.syntax().text_range(),
-            severity: Severity::Error,
-        });
+    if let Some(diagnostic) = ensure_no_trait_bounds(
+        trait_item,
+        format!("ink! {ink_scope_name}s must not have any `supertraits`.").as_str(),
+    ) {
+        results.push(diagnostic);
     }
 
     results

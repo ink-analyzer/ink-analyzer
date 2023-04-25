@@ -1,7 +1,7 @@
 //! ink! chain extension IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::Trait;
+use ra_ap_syntax::ast::{AssocItem, HasName, Trait, TypeAlias};
 
 use crate::{AsInkTrait, Extension, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
 
@@ -26,5 +26,25 @@ impl ChainExtension {
     /// Returns the ink! extensions for the ink! chain extension.
     pub fn extensions(&self) -> &[Extension] {
         &self.extensions
+    }
+
+    /// Returns the ink! extensions for the ink! chain extension.
+    pub fn error_codes(&self) -> Vec<TypeAlias> {
+        if let Some(trait_item) = self.trait_item() {
+            if let Some(assoc_item_list) = trait_item.assoc_item_list() {
+                return assoc_item_list
+                    .assoc_items()
+                    .filter_map(|assoc_item| {
+                        if let AssocItem::TypeAlias(type_alias) = assoc_item {
+                            if let Some(name) = type_alias.name() {
+                                return (name.to_string() == "ErrorCode").then_some(type_alias);
+                            }
+                        }
+                        None
+                    })
+                    .collect();
+            }
+        }
+        Vec::new()
     }
 }

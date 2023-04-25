@@ -17,7 +17,7 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(message));
 
-    // Ensure ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
+    // Ensure ink! message is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
     if let Some(diagnostic) = utils::ensure_fn(message) {
         utils::push_diagnostic(&mut results, diagnostic);
@@ -405,7 +405,7 @@ mod tests {
     fn no_ink_descendants_works() {
         let message = parse_first_message(quote_as_str! {
             #[ink(message)]
-            pub fn flip(&mut self) {
+            pub fn my_message(&mut self) {
             }
         });
 
@@ -417,9 +417,9 @@ mod tests {
     fn ink_descendants_fails() {
         let message = parse_first_message(quote_as_str! {
             #[ink(message)]
-            pub fn flip(&mut self) {
+            pub fn my_message(&mut self) {
                 #[ink(event)]
-                struct Flip {
+                struct MyEvent {
                     #[ink(topic)]
                     value: bool,
                 }

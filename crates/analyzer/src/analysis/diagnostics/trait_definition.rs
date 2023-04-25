@@ -46,6 +46,16 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
         utils::append_diagnostics(&mut results, &mut ensure_trait_item_invariants(trait_item));
     }
 
+    // Run ink! message diagnostics, see `message::diagnostics` doc.
+    utils::append_diagnostics(
+        &mut results,
+        &mut trait_definition
+            .messages()
+            .iter()
+            .flat_map(message::diagnostics)
+            .collect(),
+    );
+
     // Ensure at least one ink! message, see `ensure_contains_message` doc.
     if let Some(diagnostic) = ensure_contains_message(trait_definition) {
         utils::push_diagnostic(&mut results, diagnostic);
@@ -75,6 +85,7 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
         "trait definition",
         |fn_item| {
             let mut results = Vec::new();
+
             // All trait methods should be ink! messages.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L210-L288>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L298-L322>.
@@ -190,49 +201,67 @@ mod tests {
             [
                 // Simple.
                 quote! {
-                    pub trait MyTrait {
-                        #[ink(message)]
-                        fn my_message(&self);
-                        #[ink(message)]
-                        fn my_message_mut(&mut self);
-                    }
+                    #[ink(message)]
+                    fn my_message(&self);
+
+                    #[ink(message)]
+                    fn my_message_mut(&mut self);
                 },
                 // Selectors.
                 quote! {
-                    pub trait MyTrait {
-                        #[ink(message, selector = 0xDEADBEEF)]
-                        fn my_message(&self);
-                        #[ink(message, selector = 0xC0FEFEED)]
-                        fn my_message_mut(&mut self);
-                    }
+                    #[ink(message, selector = 0xDEADBEEF)]
+                    fn my_message(&self);
+
+                    #[ink(message, selector = 0xC0FEFEED)]
+                    fn my_message_mut(&mut self);
                 },
                 // Payable.
                 quote! {
-                    pub trait MyTrait {
-                        #[ink(message, payable)]
-                        fn my_message(&self);
-                        #[ink(message, payable)]
-                        fn my_message_mut(&mut self);
-                    }
+                    #[ink(message, payable)]
+                    fn my_message(&self);
+                    #[ink(message, payable)]
+                    fn my_message_mut(&mut self);
                 },
                 // Compound.
                 quote! {
-                    pub trait MyTrait {
-                        #[ink(message)]
-                        fn my_message_1(&self);
-                        #[ink(message, payable)]
-                        fn my_message_2(&self);
-                        #[ink(message, payable, selector = 0xDEADBEEF)]
-                        fn my_message_3(&self);
-                        #[ink(message)]
-                        fn my_message_mut_1(&mut self);
-                        #[ink(message, payable)]
-                        fn my_message_mut_2(&mut self);
-                        #[ink(message, payable, selector = 0xC0DEBEEF)]
-                        fn my_message_mut_3(&mut self);
-                    }
+                    #[ink(message)]
+                    fn my_message_1(&self);
+
+                    #[ink(message, payable)]
+                    fn my_message_2(&self);
+
+                    #[ink(message, payable, selector = 0xDEADBEEF)]
+                    fn my_message_3(&self);
+
+                    #[ink(message)]
+                    fn my_message_mut_1(&mut self);
+
+                    #[ink(message, payable)]
+                    fn my_message_mut_2(&mut self);
+
+                    #[ink(message, payable, selector = 0xC0DEBEEF)]
+                    fn my_message_mut_3(&mut self);
                 },
             ]
+            .iter()
+            .flat_map(|messages| {
+                [
+                    // Simple.
+                    quote! {
+                        #[ink::trait_definition]
+                        pub trait MyTrait {
+                            #messages
+                        }
+                    },
+                    // Compound.
+                    quote! {
+                        #[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]
+                        pub trait MyTrait {
+                            #messages
+                        }
+                    },
+                ]
+            })
         };
     }
 
@@ -240,7 +269,6 @@ mod tests {
     fn valid_trait_properties_works() {
         for code in valid_traits!() {
             let trait_definition = parse_first_trait_definition(quote_as_str! {
-                #[ink::trait_definition]
                 #code
             });
 
@@ -319,7 +347,6 @@ mod tests {
     fn valid_trait_items_works() {
         for code in valid_traits!() {
             let trait_definition = parse_first_trait_definition(quote_as_str! {
-                #[ink::trait_definition]
                 #code
             });
 
@@ -330,169 +357,128 @@ mod tests {
 
     #[test]
     fn invalid_trait_items_fails() {
-        // NOTE: This test only checks that a method has a `message` attribute
-        for code in [
+        for items in [
             // Const.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L76-L84>.
             quote! {
-                pub trait MyTrait {
-                    const T: i32;
-                }
+                const T: i32;
             },
             // Type.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L86-L94>.
             quote! {
-                pub trait MyTrait {
-                    type Type;
-                }
+                type Type;
             },
             // Macro.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L96-L104>.
             quote! {
-                pub trait MyTrait {
-                    my_macro_call!();
-                }
+                my_macro_call!();
             },
             // Non-flagged method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L106-L126>.
             quote! {
-                pub trait MyTrait {
-                    fn non_flagged_1(&self);
-                }
+                fn non_flagged_1(&self);
             },
             quote! {
-                pub trait MyTrait {
-                    fn non_flagged_2(&mut self);
-                }
+                fn non_flagged_2(&mut self);
             },
             quote! {
-                pub trait MyTrait {
-                    fn non_flagged_3() -> Self;
-                }
+                fn non_flagged_3() -> Self;
             },
             // Default implementation.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L128-L144>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    fn default_implemented(&self) {}
-                }
+                #[ink(message)]
+                fn default_implemented(&self) {}
             },
             // Const method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L146-L162>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    const fn const_message(&self);
-                }
+                #[ink(message)]
+                const fn const_message(&self);
             },
             // Async method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L164-L180>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    async fn async_message(&self);
-                }
+                #[ink(message)]
+                async fn async_message(&self);
             },
             // Unsafe method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L182-L198>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    unsafe fn unsafe_message(&self);
-                }
+                #[ink(message)]
+                unsafe fn unsafe_message(&self);
             },
             // Explicit ABI.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L200-L216>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    extern fn extern_message(&self);
-                }
+                #[ink(message)]
+                extern fn extern_message(&self);
             },
             // Variadic method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L218-L234>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    fn variadic_message(&self, ...);
-                }
+                #[ink(message)]
+                fn variadic_message(&self, ...);
             },
             // Generic method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L236-L252>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    fn const_message<T>(&self);
-                }
+                #[ink(message)]
+                fn generic_message<T>(&self);
             },
             // Unsupported ink! attribute.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L254-L270>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(constructor)]
-                    fn my_constructor() -> Self;
-                }
+                #[ink(constructor)]
+                fn my_constructor() -> Self;
             },
             quote! {
-                pub trait MyTrait {
-                    #[ink(storage)]
-                    fn unsupported_ink_attribute(&self);
-                }
+                #[ink(storage)]
+                fn unsupported_ink_attribute(&self);
             },
             quote! {
-                pub trait MyTrait {
-                    #[ink(unknown)]
-                    fn unknown_ink_attribute(&self);
-                }
+                #[ink(unknown)]
+                fn unknown_ink_attribute(&self);
             },
             // Invalid message.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L272-L295>.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    fn does_not_return_self();
-                }
+                #[ink(message)]
+                fn does_not_return_self();
             },
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    fn does_not_return_self(self: &Self);
-                }
+                #[ink(message)]
+                fn does_not_return_self(self: &Self);
             },
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    fn does_not_return_self(self);
-                }
+                #[ink(message)]
+                fn does_not_return_self(self);
             },
             // Wildcard selectors.
             quote! {
-                pub trait MyTrait {
-                    #[ink(message, selector=_)]
-                    fn has_wildcard_selector(&self);
-                }
+                #[ink(message, selector=_)]
+                fn has_wildcard_selector(&self);
             },
             quote! {
-                pub trait MyTrait {
-                    #[ink(message)]
-                    #[ink(selector=_)]
-                    fn has_wildcard_selector(&self);
-                }
+                #[ink(message)]
+                #[ink(selector=_)]
+                fn has_wildcard_selector(&self);
             },
         ] {
             let trait_definition = parse_first_trait_definition(quote_as_str! {
                 #[ink::trait_definition]
-                #code
+                pub trait MyTrait {
+                    #items
+                }
             });
 
             let results = ensure_trait_item_invariants(trait_definition.trait_item().unwrap());
-            assert_eq!(results.len(), 1, "trait definition: {}", code);
+            assert_eq!(results.len(), 1, "trait definition: {}", items);
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
                 "trait definition: {}",
-                code
+                items
             );
         }
     }
@@ -540,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L706-L722>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L106-L126>.
     fn missing_message_fails() {
         let trait_definition = parse_first_trait_definition(quote_as_str! {
             #[ink::trait_definition]
@@ -557,7 +543,6 @@ mod tests {
     fn valid_quasi_direct_descendant_works() {
         for code in valid_traits!() {
             let trait_definition = parse_first_trait_definition(quote_as_str! {
-                #[ink::trait_definition]
                 #code
             });
 

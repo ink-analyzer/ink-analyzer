@@ -6,9 +6,11 @@ use ink_analyzer_ir::InkFile;
 mod file;
 mod utils;
 
+mod chain_extension;
 mod constructor;
 mod contract;
 mod event;
+mod extension;
 mod ink_test;
 mod message;
 mod storage;

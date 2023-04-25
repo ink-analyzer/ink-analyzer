@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::{InkAttributeKind, InkFile};
 
-use super::{contract, ink_test, storage_item, trait_definition, utils};
+use super::{chain_extension, contract, ink_test, storage_item, trait_definition, utils};
 use crate::{Diagnostic, Severity};
 
 /// Runs ink! file level diagnostics.
@@ -52,6 +52,16 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
             .tests()
             .iter()
             .flat_map(ink_test::diagnostics)
+            .collect(),
+    );
+
+    // Run ink! chain extension diagnostics, see `chain_extension::diagnostics` doc.
+    utils::append_diagnostics(
+        &mut results,
+        &mut file
+            .chain_extensions()
+            .iter()
+            .flat_map(chain_extension::diagnostics)
             .collect(),
     );
 

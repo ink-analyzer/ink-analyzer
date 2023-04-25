@@ -63,7 +63,7 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
         if let Some(generics) = struct_item.generic_param_list() {
             return Some(Diagnostic {
                 message: format!(
-                    "Generic types on a `struct` annotated with `{}` aren't currently supported.",
+                    "Generic types on a `struct` annotated with `{}` are not currently supported.",
                     ink_attr.syntax()
                 ),
                 range: generics.syntax().text_range(),
@@ -111,7 +111,7 @@ fn ensure_no_cfg_event_fields(event: &Event) -> Vec<Diagnostic> {
                                 if path.to_string() == "cfg" {
                                     return Some(Diagnostic {
                                         message: format!(
-                                            "`{}` attributes on event fields aren't supported.",
+                                            "`{}` attributes on event fields are not supported.",
                                             attr
                                         ),
                                         range: attr.syntax().text_range(),
