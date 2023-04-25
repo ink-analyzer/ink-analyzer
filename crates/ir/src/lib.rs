@@ -53,7 +53,7 @@ pub use self::{
     storage_item::StorageItem,
     topic::Topic,
     trait_definition::TraitDefinition,
-    traits::{AsInkFn, AsInkStruct, FromAST, FromInkAttribute, FromSyntax, IRItem},
+    traits::{AsInkFn, AsInkStruct, AsInkTrait, FromAST, FromInkAttribute, FromSyntax, IRItem},
     utils::{
         ink_ancestors, ink_attrs, ink_attrs_ancestors, ink_attrs_closest_ancestors,
         ink_attrs_closest_descendants, ink_attrs_descendants, ink_attrs_in_scope,

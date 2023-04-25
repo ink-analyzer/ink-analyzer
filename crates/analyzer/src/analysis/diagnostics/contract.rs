@@ -207,16 +207,16 @@ fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_no_overlapping_selectors(contract: &Contract) -> Vec<Diagnostic> {
-    let constructor_attrs = contract
+    let constructor_attrs: Vec<InkAttribute> = contract
         .constructors()
         .iter()
         .flat_map(|item| item.ink_attrs())
-        .collect::<Vec<InkAttribute>>();
-    let message_attrs = contract
+        .collect();
+    let message_attrs: Vec<InkAttribute> = contract
         .messages()
         .iter()
         .flat_map(|item| item.ink_attrs())
-        .collect::<Vec<InkAttribute>>();
+        .collect();
 
     [(constructor_attrs, "constructor"), (message_attrs, "message")].iter().flat_map(|(attrs, name)| {
         let mut seen_selectors: HashSet<u32> = HashSet::new();

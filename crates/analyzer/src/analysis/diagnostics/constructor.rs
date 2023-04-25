@@ -1,7 +1,7 @@
 //! ink! constructor diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{AsInkFn, Constructor, FromInkAttribute, FromSyntax};
+use ink_analyzer_ir::{ast, AsInkFn, Constructor};
 
 use super::utils;
 use crate::{Diagnostic, Severity};
@@ -20,23 +20,31 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
         &mut utils::run_generic_diagnostics(constructor),
     );
 
-    // Ensure ink! constructor is a `fn` that satisfies all common invariants of externally callable ink! entities,
-    // see `utils::ensure_callable_invariants` doc.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L156>.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_callable_invariants(constructor),
-    );
-
-    // Ensure ink! constructor `fn` has no self receiver, see `ensure_no_self_receiver` doc.
-    if let Some(diagnostic) = ensure_no_self_receiver(constructor) {
+    // Ensure ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155>.
+    if let Some(diagnostic) = utils::ensure_fn(constructor) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! constructor has a return type, see `ensure_return_type` doc.
-    if let Some(diagnostic) = ensure_return_type(constructor) {
-        utils::push_diagnostic(&mut results, diagnostic);
+    if let Some(fn_item) = constructor.fn_item() {
+        // Ensure ink! constructor `fn` item satisfies all common invariants of externally callable ink! entities,
+        // see `utils::ensure_callable_invariants` doc.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L156>.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
+        utils::append_diagnostics(
+            &mut results,
+            &mut utils::ensure_callable_invariants(fn_item, "constructor"),
+        );
+
+        // Ensure ink! constructor `fn` item has no self receiver, see `ensure_no_self_receiver` doc.
+        if let Some(diagnostic) = ensure_no_self_receiver(fn_item) {
+            utils::push_diagnostic(&mut results, diagnostic);
+        }
+
+        // Ensure ink! constructor `fn` item has a return type, see `ensure_return_type` doc.
+        if let Some(diagnostic) = ensure_return_type(fn_item) {
+            utils::push_diagnostic(&mut results, diagnostic);
+        }
     }
 
     // Ensure ink! constructor has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
@@ -53,51 +61,12 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L158>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L107-L128>.
-fn ensure_no_self_receiver(constructor: &Constructor) -> Option<Diagnostic> {
-    let ink_attr = constructor.ink_attr();
-    let mut has_self_receiver = false;
-    let mut marker_token = None;
-
-    if let Some(fn_item) = constructor.fn_item() {
-        if let Some(param_list) = fn_item.param_list() {
-            if let Some(self_param) = param_list.self_param() {
-                has_self_receiver = true; // Only case that fails.
-                marker_token = Some(self_param.syntax().to_owned());
-            }
-        }
-    }
-
-    has_self_receiver.then_some(Diagnostic {
-        message: format!(
-            "An `fn` item annotated with `{}` must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self).",
-            ink_attr.syntax()
-        ),
-        range: marker_token.unwrap_or(constructor.syntax().to_owned()).text_range(),
-        severity: Severity::Error,
-    })
-}
-
-/// Ensure ink! constructor has a return type.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L157>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L91-L105>.
-fn ensure_return_type(constructor: &Constructor) -> Option<Diagnostic> {
-    if let Some(fn_item) = constructor.fn_item() {
-        let ink_attr = constructor.ink_attr();
-        let mut has_returns_type = false;
-
-        if let Some(ret_type) = fn_item.ret_type() {
-            has_returns_type = ret_type.ty().is_some();
-        }
-
-        if !has_returns_type {
+fn ensure_no_self_receiver(fn_item: &ast::Fn) -> Option<Diagnostic> {
+    if let Some(param_list) = fn_item.param_list() {
+        if let Some(self_param) = param_list.self_param() {
             return Some(Diagnostic {
-                message: format!(
-                    "An `fn` item annotated with `{}` must have a return type.",
-                    ink_attr.syntax()
-                ),
-                range: constructor.syntax().text_range(),
+                message: "ink! constructors must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self).".to_string(),
+                range: self_param.syntax().text_range(),
                 severity: Severity::Error,
             });
         }
@@ -106,10 +75,35 @@ fn ensure_return_type(constructor: &Constructor) -> Option<Diagnostic> {
     None
 }
 
+/// Ensure ink! constructor has a return type.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L157>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L91-L105>.
+fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
+    let has_returns_type = if let Some(ret_type) = fn_item.ret_type() {
+        ret_type.ty().is_some()
+    } else {
+        false
+    };
+
+    if !has_returns_type {
+        return Some(Diagnostic {
+            message: "ink! constructors must have a return type.".to_string(),
+            range: fn_item.syntax().text_range(),
+            severity: Severity::Error,
+        });
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, IRItem, InkArgKind, InkAttributeKind, InkFile};
+    use ink_analyzer_ir::{
+        quote_as_str, FromInkAttribute, IRItem, InkArgKind, InkAttributeKind, InkFile,
+    };
     use quote::quote;
 
     fn parse_first_constructor(code: &str) -> Constructor {
@@ -174,7 +168,8 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(&constructor);
+            let results =
+                utils::ensure_callable_invariants(constructor.fn_item().unwrap(), "constructor");
             assert!(results.is_empty(), "constructor: {}", code);
         }
     }
@@ -274,7 +269,8 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(&constructor);
+            let results =
+                utils::ensure_callable_invariants(constructor.fn_item().unwrap(), "constructor");
             assert_eq!(results.len(), 1, "constructor: {}", code);
             assert_eq!(
                 results[0].severity,
@@ -293,7 +289,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_no_self_receiver(&constructor);
+            let result = ensure_no_self_receiver(constructor.fn_item().unwrap());
             assert!(result.is_none(), "constructor: {}", code);
         }
     }
@@ -332,7 +328,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_no_self_receiver(&constructor);
+            let result = ensure_no_self_receiver(constructor.fn_item().unwrap());
             assert!(result.is_some(), "constructor: {}", code);
             assert_eq!(
                 result.unwrap().severity,
@@ -351,7 +347,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_return_type(&constructor);
+            let result = ensure_return_type(constructor.fn_item().unwrap());
             assert!(result.is_none(), "constructor: {}", code);
         }
     }
@@ -378,7 +374,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_return_type(&constructor);
+            let result = ensure_return_type(constructor.fn_item().unwrap());
             assert!(result.is_some(), "constructor: {}", code);
             assert_eq!(
                 result.unwrap().severity,

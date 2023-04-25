@@ -14,6 +14,7 @@ mod message;
 mod storage;
 mod storage_item;
 mod topic;
+mod trait_definition;
 
 /// A diagnostic error or warning.
 #[derive(Debug)]

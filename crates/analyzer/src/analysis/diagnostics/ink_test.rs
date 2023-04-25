@@ -1,9 +1,9 @@
 //! ink! test diagnostics.
 
-use ink_analyzer_ir::{AsInkFn, FromInkAttribute, FromSyntax, InkTest};
+use ink_analyzer_ir::InkTest;
 
 use super::utils;
-use crate::{Diagnostic, Severity};
+use crate::Diagnostic;
 
 /// Runs all ink! test diagnostics.
 ///
@@ -18,8 +18,9 @@ pub fn diagnostics(ink_test: &InkTest) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(ink_test));
 
-    // Ensure ink! test is an `fn` item., see `ensure_fn` doc.
-    if let Some(diagnostic) = ensure_fn(ink_test) {
+    // Ensure ink! test is an `fn` item, see `utils::ensure_fn` doc.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
+    if let Some(diagnostic) = utils::ensure_fn(ink_test) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -32,24 +33,13 @@ pub fn diagnostics(ink_test: &InkTest) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! test is an `fn` item.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
-fn ensure_fn(ink_test: &InkTest) -> Option<Diagnostic> {
-    ink_test.fn_item().is_none().then_some(Diagnostic {
-        message: format!(
-            "`{}` can only be applied to an `fn` item.",
-            ink_test.ink_attr().syntax()
-        ),
-        range: ink_test.syntax().text_range(),
-        severity: Severity::Error,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, IRItem, InkAttributeKind, InkFile, InkMacroKind};
+    use crate::Severity;
+    use ink_analyzer_ir::{
+        quote_as_str, FromInkAttribute, IRItem, InkAttributeKind, InkFile, InkMacroKind,
+    };
     use quote::quote;
 
     fn parse_first_ink_test(code: &str) -> InkTest {
@@ -71,7 +61,7 @@ mod tests {
             }
         });
 
-        let result = ensure_fn(&ink_test);
+        let result = utils::ensure_fn(&ink_test);
         assert!(result.is_none());
     }
 
@@ -99,7 +89,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_fn(&ink_test);
+            let result = utils::ensure_fn(&ink_test);
             assert!(result.is_some(), "ink test: {}", code);
             assert_eq!(
                 result.unwrap().severity,

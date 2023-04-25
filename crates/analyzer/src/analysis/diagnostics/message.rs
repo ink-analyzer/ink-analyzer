@@ -1,7 +1,7 @@
 //! ink! message diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{AsInkFn, FromInkAttribute, FromSyntax, Message};
+use ink_analyzer_ir::{ast, AsInkFn, Message};
 
 use super::utils;
 use crate::{Diagnostic, Severity};
@@ -17,23 +17,31 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(message));
 
-    // Ensure ink! message is a `fn` that satisfies all common invariants of externally callable ink! entities,
-    // see `utils::ensure_callable_invariants` doc.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L202>.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_callable_invariants(message),
-    );
-
-    // Ensure ink! message `fn` has a self reference receiver, see `ensure_receiver_is_self_ref` doc.
-    if let Some(diagnostic) = ensure_receiver_is_self_ref(message) {
+    // Ensure ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
+    if let Some(diagnostic) = utils::ensure_fn(message) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! message does not return `Self`, see `ensure_not_return_self` doc.
-    if let Some(diagnostic) = ensure_not_return_self(message) {
-        utils::push_diagnostic(&mut results, diagnostic);
+    if let Some(fn_item) = message.fn_item() {
+        // Ensure ink! message `fn` item satisfies all common invariants of externally callable ink! entities,
+        // see `utils::ensure_callable_invariants` doc.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L202>.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
+        utils::append_diagnostics(
+            &mut results,
+            &mut utils::ensure_callable_invariants(fn_item, "message"),
+        );
+
+        // Ensure ink! message `fn` item has a self reference receiver, see `ensure_receiver_is_self_ref` doc.
+        if let Some(diagnostic) = ensure_receiver_is_self_ref(fn_item) {
+            utils::push_diagnostic(&mut results, diagnostic);
+        }
+
+        // Ensure ink! message `fn` item does not return `Self`, see `ensure_not_return_self` doc.
+        if let Some(diagnostic) = ensure_not_return_self(fn_item) {
+            utils::push_diagnostic(&mut results, diagnostic);
+        }
     }
 
     // Ensure ink! message has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
@@ -50,34 +58,31 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L203>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L121-L150>.
-fn ensure_receiver_is_self_ref(message: &Message) -> Option<Diagnostic> {
-    let ink_attr = message.ink_attr();
+fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
     let mut has_self_ref_receiver = false;
     let mut marker_token = None;
 
-    if let Some(fn_item) = message.fn_item() {
-        if let Some(param_list) = fn_item.param_list() {
-            if let Some(self_param) = param_list.self_param() {
-                if self_param.amp_token().is_some() {
-                    has_self_ref_receiver = true; // Only case that passes.
-                } else {
-                    marker_token = Some(self_param.syntax().to_owned());
-                }
+    if let Some(param_list) = fn_item.param_list() {
+        if let Some(self_param) = param_list.self_param() {
+            if self_param.amp_token().is_some() {
+                has_self_ref_receiver = true; // Only case that passes.
             } else {
-                marker_token = param_list
-                    .params()
-                    .next()
-                    .map(|param| param.syntax().to_owned());
+                marker_token = Some(self_param.syntax().to_owned());
             }
+        } else {
+            marker_token = param_list
+                .params()
+                .next()
+                .map(|param| param.syntax().to_owned());
         }
     }
 
     (!has_self_ref_receiver).then_some(Diagnostic {
-        message: format!(
-            "An `fn` item annotated with `{}` must have a self reference receiver (i.e `&self` or `&mut self`).",
-            ink_attr.syntax()
-        ),
-        range: marker_token.unwrap_or(message.syntax().to_owned()).text_range(),
+        message: "ink! messages must have a self reference receiver (i.e `&self` or `&mut self`)."
+            .to_string(),
+        range: marker_token
+            .unwrap_or(fn_item.syntax().to_owned())
+            .text_range(),
         severity: Severity::Error,
     })
 }
@@ -87,29 +92,23 @@ fn ensure_receiver_is_self_ref(message: &Message) -> Option<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L204>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L152-L174>.
-fn ensure_not_return_self(message: &Message) -> Option<Diagnostic> {
-    let ink_attr = message.ink_attr();
+fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
     let mut returns_self = false;
     let mut marker_token = None;
 
-    if let Some(fn_item) = message.fn_item() {
-        if let Some(ret_type) = fn_item.ret_type() {
-            if let Some(ty) = ret_type.ty() {
-                returns_self = ty.to_string() == "Self";
-                if returns_self {
-                    marker_token = Some(ty.syntax().to_owned());
-                }
+    if let Some(ret_type) = fn_item.ret_type() {
+        if let Some(ty) = ret_type.ty() {
+            returns_self = ty.to_string() == "Self";
+            if returns_self {
+                marker_token = Some(ty.syntax().to_owned());
             }
         }
     }
 
     returns_self.then_some(Diagnostic {
-        message: format!(
-            "An `fn` item annotated with `{}` must not return `Self`.",
-            ink_attr.syntax()
-        ),
+        message: "ink! messages must not return `Self`.".to_string(),
         range: marker_token
-            .unwrap_or(message.syntax().to_owned())
+            .unwrap_or(fn_item.syntax().to_owned())
             .text_range(),
         severity: Severity::Error,
     })
@@ -118,7 +117,9 @@ fn ensure_not_return_self(message: &Message) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, IRItem, InkArgKind, InkAttributeKind, InkFile};
+    use ink_analyzer_ir::{
+        quote_as_str, FromInkAttribute, IRItem, InkArgKind, InkAttributeKind, InkFile,
+    };
     use quote::quote;
 
     fn parse_first_message(code: &str) -> Message {
@@ -199,7 +200,7 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(&message);
+            let results = utils::ensure_callable_invariants(message.fn_item().unwrap(), "message");
             assert!(results.is_empty(), "message: {}", code);
         }
     }
@@ -299,7 +300,7 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(&message);
+            let results = utils::ensure_callable_invariants(message.fn_item().unwrap(), "message");
             assert_eq!(results.len(), 1, "message: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "message: {}", code);
         }
@@ -313,7 +314,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_receiver_is_self_ref(&message);
+            let result = ensure_receiver_is_self_ref(message.fn_item().unwrap());
             assert!(result.is_none(), "message: {}", code);
         }
     }
@@ -343,7 +344,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_receiver_is_self_ref(&message);
+            let result = ensure_receiver_is_self_ref(message.fn_item().unwrap());
             assert!(result.is_some(), "message: {}", code);
             assert_eq!(
                 result.unwrap().severity,
@@ -362,7 +363,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_not_return_self(&message);
+            let result = ensure_not_return_self(message.fn_item().unwrap());
             assert!(result.is_none(), "message: {}", code);
         }
     }
@@ -389,7 +390,7 @@ mod tests {
                 #code
             });
 
-            let result = ensure_not_return_self(&message);
+            let result = ensure_not_return_self(message.fn_item().unwrap());
             assert!(result.is_some(), "message: {}", code);
             assert_eq!(
                 result.unwrap().severity,

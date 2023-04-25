@@ -19,7 +19,7 @@ pub fn diagnostics(storage_item: &StorageItem) -> Vec<Diagnostic> {
         &mut utils::run_generic_diagnostics(storage_item),
     );
 
-    // Ensure ink! storage item is applied to an `fn` item., see `ensure_adt` doc.
+    // Ensure ink! storage item is applied to an `adt` (i.e `enum`, `struct` or `union`) item., see `ensure_adt` doc.
     if let Some(diagnostic) = ensure_adt(storage_item) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
