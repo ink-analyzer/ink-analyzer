@@ -2,7 +2,9 @@
 
 use ink_analyzer_ir::ast::AstNode;
 use ink_analyzer_ir::syntax::SyntaxKind;
-use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, Message, TraitDefinition};
+use ink_analyzer_ir::{
+    FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, Message, TraitDefinition,
+};
 
 use super::{message, utils};
 use crate::{Diagnostic, Severity};
@@ -14,8 +16,6 @@ use crate::{Diagnostic, Severity};
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/mod.rs#L42-L49>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L64-L84>.
-///
-/// Ref: <>.
 pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
@@ -39,6 +39,11 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
         &mut results,
         &mut ensure_trait_item_invariants(trait_definition),
     );
+
+    // Ensure at least one ink! message, see `ensure_contains_message` doc.
+    if let Some(diagnostic) = ensure_contains_message(trait_definition) {
+        utils::push_diagnostic(&mut results, diagnostic);
+    }
 
     // Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // see `ensure_valid_quasi_direct_ink_descendants` doc.
@@ -114,6 +119,21 @@ fn ensure_trait_item_invariants(trait_definition: &TraitDefinition) -> Vec<Diagn
     )
 }
 
+/// Ensure at least one ink! message.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L73-L79>.
+fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnostic> {
+    utils::ensure_at_least_one_item(
+        trait_definition.messages(),
+        Diagnostic {
+            message: "At least one ink! message has to be defined for an ink! trait definition."
+                .to_string(),
+            range: trait_definition.syntax().text_range(),
+            severity: Severity::Error,
+        },
+    )
+}
+
 /// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L163-L164>.
@@ -138,8 +158,8 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, FromInkAttribute, IRItem, InkFile, InkMacroKind};
-    use quote::quote;
+    use ink_analyzer_ir::{quote_as_str, IRItem, InkFile, InkMacroKind};
+    use quote::{format_ident, quote};
 
     fn parse_first_trait_definition(code: &str) -> TraitDefinition {
         TraitDefinition::cast(
@@ -461,6 +481,62 @@ mod tests {
                 code
             );
         }
+    }
+
+    #[test]
+    fn one_message_works() {
+        let trait_definition = parse_first_trait_definition(quote_as_str! {
+            #[ink::trait_definition]
+            pub trait MyTrait {
+                #[ink(message)]
+                fn my_message(&self) {
+                }
+            }
+        });
+
+        let result = ensure_contains_message(&trait_definition);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn multiple_messages_works() {
+        // Tests snippets with btn 2 and 5 messages.
+        for idx in 2..=5 {
+            // Creates multiple messages.
+            let messages = (1..=idx).map(|i| {
+                let name = format_ident!("my_message{i}");
+                quote! {
+                    #[ink(message)]
+                    fn #name(&self) {
+                    }
+                }
+            });
+
+            // Creates contract with multiple messages.
+            let trait_definition = parse_first_trait_definition(quote_as_str! {
+                #[ink::trait_definition]
+                pub trait MyTrait {
+                    #( #messages )*
+                }
+            });
+
+            let result = ensure_contains_message(&trait_definition);
+            assert!(result.is_none());
+        }
+    }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L706-L722>.
+    fn missing_message_fails() {
+        let trait_definition = parse_first_trait_definition(quote_as_str! {
+            #[ink::trait_definition]
+            pub trait MyTrait {
+            }
+        });
+
+        let result = ensure_contains_message(&trait_definition);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().severity, Severity::Error);
     }
 
     #[test]

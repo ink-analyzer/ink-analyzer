@@ -157,7 +157,7 @@ fn ensure_storage_quantity(contract: &Contract) -> Vec<Diagnostic> {
             range: contract.syntax().text_range(),
             severity: Severity::Error,
         },
-        "Only one ink! storage item can be defined for each contract.",
+        "Only one ink! storage item can be defined for an ink! contract.",
         Severity::Error,
     )
 }
@@ -168,11 +168,10 @@ fn ensure_storage_quantity(contract: &Contract) -> Vec<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L145-L165>.
 fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
-    // include constructors from impl blocks.
     utils::ensure_at_least_one_item(
         contract.constructors(),
         Diagnostic {
-            message: "At least one ink! constructor has to be defined for each contract."
+            message: "At least one ink! constructor has to be defined for an ink! contract."
                 .to_string(),
             range: contract.syntax().text_range(),
             severity: Severity::Error,
@@ -186,11 +185,11 @@ fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L123-L143>.
 fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
-    // include messages from impl blocks.
     utils::ensure_at_least_one_item(
         contract.messages(),
         Diagnostic {
-            message: "At least one ink! message has to be defined for each contract.".to_string(),
+            message: "At least one ink! message has to be defined for an ink! contract."
+                .to_string(),
             range: contract.syntax().text_range(),
             severity: Severity::Error,
         },
@@ -504,7 +503,9 @@ mod tests {
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
                 mod flipper {
-                    #( #constructors )*
+                    impl Flipper {
+                        #( #constructors )*
+                    }
                 }
             });
 
@@ -562,7 +563,9 @@ mod tests {
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
                 mod flipper {
-                    #( #messages )*
+                    impl Flipper {
+                        #( #messages )*
+                    }
                 }
             });
 
