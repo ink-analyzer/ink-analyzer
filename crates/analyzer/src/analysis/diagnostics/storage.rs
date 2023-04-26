@@ -115,37 +115,35 @@ mod tests {
 
     #[test]
     fn non_contract_parent_fails() {
-        let storage = parse_first_storage_item(quote_as_str! {
-            mod my_contract {
-                #[ink(storage)]
-                pub struct MyContract {
-                    value: bool,
-                }
-            }
-        });
-
-        let result = utils::ensure_contract_parent(&storage);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
-    }
-
-    #[test]
-    fn contract_ancestor_fails() {
-        let storage = parse_first_storage_item(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                mod my_storage_mod {
+        for code in [
+            // Unannotated parent.
+            quote_as_str! {
+                mod my_contract {
                     #[ink(storage)]
                     pub struct MyContract {
                         value: bool,
                     }
                 }
-            }
-        });
+            },
+            // Contract ancestor.
+            quote_as_str! {
+                #[ink::contract]
+                mod my_contract {
+                    mod my_storage_mod {
+                        #[ink(storage)]
+                        pub struct MyContract {
+                            value: bool,
+                        }
+                    }
+                }
+            },
+        ] {
+            let storage = parse_first_storage_item(code);
 
-        let result = utils::ensure_contract_parent(&storage);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+            let result = utils::ensure_contract_parent(&storage);
+            assert!(result.is_some());
+            assert_eq!(result.unwrap().severity, Severity::Error);
+        }
     }
 
     #[test]

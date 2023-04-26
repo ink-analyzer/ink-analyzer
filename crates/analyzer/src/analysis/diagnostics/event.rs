@@ -208,39 +208,37 @@ mod tests {
 
     #[test]
     fn non_contract_parent_fails() {
-        let event = parse_first_event_item(quote_as_str! {
-            mod my_contract {
-                #[ink(event)]
-                pub struct MyEvent {
-                    #[ink(topic)]
-                    value: bool,
-                }
-            }
-        });
-
-        let result = utils::ensure_contract_parent(&event);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
-    }
-
-    #[test]
-    fn contract_ancestor_fails() {
-        let event = parse_first_event_item(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                mod my_event_mod {
+        for code in [
+            // Unannotated parent.
+            quote_as_str! {
+                mod my_contract {
                     #[ink(event)]
                     pub struct MyEvent {
                         #[ink(topic)]
                         value: bool,
                     }
                 }
-            }
-        });
+            },
+            // Contract ancestor.
+            quote_as_str! {
+                #[ink::contract]
+                mod my_contract {
+                    mod my_event_mod {
+                        #[ink(event)]
+                        pub struct MyEvent {
+                            #[ink(topic)]
+                            value: bool,
+                        }
+                    }
+                }
+            },
+        ] {
+            let event = parse_first_event_item(code);
 
-        let result = utils::ensure_contract_parent(&event);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+            let result = utils::ensure_contract_parent(&event);
+            assert!(result.is_some());
+            assert_eq!(result.unwrap().severity, Severity::Error);
+        }
     }
 
     #[test]

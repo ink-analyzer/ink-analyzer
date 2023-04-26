@@ -92,6 +92,13 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
         &mut ensure_at_most_one_wildcard_selector(contract),
     );
 
+    // Ensure ink! messages and constructors are defined in the root of an `impl` item,
+    // see `ensure_impl_parent_for_callables` doc.
+    utils::append_diagnostics(
+        &mut results,
+        &mut ensure_impl_parent_for_callables(contract),
+    );
+
     // Run ink! test diagnostics, see `ink_test::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
@@ -253,16 +260,16 @@ fn ensure_no_overlapping_selectors(contract: &Contract) -> Vec<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_at_most_one_wildcard_selector(contract: &Contract) -> Vec<Diagnostic> {
-    let constructor_attrs = contract
+    let constructor_attrs: Vec<InkAttribute> = contract
         .constructors()
         .iter()
         .flat_map(|item| item.ink_attrs())
-        .collect::<Vec<InkAttribute>>();
-    let message_attrs = contract
+        .collect();
+    let message_attrs: Vec<InkAttribute> = contract
         .messages()
         .iter()
         .flat_map(|item| item.ink_attrs())
-        .collect::<Vec<InkAttribute>>();
+        .collect();
 
     [(constructor_attrs, "constructor"), (message_attrs, "message")].iter().flat_map(|(attrs, name)| {
         let mut has_seen_wildcard = false;
@@ -282,6 +289,29 @@ fn ensure_at_most_one_wildcard_selector(contract: &Contract) -> Vec<Diagnostic> 
             }).collect::<Vec<Diagnostic>>()
         }).collect::<Vec<Diagnostic>>()
     }).collect()
+}
+
+/// Ensure ink! messages and constructors are defined in the root of an `impl` item.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L36-L66>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L66-L96>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/impl_item.rs#L64-L87>.
+fn ensure_impl_parent_for_callables(contract: &Contract) -> Vec<Diagnostic> {
+    contract
+        .constructors()
+        .iter()
+        .filter_map(utils::ensure_impl_parent)
+        .chain(
+            contract
+                .messages()
+                .iter()
+                .filter_map(utils::ensure_impl_parent),
+        )
+        .collect()
 }
 
 /// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
@@ -316,30 +346,148 @@ mod tests {
         InkFile::parse(code).contracts().to_owned()[0].to_owned()
     }
 
-    #[test]
-    fn inline_mod_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-            }
-        });
+    // List of valid minimal ink! contracts used for positive(`works`) tests for ink! contract verifying utilities.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L593-L640>.
+    macro_rules! valid_contracts {
+        () => {
+            [
+                // Minimal.
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
 
-        let result = ensure_inline_module(&contract);
-        assert!(result.is_none());
+                        impl Minimal {
+                            #[ink(constructor)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message)]
+                            pub fn minimal_message(&self) {}
+                        }
+                    }
+                },
+                // Minimal + Event + Args.
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        #[ink(event, anonymous)]
+                        pub struct MinimalEvent {
+                            #[ink(topic)]
+                            value: i32,
+                        }
+
+                        impl Minimal {
+                            #[ink(constructor, payable, default, selector=1)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message, payable, default, selector=1)]
+                            pub fn minimal_message(&self) {}
+                        }
+                    }
+                },
+                // Flipper.
+                quote! {
+                    mod flipper {
+                        #[ink(storage)]
+                        pub struct Flipper {
+                            value: bool,
+                        }
+
+                        impl Default for Flipper {
+                            #[ink(constructor)]
+                            fn default() -> Self {
+                                Self { value: false }
+                            }
+                        }
+
+                        impl Flipper {
+                        #[ink(message)]
+                            pub fn flip(&mut self) {
+                                self.value = !self.value
+                            }
+
+                            #[ink(message)]
+                            pub fn get(&self) -> bool {
+                                self.value
+                            }
+                        }
+                    }
+                },
+                // Flipper + Event + Args.
+                quote! {
+                    mod flipper {
+                        #[ink(storage)]
+                        pub struct Flipper {
+                            value: bool,
+                        }
+
+                        #[ink(event, anonymous)]
+                        pub struct Flip {
+                            #[ink(topic)]
+                            flipped: bool,
+                        }
+
+                        impl Default for Flipper {
+                            #[ink(constructor, payable, default, selector=1)]
+                            fn default() -> Self {
+                                Self { value: false }
+                            }
+                        }
+
+                        impl Flipper {
+                            #[ink(message, payable, default, selector=1)]
+                            pub fn flip(&mut self) {
+                                self.value = !self.value
+                            }
+
+                            #[ink(message, selector=0x2)]
+                            pub fn get(&self) -> bool {
+                                self.value
+                            }
+                        }
+                    }
+                },
+            ]
+            .iter()
+            .flat_map(|code| {
+                [
+                    // Simple.
+                    quote! {
+                        #[ink::contract]
+                        #code
+                    },
+                    // Env.
+                    quote! {
+                        #[ink::contract(env=my::env::Types)]
+                        #code
+                    },
+                    // Keep Attr.
+                    quote! {
+                        #[ink::contract(keep_attr="foo,bar")]
+                        #code
+                    },
+                    // Compound.
+                    quote! {
+                        #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+                        #code
+                    },
+                ]
+            })
+        };
     }
 
     #[test]
-    fn inline_mod_with_attribute_args_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract(keep_attr="foo, bar")]
-            mod my_contract {
-                // #[foo]
-                // #[bar]
-            }
-        });
+    fn inline_mod_works() {
+        for code in valid_contracts!() {
+            let contract = parse_first_contract(quote_as_str! {
+                #code
+            });
 
-        let result = ensure_inline_module(&contract);
-        assert!(result.is_none());
+            let result = ensure_inline_module(&contract);
+            assert!(result.is_none());
+        }
     }
 
     #[test]
@@ -852,6 +1000,57 @@ mod tests {
     }
 
     #[test]
+    fn impl_parent_for_callables_works() {
+        let contract = parse_first_contract(quote_as_str! {
+            #[ink::contract]
+            mod my_contract {
+                impl MyContract {
+                    #[ink(constructor)]
+                    pub fn my_constructor() -> Self {
+                    }
+
+                    #[ink(message)]
+                    pub fn my_message() {
+                    }
+                }
+            }
+        });
+
+        let results = ensure_impl_parent_for_callables(&contract);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn non_impl_parent_for_callables_fails() {
+        let contract = parse_first_contract(quote_as_str! {
+            #[ink::contract]
+            mod my_contract {
+                #[ink(constructor)]
+                pub fn my_constructor() -> Self {
+                }
+
+                #[ink(message)]
+                pub fn my_message() {
+                }
+            }
+        });
+
+        let results = ensure_impl_parent_for_callables(&contract);
+
+        // There should be 2 errors (i.e for the `constructor` and `message`).
+        assert_eq!(results.len(), 2);
+        dbg!(&results);
+        // All diagnostics should be errors.
+        assert_eq!(
+            results
+                .iter()
+                .filter(|item| item.severity == Severity::Error)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
     fn valid_quasi_direct_descendant_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
@@ -930,51 +1129,10 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L593-L640>.
     fn compound_diagnostic_works() {
-        for code in [
-            quote_as_str! {
-                #[ink::contract]
-                mod minimal {
-                    #[ink(storage)]
-                    pub struct Minimal {}
-
-                    impl Minimal {
-                        #[ink(constructor)]
-                        pub fn new() -> Self {}
-                        #[ink(message)]
-                        pub fn minimal_message(&self) {}
-                    }
-                }
-            },
-            quote_as_str! {
-                #[ink::contract]
-                mod flipper {
-                    #[ink(storage)]
-                    pub struct Flipper {
-                        value: bool,
-                    }
-
-                    impl Default for Flipper {
-                        #[ink(constructor)]
-                        fn default() -> Self {
-                            Self { value: false }
-                        }
-                    }
-
-                    impl Flipper {
-                        #[ink(message)]
-                        pub fn flip(&mut self) {
-                            self.value = !self.value
-                        }
-
-                        #[ink(message)]
-                        pub fn get(&self) -> bool {
-                            self.value
-                        }
-                    }
-                }
-            },
-        ] {
-            let contract = parse_first_contract(code);
+        for code in valid_contracts!() {
+            let contract = parse_first_contract(quote_as_str! {
+                #code
+            });
 
             let results = diagnostics(&contract);
             assert!(results.is_empty(), "contract: {}", code);

@@ -228,7 +228,7 @@ mod tests {
                     // Fails because: the trait `ink::storage::traits::Packed` is not implemented for `NonPacked`
                     // s8: Mapping<u128, NonPacked>,
                 }
-            }
+            },
         ] {
             let storage_item = parse_first_storage_item(code);
 

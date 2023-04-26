@@ -1,7 +1,7 @@
 //! ink! IR traits.
 
-use ra_ap_syntax::ast::{Fn, Struct, Trait};
-use ra_ap_syntax::{AstNode, SyntaxKind, SyntaxNode};
+use ra_ap_syntax::ast::{Item, Struct, Trait};
+use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use crate::{utils, InkAttribute};
 
@@ -41,22 +41,41 @@ pub trait FromInkAttribute {
     fn ink_attr(&self) -> &InkAttribute;
 }
 
-/// Implemented by IR items whose valid AST node is a `struct`.
+/// Implemented by IR items whose valid AST node is a `struct` item.
 pub trait AsInkStruct {
     /// Returns the `struct` item (if any) for the ink! item.
     fn struct_item(&self) -> Option<&Struct>;
 }
 
-/// Implemented by IR items whose valid AST node is an `fn`.
+/// Implemented by IR items whose valid AST node is an `fn` item.
 pub trait AsInkFn {
     /// Returns the `fn` item (if any) for the ink! item.
-    fn fn_item(&self) -> Option<&Fn>;
+    fn fn_item(&self) -> Option<&ast::Fn>;
 }
 
-/// Implemented by IR items whose valid AST node is an `trait`.
+/// Implemented by IR items whose valid AST node is a `trait` item.
 pub trait AsInkTrait {
     /// Returns the `trait` item (if any) for the ink! item.
     fn trait_item(&self) -> Option<&Trait>;
+}
+
+/// Implemented by IR items whose valid AST parent item node is an `impl` item.
+pub trait AsInkImplItem {
+    /// Returns the `impl` item (if any) for the ink! item's parent item node.
+    fn impl_item(&self) -> Option<ast::Impl>;
+}
+
+/// Blanket implementation of AsInkImplItem for IRItems that implement AsInkFn.
+impl<T> AsInkImplItem for T
+where
+    T: AsInkFn,
+{
+    fn impl_item(&self) -> Option<ast::Impl> {
+        match utils::parent_ast_item(self.fn_item()?.syntax())? {
+            Item::Impl(item) => Some(item),
+            _ => None,
+        }
+    }
 }
 
 /// Convenience methods for navigating the IR that are implemented by all IR items.

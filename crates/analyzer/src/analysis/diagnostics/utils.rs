@@ -7,8 +7,8 @@ use ink_analyzer_ir::ast::{
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
-    ast, AsInkFn, AsInkStruct, AsInkTrait, Contract, FromInkAttribute, FromSyntax, IRItem, InkArg,
-    InkArgKind, InkAttribute, InkAttributeKind, InkMacroKind,
+    ast, AsInkFn, AsInkImplItem, AsInkStruct, AsInkTrait, Contract, FromInkAttribute, FromSyntax,
+    IRItem, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkMacroKind,
 };
 use std::collections::HashSet;
 use std::num::ParseIntError;
@@ -1100,13 +1100,29 @@ where
 
     (!has_contract_parent).then_some(Diagnostic {
         message: format!(
-            "`{}` can only be used {} an ink! contract `mod`.",
+            "`{}` must be defined {} an ink! contract `mod`.",
             ink_attr.syntax(),
             if has_contract_ancestor {
                 "in the root of"
             } else {
                 "inside"
             }
+        ),
+        range: ink_attr.syntax().text_range(),
+        severity: Severity::Error,
+    })
+}
+
+/// Ensure item is defined in the root of an `impl` item.
+pub fn ensure_impl_parent<T>(item: &T) -> Option<Diagnostic>
+where
+    T: FromInkAttribute + FromSyntax + AsInkImplItem,
+{
+    let ink_attr = item.ink_attr();
+    item.impl_item().is_none().then_some(Diagnostic {
+        message: format!(
+            "`{}` must be defined in the root of an `impl` block.",
+            ink_attr.syntax(),
         ),
         range: ink_attr.syntax().text_range(),
         severity: Severity::Error,

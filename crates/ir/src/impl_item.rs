@@ -1,7 +1,7 @@
 //! ink! impl IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::Impl as ASTImpl;
+use ra_ap_syntax::ast;
 
 use crate::{Constructor, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Message};
 
@@ -10,7 +10,7 @@ use crate::{Constructor, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute
 pub struct Impl {
     /// ink! attribute IR data.
     #[arg_kind(Impl)]
-    ink_attr: InkAttrData<ASTImpl>,
+    ink_attr: InkAttrData<ast::Impl>,
     /// ink! constructors.
     #[arg_kind(Constructor)]
     constructors: Vec<Constructor>,
@@ -21,7 +21,7 @@ pub struct Impl {
 
 impl Impl {
     /// Returns the ink! `impl` item (if any) for the ink! contract implementation.
-    pub fn impl_item(&self) -> Option<&ASTImpl> {
+    pub fn impl_item(&self) -> Option<&ast::Impl> {
         self.ink_attr.parent_ast()
     }
 
