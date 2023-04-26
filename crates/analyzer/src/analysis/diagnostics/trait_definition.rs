@@ -28,7 +28,7 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
 
     // Ensure ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
-    if let Some(diagnostic) = utils::ensure_trait(trait_definition) {
+    if let Some(diagnostic) = utils::ensure_trait(trait_definition, "trait definition") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 

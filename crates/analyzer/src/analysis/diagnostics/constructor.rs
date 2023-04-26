@@ -22,7 +22,7 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
 
     // Ensure ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155>.
-    if let Some(diagnostic) = utils::ensure_fn(constructor) {
+    if let Some(diagnostic) = utils::ensure_fn(constructor, "constructor") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 

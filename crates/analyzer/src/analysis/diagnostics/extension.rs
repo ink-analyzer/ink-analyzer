@@ -19,7 +19,7 @@ pub fn diagnostics(extension: &Extension) -> Vec<Diagnostic> {
 
     // Ensure ink! extension is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L473>.
-    if let Some(diagnostic) = utils::ensure_fn(extension) {
+    if let Some(diagnostic) = utils::ensure_fn(extension, "extension") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 

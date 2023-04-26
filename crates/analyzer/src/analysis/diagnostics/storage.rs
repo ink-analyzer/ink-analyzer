@@ -19,7 +19,7 @@ pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
     // Ensure ink! storage is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L94>.
-    if let Some(diagnostic) = utils::ensure_pub_struct(storage) {
+    if let Some(diagnostic) = utils::ensure_pub_struct(storage, "storage") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -27,7 +27,7 @@ pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L377-L379>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L28-L29>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L74>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(storage) {
+    if let Some(diagnostic) = utils::ensure_contract_parent(storage, "storage") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -69,7 +69,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_pub_struct(&storage);
+        let result = utils::ensure_pub_struct(&storage, "storage");
         assert!(result.is_none());
     }
 
@@ -91,7 +91,7 @@ mod tests {
                 }
             });
 
-            let result = utils::ensure_pub_struct(&storage);
+            let result = utils::ensure_pub_struct(&storage, "storage");
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }
@@ -109,7 +109,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_contract_parent(&storage);
+        let result = utils::ensure_contract_parent(&storage, "storage");
         assert!(result.is_none());
     }
 
@@ -140,7 +140,7 @@ mod tests {
         ] {
             let storage = parse_first_storage_item(code);
 
-            let result = utils::ensure_contract_parent(&storage);
+            let result = utils::ensure_contract_parent(&storage, "storage");
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }

@@ -22,14 +22,14 @@ pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
     // Ensure ink! event is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L105>.
-    if let Some(diagnostic) = utils::ensure_pub_struct(event) {
+    if let Some(diagnostic) = utils::ensure_pub_struct(event, "event") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     // Ensure ink! event is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L475>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L79>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(event) {
+    if let Some(diagnostic) = utils::ensure_contract_parent(event, "event") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -160,7 +160,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_pub_struct(&event);
+        let result = utils::ensure_pub_struct(&event, "event");
         assert!(result.is_none());
     }
 
@@ -183,7 +183,7 @@ mod tests {
                 }
             });
 
-            let result = utils::ensure_pub_struct(&event);
+            let result = utils::ensure_pub_struct(&event, "event");
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }
@@ -202,7 +202,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_contract_parent(&event);
+        let result = utils::ensure_contract_parent(&event, "event");
         assert!(result.is_none());
     }
 
@@ -235,7 +235,7 @@ mod tests {
         ] {
             let event = parse_first_event_item(code);
 
-            let result = utils::ensure_contract_parent(&event);
+            let result = utils::ensure_contract_parent(&event, "event");
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }

@@ -19,7 +19,7 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
 
     // Ensure ink! message is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
-    if let Some(diagnostic) = utils::ensure_fn(message) {
+    if let Some(diagnostic) = utils::ensure_fn(message, "message") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 

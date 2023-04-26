@@ -7,8 +7,8 @@ use ink_analyzer_ir::ast::{
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
-    ast, AsInkFn, AsInkImplItem, AsInkStruct, AsInkTrait, Contract, FromInkAttribute, FromSyntax,
-    IRItem, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkMacroKind,
+    ast, AsInkFn, AsInkImplItem, AsInkStruct, AsInkTrait, Contract, FromSyntax, IRItem, InkArg,
+    InkArgKind, InkAttribute, InkAttributeKind, InkMacroKind,
 };
 use std::collections::HashSet;
 use std::num::ParseIntError;
@@ -768,11 +768,10 @@ pub fn ensure_at_most_one_item<T: FromSyntax>(
 }
 
 /// Ensure ink! entity is a `struct` with `pub` visibility.
-pub fn ensure_pub_struct<T>(item: &T) -> Option<Diagnostic>
+pub fn ensure_pub_struct<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromInkAttribute + FromSyntax + AsInkStruct,
+    T: FromSyntax + AsInkStruct,
 {
-    let ink_attr = item.ink_attr();
     let mut error = None;
     let mut marker_token = None;
 
@@ -785,15 +784,11 @@ where
         };
         if !has_pub_visibility {
             error = Some(format!(
-                "A `struct` annotated with `{}` must have `pub` visibility.",
-                ink_attr.syntax()
+                "ink! {ink_scope_name}s must have `pub` visibility.",
             ));
         }
     } else {
-        error = Some(format!(
-            "`{}` can only be applied to a `struct` item.",
-            ink_attr.syntax()
-        ));
+        error = Some(format!("ink! {ink_scope_name}s must be `struct` items.",));
     }
 
     error.map(|message| Diagnostic {
@@ -808,30 +803,24 @@ where
 }
 
 /// Ensure ink! entity is an `fn` item.
-pub fn ensure_fn<T>(item: &T) -> Option<Diagnostic>
+pub fn ensure_fn<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromInkAttribute + FromSyntax + AsInkFn,
+    T: FromSyntax + AsInkFn,
 {
     item.fn_item().is_none().then_some(Diagnostic {
-        message: format!(
-            "`{}` can only be applied to an `fn` item.",
-            item.ink_attr().syntax()
-        ),
+        message: format!("ink! {ink_scope_name}s must be `fn` items.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
     })
 }
 
 /// Ensure ink! entity is a `trait` item.
-pub fn ensure_trait<T>(item: &T) -> Option<Diagnostic>
+pub fn ensure_trait<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromInkAttribute + FromSyntax + AsInkTrait,
+    T: FromSyntax + AsInkTrait,
 {
     item.trait_item().is_none().then_some(Diagnostic {
-        message: format!(
-            "`{}` can only be applied to a `trait` item.",
-            item.ink_attr().syntax()
-        ),
+        message: format!("ink! {ink_scope_name}s must be `trait` items.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
     })
@@ -1081,50 +1070,28 @@ where
 }
 
 /// Ensure item is defined in the root of an ink! contract.
-pub fn ensure_contract_parent<T>(item: &T) -> Option<Diagnostic>
+pub fn ensure_contract_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromInkAttribute + FromSyntax,
+    T: FromSyntax,
 {
-    let ink_attr = item.ink_attr();
-    let mut has_contract_parent = false;
-    let mut has_contract_ancestor = false;
-
-    if let Some(parent) = ink_analyzer_ir::parent_ast_item(item.syntax()) {
-        has_contract_parent = ink_analyzer_ir::ink_parent::<Contract>(item.syntax()).is_some();
-
-        if !has_contract_parent {
-            has_contract_ancestor =
-                !ink_analyzer_ir::ink_closest_ancestors::<Contract>(parent.syntax()).is_empty();
-        }
-    }
-
+    let has_contract_parent = ink_analyzer_ir::ink_parent::<Contract>(item.syntax()).is_some();
     (!has_contract_parent).then_some(Diagnostic {
         message: format!(
-            "`{}` must be defined {} an ink! contract `mod`.",
-            ink_attr.syntax(),
-            if has_contract_ancestor {
-                "in the root of"
-            } else {
-                "inside"
-            }
+            "ink! {ink_scope_name}s must be defined in the root of an ink! contract `mod`.",
         ),
-        range: ink_attr.syntax().text_range(),
+        range: item.syntax().text_range(),
         severity: Severity::Error,
     })
 }
 
 /// Ensure item is defined in the root of an `impl` item.
-pub fn ensure_impl_parent<T>(item: &T) -> Option<Diagnostic>
+pub fn ensure_impl_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromInkAttribute + FromSyntax + AsInkImplItem,
+    T: FromSyntax + AsInkImplItem,
 {
-    let ink_attr = item.ink_attr();
     item.impl_item().is_none().then_some(Diagnostic {
-        message: format!(
-            "`{}` must be defined in the root of an `impl` block.",
-            ink_attr.syntax(),
-        ),
-        range: ink_attr.syntax().text_range(),
+        message: format!("ink! {ink_scope_name}s must be defined in the root of an `impl` block.",),
+        range: item.syntax().text_range(),
         severity: Severity::Error,
     })
 }

@@ -304,12 +304,12 @@ fn ensure_impl_parent_for_callables(contract: &Contract) -> Vec<Diagnostic> {
     contract
         .constructors()
         .iter()
-        .filter_map(utils::ensure_impl_parent)
+        .filter_map(|item| utils::ensure_impl_parent(item, "constructor"))
         .chain(
             contract
                 .messages()
                 .iter()
-                .filter_map(utils::ensure_impl_parent),
+                .filter_map(|item| utils::ensure_impl_parent(item, "messages")),
         )
         .collect()
 }

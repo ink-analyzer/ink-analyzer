@@ -20,7 +20,7 @@ pub fn diagnostics(ink_test: &InkTest) -> Vec<Diagnostic> {
 
     // Ensure ink! test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
-    if let Some(diagnostic) = utils::ensure_fn(ink_test) {
+    if let Some(diagnostic) = utils::ensure_fn(ink_test, "test") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -61,7 +61,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_fn(&ink_test);
+        let result = utils::ensure_fn(&ink_test, "test");
         assert!(result.is_none());
     }
 
@@ -89,7 +89,7 @@ mod tests {
                 #code
             });
 
-            let result = utils::ensure_fn(&ink_test);
+            let result = utils::ensure_fn(&ink_test, "test");
             assert!(result.is_some(), "ink test: {}", code);
             assert_eq!(
                 result.unwrap().severity,

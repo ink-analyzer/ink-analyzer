@@ -27,7 +27,7 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
 
     // Ensure ink! chain extension is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L222>.
-    if let Some(diagnostic) = utils::ensure_trait(chain_extension) {
+    if let Some(diagnostic) = utils::ensure_trait(chain_extension, "chain extension") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
