@@ -68,9 +68,9 @@ mod tests {
     fn struct_field_works() {
         let topic = parse_first_topic_field(quote_as_str! {
             #[ink(event)]
-            pub struct Flip {
+            pub struct MyEvent {
                 #[ink(topic)]
-                flipped: bool,
+                value: bool,
             }
         });
 
@@ -81,13 +81,13 @@ mod tests {
     #[test]
     fn non_struct_field_fails() {
         for item in vec![
-            quote! { mod flipper; },
+            quote! { mod my_topic; },
             quote! {
-                pub struct Flip {
-                    flipped: bool,
+                pub struct MyTopic {
+                    value: bool,
                 }
             },
-            quote! { enum Flipper {
+            quote! { enum MyTopic {
                 This,
                 That,
             } },

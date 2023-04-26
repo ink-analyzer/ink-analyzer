@@ -429,7 +429,7 @@ mod tests {
                 type ErrorCode: Copy = (); // trait bounds.
             },
             quote! {
-                type ErrorCode; // node default type.
+                type ErrorCode; // no default type.
             },
             // Macro.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L622-L630>.

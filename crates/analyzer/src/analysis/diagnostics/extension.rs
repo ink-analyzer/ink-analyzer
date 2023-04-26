@@ -118,6 +118,21 @@ mod tests {
                     fn my_extension(a: i32, b: u64, c: [u8; 32]) -> (i32, u64, bool);
                 },
             ]
+            .iter()
+            .flat_map(|code| {
+                [
+                    // Simple.
+                    quote! {
+                        #[ink(extension=1)]
+                        #code
+                    },
+                    // Compound.
+                    quote! {
+                        #[ink(extension=1, handle_status=false)]
+                        #code
+                    },
+                ]
+            })
         };
     }
 
@@ -125,7 +140,6 @@ mod tests {
     fn valid_method_works() {
         for code in valid_extensions!() {
             let extension = parse_first_extension(quote_as_str! {
-                #[ink(extension=1)]
                 #code
             });
 
@@ -185,7 +199,6 @@ mod tests {
     fn no_self_receiver_works() {
         for code in valid_extensions!() {
             let extension = parse_first_extension(quote_as_str! {
-                #[ink(extension=1)]
                 #code
             });
 

@@ -189,6 +189,35 @@ mod tests {
                     fn my_message(&mut self, a: i32, b: u64, c: [u8; 32]) -> (i32, u64, bool) {}
                 },
             ]
+            .iter()
+            .flat_map(|code| {
+                [
+                    // Simple.
+                    quote! {
+                        #[ink(message)]
+                        #code
+                    },
+                    // Payable.
+                    quote! {
+                        #[ink(message, payable)]
+                        #code
+                    },
+                    // Selector.
+                    quote! {
+                        #[ink(message, selector=1)]
+                        #code
+                    },
+                    quote! {
+                        #[ink(message, selector=0x1)]
+                        #code
+                    },
+                    // Compound.
+                    quote! {
+                        #[ink(message, payable, selector=1, default)]
+                        #code
+                    },
+                ]
+            })
         };
     }
 
@@ -196,7 +225,6 @@ mod tests {
     fn valid_callable_works() {
         for code in valid_messages!() {
             let message = parse_first_message(quote_as_str! {
-                #[ink(message)]
                 #code
             });
 
@@ -310,7 +338,6 @@ mod tests {
     fn self_ref_receiver_works() {
         for code in valid_messages!() {
             let message = parse_first_message(quote_as_str! {
-                #[ink(message)]
                 #code
             });
 
@@ -359,7 +386,6 @@ mod tests {
     fn non_self_return_type_works() {
         for code in valid_messages!() {
             let message = parse_first_message(quote_as_str! {
-                #[ink(message)]
                 #code
             });
 

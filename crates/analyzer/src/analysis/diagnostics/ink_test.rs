@@ -69,18 +69,18 @@ mod tests {
     fn non_fn_fails() {
         for code in [
             quote! {
-                struct Flipper {
+                struct MyTest {
                 }
             },
             quote! {
-                enum Flipper {
+                enum MyTest {
                 }
             },
             quote! {
-                mod flipper;
+                mod my_test;
             },
             quote! {
-                trait Trait {
+                trait MyTest {
                 }
             },
         ] {
@@ -118,7 +118,7 @@ mod tests {
             #[ink::test]
             fn it_works() {
                 #[ink(event)]
-                struct Flip {
+                struct MyEvent {
                     #[ink(topic)]
                     value: bool,
                 }

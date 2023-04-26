@@ -64,7 +64,7 @@ mod tests {
     fn pub_struct_works() {
         let storage = parse_first_storage_item(quote_as_str! {
             #[ink(storage)]
-            pub struct Flipper {
+            pub struct MyStorage {
                 value: bool,
             }
         });
@@ -86,7 +86,7 @@ mod tests {
         ] {
             let storage = parse_first_storage_item(quote_as_str! {
                 #[ink(storage)]
-                #vis struct Flipper {
+                #vis struct MyStorage {
                     value: bool,
                 }
             });
@@ -101,9 +101,9 @@ mod tests {
     fn contract_parent_works() {
         let storage = parse_first_storage_item(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
                 #[ink(storage)]
-                pub struct Flipper {
+                pub struct MyContract {
                     value: bool,
                 }
             }
@@ -116,9 +116,9 @@ mod tests {
     #[test]
     fn non_contract_parent_fails() {
         let storage = parse_first_storage_item(quote_as_str! {
-            mod flipper {
+            mod my_contract {
                 #[ink(storage)]
-                pub struct Flipper {
+                pub struct MyContract {
                     value: bool,
                 }
             }
@@ -133,10 +133,10 @@ mod tests {
     fn contract_ancestor_fails() {
         let storage = parse_first_storage_item(quote_as_str! {
             #[ink::contract]
-            mod flipper {
-                mod storage_container {
+            mod my_contract {
+                mod my_storage_mod {
                     #[ink(storage)]
-                    pub struct Flipper {
+                    pub struct MyContract {
                         value: bool,
                     }
                 }
@@ -152,7 +152,7 @@ mod tests {
     fn no_ink_descendants_works() {
         let storage = parse_first_storage_item(quote_as_str! {
             #[ink(storage)]
-            struct Flipper {
+            struct MyStorage {
                 value: bool,
             }
         });
@@ -165,7 +165,7 @@ mod tests {
     fn ink_descendants_fails() {
         let storage = parse_first_storage_item(quote_as_str! {
             #[ink(storage)]
-            struct Flipper {
+            struct MyStorage {
                 #[ink(topic)]
                 value: bool,
             }

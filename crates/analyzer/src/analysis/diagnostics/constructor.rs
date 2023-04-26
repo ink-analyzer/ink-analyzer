@@ -389,7 +389,7 @@ mod tests {
     fn no_ink_descendants_works() {
         let constructor = parse_first_constructor(quote_as_str! {
             #[ink(constructor)]
-            pub fn new() -> Self {
+            pub fn my_constructor() -> Self {
             }
         });
 
@@ -401,9 +401,9 @@ mod tests {
     fn ink_descendants_fails() {
         let constructor = parse_first_constructor(quote_as_str! {
             #[ink(constructor)]
-            pub fn new() -> Self {
+            pub fn my_constructor() -> Self {
                 #[ink(event)]
-                struct Flip {
+                struct MyEvent {
                     #[ink(topic)]
                     value: bool,
                 }

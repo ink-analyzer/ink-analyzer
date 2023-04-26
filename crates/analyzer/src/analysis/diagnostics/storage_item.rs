@@ -76,15 +76,15 @@ mod tests {
     fn adt_works() {
         for code in [
             quote! {
-                struct Storage {
+                struct MyStorageItem {
                 }
             },
             quote! {
-                enum Storage {
+                enum MyStorageItem {
                 }
             },
             quote! {
-                union Storage {
+                union MyStorageItem {
                 }
             },
         ] {
@@ -102,14 +102,14 @@ mod tests {
     fn non_adt_fails() {
         for code in [
             quote! {
-                fn storage {
+                fn my_storage_item {
                 }
             },
             quote! {
-                mod storage;
+                mod my_storage_item;
             },
             quote! {
-                trait storage {
+                trait MyStorageItem {
                 }
             },
         ] {
@@ -133,7 +133,7 @@ mod tests {
     fn no_ink_descendants_works() {
         let storage_item = parse_first_storage_item(quote_as_str! {
             #[ink::storage_item]
-            struct Storage {
+            struct MyStorageItem {
             }
         });
 
@@ -145,7 +145,7 @@ mod tests {
     fn ink_descendants_fails() {
         let storage_item = parse_first_storage_item(quote_as_str! {
             #[ink::storage_item]
-            struct Storage {
+            struct MyStorageItem {
                 #[ink(event)]
                 field_1: (u32, bool),
                 #[ink(topic)]

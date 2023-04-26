@@ -320,7 +320,7 @@ mod tests {
     fn inline_mod_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
             }
         });
 
@@ -332,7 +332,7 @@ mod tests {
     fn inline_mod_with_attribute_args_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract(keep_attr="foo, bar")]
-            mod flipper {
+            mod my_contract {
                 // #[foo]
                 // #[bar]
             }
@@ -347,7 +347,7 @@ mod tests {
     fn out_of_line_mod_fails() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper;
+            mod my_contract;
         });
 
         let result = ensure_inline_module(&contract);
@@ -359,18 +359,18 @@ mod tests {
     fn non_mod_fails() {
         for code in [
             quote! {
-                fn flipper() {
+                fn my_contract() {
                 }
             },
             quote! {
-                struct Flipper;
+                struct MyContract;
             },
             quote! {
-                enum Flipper {
+                enum MyContract {
                 }
             },
             quote! {
-                trait Flipper {
+                trait MyContract {
                 }
             },
         ] {
@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn attribute_in_mod_body_fails() {
         let contract = parse_first_contract(quote_as_str! {
-            mod flipper {
+            mod my_contract {
                 #[ink::contract]
             }
         });
@@ -407,9 +407,9 @@ mod tests {
     fn one_storage_item_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
                 #[ink(storage)]
-                pub struct Flipper {
+                pub struct MyContract {
                 }
             }
         });
@@ -423,7 +423,7 @@ mod tests {
     fn missing_storage_fails() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
             }
         });
 
@@ -438,7 +438,7 @@ mod tests {
         for idx in 2..=5 {
             // Creates multiple storage items.
             let storage_items = (1..=idx).map(|i| {
-                let name = format_ident!("Flipper{}", i);
+                let name = format_ident!("MyContract{}", i);
                 quote! {
                     #[ink(storage)]
                     pub struct #name {
@@ -449,7 +449,7 @@ mod tests {
             // Creates contract with multiple storage items.
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
-                mod flipper {
+                mod my_contract {
                     #( #storage_items )*
                 }
             });
@@ -472,10 +472,10 @@ mod tests {
     fn one_constructor_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
-                impl Flipper {
+            mod my_contract {
+                impl MyContract {
                     #[ink(constructor)]
-                    pub fn new() -> Self {
+                    pub fn my_constructor() -> Self {
                     }
                 }
             }
@@ -491,7 +491,7 @@ mod tests {
         for idx in 2..=5 {
             // Creates multiple constructors.
             let constructors = (1..=idx).map(|i| {
-                let name = format_ident!("new{i}");
+                let name = format_ident!("my_constructor{i}");
                 quote! {
                     #[ink(constructor)]
                     pub fn #name() -> Self {
@@ -502,8 +502,8 @@ mod tests {
             // Creates contract with multiple constructors.
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
-                mod flipper {
-                    impl Flipper {
+                mod my_contract {
+                    impl MyContract {
                         #( #constructors )*
                     }
                 }
@@ -519,7 +519,7 @@ mod tests {
     fn missing_constructor_fails() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
             }
         });
 
@@ -532,10 +532,10 @@ mod tests {
     fn one_message_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
-                impl Flipper {
+            mod my_contract {
+                impl MyContract {
                     #[ink(message)]
-                    pub fn flip(&mut self) {
+                    pub fn my_message(&mut self) {
                     }
                 }
             }
@@ -551,7 +551,7 @@ mod tests {
         for idx in 2..=5 {
             // Creates multiple messages.
             let messages = (1..=idx).map(|i| {
-                let name = format_ident!("flip{i}");
+                let name = format_ident!("my_message{i}");
                 quote! {
                     #[ink(message)]
                     pub fn #name(&mut self) {
@@ -562,8 +562,8 @@ mod tests {
             // Creates contract with multiple messages.
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
-                mod flipper {
-                    impl Flipper {
+                mod my_contract {
+                    impl MyContract {
                         #( #messages )*
                     }
                 }
@@ -579,7 +579,7 @@ mod tests {
     fn missing_message_fails() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
             }
         });
 
@@ -592,14 +592,14 @@ mod tests {
     fn no_selectors_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
-                impl Flipper {
+            mod my_contract {
+                impl MyContract {
                     #[ink(constructor)]
-                    pub fn new() -> Self {
+                    pub fn my_constructor() -> Self {
                     }
 
                     #[ink(message)]
-                    pub fn flip(&mut self) {
+                    pub fn my_message(&mut self) {
                     }
                 }
             }
@@ -615,45 +615,45 @@ mod tests {
             // All different.
             quote! {
                 #[ink(constructor, selector=1)]
-                pub fn new() -> Self {
+                pub fn my_constructor() -> Self {
                 }
 
                 #[ink(constructor, selector=2)]
-                pub fn new2() -> Self {
+                pub fn my_constructor2() -> Self {
                 }
 
                 #[ink(message, selector=3)]
-                pub fn flip(&mut self) {
+                pub fn my_message(&mut self) {
                 }
 
                 #[ink(message, selector=4)]
-                pub fn flip2(&mut self) {
+                pub fn my_message2(&mut self) {
                 }
             },
             // Overlaps between constructors and messages are ok.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L838-L857>.
             quote! {
                 #[ink(constructor, selector=1)]
-                pub fn new() -> Self {
+                pub fn my_constructor() -> Self {
                 }
 
                 #[ink(constructor, selector=0xA)]
-                pub fn new2() -> Self {
+                pub fn my_constructor2() -> Self {
                 }
 
                 #[ink(message, selector=1)]
-                pub fn flip() {
+                pub fn my_message() {
                 }
 
                 #[ink(message, selector=0xA)]
-                pub fn flip2() {
+                pub fn my_message2() {
                 }
             },
         ] {
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
-                mod flipper {
-                    impl Flipper {
+                mod my_contract {
+                    impl MyContract {
                         #code
                     }
                 }
@@ -672,65 +672,62 @@ mod tests {
             // Overlapping decimal.
             quote! {
                 #[ink(constructor, selector=1)]
-                pub fn new() -> Self {
+                pub fn my_constructor() -> Self {
                 }
 
                 #[ink(constructor, selector=1)]
-                pub fn new2() -> Self {
+                pub fn my_constructor2() -> Self {
                 }
 
                 #[ink(message, selector=2)]
-                pub fn flip(&mut self) {
+                pub fn my_message(&mut self) {
                 }
 
                 #[ink(message, selector=2)]
-                pub fn flip2(&mut self) {
+                pub fn my_message2(&mut self) {
                 }
             },
             // Overlapping hexadecimal.
             quote! {
                 #[ink(constructor, selector=0xA)]
-                pub fn new() -> Self {
+                pub fn my_constructor() -> Self {
                 }
 
                 #[ink(constructor, selector=0xA)]
-                pub fn new2() -> Self {
+                pub fn my_constructor2() -> Self {
                 }
 
                 #[ink(message, selector=0xB)]
-                pub fn flip(&mut self) {
+                pub fn my_message(&mut self) {
                 }
 
                 #[ink(message, selector=0xB)]
-                pub fn flip2(&mut self) {
+                pub fn my_message2(&mut self) {
                 }
             },
             // Overlapping detected across decimal and hex representations.
             quote! {
                 #[ink(constructor, selector=10)]
-                pub fn new() -> Self {
+                pub fn my_constructor() -> Self {
                 }
 
                 #[ink(constructor, selector=0xA)]
-                pub fn new2() -> Self {
+                pub fn my_constructor2() -> Self {
                 }
 
                 #[ink(message, selector=11)]
-                pub fn flip(&mut self) {
+                pub fn my_message(&mut self) {
                 }
 
                 #[ink(message, selector=0xB)]
-                pub fn flip2(&mut self) {
+                pub fn my_message2(&mut self) {
                 }
             },
             // TODO: Overlapping trait implementations should fail.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L810-L836>.
             /*
             quote! {
-                #[ink(storage)]
-                pub struct MyStorage {}
-
-                impl first::MyTrait for MyStorage {
+                impl first::MyTrait for MyContract {
                     #[ink(constructor)]
                     fn my_constructor() -> Self {}
 
@@ -738,7 +735,7 @@ mod tests {
                     fn my_message(&self) {}
                 }
 
-                impl second::MyTrait for MyStorage {
+                impl second::MyTrait for MyContract {
                     #[ink(constructor)]
                     fn my_constructor() -> Self {}
 
@@ -750,15 +747,15 @@ mod tests {
         ] {
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
-                mod flipper {
-                    impl Flipper {
+                mod my_contract {
+                    impl MyContract {
                         #code
                     }
                 }
             });
 
             let results = ensure_no_overlapping_selectors(&contract);
-            // 2 errors, 1 each for constructors and messages (i.e `new2` and `flip2` are the overlapping selectors).
+            // 2 errors, 1 each for constructors and messages (i.e `my_constructor2` and `my_message2` are the overlapping selectors).
             assert_eq!(results.len(), 2);
             // All diagnostics should be errors.
             assert_eq!(
@@ -775,14 +772,14 @@ mod tests {
     fn no_wildcard_selector_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
-                impl Flipper {
+            mod my_contract {
+                impl MyContract {
                     #[ink(constructor)]
-                    pub fn new() -> Self {
+                    pub fn my_constructor() -> Self {
                     }
 
                     #[ink(message)]
-                    pub fn flip(&mut self) {
+                    pub fn my_message(&mut self) {
                     }
                 }
             }
@@ -798,14 +795,14 @@ mod tests {
         // At most one wildcard is allowed for each group i.e there can be messages and constructors
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
-                impl Flipper {
+            mod my_contract {
+                impl MyContract {
                     #[ink(constructor, selector=_)]
-                    pub fn new() -> Self {
+                    pub fn my_constructor() -> Self {
                     }
 
                     #[ink(message, selector=_)]
-                    pub fn flip(&mut self) {
+                    pub fn my_message(&mut self) {
                     }
                 }
             }
@@ -820,29 +817,29 @@ mod tests {
     fn multiple_wildcard_selectors_fails() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
-                impl Flipper {
+            mod my_contract {
+                impl MyContract {
                     #[ink(constructor, selector=_)]
-                    pub fn new() -> Self {
+                    pub fn my_constructor() -> Self {
                     }
 
                     #[ink(constructor, selector=_)]
-                    pub fn new2() -> Self {
+                    pub fn my_constructor2() -> Self {
                     }
 
                     #[ink(message, selector=_)]
-                    pub fn flip(&mut self) {
+                    pub fn my_message(&mut self) {
                     }
 
                     #[ink(message, selector=_)]
-                    pub fn flip2(&mut self) {
+                    pub fn my_message2(&mut self) {
                     }
                 }
             }
         });
 
         let results = ensure_at_most_one_wildcard_selector(&contract);
-        // 2 errors, 1 each for constructors and messages (i.e `new2` and `flip2` are the extraneous wildcard selectors).
+        // 2 errors, 1 each for constructors and messages (i.e `my_constructor2` and `my_message2` are the extraneous wildcard selectors).
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
         assert_eq!(
@@ -858,31 +855,31 @@ mod tests {
     fn valid_quasi_direct_descendant_works() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
                 #[ink(storage)]
-                struct Flipper {
+                struct MyContract {
                 }
 
                 #[ink(event)]
                 #[ink(anonymous)]
-                struct Flip {
+                struct MyEvent {
                     #[ink(topic)]
-                    flipped: bool,
+                    value: bool,
                 }
 
-                impl Flipper {
+                impl MyContract {
                     #[ink(constructor)]
-                    pub fn new() -> Self {
+                    pub fn my_constructor() -> Self {
                     }
 
                     #[ink(message)]
                     #[ink(payable)]
-                    pub fn flip(&mut self) {
+                    pub fn my_message(&mut self) {
                     }
                 }
 
                 #[ink(impl)]
-                impl FlipperTrait for Flipper {
+                impl MyContractTrait for MyContract {
                 }
 
                 #[cfg(test)]
@@ -902,17 +899,17 @@ mod tests {
     fn invalid_quasi_direct_descendant_fails() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
                 #[ink::trait_definition]
-                trait FlipperTrait {
+                trait MyTrait {
                 }
 
                 #[ink::chain_extension]
-                trait FlipperExtension {
+                trait MyChainExtension {
                 }
 
                 #[ink::storage_item]
-                struct FlipperStorage {
+                struct MyStorageItem {
                 }
             }
         });

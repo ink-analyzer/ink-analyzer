@@ -107,7 +107,7 @@ mod tests {
     fn one_contract_definition_works() {
         let file = InkFile::parse(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
             }
         });
 
@@ -130,7 +130,7 @@ mod tests {
             // Creates code snippets with multiple contract definitions.
             let code = (1..=idx)
                 .map(|i| {
-                    let name = format_ident!("flipper{i}");
+                    let name = format_ident!("my_contract{i}");
                     (quote_as_str! {
                         #[ink::contract]
                         mod #name {
@@ -161,19 +161,19 @@ mod tests {
     fn valid_quasi_direct_descendant_works() {
         let contract = InkFile::parse(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
             }
 
             #[ink::trait_definition]
-            trait FlipperTrait {
+            trait MyTrait {
             }
 
             #[ink::chain_extension]
-            trait FlipperExtension {
+            trait MyChainExtension {
             }
 
             #[ink::storage_item]
-            struct FlipperStorage {
+            struct MyStorageItem {
             }
 
             #[cfg(test)]
@@ -193,22 +193,22 @@ mod tests {
     fn invalid_quasi_direct_descendant_fails() {
         let contract = InkFile::parse(quote_as_str! {
             #[ink(storage)]
-            struct Flipper {
+            struct MyContract {
             }
 
             #[ink(event)]
-            struct Flip {
+            struct MyEvent {
                 #[ink(topic)]
-                flipped: bool,
+                value: bool,
             }
 
-            impl Flipper {
+            impl MyContract {
                 #[ink(constructor)]
-                pub fn new() -> Self {
+                pub fn my_constructor() -> Self {
                 }
 
                 #[ink(message)]
-                pub fn flip(&mut self) {
+                pub fn my_message(&mut self) {
                 }
             }
         });

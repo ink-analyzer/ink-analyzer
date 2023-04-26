@@ -21,17 +21,17 @@ use ink_analyzer_ir::{InkFile, quote_as_str};
 fn generate_ir() {
     let file = InkFile::parse(quote_as_str! {
         #[ink::contract]
-        mod flipper {
+        mod my_contract {
 
             #[ink(storage)]
-            pub struct Flipper {
+            pub struct MyContract {
                 value: bool,
             }
 
             #[ink(event)]
-            pub struct Flip {
+            pub struct MyEvent {
                 #[ink(topic)]
-                flipped: bool,
+                value: bool,
             }
 
             // --snip--

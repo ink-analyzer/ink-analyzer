@@ -253,6 +253,20 @@ mod tests {
                             #messages
                         }
                     },
+                    // Namespace.
+                    quote! {
+                        #[ink::trait_definition(namespace="my_namespace")]
+                        pub trait MyTrait {
+                            #messages
+                        }
+                    },
+                    // Keep Attr.
+                    quote! {
+                        #[ink::trait_definition(keep_attr="foo,bar")]
+                        pub trait MyTrait {
+                            #messages
+                        }
+                    },
                     // Compound.
                     quote! {
                         #[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]
@@ -376,13 +390,10 @@ mod tests {
             // Non-flagged method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L106-L126>.
             quote! {
-                fn non_flagged_1(&self);
+                fn non_flagged(&self);
             },
             quote! {
-                fn non_flagged_2(&mut self);
-            },
-            quote! {
-                fn non_flagged_3() -> Self;
+                fn non_flagged_mut(&mut self);
             },
             // Default implementation.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L128-L144>.

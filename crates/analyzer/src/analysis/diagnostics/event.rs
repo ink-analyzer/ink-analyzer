@@ -154,9 +154,9 @@ mod tests {
     fn pub_struct_works() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink(event)]
-            pub struct Flip {
+            pub struct MyEvent {
                 #[ink(topic)]
-                flipped: bool,
+                value: bool,
             }
         });
 
@@ -177,9 +177,9 @@ mod tests {
         ] {
             let event = parse_first_event_item(quote_as_str! {
                 #[ink(event)]
-                #vis struct Flip {
+                #vis struct MyEvent {
                     #[ink(topic)]
-                    flipped: bool,
+                    value: bool,
                 }
             });
 
@@ -193,11 +193,11 @@ mod tests {
     fn contract_parent_works() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink::contract]
-            mod flipper {
+            mod my_contract {
                 #[ink(event)]
-                pub struct Flip {
+                pub struct MyEvent {
                     #[ink(topic)]
-                    flipped: bool,
+                    value: bool,
                 }
             }
         });
@@ -209,11 +209,11 @@ mod tests {
     #[test]
     fn non_contract_parent_fails() {
         let event = parse_first_event_item(quote_as_str! {
-            mod flipper {
+            mod my_contract {
                 #[ink(event)]
-                pub struct Flip {
+                pub struct MyEvent {
                     #[ink(topic)]
-                    flipped: bool,
+                    value: bool,
                 }
             }
         });
@@ -227,12 +227,12 @@ mod tests {
     fn contract_ancestor_fails() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink::contract]
-            mod flipper {
-                mod event_container {
+            mod my_contract {
+                mod my_event_mod {
                     #[ink(event)]
-                    pub struct Flip {
+                    pub struct MyEvent {
                         #[ink(topic)]
-                        flipped: bool,
+                        value: bool,
                     }
                 }
             }
@@ -247,9 +247,9 @@ mod tests {
     fn struct_with_no_generics_works() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink(event)]
-            pub struct Flip {
+            pub struct MyEvent {
                 #[ink(topic)]
-                flipped: bool,
+                value: bool,
             }
         });
 
@@ -262,9 +262,9 @@ mod tests {
     fn struct_with_generics_fails() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink(event)]
-            pub struct Flip<T> {
+            pub struct MyEvent<T> {
                 #[ink(topic)]
-                flipped: T,
+                value: T,
             }
         });
 
@@ -277,9 +277,9 @@ mod tests {
     fn ink_topic_field_works() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink(event)]
-            pub struct Flip {
+            pub struct MyEvent {
                 #[ink(topic)]
-                flipped: bool,
+                value: bool,
             }
         });
 
@@ -292,9 +292,9 @@ mod tests {
     fn non_topic_ink_field_fails() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink(event)]
-            pub struct Flip {
+            pub struct MyEvent {
                 #[ink(message)]
-                flipped: bool,
+                value: bool,
             }
         });
 
@@ -307,9 +307,9 @@ mod tests {
     fn non_cfg_field_works() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink(event)]
-            pub struct Flip {
+            pub struct MyEvent {
                 #[ink(topic)]
-                flipped: bool,
+                value: bool,
             }
         });
 
@@ -322,9 +322,9 @@ mod tests {
     fn cfg_field_fails() {
         let event = parse_first_event_item(quote_as_str! {
             #[ink(event)]
-            pub struct Flip {
+            pub struct MyEvent {
                 #[cfg(test)]
-                flipped: bool,
+                value: bool,
             }
         });
 

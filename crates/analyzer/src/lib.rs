@@ -10,10 +10,10 @@
 //! fn do_analysis() {
 //!     let code = r#"
 //!         #[ink::contract]
-//!         mod flipper {
+//!         mod my_contract {
 //!
 //!             #[ink(storage)]
-//!             pub struct Flipper {
+//!             pub struct MyContract {
 //!                 value: bool,
 //!             }
 //!
