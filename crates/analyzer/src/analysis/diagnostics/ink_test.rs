@@ -137,4 +137,31 @@ mod tests {
             2
         );
     }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L824-L841>.
+    fn compound_diagnostic_works() {
+        for code in [
+            quote_as_str! {
+                // Conventional unit test that works with assertions.
+                #[ink::test]
+                fn test1() {
+                   // test code comes here as usual
+                }
+            },
+            quote_as_str! {
+                // Conventional unit test that returns some Result.
+                // The test code can make use of operator-`?`.
+                #[ink::test]
+                fn test2() -> Result<(), ink_env::Error> {
+                    // test code that returns a Rust Result type
+                }
+            },
+        ] {
+            let ink_test = parse_first_ink_test(code);
+
+            let results = diagnostics(&ink_test);
+            assert!(results.is_empty(), "ink test: {}", code);
+        }
+    }
 }

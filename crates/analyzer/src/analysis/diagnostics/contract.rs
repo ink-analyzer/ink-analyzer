@@ -926,4 +926,58 @@ mod tests {
             3
         );
     }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L593-L640>.
+    fn compound_diagnostic_works() {
+        for code in [
+            quote_as_str! {
+                #[ink::contract]
+                mod minimal {
+                    #[ink(storage)]
+                    pub struct Minimal {}
+
+                    impl Minimal {
+                        #[ink(constructor)]
+                        pub fn new() -> Self {}
+                        #[ink(message)]
+                        pub fn minimal_message(&self) {}
+                    }
+                }
+            },
+            quote_as_str! {
+                #[ink::contract]
+                mod flipper {
+                    #[ink(storage)]
+                    pub struct Flipper {
+                        value: bool,
+                    }
+
+                    impl Default for Flipper {
+                        #[ink(constructor)]
+                        fn default() -> Self {
+                            Self { value: false }
+                        }
+                    }
+
+                    impl Flipper {
+                        #[ink(message)]
+                        pub fn flip(&mut self) {
+                            self.value = !self.value
+                        }
+
+                        #[ink(message)]
+                        pub fn get(&self) -> bool {
+                            self.value
+                        }
+                    }
+                }
+            },
+        ] {
+            let contract = parse_first_contract(code);
+
+            let results = diagnostics(&contract);
+            assert!(results.is_empty(), "contract: {}", code);
+        }
+    }
 }

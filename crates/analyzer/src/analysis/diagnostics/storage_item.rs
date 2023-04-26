@@ -165,4 +165,75 @@ mod tests {
             2
         );
     }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L673-L770>.
+    fn compound_diagnostic_works() {
+        for code in [
+            quote_as_str! {
+                // Example of how to define the non-packed type.
+                #[ink::storage_item]
+                #[derive(Default, Debug)]
+                struct NonPacked {
+                    s1: Mapping<u32, u128>,
+                    s2: Lazy<u128>,
+                }
+            },
+            quote_as_str! {
+                // Example of how to define the non-packed generic type.
+                #[ink::storage_item(derive = false)]
+                #[derive(Storable, StorableHint, StorageKey)]
+                #[cfg_attr(
+                    feature = "std",
+                    derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
+                )]
+                #[derive(Default, Debug)]
+                struct NonPackedGeneric<T>
+                where
+                    T: Default + core::fmt::Debug,
+                    T: ink::storage::traits::Packed,
+                {
+                    s1: u32,
+                    s2: T,
+                    s3: Mapping<u128, T>,
+                }
+            },
+            quote_as_str! {
+                // Example of how to define a complex packed type.
+                #[ink::storage_item]
+                #[derive(scale::Decode, scale::Encode)]
+                #[cfg_attr(
+                    feature = "std",
+                    derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
+                )]
+                #[derive(Default, Debug)]
+                struct PackedComplex {
+                    s1: u128,
+                    s2: Vec<u128>,
+                    s3: Vec<Packed>,
+                }
+            },
+            quote_as_str! {
+                // Example of how to define a complex non-packed type.
+                #[ink::storage_item]
+                #[derive(Default, Debug)]
+                struct NonPackedComplex<KEY: StorageKey> {
+                    s1: (String, u128, Packed),
+                    s2: Mapping<u128, u128>,
+                    s3: Lazy<u128>,
+                    s4: Mapping<u128, Packed>,
+                    s5: Lazy<NonPacked>,
+                    s6: PackedGeneric<Packed>,
+                    s7: NonPackedGeneric<Packed>,
+                    // Fails because: the trait `ink::storage::traits::Packed` is not implemented for `NonPacked`
+                    // s8: Mapping<u128, NonPacked>,
+                }
+            }
+        ] {
+            let storage_item = parse_first_storage_item(code);
+
+            let results = diagnostics(&storage_item);
+            assert!(results.is_empty(), "storage_item: {}", code);
+        }
+    }
 }

@@ -689,4 +689,16 @@ mod tests {
             3
         );
     }
+
+    #[test]
+    fn compound_diagnostic_works() {
+        for code in valid_chain_extensions!() {
+            let chain_extension = parse_first_chain_extension(quote_as_str! {
+                #code
+            });
+
+            let results = diagnostics(&chain_extension);
+            assert!(results.is_empty(), "chain extension: {}", code);
+        }
+    }
 }

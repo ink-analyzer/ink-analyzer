@@ -591,4 +591,16 @@ mod tests {
             3
         );
     }
+
+    #[test]
+    fn compound_diagnostic_works() {
+        for code in valid_traits!() {
+            let trait_definition = parse_first_trait_definition(quote_as_str! {
+                #code
+            });
+
+            let results = diagnostics(&trait_definition);
+            assert!(results.is_empty(), "trait definition: {}", code);
+        }
+    }
 }
