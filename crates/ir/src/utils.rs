@@ -5,8 +5,8 @@ use ra_ap_syntax::ast::{Attr, Item};
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use crate::{
-    AsInkImplItem, Constructor, FromInkAttribute, FromSyntax, Impl, InkArgKind, InkAttrData,
-    InkAttribute, InkAttributeKind, Message,
+    AsInkImplItem, Constructor, FromInkAttribute, FromSyntax, InkArgKind, InkAttrData,
+    InkAttribute, InkAttributeKind, InkImpl, Message,
 };
 
 /// Casts a syntax node to an ink! attribute (if possible).
@@ -206,7 +206,7 @@ where
 /// Returns impl! item closest descendants of a syntax node.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
-pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> Vec<Impl> {
+pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> Vec<InkImpl> {
     node.children()
         .filter_map(ast::Impl::cast)
         // `impl` children.
@@ -235,7 +235,7 @@ pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> Vec<Impl> {
                     }
                 }),
         )
-        .filter_map(Impl::cast)
+        .filter_map(InkImpl::cast)
         // Deduplicate by wrapped syntax node.
         .unique_by(|item| item.syntax().to_owned())
         .collect()

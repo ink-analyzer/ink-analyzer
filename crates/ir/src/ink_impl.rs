@@ -9,7 +9,7 @@ use crate::{
 
 /// An ink! impl block.
 #[derive(Debug, Clone, PartialEq, Eq, FromSyntax)]
-pub struct Impl {
+pub struct InkImpl {
     /// ink! constructors.
     constructors: Vec<Constructor>,
     /// ink! messages.
@@ -18,7 +18,7 @@ pub struct Impl {
     syntax: SyntaxNode,
 }
 
-impl Impl {
+impl InkImpl {
     /// Returns true if the syntax node can be converted into an ink! impl item.
     ///
     /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.

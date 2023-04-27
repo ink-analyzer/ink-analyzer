@@ -4,7 +4,7 @@ use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Module;
 
 use crate::{
-    Constructor, Event, FromInkAttribute, FromSyntax, Impl, InkAttrData, InkAttribute, InkTest,
+    Constructor, Event, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, InkImpl, InkTest,
     Message, Storage,
 };
 
@@ -22,7 +22,7 @@ pub struct Contract {
     events: Vec<Event>,
     /// ink! impl items.
     #[arg_kind(Impl)]
-    impls: Vec<Impl>,
+    impls: Vec<InkImpl>,
     /// ink! constructors.
     #[arg_kind(Constructor)]
     constructors: Vec<Constructor>,
@@ -51,7 +51,7 @@ impl Contract {
     }
 
     /// Returns the ink! impl blocks for the ink! contract.
-    pub fn impls(&self) -> &[Impl] {
+    pub fn impls(&self) -> &[InkImpl] {
         &self.impls
     }
 

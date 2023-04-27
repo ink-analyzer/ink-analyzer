@@ -11,7 +11,7 @@ mod constructor;
 mod contract;
 mod event;
 mod extension;
-mod impl_item;
+mod ink_impl;
 mod ink_test;
 mod message;
 mod storage;

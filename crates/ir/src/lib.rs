@@ -46,7 +46,7 @@ pub use self::{
     event::Event,
     extension::Extension,
     file::InkFile,
-    impl_item::Impl,
+    ink_impl::InkImpl,
     ink_test::InkTest,
     message::Message,
     storage::Storage,
@@ -78,7 +78,7 @@ mod contract;
 mod event;
 mod extension;
 mod file;
-mod impl_item;
+mod ink_impl;
 mod ink_test;
 mod message;
 mod storage;

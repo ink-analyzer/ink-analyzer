@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::ast::{AstNode, HasVisibility, Type};
 use ink_analyzer_ir::{
-    ast, AsInkFn, AsInkImplItem, FromSyntax, Impl, InkArgKind, InkAttributeKind,
+    ast, AsInkFn, AsInkImplItem, FromSyntax, InkArgKind, InkAttributeKind, InkImpl,
 };
 
 use super::{constructor, message, utils};
@@ -13,30 +13,30 @@ use crate::{Diagnostic, Severity};
 /// The entry point for finding ink! impl semantic rules is the item_impl module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221-L334>.
-pub fn diagnostics(impl_item: &Impl) -> Vec<Diagnostic> {
+pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(impl_item));
+    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(ink_impl));
 
     // Ensure ink! impl is an `impl` item, see `ensure_impl` doc.
-    if let Some(diagnostic) = ensure_impl(impl_item) {
+    if let Some(diagnostic) = ensure_impl(ink_impl) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     // Ensure `impl` item satisfies all invariants of an ink! impl,
     // see `ensure_impl_invariants` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_impl_invariants(impl_item));
+    utils::append_diagnostics(&mut results, &mut ensure_impl_invariants(ink_impl));
 
     // Ensure at least one ink! constructor or ink! message, see `ensure_contains_callable` doc.
-    if let Some(diagnostic) = ensure_contains_callable(impl_item) {
+    if let Some(diagnostic) = ensure_contains_callable(ink_impl) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     // Run ink! constructor diagnostics, see `constructor::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut impl_item
+        &mut ink_impl
             .constructors()
             .iter()
             .flat_map(constructor::diagnostics)
@@ -46,7 +46,7 @@ pub fn diagnostics(impl_item: &Impl) -> Vec<Diagnostic> {
     // Run ink! message diagnostics, see `message::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut impl_item
+        &mut ink_impl
             .messages()
             .iter()
             .flat_map(message::diagnostics)
@@ -55,12 +55,12 @@ pub fn diagnostics(impl_item: &Impl) -> Vec<Diagnostic> {
 
     // Ensure ink! messages and constructors are defined in the root of an `impl` item,
     // see `ensure_impl_parent_for_callables` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_callables_in_root(impl_item));
+    utils::append_diagnostics(&mut results, &mut ensure_callables_in_root(ink_impl));
 
     // Ensure ink! impl is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(impl_item, "impl") {
+    if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, "impl") {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -68,7 +68,7 @@ pub fn diagnostics(impl_item: &Impl) -> Vec<Diagnostic> {
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut ensure_valid_quasi_direct_ink_descendants(impl_item),
+        &mut ensure_valid_quasi_direct_ink_descendants(ink_impl),
     );
 
     results
@@ -77,10 +77,10 @@ pub fn diagnostics(impl_item: &Impl) -> Vec<Diagnostic> {
 /// Ensure ink! impl is an `impl` item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221>.
-fn ensure_impl(impl_item: &Impl) -> Option<Diagnostic> {
-    impl_item.impl_item().is_none().then_some(Diagnostic {
+fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
+    ink_impl.impl_item().is_none().then_some(Diagnostic {
         message: "ink! impls must be `impl` items".to_string(),
-        range: impl_item.syntax().text_range(),
+        range: ink_impl.syntax().text_range(),
         severity: Severity::Error,
     })
 }
@@ -90,11 +90,11 @@ fn ensure_impl(impl_item: &Impl) -> Option<Diagnostic> {
 /// See references below for details about checked invariants.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221-L334>.
-pub fn ensure_impl_invariants(impl_item: &Impl) -> Vec<Diagnostic> {
+pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     let mut results = Vec::new();
 
-    if let Some(ast_impl_item) = impl_item.impl_item() {
-        if let Some(default_token) = ast_impl_item.default_token() {
+    if let Some(impl_item) = ink_impl.impl_item() {
+        if let Some(default_token) = impl_item.default_token() {
             results.push(Diagnostic {
                 message: "ink! impls must not be `default`.".to_string(),
                 range: default_token.text_range(),
@@ -102,7 +102,7 @@ pub fn ensure_impl_invariants(impl_item: &Impl) -> Vec<Diagnostic> {
             });
         }
 
-        if let Some(unsafe_token) = ast_impl_item.unsafe_token() {
+        if let Some(unsafe_token) = impl_item.unsafe_token() {
             results.push(Diagnostic {
                 message: "ink! impls must not be `unsafe`.".to_string(),
                 range: unsafe_token.text_range(),
@@ -110,11 +110,11 @@ pub fn ensure_impl_invariants(impl_item: &Impl) -> Vec<Diagnostic> {
             });
         }
 
-        if let Some(diagnostic) = utils::ensure_no_generics(&ast_impl_item, "impl") {
+        if let Some(diagnostic) = utils::ensure_no_generics(&impl_item, "impl") {
             results.push(diagnostic);
         }
 
-        if let Some(Type::PathType(path_type)) = ast_impl_item.self_ty() {
+        if let Some(Type::PathType(path_type)) = impl_item.self_ty() {
             if let Some(path) = path_type.path() {
                 results.append(
                     &mut path
@@ -132,12 +132,12 @@ pub fn ensure_impl_invariants(impl_item: &Impl) -> Vec<Diagnostic> {
             }
         }
 
-        let is_trait_impl = ast_impl_item.trait_().is_some();
-        if is_trait_impl && impl_item.namespace_arg().is_some() {
+        let is_trait_impl = impl_item.trait_().is_some();
+        if is_trait_impl && ink_impl.namespace_arg().is_some() {
             results.push(Diagnostic {
                 message: "ink! namespace argument is not allowed on trait ink! impl blocks."
                     .to_string(),
-                range: impl_item
+                range: ink_impl
                     .namespace_arg()
                     .expect("Namespace should exist at this point.")
                     .text_range(),
@@ -145,12 +145,12 @@ pub fn ensure_impl_invariants(impl_item: &Impl) -> Vec<Diagnostic> {
             });
         }
 
-        let constructor_fns: Vec<&ast::Fn> = impl_item
+        let constructor_fns: Vec<&ast::Fn> = ink_impl
             .constructors()
             .iter()
             .filter_map(|item| item.fn_item())
             .collect();
-        let message_fns: Vec<&ast::Fn> = impl_item
+        let message_fns: Vec<&ast::Fn> = ink_impl
             .messages()
             .iter()
             .filter_map(|item| item.fn_item())
@@ -193,22 +193,22 @@ pub fn ensure_impl_invariants(impl_item: &Impl) -> Vec<Diagnostic> {
 /// Ensure at least one ink! constructor or ink! message.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L189-L208>.
-fn ensure_contains_callable(impl_item: &Impl) -> Option<Diagnostic> {
-    (impl_item.constructors().is_empty() && impl_item.messages().is_empty()).then_some(Diagnostic {
+fn ensure_contains_callable(ink_impl: &InkImpl) -> Option<Diagnostic> {
+    (ink_impl.constructors().is_empty() && ink_impl.messages().is_empty()).then_some(Diagnostic {
         message: "At least one ink! constructor or ink! message must be defined for an ink! impl."
             .to_string(),
-        range: impl_item.syntax().text_range(),
+        range: ink_impl.syntax().text_range(),
         severity: Severity::Error,
     })
 }
 
 /// Ensure item is defined in the root of this specific `impl` item.
-fn ensure_parent_impl<T>(impl_item: &Impl, item: &T, ink_scope_name: &str) -> Option<Diagnostic>
+fn ensure_parent_impl<T>(ink_impl: &InkImpl, item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: AsInkImplItem + FromSyntax,
 {
-    let is_parent = if let Some(parent_ast_impl) = item.impl_item() {
-        parent_ast_impl.syntax() == impl_item.syntax()
+    let is_parent = if let Some(parent_impl_item) = item.impl_item() {
+        parent_impl_item.syntax() == ink_impl.syntax()
     } else {
         false
     };
@@ -230,26 +230,26 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L66-L96>.
 ///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/impl_item.rs#L64-L87>.
-fn ensure_callables_in_root(impl_item: &Impl) -> Vec<Diagnostic> {
-    impl_item
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/ink_impl.rs#L64-L87>.
+fn ensure_callables_in_root(ink_impl: &InkImpl) -> Vec<Diagnostic> {
+    ink_impl
         .constructors()
         .iter()
-        .filter_map(|item| ensure_parent_impl(impl_item, item, "constructor"))
+        .filter_map(|item| ensure_parent_impl(ink_impl, item, "constructor"))
         .chain(
-            impl_item
+            ink_impl
                 .messages()
                 .iter()
-                .filter_map(|item| ensure_parent_impl(impl_item, item, "message")),
+                .filter_map(|item| ensure_parent_impl(ink_impl, item, "message")),
         )
         .collect()
 }
 
 /// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
-/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/impl_item.rs#L62-L106>.
-fn ensure_valid_quasi_direct_ink_descendants(impl_item: &Impl) -> Vec<Diagnostic> {
-    utils::ensure_valid_quasi_direct_ink_descendants(impl_item, |attr| {
+/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/ink_impl.rs#L62-L106>.
+fn ensure_valid_quasi_direct_ink_descendants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
+    utils::ensure_valid_quasi_direct_ink_descendants(ink_impl, |attr| {
         matches!(
             attr.kind(),
             InkAttributeKind::Arg(InkArgKind::Constructor)
@@ -267,17 +267,17 @@ mod tests {
     use ink_analyzer_ir::{quote_as_str, InkFile};
     use quote::quote;
 
-    fn parse_first_impl_item(code: &str) -> Impl {
+    fn parse_first_ink_impl(code: &str) -> InkImpl {
         InkFile::parse(code)
             .syntax()
             .descendants()
-            .find_map(Impl::cast)
+            .find_map(InkImpl::cast)
             .unwrap()
     }
 
     // List of valid minimal ink! impls used for positive(`works`) tests for ink! impl verifying utilities.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L593-L640>.
-    macro_rules! valid_impl_items {
+    macro_rules! valid_ink_impls {
         () => {
             [
                 // Simple.
@@ -426,12 +426,12 @@ mod tests {
 
     #[test]
     fn impl_works() {
-        for code in valid_impl_items!() {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+        for code in valid_ink_impls!() {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #code
             });
 
-            let result = ensure_impl(&impl_item);
+            let result = ensure_impl(&ink_impl);
             assert!(result.is_none());
         }
     }
@@ -459,12 +459,12 @@ mod tests {
                 }
             },
         ] {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
                 #code
             });
 
-            let result = ensure_impl(&impl_item);
+            let result = ensure_impl(&ink_impl);
             assert!(result.is_some(), "impl: {}", code);
             assert_eq!(result.unwrap().severity, Severity::Error, "impl: {}", code);
         }
@@ -472,12 +472,12 @@ mod tests {
 
     #[test]
     fn valid_impl_properties_works() {
-        for code in valid_impl_items!() {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+        for code in valid_ink_impls!() {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #code
             });
 
-            let results = ensure_impl_invariants(&impl_item);
+            let results = ensure_impl_invariants(&ink_impl);
             assert!(results.is_empty(), "impl: {}", code);
         }
     }
@@ -529,12 +529,12 @@ mod tests {
                 }
             },
         ] {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
                 #code
             });
 
-            let results = ensure_impl_invariants(&impl_item);
+            let results = ensure_impl_invariants(&ink_impl);
             assert_eq!(results.len(), 1, "impl: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "impl: {}", code);
         }
@@ -542,12 +542,12 @@ mod tests {
 
     #[test]
     fn ensure_contains_callables_works() {
-        for code in valid_impl_items!() {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+        for code in valid_ink_impls!() {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #code
             });
 
-            let result = ensure_contains_callable(&impl_item);
+            let result = ensure_contains_callable(&ink_impl);
             assert!(result.is_none(), "impl: {}", code);
         }
     }
@@ -555,25 +555,25 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L688-L704>.
     fn missing_callable_fails() {
-        let impl_item = parse_first_impl_item(quote_as_str! {
+        let ink_impl = parse_first_ink_impl(quote_as_str! {
             #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
             impl MyContract {
             }
         });
 
-        let result = ensure_contains_callable(&impl_item);
+        let result = ensure_contains_callable(&ink_impl);
         assert!(result.is_some());
         assert_eq!(result.unwrap().severity, Severity::Error);
     }
 
     #[test]
     fn impl_parent_for_callables_works() {
-        for code in valid_impl_items!() {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+        for code in valid_ink_impls!() {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #code
             });
 
-            let results = ensure_callables_in_root(&impl_item);
+            let results = ensure_callables_in_root(&ink_impl);
             assert!(results.is_empty(), "impl: {}", code);
         }
     }
@@ -609,14 +609,14 @@ mod tests {
                 }
             },
         ] {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
                 impl MyContract {
                     #code
                 }
             });
 
-            let results = ensure_callables_in_root(&impl_item);
+            let results = ensure_callables_in_root(&ink_impl);
 
             // There should be 2 errors (i.e for the `constructor` and `message`).
             assert_eq!(results.len(), 2, "impl: {}", code);
@@ -635,19 +635,19 @@ mod tests {
 
     #[test]
     fn valid_quasi_direct_descendant_works() {
-        for code in valid_impl_items!() {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+        for code in valid_ink_impls!() {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #code
             });
 
-            let results = ensure_valid_quasi_direct_ink_descendants(&impl_item);
+            let results = ensure_valid_quasi_direct_ink_descendants(&ink_impl);
             assert!(results.is_empty(), "impl: {}", code);
         }
     }
 
     #[test]
     fn invalid_quasi_direct_descendant_fails() {
-        let impl_item = parse_first_impl_item(quote_as_str! {
+        let ink_impl = parse_first_ink_impl(quote_as_str! {
             #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
             impl MyContract {
                 #[ink(storage)]
@@ -672,7 +672,7 @@ mod tests {
             }
         });
 
-        let results = ensure_valid_quasi_direct_ink_descendants(&impl_item);
+        let results = ensure_valid_quasi_direct_ink_descendants(&ink_impl);
         // There should be 5 errors (i.e `storage`, `event`, `trait_definition`, `chain_extension` and `storage_item`).
         assert_eq!(results.len(), 5);
         // All diagnostics should be errors.
@@ -688,12 +688,12 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L593-L640>.
     fn compound_diagnostic_works() {
-        for code in valid_impl_items!() {
-            let impl_item = parse_first_impl_item(quote_as_str! {
+        for code in valid_ink_impls!() {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #code
             });
 
-            let results = diagnostics(&impl_item);
+            let results = diagnostics(&ink_impl);
             assert!(results.is_empty(), "impl: {}", code);
         }
     }

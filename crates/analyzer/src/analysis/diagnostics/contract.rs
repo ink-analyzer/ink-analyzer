@@ -6,7 +6,7 @@ use ink_analyzer_ir::{
 };
 use std::collections::HashSet;
 
-use super::{constructor, event, impl_item, ink_test, message, storage, utils};
+use super::{constructor, event, ink_impl, ink_test, message, storage, utils};
 use crate::{Diagnostic, Severity};
 
 /// Runs all ink! contract diagnostics.
@@ -54,7 +54,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
         &mut contract
             .impls()
             .iter()
-            .flat_map(impl_item::diagnostics)
+            .flat_map(ink_impl::diagnostics)
             .collect(),
     );
 
