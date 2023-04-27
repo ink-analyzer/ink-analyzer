@@ -2,9 +2,12 @@
 
 use itertools::{Either, Itertools};
 use ra_ap_syntax::ast::{Attr, Item};
-use ra_ap_syntax::{AstNode, SyntaxKind, SyntaxNode};
+use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
-use crate::{FromInkAttribute, InkAttribute};
+use crate::{
+    AsInkImplItem, Constructor, FromInkAttribute, FromSyntax, Impl, InkArgKind, InkAttrData,
+    InkAttribute, InkAttributeKind, Message,
+};
 
 /// Casts a syntax node to an ink! attribute (if possible).
 fn ink_attribute_from_node(node: SyntaxNode) -> Option<InkAttribute> {
@@ -172,6 +175,69 @@ where
     ink_attrs_closest_ancestors(node)
         .into_iter()
         .filter_map(T::cast)
+        .collect()
+}
+
+/// Returns the syntax node's descendant ink! items of IR type `T` that don't have any
+/// ink! ancestor between them and the current node.
+pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> Vec<T>
+where
+    T: FromInkAttribute + AsInkImplItem,
+{
+    ink_attrs_closest_descendants(node)
+        .into_iter()
+        .flat_map(|attr| {
+            if T::can_cast(&attr) {
+                vec![T::cast(attr).expect("Should be able to cast")]
+            } else if *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl) {
+                ink_attrs_closest_descendants(
+                    <InkAttrData<ast::Impl> as From<_>>::from(attr).parent_syntax(),
+                )
+                .into_iter()
+                .filter_map(T::cast)
+                .collect()
+            } else {
+                Vec::new()
+            }
+        })
+        .collect()
+}
+
+/// Returns impl! item closest descendants of a syntax node.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
+pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> Vec<Impl> {
+    node.children()
+        .filter_map(ast::Impl::cast)
+        // `impl` children.
+        .map(|item| item.syntax().to_owned())
+        .chain(
+            ink_attrs_closest_descendants(node)
+                .iter()
+                .filter_map(|attr| {
+                    // ink! impl annotated closest descendants.
+                    if *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl) {
+                        parent_ast_item(attr.syntax()).map(|item| item.syntax().to_owned())
+                    } else if Constructor::can_cast(attr) {
+                        // impl parent of ink! constructor closest descendant.
+                        Constructor::cast(attr.to_owned())
+                            .expect("Should be able to cast")
+                            .impl_item()
+                            .map(|item| item.syntax().to_owned())
+                    } else if Message::can_cast(attr) {
+                        // impl parent of ink! message closest descendant.
+                        Message::cast(attr.to_owned())
+                            .expect("Should be able to cast")
+                            .impl_item()
+                            .map(|item| item.syntax().to_owned())
+                    } else {
+                        None
+                    }
+                }),
+        )
+        .filter_map(Impl::cast)
+        // Deduplicate by wrapped syntax node.
+        .unique_by(|item| item.syntax().to_owned())
         .collect()
 }
 

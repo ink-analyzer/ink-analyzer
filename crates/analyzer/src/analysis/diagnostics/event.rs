@@ -1,9 +1,7 @@
 //! ink! event diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, FieldList, HasAttrs, HasGenericParams};
-use ink_analyzer_ir::{
-    AsInkStruct, Event, FromInkAttribute, FromSyntax, IRItem, InkArgKind, InkAttributeKind,
-};
+use ink_analyzer_ir::{AsInkStruct, Event, FromSyntax, IRItem, InkArgKind, InkAttributeKind};
 
 use super::{topic, utils};
 use crate::{Diagnostic, Severity};
@@ -57,15 +55,11 @@ pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L99-L104>.
 fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
-    let ink_attr = event.ink_attr();
-
     if let Some(struct_item) = event.struct_item() {
         if let Some(generics) = struct_item.generic_param_list() {
             return Some(Diagnostic {
-                message: format!(
-                    "Generic types on a `struct` annotated with `{}` are not currently supported.",
-                    ink_attr.syntax()
-                ),
+                message: "Generic types on ink! event `struct` items are not currently supported."
+                    .to_string(),
                 range: generics.syntax().text_range(),
                 severity: Severity::Error,
             });

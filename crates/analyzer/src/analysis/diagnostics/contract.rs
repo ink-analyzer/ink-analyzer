@@ -2,8 +2,7 @@
 
 use ink_analyzer_ir::syntax::SyntaxKind;
 use ink_analyzer_ir::{
-    Contract, FromInkAttribute, FromSyntax, IRItem, InkArgKind, InkAttribute, InkAttributeKind,
-    InkMacroKind,
+    Contract, FromSyntax, IRItem, InkArgKind, InkAttribute, InkAttributeKind, InkMacroKind,
 };
 use std::collections::HashSet;
 
@@ -127,21 +126,16 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L66>.
 fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
-    let ink_attr = contract.ink_attr();
     let mut error = None;
 
     if let Some(module) = contract.module() {
         if module.item_list().is_none() {
-            error = Some(format!(
-                "The content of the `mod` annotated by `{}` should be defined inline.",
-                ink_attr.syntax()
-            ));
+            error = Some(
+                "The content of ink! contracts `mod` items must be defined inline.".to_string(),
+            );
         }
     } else {
-        error = Some(format!(
-            "`{}` can only be applied to an inline `mod`",
-            ink_attr.syntax()
-        ));
+        error = Some("ink! contracts must be inline `mod` items".to_string());
     }
 
     error.map(|message| Diagnostic {
@@ -235,7 +229,7 @@ fn ensure_no_overlapping_selectors(contract: &Contract) -> Vec<Diagnostic> {
                     if let Ok(arg_value) = utils::parse_u32(arg.meta().value().to_string().as_str()) {
                         if seen_selectors.get(&arg_value).is_some() {
                             return Some(Diagnostic {
-                                message: format!("At most one wildcard (`_`) selector can be defined across all ink! {name}s in an ink! contract."),
+                                message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
                                 range: arg.text_range(),
                                 severity: Severity::Error,
                             });

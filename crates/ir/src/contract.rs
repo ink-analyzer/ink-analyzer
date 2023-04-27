@@ -35,7 +35,7 @@ pub struct Contract {
 }
 
 impl Contract {
-    /// Returns the ink! `mod` item (if any) for the ink! contract.
+    /// Returns the `mod` item (if any) for the ink! contract.
     pub fn module(&self) -> Option<&Module> {
         self.ink_attr.parent_ast()
     }

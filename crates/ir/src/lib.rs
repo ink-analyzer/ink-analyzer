@@ -60,8 +60,8 @@ pub use self::{
     utils::{
         ink_ancestors, ink_attrs, ink_attrs_ancestors, ink_attrs_closest_ancestors,
         ink_attrs_closest_descendants, ink_attrs_descendants, ink_attrs_in_scope,
-        ink_closest_ancestors, ink_closest_descendants, ink_descendants, ink_parent,
-        parent_ast_item,
+        ink_callable_closest_descendants, ink_closest_ancestors, ink_closest_descendants,
+        ink_descendants, ink_impl_closest_descendants, ink_parent, parent_ast_item,
     },
 };
 

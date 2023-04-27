@@ -23,49 +23,30 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                         // Field value for `ink_attr` field is handled differently and has to be the last.
                         ink_attr_field_config = Some(field_config);
                     } else {
-                        let kind_variant = field_config.kind_variant; // e.g `Macro` or `Arg`
-                        let kind_type = field_config.kind_type; // e.g `InkMacroKind` or `InkArgKind`
                         let kind_type_variant = field_config.kind_type_variant; // e.g `Contract`, `Storage` e.t.c.
-
-                        let kind_ir_type = if kind_type_variant == syn::parse_quote! { Test } {
-                            syn::parse_quote! { InkTest }
-                        } else {
-                            kind_type_variant.clone()
-                        };
-
-                        let single_level_filter = quote! {
-                            .filter_map(#ir_crate_path::#kind_ir_type::cast)
-                        };
-
-                        // For ink! `constructors` and ink! `messages`, we look one level deeper inside `impl` blocks as well.
-                        let filter = if kind_type_variant == syn::parse_quote! { Constructor }
+                        let field_value = if kind_type_variant == syn::parse_quote! { Impl } {
+                            // ink! impl are a special case because the attribute is actually optional
+                            // and validity is determined based on context of descendants.
+                            quote! {
+                                #ir_crate_path::ink_impl_closest_descendants(ink_attr_data.parent_syntax())
+                            }
+                        } else if kind_type_variant == syn::parse_quote! { Constructor }
                             || kind_type_variant == syn::parse_quote! { Message }
                         {
+                            // ink! `constructors` and ink! `messages` are also special because
+                            // they're ink! impl children, so we also look inside `impl` blocks to find them.
                             quote! {
-                                .flat_map(|attr| {
-                                    if let Some(item) = #ir_crate_path::#kind_ir_type::cast(attr.clone()) {
-                                        vec![item]
-                                    } else if *attr.kind() == #ir_crate_path::InkAttributeKind::#kind_variant(#ir_crate_path::#kind_type::Impl) {
-                                        let ink_attr_data: InkAttrData<#ir_crate_path::ast::Impl> = #ir_crate_path::InkAttrData::from(attr);
-                                        #ir_crate_path::ink_attrs_closest_descendants(ink_attr_data.parent_syntax())
-                                            .into_iter()
-                                            #single_level_filter
-                                            .collect()
-                                    } else {
-                                        Vec::new()
-                                    }
-                                })
+                                #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax())
                             }
                         } else {
-                            // For everything else, we only go one level deep.
-                            single_level_filter
+                            // For everything else, we simply return closest ink! descendants .
+                            quote! {
+                                #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax())
+                            }
                         };
 
                         field_values.push(quote! {
-                            #ident: #ir_crate_path::ink_attrs_closest_descendants(ink_attr_data.parent_syntax())
-                                .into_iter()
-                                #filter
-                                .collect(),
+                            #ident: #field_value
                         });
                     }
                 } else {
@@ -109,7 +90,7 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                             let ink_attr_data = #ir_crate_path::InkAttrData::from(attr);
 
                             return Some(Self {
-                                #( #field_values )*
+                                #( #field_values, )*
                                 ink_attr: ink_attr_data,
                             });
                         }
