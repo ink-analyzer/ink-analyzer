@@ -1,6 +1,6 @@
 [package]
 name = "ink-analyzer-macro"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 description = "Procedural macros for ink! analyzer."
 license = "MIT OR Apache-2.0"
@@ -21,4 +21,4 @@ quote = "1.0.26"
 syn = { version = "2.0.15", features = ["parsing", "full", "extra-traits"] }
 
 [dev-dependencies]
-ink-analyzer-ir = { version = "0.3", path = "../ir" }
+ink-analyzer-ir = { version = "0.4", path = "../ir" }
