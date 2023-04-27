@@ -177,7 +177,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, AsInkTrait, IRItem, InkFile, InkMacroKind};
+    use ink_analyzer_ir::{quote_as_str, IRItem, InkFile, InkMacroKind};
     use quote::{format_ident, quote};
 
     fn parse_first_trait_definition(code: &str) -> TraitDefinition {

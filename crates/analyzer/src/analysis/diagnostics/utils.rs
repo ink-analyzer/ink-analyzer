@@ -949,7 +949,7 @@ pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Ve
     results
 }
 
-/// Ensure item is a `trait` that satisfies all common invariants of trait-based ink! entities
+/// Ensure `trait` item satisfies all common invariants of trait-based ink! entities
 /// (i.e `trait_definition`s and `chain_extension`s).
 ///
 /// See references below for details about checked invariants.

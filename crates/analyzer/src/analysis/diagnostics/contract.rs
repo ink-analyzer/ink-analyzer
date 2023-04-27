@@ -6,7 +6,7 @@ use ink_analyzer_ir::{
 };
 use std::collections::HashSet;
 
-use super::{constructor, event, ink_test, message, storage, utils};
+use super::{constructor, event, impl_item, ink_test, message, storage, utils};
 use crate::{Diagnostic, Severity};
 
 /// Runs all ink! contract diagnostics.
@@ -20,7 +20,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(contract));
 
-    // Ensure ink! contract is an inline module, see `ensure_inline_module` doc.
+    // Ensure ink! contract is an inline `mod` item, see `ensure_inline_module` doc.
     if let Some(diagnostic) = ensure_inline_module(contract) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
@@ -48,9 +48,17 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // TODO: Validate impl blocks.
+    // Run ink! impl diagnostics, see `impl_item::diagnostics` doc.
+    utils::append_diagnostics(
+        &mut results,
+        &mut contract
+            .impls()
+            .iter()
+            .flat_map(impl_item::diagnostics)
+            .collect(),
+    );
 
-    // Ensure at least one ink! constructor.
+    // Ensure at least one ink! constructor, see `ensure_contains_constructor` doc.
     if let Some(diagnostic) = ensure_contains_constructor(contract) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
@@ -118,7 +126,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! contract attribute is applied to an inline `mod`.
+/// Ensure ink! contract attribute is applied to an inline `mod` item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L301-L309>.
 ///
@@ -172,7 +180,7 @@ fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
     utils::ensure_at_least_one_item(
         contract.constructors(),
         Diagnostic {
-            message: "At least one ink! constructor has to be defined for an ink! contract."
+            message: "At least one ink! constructor must be defined for an ink! contract."
                 .to_string(),
             range: contract.syntax().text_range(),
             severity: Severity::Error,
@@ -189,8 +197,7 @@ fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
     utils::ensure_at_least_one_item(
         contract.messages(),
         Diagnostic {
-            message: "At least one ink! message has to be defined for an ink! contract."
-                .to_string(),
+            message: "At least one ink! message must be defined for an ink! contract.".to_string(),
             range: contract.syntax().text_range(),
             severity: Severity::Error,
         },
@@ -1033,7 +1040,6 @@ mod tests {
 
         // There should be 2 errors (i.e for the `constructor` and `message`).
         assert_eq!(results.len(), 2);
-        dbg!(&results);
         // All diagnostics should be errors.
         assert_eq!(
             results

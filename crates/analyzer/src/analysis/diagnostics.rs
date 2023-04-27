@@ -11,6 +11,7 @@ mod constructor;
 mod contract;
 mod event;
 mod extension;
+mod impl_item;
 mod ink_test;
 mod message;
 mod storage;
@@ -19,7 +20,7 @@ mod topic;
 mod trait_definition;
 
 /// A diagnostic error or warning.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Diagnostic {
     /// Error or warning message.
     pub message: String,
@@ -30,7 +31,7 @@ pub struct Diagnostic {
 }
 
 /// The severity level of the diagnostic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
     /// A diagnostic error.
     Error,

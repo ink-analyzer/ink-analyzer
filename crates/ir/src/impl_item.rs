@@ -3,7 +3,9 @@
 use ink_analyzer_macro::FromSyntax;
 use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 
-use crate::{utils, Constructor, FromSyntax, InkArgKind, InkAttribute, InkAttributeKind, Message};
+use crate::{
+    utils, Constructor, FromSyntax, InkArg, InkArgKind, InkAttribute, InkAttributeKind, Message,
+};
 
 /// An ink! impl block.
 #[derive(Debug, Clone, PartialEq, Eq, FromSyntax)]
@@ -57,6 +59,18 @@ impl Impl {
         utils::ink_attrs(&self.syntax)
             .into_iter()
             .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
+    }
+
+    /// Returns the ink! impl namespace argument (if any).
+    pub fn namespace_arg(&self) -> Option<InkArg> {
+        utils::ink_attrs(&self.syntax)
+            .iter()
+            .find_map(|attr| {
+                attr.args()
+                    .iter()
+                    .find(|arg| *arg.kind() == InkArgKind::Namespace)
+            })
+            .cloned()
     }
 
     /// Returns the ink! constructors for the ink! impl.

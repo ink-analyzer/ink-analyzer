@@ -85,7 +85,7 @@ pub fn parse_args(token_tree: &TokenTree) -> Vec<MetaNameValue> {
                 last_separator_offset = group.next().unwrap().text_range().end();
                 None
             } else {
-                let arg_elems: Vec<SyntaxElement> = group.into_iter().collect();
+                let arg_elems: Vec<SyntaxElement> = group.collect();
                 if arg_elems.is_empty() {
                     // Empty argument.
                     // Use last operator offset as the offset for the empty argument.
