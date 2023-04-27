@@ -120,7 +120,7 @@ pub fn parent_ast_item(node: &SyntaxNode) -> Option<Item> {
     }
 }
 
-/// Returns the syntax node's descendant ink! items of IR type `T`.
+/// Returns the syntax node's descendant ink! entities of IR type `T`.
 pub fn ink_descendants<T>(node: &SyntaxNode) -> Vec<T>
 where
     T: FromInkAttribute,
@@ -131,7 +131,7 @@ where
         .collect()
 }
 
-/// Returns the syntax node's descendant ink! items of IR type `T` that don't have any
+/// Returns the syntax node's descendant ink! entities of IR type `T` that don't have any
 /// ink! ancestor between them and the current node.
 pub fn ink_closest_descendants<T>(node: &SyntaxNode) -> Vec<T>
 where
@@ -143,7 +143,7 @@ where
         .collect()
 }
 
-/// Returns the syntax node's parent ink! item of IR type `T` (if any).
+/// Returns the syntax node's parent ink! entity of IR type `T` (if any).
 pub fn ink_parent<T>(node: &SyntaxNode) -> Option<T>
 where
     T: FromInkAttribute,
@@ -155,7 +155,7 @@ where
     None
 }
 
-/// Returns the syntax node's ancestor ink! items of IR type `T`.
+/// Returns the syntax node's ancestor ink! entities of IR type `T`.
 pub fn ink_ancestors<T>(node: &SyntaxNode) -> Vec<T>
 where
     T: FromInkAttribute,
@@ -166,7 +166,7 @@ where
         .collect()
 }
 
-/// Returns the syntax node's ancestor ink! items of IR type `T` that don't have any
+/// Returns the syntax node's ancestor ink! entities of IR type `T` that don't have any
 /// ink! descendant between them and the current node.
 pub fn ink_closest_ancestors<T>(node: &SyntaxNode) -> Vec<T>
 where
@@ -178,7 +178,7 @@ where
         .collect()
 }
 
-/// Returns the syntax node's descendant ink! items of IR type `T` that don't have any
+/// Returns the syntax node's descendant ink! entities of IR type `T` that don't have any
 /// ink! ancestor between them and the current node.
 pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> Vec<T>
 where

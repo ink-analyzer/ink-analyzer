@@ -2,6 +2,8 @@
 
 Procedural macros for [ink-analyzer](/crates/analyzer) and [ink-analyzer-ir](/crates/ir).
 
+This library implements procedural macros (e.g. custom derive macros for ink! IR traits) used primarily by the [ir](/crates/ir) crate.
+
 ## Installation
 
 Run the following Cargo command in your project directory

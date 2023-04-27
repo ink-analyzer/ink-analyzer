@@ -9,18 +9,27 @@ A collection of modular and reusable libraries and tools for semantic analysis o
 This repository contains 3 crates:
 
 ### 1. [Semantic Analyzer (ink-analyzer)](/crates/analyzer)
-This crate implements types and abstractions for performing semantic analysis of ink! smart contract code.
-It therefore implements the core functionality of this library.
+This crate implements utilities for performing semantic analysis of ink! smart contract code.
+It therefore implements the core functionality of ink! analyzer at a high level.
 
-Currently only diagnostics that return a diagnostic model that includes an error/warning message, the text range to which the diagnostic applies and its severity are implemented.
+It currently only implements diagnostics that return a diagnostic model that includes:
+- an error/warning message.
+- the text range to which the diagnostic applies
+- the severity (e.g error or warning).
 
-You can find their core implementations in the [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) submodule.
+You can find their core implementations in the [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) module
+and its ink! entity specific [submodules](/crates/analyzer/src/analysis/diagnostics).
 
 ### 2. [IR (ink-analyzer-ir)](/crates/ir)
-This crate implements ink! intermediate representations (IRs) and abstractions.
+This crate implements types and utilities for parsing ink! smart contract code into ink! intermediate representations (IRs) and abstractions.
+
+It uses rust-analyzer's [ra_ap_syntax](https://docs.rs/ra_ap_syntax/latest/ra_ap_syntax/) crate for generating the syntax tree
+of the ink! smart contract code that it then converts into ink! entity intermediate representations and abstractions.
+
+It's the main dependency for the [semantic analyzer](/crates/analyzer) crate.
 
 ### 3. [Proc-macros (ink-analyzer-macro)](/crates/macro)
-This crate implements procedural macros used by other crates e.g. custom derive macros for IR traits.
+This crate implements procedural macros (e.g. custom derive macros for ink! IR traits) used primarily by the [ir](/crates/ir) crate.
 
 ## Installation and Usage Instructions
 

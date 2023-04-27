@@ -43,25 +43,25 @@ pub trait FromInkAttribute {
 
 /// Implemented by IR items whose valid AST node is a `struct` item.
 pub trait AsInkStruct {
-    /// Returns the `struct` item (if any) for the ink! item.
+    /// Returns the `struct` item (if any) for the ink! entity.
     fn struct_item(&self) -> Option<&Struct>;
 }
 
 /// Implemented by IR items whose valid AST node is an `fn` item.
 pub trait AsInkFn {
-    /// Returns the `fn` item (if any) for the ink! item.
+    /// Returns the `fn` item (if any) for the ink! entity.
     fn fn_item(&self) -> Option<&ast::Fn>;
 }
 
 /// Implemented by IR items whose valid AST node is a `trait` item.
 pub trait AsInkTrait {
-    /// Returns the `trait` item (if any) for the ink! item.
+    /// Returns the `trait` item (if any) for the ink! entity.
     fn trait_item(&self) -> Option<&Trait>;
 }
 
 /// Implemented by IR items whose valid AST parent item node is an `impl` item.
 pub trait AsInkImplItem {
-    /// Returns the `impl` item (if any) for the ink! item's parent item node.
+    /// Returns the `impl` item (if any) for the ink! entity's parent item node.
     fn impl_item(&self) -> Option<ast::Impl>;
 }
 
