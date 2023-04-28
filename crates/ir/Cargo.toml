@@ -13,6 +13,7 @@ keywords = ["ink", "smart-contract", "polkadot", "substrate", "blockchain"]
 categories = ["development-tools"]
 
 [dependencies]
+blake2 = "0.10.6"
 ink-analyzer-macro = { version = "0.4", path = "../macro" }
 itertools = "0.10.5"
 quote = "1.0.26"

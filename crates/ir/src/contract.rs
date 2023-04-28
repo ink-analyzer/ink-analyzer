@@ -4,8 +4,8 @@ use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::Module;
 
 use crate::{
-    Constructor, Event, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, InkImpl, InkTest,
-    Message, Storage,
+    utils, Constructor, Event, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData,
+    InkAttribute, InkImpl, InkTest, Message, Storage,
 };
 
 /// An ink! contract.
@@ -38,6 +38,16 @@ impl Contract {
     /// Returns the `mod` item (if any) for the ink! contract.
     pub fn module(&self) -> Option<&Module> {
         self.ink_attr.parent_ast()
+    }
+
+    /// Returns the ink! env argument (if any) for the ink! contract.
+    pub fn env_arg(&self) -> Option<InkArg> {
+        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Env)
+    }
+
+    /// Returns the ink! keep_attr argument (if any) for the ink! contract.
+    pub fn keep_attr_arg(&self) -> Option<InkArg> {
+        utils::ink_arg_by_kind(self.syntax(), InkArgKind::KeepAttr)
     }
 
     /// Returns the ink! storage items for the ink! contract.

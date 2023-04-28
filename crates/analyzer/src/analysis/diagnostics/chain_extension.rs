@@ -2,8 +2,7 @@
 
 use ink_analyzer_ir::ast::{AstNode, HasName, Trait};
 use ink_analyzer_ir::{
-    AsInkTrait, ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArgKind,
-    InkAttributeKind,
+    ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait,
 };
 
 use super::{extension, utils};
@@ -220,7 +219,7 @@ fn ensure_valid_quasi_direct_ink_descendants(chain_extension: &ChainExtension) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, AsInkTrait, IRItem, InkFile, InkMacroKind};
+    use ink_analyzer_ir::{quote_as_str, InkFile, InkItem, InkMacroKind, InkTrait};
     use quote::{format_ident, quote};
 
     fn parse_first_chain_extension(code: &str) -> ChainExtension {

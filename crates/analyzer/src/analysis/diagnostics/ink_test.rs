@@ -38,7 +38,7 @@ mod tests {
     use super::*;
     use crate::Severity;
     use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, IRItem, InkAttributeKind, InkFile, InkMacroKind,
+        quote_as_str, FromInkAttribute, InkAttributeKind, InkFile, InkItem, InkMacroKind,
     };
     use quote::quote;
 

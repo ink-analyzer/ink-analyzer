@@ -1,7 +1,7 @@
 //! ink! event diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, FieldList, HasAttrs, HasGenericParams};
-use ink_analyzer_ir::{AsInkStruct, Event, FromSyntax, IRItem, InkArgKind, InkAttributeKind};
+use ink_analyzer_ir::{Event, FromSyntax, InkArgKind, InkAttributeKind, InkItem, InkStruct};
 
 use super::{topic, utils};
 use crate::{Diagnostic, Severity};
@@ -129,7 +129,7 @@ mod tests {
     use super::*;
     use crate::Severity;
     use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, IRItem, InkArgKind, InkAttributeKind, InkFile,
+        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, InkItem,
     };
     use quote::quote;
 

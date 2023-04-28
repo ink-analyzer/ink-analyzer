@@ -1,8 +1,9 @@
 //! ink! contract diagnostics.
 
-use ink_analyzer_ir::syntax::SyntaxKind;
+use ink_analyzer_ir::syntax::SyntaxNode;
 use ink_analyzer_ir::{
-    Contract, FromSyntax, IRItem, InkArgKind, InkAttribute, InkAttributeKind, InkMacroKind,
+    Contract, FromSyntax, InkArgKind, InkAttributeKind, InkCallable, InkItem, InkMacroKind,
+    Selector, SelectorArg,
 };
 use std::collections::HashSet;
 
@@ -204,6 +205,20 @@ fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
     )
 }
 
+/// Returns composed selectors for a list of ink! callable entities.
+fn get_composed_selectors<T>(items: &[T]) -> Vec<(Selector, SyntaxNode)>
+where
+    T: InkCallable,
+{
+    items
+        .iter()
+        .filter_map(|item| {
+            item.composed_selector()
+                .map(|selector| (selector, item.syntax().to_owned()))
+        })
+        .collect()
+}
+
 /// Ensure no ink! message or constructor selectors are overlapping.
 ///
 /// Overlaps between ink! constructor and message selectors are allowed.
@@ -214,40 +229,36 @@ fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_no_overlapping_selectors(contract: &Contract) -> Vec<Diagnostic> {
-    let constructor_attrs: Vec<InkAttribute> = contract
-        .constructors()
-        .iter()
-        .flat_map(|item| item.ink_attrs())
-        .collect();
-    let message_attrs: Vec<InkAttribute> = contract
-        .messages()
-        .iter()
-        .flat_map(|item| item.ink_attrs())
-        .collect();
-
-    [(constructor_attrs, "constructor"), (message_attrs, "message")].iter().flat_map(|(attrs, name)| {
+    [(get_composed_selectors(contract.constructors()), "constructor"), (get_composed_selectors(contract.messages()), "message")].iter().flat_map(|(selectors, name)| {
         let mut seen_selectors: HashSet<u32> = HashSet::new();
-        attrs.iter().flat_map(|attr| {
-            attr.args().iter().filter_map(|arg| {
-                // We only continue if the selector is a integer.
-                // Bad values will be handled by the `utils::ensure_valid_attribute_arguments`,
-                // while wildcards are handled by `ensure_at_most_one_wildcard_selector`.
-                if *arg.kind() == InkArgKind::Selector && arg.value()?.kind() == SyntaxKind::INT_NUMBER {
-                    if let Ok(arg_value) = utils::parse_u32(arg.meta().value().to_string().as_str()) {
-                        if seen_selectors.get(&arg_value).is_some() {
-                            return Some(Diagnostic {
-                                message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
-                                range: arg.text_range(),
-                                severity: Severity::Error,
-                            });
-                        }
-                        seen_selectors.insert(arg_value);
-                    }
-                }
-                None
-            }).collect::<Vec<Diagnostic>>()
+        selectors.iter().filter_map(|(selector, node)| {
+            let selector_value = selector.into_be_u32();
+            if seen_selectors.get(&selector_value).is_some() {
+                return Some(Diagnostic {
+                    message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
+                    range: node.text_range(),
+                    severity: Severity::Error,
+                });
+            }
+            seen_selectors.insert(selector_value);
+            None
         }).collect::<Vec<Diagnostic>>()
     }).collect()
+}
+
+/// Returns all ink! selector arguments for a list of ink! callable entities.
+fn get_selector_args<T>(items: &[T]) -> Vec<SelectorArg>
+where
+    T: InkItem,
+{
+    items
+        .iter()
+        .flat_map(|item| {
+            item.ink_args_by_kind(InkArgKind::Selector)
+                .into_iter()
+                .filter_map(SelectorArg::cast)
+        })
+        .collect()
 }
 
 /// Ensure at most one wildcard selector exists among ink! messages, as well as ink! constructors.
@@ -261,33 +272,20 @@ fn ensure_no_overlapping_selectors(contract: &Contract) -> Vec<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_at_most_one_wildcard_selector(contract: &Contract) -> Vec<Diagnostic> {
-    let constructor_attrs: Vec<InkAttribute> = contract
-        .constructors()
-        .iter()
-        .flat_map(|item| item.ink_attrs())
-        .collect();
-    let message_attrs: Vec<InkAttribute> = contract
-        .messages()
-        .iter()
-        .flat_map(|item| item.ink_attrs())
-        .collect();
-
-    [(constructor_attrs, "constructor"), (message_attrs, "message")].iter().flat_map(|(attrs, name)| {
+    [(get_selector_args(contract.constructors()), "constructor"), (get_selector_args(contract.messages()), "message")].iter().flat_map(|(selectors, name)| {
         let mut has_seen_wildcard = false;
-        attrs.iter().flat_map(|attr| {
-            attr.args().iter().filter_map(|arg| {
-                if *arg.kind() == InkArgKind::Selector && matches!(arg.value()?.kind(), SyntaxKind::UNDERSCORE | SyntaxKind::UNDERSCORE_EXPR) {
-                    if has_seen_wildcard {
-                        return Some(Diagnostic {
-                            message: format!("At most one wildcard (`_`) selector can be defined across all ink! {name}s in an ink! contract."),
-                            range: arg.text_range(),
-                            severity: Severity::Error,
-                        });
-                    }
-                    has_seen_wildcard = true;
+        selectors.iter().filter_map(|selector| {
+            if selector.is_wildcard() {
+                if has_seen_wildcard {
+                    return Some(Diagnostic {
+                        message: format!("At most one wildcard (`_`) selector can be defined across all ink! {name}s in an ink! contract."),
+                        range: selector.text_range(),
+                        severity: Severity::Error,
+                    });
                 }
-                None
-            }).collect::<Vec<Diagnostic>>()
+                has_seen_wildcard = true;
+            }
+            None
         }).collect::<Vec<Diagnostic>>()
     }).collect()
 }
@@ -388,6 +386,251 @@ mod tests {
                         }
                     }
                 },
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        #[ink(event, anonymous)]
+                        pub struct MinimalEvent {
+                            #[ink(topic)]
+                            value: i32,
+                        }
+
+                        impl Minimal {
+                            #[ink(constructor, payable, default, selector=0x1)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message, payable, default, selector=0x1)]
+                            pub fn minimal_message(&self) {}
+                        }
+                    }
+                },
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        #[ink(event, anonymous)]
+                        pub struct MinimalEvent {
+                            #[ink(topic)]
+                            value: i32,
+                        }
+
+                        impl Minimal {
+                            #[ink(constructor, payable, default, selector=_)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message, payable, default, selector=_)]
+                            pub fn minimal_message(&self) {}
+                        }
+                    }
+                },
+                // Minimal + Event + Multiple Selectors.
+                // Overlaps between constructors and messages are ok.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L838-L857>.
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        #[ink(event, anonymous)]
+                        pub struct MinimalEvent {
+                            #[ink(topic)]
+                            value: i32,
+                        }
+
+                        impl Minimal {
+                            #[ink(constructor, payable, default, selector=1)]
+                            pub fn new() -> Self {}
+
+                            #[ink(constructor, payable, default, selector=2)]
+                            pub fn new2() -> Self {}
+
+                            #[ink(message, payable, default, selector=1)]
+                            pub fn minimal_message(&self) {}
+
+                            #[ink(message, payable, default, selector=2)]
+                            pub fn minimal_message2(&self) {}
+                        }
+                    }
+                },
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        #[ink(event, anonymous)]
+                        pub struct MinimalEvent {
+                            #[ink(topic)]
+                            value: i32,
+                        }
+
+                        impl Minimal {
+                            #[ink(constructor, payable, default, selector=0x1)]
+                            pub fn new() -> Self {}
+
+                            #[ink(constructor, payable, default, selector=0x2)]
+                            pub fn new2() -> Self {}
+
+                            #[ink(message, payable, default, selector=0x1)]
+                            pub fn minimal_message(&self) {}
+
+                            #[ink(message, payable, default, selector=0x2)]
+                            pub fn minimal_message2(&self) {}
+                        }
+                    }
+                },
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        #[ink(event, anonymous)]
+                        pub struct MinimalEvent {
+                            #[ink(topic)]
+                            value: i32,
+                        }
+
+                        impl Minimal {
+                            #[ink(constructor, payable, default)]
+                            pub fn new() -> Self {}
+
+                            #[ink(constructor, payable, default, selector=_)]
+                            pub fn new2() -> Self {}
+
+                            #[ink(constructor, payable, default, selector=3)]
+                            pub fn new3() -> Self {}
+
+                            #[ink(constructor, payable, default, selector=0x4)]
+                            pub fn new4() -> Self {}
+
+                            #[ink(message, payable, default)]
+                            pub fn minimal_message(&self) {}
+
+                            #[ink(message, payable, default, selector=_)]
+                            pub fn minimal_message2(&self) {}
+
+                            #[ink(message, payable, default, selector=3)]
+                            pub fn minimal_message3(&self) {}
+
+                            #[ink(message, payable, default, selector=0x4)]
+                            pub fn minimal_message4(&self) {}
+                        }
+                    }
+                },
+                // Minimal + Event + Multiple Selectors + Traits + Namespace + Impl attribute.
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        #[ink(event, anonymous)]
+                        pub struct MinimalEvent {
+                            #[ink(topic)]
+                            value: i32,
+                        }
+
+                        impl Minimal {
+                            #[ink(constructor, payable, default)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message, payable, default)]
+                            pub fn minimal_message(&self) {}
+
+                            #[ink(constructor, payable, default, selector=_)]
+                            pub fn new2() -> Self {}
+
+                            #[ink(message, payable, default, selector=_)]
+                            pub fn minimal_message2(&self) {}
+
+                            #[ink(constructor, payable, default, selector=3)]
+                            pub fn new3() -> Self {}
+
+                            #[ink(constructor, payable, default, selector=0x4)]
+                            pub fn new4() -> Self {}
+
+                            #[ink(message, payable, default, selector=3)]
+                            pub fn minimal_message3(&self) {}
+
+                            #[ink(message, payable, default, selector=0x4)]
+                            pub fn minimal_message4(&self) {}
+                        }
+
+                        impl MyTrait for Minimal {
+                            #[ink(constructor, payable, default)]
+                            fn new5() -> Self {}
+
+                            #[ink(message, payable, default)]
+                            fn minimal_message5(&self) {}
+                        }
+
+                        impl ::my_full::long_path::MyTrait for Minimal {
+                            #[ink(constructor, payable, default)]
+                            fn new6() -> Self {}
+
+                            #[ink(message, payable, default)]
+                            fn minimal_message6(&self) {}
+                        }
+
+                        impl relative_path::MyTrait for Minimal {
+                            #[ink(constructor, payable, default)]
+                            fn new7() -> Self {}
+
+                            #[ink(message, payable, default)]
+                            fn minimal_message7(&self) {}
+                        }
+
+                        #[ink(namespace="my_namespace")]
+                        impl Minimal {
+                            #[ink(constructor, payable, default)]
+                            pub fn new8() -> Self {}
+
+                            #[ink(message, payable, default)]
+                            pub fn minimal_message8(&self) {}
+                        }
+
+                        #[ink(impl)]
+                        impl Minimal {
+                            #[ink(constructor, payable, default)]
+                            pub fn new9() -> Self {}
+
+                            #[ink(message, payable, default)]
+                            pub fn minimal_message9(&self) {}
+                        }
+
+                        #[ink(impl, namespace="my_namespace")]
+                        impl Minimal {
+                            #[ink(constructor, payable, default)]
+                            pub fn new10() -> Self {}
+
+                            #[ink(message, payable, default)]
+                            pub fn minimal_message10(&self) {}
+                        }
+                    }
+                },
+                // Minimal + Tests.
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        impl Minimal {
+                            #[ink(constructor)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message)]
+                            pub fn minimal_message(&self) {}
+                        }
+
+                        #[cfg(test)]
+                        mod tests {
+                            #[ink::test]
+                            fn it_works() {
+                            }
+                        }
+                    }
+                },
                 // Flipper.
                 quote! {
                     mod flipper {
@@ -404,7 +647,7 @@ mod tests {
                         }
 
                         impl Flipper {
-                        #[ink(message)]
+                            #[ink(message)]
                             pub fn flip(&mut self) {
                                 self.value = !self.value
                             }
@@ -443,7 +686,7 @@ mod tests {
                                 self.value = !self.value
                             }
 
-                            #[ink(message, selector=0x2)]
+                            #[ink(message, selector=2)]
                             pub fn get(&self) -> bool {
                                 self.value
                             }
@@ -487,7 +730,7 @@ mod tests {
             });
 
             let result = ensure_inline_module(&contract);
-            assert!(result.is_none());
+            assert!(result.is_none(), "contract: {}", code);
         }
     }
 
@@ -554,17 +797,14 @@ mod tests {
 
     #[test]
     fn one_storage_item_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                #[ink(storage)]
-                pub struct MyContract {
-                }
-            }
-        });
+        for code in valid_contracts!() {
+            let contract = parse_first_contract(quote_as_str! {
+                #code
+            });
 
-        let results = ensure_storage_quantity(&contract);
-        assert!(results.is_empty());
+            let results = ensure_storage_quantity(&contract);
+            assert!(results.is_empty(), "contract: {}", code);
+        }
     }
 
     #[test]
@@ -618,48 +858,14 @@ mod tests {
     }
 
     #[test]
-    fn one_constructor_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                impl MyContract {
-                    #[ink(constructor)]
-                    pub fn my_constructor() -> Self {
-                    }
-                }
-            }
-        });
-
-        let result = ensure_contains_constructor(&contract);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn multiple_constructors_works() {
-        // Tests snippets with btn 2 and 5 constructors.
-        for idx in 2..=5 {
-            // Creates multiple constructors.
-            let constructors = (1..=idx).map(|i| {
-                let name = format_ident!("my_constructor{i}");
-                quote! {
-                    #[ink(constructor)]
-                    pub fn #name() -> Self {
-                    }
-                }
-            });
-
-            // Creates contract with multiple constructors.
+    fn one_or_multiple_constructors_works() {
+        for code in valid_contracts!() {
             let contract = parse_first_contract(quote_as_str! {
-                #[ink::contract]
-                mod my_contract {
-                    impl MyContract {
-                        #( #constructors )*
-                    }
-                }
+                #code
             });
 
             let result = ensure_contains_constructor(&contract);
-            assert!(result.is_none());
+            assert!(result.is_none(), "contract: {}", code);
         }
     }
 
@@ -678,48 +884,15 @@ mod tests {
     }
 
     #[test]
-    fn one_message_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                impl MyContract {
-                    #[ink(message)]
-                    pub fn my_message(&mut self) {
-                    }
-                }
-            }
-        });
-
-        let result = ensure_contains_message(&contract);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn multiple_messages_works() {
+    fn one_or_multiple_messages_works() {
         // Tests snippets with btn 2 and 5 messages.
-        for idx in 2..=5 {
-            // Creates multiple messages.
-            let messages = (1..=idx).map(|i| {
-                let name = format_ident!("my_message{i}");
-                quote! {
-                    #[ink(message)]
-                    pub fn #name(&mut self) {
-                    }
-                }
-            });
-
-            // Creates contract with multiple messages.
+        for code in valid_contracts!() {
             let contract = parse_first_contract(quote_as_str! {
-                #[ink::contract]
-                mod my_contract {
-                    impl MyContract {
-                        #( #messages )*
-                    }
-                }
+                #code
             });
 
             let result = ensure_contains_message(&contract);
-            assert!(result.is_none());
+            assert!(result.is_none(), "contract: {}", code);
         }
     }
 
@@ -738,78 +911,14 @@ mod tests {
     }
 
     #[test]
-    fn no_selectors_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                impl MyContract {
-                    #[ink(constructor)]
-                    pub fn my_constructor() -> Self {
-                    }
-
-                    #[ink(message)]
-                    pub fn my_message(&mut self) {
-                    }
-                }
-            }
-        });
-
-        let results = ensure_no_overlapping_selectors(&contract);
-        assert!(results.is_empty());
-    }
-
-    #[test]
     fn non_overlapping_selectors_works() {
-        for code in [
-            // All different.
-            quote! {
-                #[ink(constructor, selector=1)]
-                pub fn my_constructor() -> Self {
-                }
-
-                #[ink(constructor, selector=2)]
-                pub fn my_constructor2() -> Self {
-                }
-
-                #[ink(message, selector=3)]
-                pub fn my_message(&mut self) {
-                }
-
-                #[ink(message, selector=4)]
-                pub fn my_message2(&mut self) {
-                }
-            },
-            // Overlaps between constructors and messages are ok.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L838-L857>.
-            quote! {
-                #[ink(constructor, selector=1)]
-                pub fn my_constructor() -> Self {
-                }
-
-                #[ink(constructor, selector=0xA)]
-                pub fn my_constructor2() -> Self {
-                }
-
-                #[ink(message, selector=1)]
-                pub fn my_message() {
-                }
-
-                #[ink(message, selector=0xA)]
-                pub fn my_message2() {
-                }
-            },
-        ] {
+        for code in valid_contracts!() {
             let contract = parse_first_contract(quote_as_str! {
-                #[ink::contract]
-                mod my_contract {
-                    impl MyContract {
-                        #code
-                    }
-                }
+                #code
             });
 
             let results = ensure_no_overlapping_selectors(&contract);
-            assert!(results.is_empty());
+            assert!(results.is_empty(), "contract: {}", code);
         }
     }
 
@@ -872,9 +981,18 @@ mod tests {
                 pub fn my_message2(&mut self) {
                 }
             },
-            // TODO: Overlapping trait implementations should fail.
+        ]
+        .iter()
+        .map(|item| {
+            quote! {
+                impl MyContract {
+                    #item
+                }
+            }
+        })
+        .chain([
+            // Overlapping trait implementations.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L810-L836>.
-            /*
             quote! {
                 impl first::MyTrait for MyContract {
                     #[ink(constructor)]
@@ -892,14 +1010,11 @@ mod tests {
                     fn my_message(&self) {}
                 }
             },
-            */
-        ] {
+        ]) {
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
                 mod my_contract {
-                    impl MyContract {
-                        #code
-                    }
+                    #code
                 }
             });
 
@@ -918,47 +1033,17 @@ mod tests {
     }
 
     #[test]
-    fn no_wildcard_selector_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                impl MyContract {
-                    #[ink(constructor)]
-                    pub fn my_constructor() -> Self {
-                    }
-
-                    #[ink(message)]
-                    pub fn my_message(&mut self) {
-                    }
-                }
-            }
-        });
-
-        let results = ensure_at_most_one_wildcard_selector(&contract);
-        assert!(results.is_empty());
-    }
-
-    #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L883-L902>.
-    fn one_wildcard_selector_works() {
-        // At most one wildcard is allowed for each group i.e there can be messages and constructors
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                impl MyContract {
-                    #[ink(constructor, selector=_)]
-                    pub fn my_constructor() -> Self {
-                    }
+    fn one_or_no_wildcard_selectors_works() {
+        for code in valid_contracts!() {
+            // At most one wildcard is allowed for each group i.e there can be messages and constructors
+            let contract = parse_first_contract(quote_as_str! {
+                #code
+            });
 
-                    #[ink(message, selector=_)]
-                    pub fn my_message(&mut self) {
-                    }
-                }
-            }
-        });
-
-        let results = ensure_at_most_one_wildcard_selector(&contract);
-        assert!(results.is_empty());
+            let results = ensure_at_most_one_wildcard_selector(&contract);
+            assert!(results.is_empty(), "contract: {}", code);
+        }
     }
 
     #[test]
@@ -1002,23 +1087,14 @@ mod tests {
 
     #[test]
     fn impl_parent_for_callables_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                impl MyContract {
-                    #[ink(constructor)]
-                    pub fn my_constructor() -> Self {
-                    }
+        for code in valid_contracts!() {
+            let contract = parse_first_contract(quote_as_str! {
+                #code
+            });
 
-                    #[ink(message)]
-                    pub fn my_message() {
-                    }
-                }
-            }
-        });
-
-        let results = ensure_impl_parent_for_callables(&contract);
-        assert!(results.is_empty());
+            let results = ensure_impl_parent_for_callables(&contract);
+            assert!(results.is_empty(), "contract: {}", code);
+        }
     }
 
     #[test]
@@ -1052,46 +1128,14 @@ mod tests {
 
     #[test]
     fn valid_quasi_direct_descendant_works() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                #[ink(storage)]
-                struct MyContract {
-                }
+        for code in valid_contracts!() {
+            let contract = parse_first_contract(quote_as_str! {
+                #code
+            });
 
-                #[ink(event)]
-                #[ink(anonymous)]
-                struct MyEvent {
-                    #[ink(topic)]
-                    value: bool,
-                }
-
-                impl MyContract {
-                    #[ink(constructor)]
-                    pub fn my_constructor() -> Self {
-                    }
-
-                    #[ink(message)]
-                    #[ink(payable)]
-                    pub fn my_message(&mut self) {
-                    }
-                }
-
-                #[ink(impl)]
-                impl MyContractTrait for MyContract {
-                }
-
-                #[cfg(test)]
-                mod tests {
-                    #[ink::test]
-                    fn it_works() {
-                    }
-                }
-            }
-        });
-
-        let results = ensure_valid_quasi_direct_ink_descendants(&contract);
-        assert!(results.is_empty());
+            let results = ensure_valid_quasi_direct_ink_descendants(&contract);
+            assert!(results.is_empty(), "contract: {}", code);
+        }
     }
 
     #[test]

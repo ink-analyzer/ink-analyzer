@@ -5,7 +5,7 @@ use ra_ap_syntax::ast::{Attr, PathSegment};
 use ra_ap_syntax::{AstNode, SyntaxNode};
 use std::fmt;
 
-use crate::{FromAST, IRItem};
+use crate::{FromAST, InkItem};
 
 use crate::meta::MetaName;
 pub use arg::{InkArg, InkArgKind};
@@ -121,7 +121,7 @@ pub enum InkAttributeKind {
     Arg(InkArgKind),
 }
 
-/// An ink! attribute path kind.
+/// The ink! attribute macro kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InkMacroKind {
     /// `#[ink::chain_extension]`

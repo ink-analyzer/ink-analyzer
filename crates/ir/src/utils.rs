@@ -5,8 +5,8 @@ use ra_ap_syntax::ast::{Attr, Item};
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use crate::{
-    AsInkImplItem, Constructor, FromInkAttribute, FromSyntax, InkArgKind, InkAttrData,
-    InkAttribute, InkAttributeKind, InkImpl, Message,
+    Constructor, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute,
+    InkAttributeKind, InkImpl, InkImplItem, Message,
 };
 
 /// Casts a syntax node to an ink! attribute (if possible).
@@ -178,18 +178,55 @@ where
         .collect()
 }
 
-/// Returns the syntax node's descendant ink! entities of IR type `T` that don't have any
-/// ink! ancestor between them and the current node.
+/// Returns ink! arguments of the syntax node.
+pub fn ink_args(node: &SyntaxNode) -> Vec<InkArg> {
+    ink_attrs(node)
+        .iter()
+        .flat_map(|attr| attr.args())
+        .cloned()
+        .collect()
+}
+
+/// Returns ink! arguments of a specific kind (if any) for the syntax node.
+pub fn ink_args_by_kind(node: &SyntaxNode, kind: InkArgKind) -> Vec<InkArg> {
+    ink_attrs(node)
+        .iter()
+        .flat_map(|attr| attr.args().iter().filter(|arg| *arg.kind() == kind))
+        .cloned()
+        .collect()
+}
+
+/// Returns ink! argument of a specific kind (if any) for the syntax node.
+pub fn ink_arg_by_kind(node: &SyntaxNode, kind: InkArgKind) -> Option<InkArg> {
+    ink_attrs(node)
+        .iter()
+        .find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == kind))
+        .cloned()
+}
+
+/// Returns true if the ink! attribute can be a quasi-direct parent for an ink! callable entity
+/// (i.e ink! constructor or ink! message).
+fn is_possible_callable_ancestor(attr: &InkAttribute) -> bool {
+    // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
+    *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl)
+        || (*attr.kind() == InkAttributeKind::Arg(InkArgKind::Namespace)
+            && parent_ast_item(attr.syntax())
+                .and_then(|item| ast::Impl::cast(item.syntax().to_owned()))
+                .is_some())
+}
+
+/// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
+/// ink! ancestor or only have an ink! impl entity between them and the current node.
 pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> Vec<T>
 where
-    T: FromInkAttribute + AsInkImplItem,
+    T: FromSyntax + FromInkAttribute + InkImplItem,
 {
     ink_attrs_closest_descendants(node)
         .into_iter()
         .flat_map(|attr| {
             if T::can_cast(&attr) {
                 vec![T::cast(attr).expect("Should be able to cast")]
-            } else if *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl) {
+            } else if is_possible_callable_ancestor(&attr) {
                 ink_attrs_closest_descendants(
                     <InkAttrData<ast::Impl> as From<_>>::from(attr).parent_syntax(),
                 )
@@ -200,6 +237,8 @@ where
                 Vec::new()
             }
         })
+        // Deduplicate by wrapped syntax node.
+        .unique_by(|item| item.syntax().to_owned())
         .collect()
 }
 
@@ -215,8 +254,8 @@ pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> Vec<InkImpl> {
             ink_attrs_closest_descendants(node)
                 .iter()
                 .filter_map(|attr| {
-                    // ink! impl annotated closest descendants.
-                    if *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl) {
+                    // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
+                    if is_possible_callable_ancestor(attr) {
                         parent_ast_item(attr.syntax()).map(|item| item.syntax().to_owned())
                     } else if Constructor::can_cast(attr) {
                         // impl parent of ink! constructor closest descendant.

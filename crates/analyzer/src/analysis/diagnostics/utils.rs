@@ -7,11 +7,10 @@ use ink_analyzer_ir::ast::{
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
-    ast, AsInkFn, AsInkImplItem, AsInkStruct, AsInkTrait, Contract, FromSyntax, IRItem, InkArg,
-    InkArgKind, InkAttribute, InkAttributeKind, InkMacroKind,
+    ast, Contract, FromSyntax, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkFn,
+    InkImplItem, InkItem, InkMacroKind, InkStruct, InkTrait,
 };
 use std::collections::HashSet;
-use std::num::ParseIntError;
 
 use crate::{Diagnostic, Severity};
 
@@ -168,14 +167,11 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
                             // Ensure the meta value is either a decimal or hex encoded `u32`.
                             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
                             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
-                            (meta_value.kind() == SyntaxKind::INT_NUMBER && parse_u32(meta_value.to_string().as_str()).is_ok())
+                            meta_value.as_u32().is_some()
                                 // A wildcard/underscore (`_`) is also valid value for selectors.
                                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
                                 || (is_selector
-                                && matches!(
-                                        meta_value.kind(),
-                                        SyntaxKind::UNDERSCORE | SyntaxKind::UNDERSCORE_EXPR
-                                    ))
+                                && meta_value.is_wildcard())
                         },
                         |_| false,
                         false,
@@ -198,10 +194,10 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
                 InkArgKind::KeepAttr | InkArgKind::Namespace => (!ensure_valid_attribute_arg_value(
                     arg,
                     |meta_value| {
-                        meta_value.kind() == SyntaxKind::STRING
+                        meta_value.as_string().is_some()
                             // For namespace arguments, ensure the meta value is a valid Rust identifier.
                             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
-                            && (*arg.kind() != InkArgKind::Namespace || parse_ident(meta_value.to_string().as_str()).is_some())
+                            && (*arg.kind() != InkArgKind::Namespace || meta_value.as_string().and_then(|value| parse_ident(value.as_str())).is_some())
                     },
                     |_| false,
                     false,
@@ -223,12 +219,7 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
                 InkArgKind::HandleStatus | InkArgKind::Derive => {
                     (!ensure_valid_attribute_arg_value(
                         arg,
-                        |meta_value| {
-                            matches!(
-                                meta_value.kind(),
-                                SyntaxKind::TRUE_KW | SyntaxKind::FALSE_KW
-                            )
-                        },
+                        |meta_value| meta_value.as_boolean().is_some(),
                         |_| false,
                         false,
                     ))
@@ -281,31 +272,10 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Helper utility that casts (if possible)
-/// a string representation of a decimal or hexadecimal `u32` value into a `u32`.
-pub fn parse_u32(value: &str) -> Result<u32, ParseIntError> {
-    if value.starts_with("0x") {
-        // Check as hex.
-        u32::from_str_radix(value.strip_prefix("0x").unwrap(), 16)
-    } else {
-        // Check as decimal.
-        value.parse::<u32>()
-    }
-}
-
-/// Helper utility that casts (if possible)
-/// a (possibly escaped) string to an Rust identifier (`Ident`).
+/// Helper utility that casts a string to an Rust identifier (`Ident`) (if possible).
 fn parse_ident(value: &str) -> Option<Ident> {
-    let mut sanitized_value = value.to_string();
-    // Strip leading and trailing escaped quotes.
-    if sanitized_value.starts_with('\"') {
-        sanitized_value = sanitized_value.strip_prefix('\"').unwrap().to_string();
-    }
-    if sanitized_value.ends_with('\"') {
-        sanitized_value = sanitized_value.strip_suffix('\"').unwrap().to_string();
-    }
     // Parse sanitized value and find the first identifier.
-    let file = SourceFile::parse(sanitized_value.as_str()).tree();
+    let file = SourceFile::parse(value).tree();
 
     // Retrieve the first `ident` in the syntax tree.
     let ident = file
@@ -314,7 +284,7 @@ fn parse_ident(value: &str) -> Option<Ident> {
         .find_map(|elem| Ident::cast(elem.as_token()?.to_owned()))?;
 
     // Parsed identifier must be equal to the sanitized meta value.
-    (ident.text() == sanitized_value).then_some(ident)
+    (ident.text() == value).then_some(ident)
 }
 
 /// Helper function for ensuring that an ink! argument has no value and no separator token (i.e `=`).
@@ -770,7 +740,7 @@ pub fn ensure_at_most_one_item<T: FromSyntax>(
 /// Ensure ink! entity is a `struct` with `pub` visibility.
 pub fn ensure_pub_struct<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + AsInkStruct,
+    T: FromSyntax + InkStruct,
 {
     let mut error = None;
     let mut marker_token = None;
@@ -805,7 +775,7 @@ where
 /// Ensure ink! entity is an `fn` item.
 pub fn ensure_fn<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + AsInkFn,
+    T: FromSyntax + InkFn,
 {
     item.fn_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name}s must be `fn` items.",),
@@ -817,7 +787,7 @@ where
 /// Ensure ink! entity is a `trait` item.
 pub fn ensure_trait<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + AsInkTrait,
+    T: FromSyntax + InkTrait,
 {
     item.trait_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name}s must be `trait` items.",),
@@ -1087,7 +1057,7 @@ where
 /// Ensure item is defined in the root of an `impl` item.
 pub fn ensure_impl_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + AsInkImplItem,
+    T: FromSyntax + InkImplItem,
 {
     item.impl_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name}s must be defined in the root of an `impl` block.",),

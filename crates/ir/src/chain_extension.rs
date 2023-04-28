@@ -3,7 +3,7 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast::{AssocItem, HasName, Trait, TypeAlias};
 
-use crate::{AsInkTrait, Extension, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
+use crate::{Extension, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, InkTrait};
 
 /// An ink! chain extension.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
@@ -16,7 +16,7 @@ pub struct ChainExtension {
     extensions: Vec<Extension>,
 }
 
-impl AsInkTrait for ChainExtension {
+impl InkTrait for ChainExtension {
     fn trait_item(&self) -> Option<&Trait> {
         self.ink_attr.parent_ast()
     }

@@ -3,8 +3,7 @@
 use ink_analyzer_ir::ast::{AstNode, Trait};
 use ink_analyzer_ir::syntax::SyntaxKind;
 use ink_analyzer_ir::{
-    AsInkTrait, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, Message,
-    TraitDefinition,
+    FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait, Message, TraitDefinition,
 };
 
 use super::{message, utils};
@@ -177,7 +176,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, IRItem, InkFile, InkMacroKind};
+    use ink_analyzer_ir::{quote_as_str, InkFile, InkItem, InkMacroKind};
     use quote::{format_ident, quote};
 
     fn parse_first_trait_definition(code: &str) -> TraitDefinition {

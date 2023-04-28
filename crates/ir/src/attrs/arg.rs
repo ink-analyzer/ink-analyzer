@@ -58,7 +58,7 @@ impl InkArg {
     }
 }
 
-/// An ink! attribute argument kind.
+/// The ink! attribute argument kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InkArgKind {
     /// `#[ink(anonymous)]`

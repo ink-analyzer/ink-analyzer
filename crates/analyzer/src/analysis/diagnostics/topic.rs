@@ -49,7 +49,7 @@ fn ensure_struct_field(topic: &Topic) -> Option<Diagnostic> {
 mod tests {
     use super::*;
     use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, IRItem, InkArgKind, InkAttributeKind, InkFile,
+        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, InkItem,
     };
     use quote::quote;
 

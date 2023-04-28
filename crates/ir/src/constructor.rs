@@ -3,7 +3,7 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::{AsInkFn, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
+use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, InkCallable, InkFn};
 
 /// An ink! constructor.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
@@ -13,8 +13,10 @@ pub struct Constructor {
     ink_attr: InkAttrData<ast::Fn>,
 }
 
-impl AsInkFn for Constructor {
+impl InkFn for Constructor {
     fn fn_item(&self) -> Option<&ast::Fn> {
         self.ink_attr.parent_ast()
     }
 }
+
+impl InkCallable for Constructor {}

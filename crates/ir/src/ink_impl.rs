@@ -63,14 +63,7 @@ impl InkImpl {
 
     /// Returns the ink! impl namespace argument (if any).
     pub fn namespace_arg(&self) -> Option<InkArg> {
-        utils::ink_attrs(&self.syntax)
-            .iter()
-            .find_map(|attr| {
-                attr.args()
-                    .iter()
-                    .find(|arg| *arg.kind() == InkArgKind::Namespace)
-            })
-            .cloned()
+        utils::ink_arg_by_kind(&self.syntax, InkArgKind::Namespace)
     }
 
     /// Returns the ink! constructors for the ink! impl.

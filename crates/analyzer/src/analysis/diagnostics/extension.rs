@@ -1,7 +1,7 @@
 //! ink! extension diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{ast, AsInkFn, Extension};
+use ink_analyzer_ir::{ast, Extension, InkFn};
 
 use super::utils;
 use crate::{Diagnostic, Severity};
@@ -68,7 +68,7 @@ fn ensure_no_self_receiver(fn_item: &ast::Fn) -> Option<Diagnostic> {
 mod tests {
     use super::*;
     use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, IRItem, InkArgKind, InkAttributeKind, InkFile,
+        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, InkItem,
     };
     use quote::quote;
 

@@ -103,6 +103,60 @@ impl MetaValue {
             ),
         )
     }
+
+    /// Returns true if the value is a wildcard/underscore.
+    pub fn is_wildcard(&self) -> bool {
+        matches!(
+            self.kind(),
+            SyntaxKind::UNDERSCORE | SyntaxKind::UNDERSCORE_EXPR
+        )
+    }
+
+    /// Converts the value if it's an integer literal (decimal or hexadecimal) into a `u32`.
+    pub fn as_u32(&self) -> Option<u32> {
+        if self.kind() == SyntaxKind::INT_NUMBER {
+            let value = self.to_string();
+            return if value.starts_with("0x") {
+                // Check as hex.
+                u32::from_str_radix(value.strip_prefix("0x").unwrap(), 16).ok()
+            } else {
+                // Check as decimal.
+                value.parse::<u32>().ok()
+            };
+        }
+        None
+    }
+
+    /// Converts the value if it's a boolean literal (true or false keyword) into a `bool`.
+    pub fn as_boolean(&self) -> Option<bool> {
+        match self.kind() {
+            SyntaxKind::TRUE_KW => Some(true),
+            SyntaxKind::FALSE_KW => Some(false),
+            _ => None,
+        }
+    }
+
+    /// Converts the value if it's a string literal into a `String`.
+    pub fn as_string(&self) -> Option<String> {
+        if self.kind() == SyntaxKind::STRING {
+            let mut value = self.to_string();
+            // Strip leading and trailing escaped quotes.
+            if value.starts_with('\"') {
+                value = value
+                    .strip_prefix('\"')
+                    .expect("Should be able to strip prefix")
+                    .to_string();
+            }
+            if value.ends_with('\"') {
+                value = value
+                    .strip_suffix('\"')
+                    .expect("Should be able to strip suffix")
+                    .to_string();
+            }
+            return Some(value);
+        }
+        None
+    }
 }
 
 impl fmt::Display for MetaValue {
