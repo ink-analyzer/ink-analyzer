@@ -1,10 +1,11 @@
 //! ink! extension diagnostics.
 
-use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{ast, Extension, InkFn};
+use ink_analyzer_ir::{Extension, InkFn};
 
 use super::utils;
-use crate::{Diagnostic, Severity};
+use crate::Diagnostic;
+
+const EXTENSION_SCOPE_NAME: &str = "extension";
 
 /// Runs all ink! extension diagnostics.
 ///
@@ -19,7 +20,7 @@ pub fn diagnostics(extension: &Extension) -> Vec<Diagnostic> {
 
     // Ensure ink! extension is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L473>.
-    if let Some(diagnostic) = utils::ensure_fn(extension, "extension") {
+    if let Some(diagnostic) = utils::ensure_fn(extension, EXTENSION_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -29,11 +30,12 @@ pub fn diagnostics(extension: &Extension) -> Vec<Diagnostic> {
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L395-L465>.
         utils::append_diagnostics(
             &mut results,
-            &mut utils::ensure_method_invariants(fn_item, "extension"),
+            &mut utils::ensure_method_invariants(fn_item, EXTENSION_SCOPE_NAME),
         );
 
-        // Ensure ink! extension `fn` item has no self receiver, see `ensure_no_self_receiver` doc.
-        if let Some(diagnostic) = ensure_no_self_receiver(fn_item) {
+        // Ensure ink! extension `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L488-L493>.
+        if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, EXTENSION_SCOPE_NAME) {
             utils::push_diagnostic(&mut results, diagnostic);
         }
     }
@@ -41,32 +43,16 @@ pub fn diagnostics(extension: &Extension) -> Vec<Diagnostic> {
     // Ensure ink! extension has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut utils::ensure_no_ink_descendants(extension, "extension"),
+        &mut utils::ensure_no_ink_descendants(extension, EXTENSION_SCOPE_NAME),
     );
 
     results
 }
 
-/// Ensure ink! extension `fn` has no self receiver (i.e no `&self`, `&mut self`, self or mut self).
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L488-L493>.
-fn ensure_no_self_receiver(fn_item: &ast::Fn) -> Option<Diagnostic> {
-    if let Some(param_list) = fn_item.param_list() {
-        if let Some(self_param) = param_list.self_param() {
-            return Some(Diagnostic {
-                message: "ink! extensions must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self).".to_string(),
-                range: self_param.syntax().text_range(),
-                severity: Severity::Error,
-            });
-        }
-    }
-
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Severity;
     use ink_analyzer_ir::{
         quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, InkItem,
     };
@@ -143,8 +129,10 @@ mod tests {
                 #code
             });
 
-            let results =
-                utils::ensure_callable_invariants(extension.fn_item().unwrap(), "extension");
+            let results = utils::ensure_callable_invariants(
+                extension.fn_item().unwrap(),
+                EXTENSION_SCOPE_NAME,
+            );
             assert!(results.is_empty(), "extension: {}", code);
         }
     }
@@ -188,8 +176,10 @@ mod tests {
                 #code
             });
 
-            let results =
-                utils::ensure_callable_invariants(extension.fn_item().unwrap(), "extension");
+            let results = utils::ensure_callable_invariants(
+                extension.fn_item().unwrap(),
+                EXTENSION_SCOPE_NAME,
+            );
             assert_eq!(results.len(), 1, "extension: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "extension: {}", code);
         }
@@ -202,7 +192,8 @@ mod tests {
                 #code
             });
 
-            let result = ensure_no_self_receiver(extension.fn_item().unwrap());
+            let result =
+                utils::ensure_no_self_receiver(extension.fn_item().unwrap(), EXTENSION_SCOPE_NAME);
             assert!(result.is_none(), "extension: {}", code);
         }
     }
@@ -229,7 +220,8 @@ mod tests {
                 #code
             });
 
-            let result = ensure_no_self_receiver(extension.fn_item().unwrap());
+            let result =
+                utils::ensure_no_self_receiver(extension.fn_item().unwrap(), EXTENSION_SCOPE_NAME);
             assert!(result.is_some(), "extension: {}", code);
             assert_eq!(
                 result.unwrap().severity,
@@ -247,7 +239,7 @@ mod tests {
             fn my_extension();
         });
 
-        let results = utils::ensure_no_ink_descendants(&extension, "extension");
+        let results = utils::ensure_no_ink_descendants(&extension, EXTENSION_SCOPE_NAME);
         assert!(results.is_empty());
     }
 
@@ -264,7 +256,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&extension, "extension");
+        let results = utils::ensure_no_ink_descendants(&extension, EXTENSION_SCOPE_NAME);
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.

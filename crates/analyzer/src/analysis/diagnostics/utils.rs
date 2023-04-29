@@ -153,7 +153,7 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
                 | InkArgKind::Anonymous
                 | InkArgKind::Topic
                 | InkArgKind::Payable
-                | InkArgKind::Impl => (!ensure_no_attribute_arg_value(arg)).then_some(Diagnostic {
+                | InkArgKind::Impl => (arg.meta().eq().is_some() || arg.meta().value().is_some()).then_some(Diagnostic {
                     message: format!("`{}` argument shouldn't have a value.", arg_name_text),
                     range: text_range,
                     severity: Severity::Error,
@@ -285,11 +285,6 @@ fn parse_ident(value: &str) -> Option<Ident> {
 
     // Parsed identifier must be equal to the sanitized meta value.
     (ident.text() == value).then_some(ident)
-}
-
-/// Helper function for ensuring that an ink! argument has no value and no separator token (i.e `=`).
-fn ensure_no_attribute_arg_value(arg: &InkArg) -> bool {
-    arg.meta().eq().is_none() && arg.meta().value().is_none()
 }
 
 /// Helper function for checking the validity of an ink! argument value.
@@ -709,9 +704,7 @@ pub fn ensure_exactly_one_item<T: FromSyntax>(
     error_too_many: &str,
     severity_too_many: Severity,
 ) -> Vec<Diagnostic> {
-    let num_items = items.len();
-
-    if num_items == 0 {
+    if items.is_empty() {
         return vec![empty_diagnostic];
     }
 
@@ -742,24 +735,24 @@ pub fn ensure_pub_struct<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic
 where
     T: FromSyntax + InkStruct,
 {
-    let mut error = None;
     let mut marker_token = None;
 
-    if let Some(struct_item) = item.struct_item() {
-        let has_pub_visibility = if let Some(visibility) = struct_item.visibility() {
-            marker_token = Some(visibility.clone());
-            visibility.to_string() == "pub"
-        } else {
-            false
-        };
-        if !has_pub_visibility {
-            error = Some(format!(
+    let error = match item.struct_item() {
+        Some(struct_item) => {
+            let has_pub_visibility = match struct_item.visibility() {
+                Some(visibility) => {
+                    marker_token = Some(visibility.clone());
+                    visibility.to_string() == "pub"
+                }
+                None => false,
+            };
+
+            (!has_pub_visibility).then_some(format!(
                 "ink! {ink_scope_name}s must have `pub` visibility.",
-            ));
+            ))
         }
-    } else {
-        error = Some(format!("ink! {ink_scope_name}s must be `struct` items.",));
-    }
+        None => Some(format!("ink! {ink_scope_name}s must be `struct` items.",)),
+    };
 
     error.map(|message| Diagnostic {
         message,
@@ -792,6 +785,15 @@ where
     item.trait_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name}s must be `trait` items.",),
         range: item.syntax().text_range(),
+        severity: Severity::Error,
+    })
+}
+
+/// Ensure an `fn` item has no self receiver (i.e no `&self`, `&mut self`, self or mut self).
+pub fn ensure_no_self_receiver(fn_item: &ast::Fn, ink_scope_name: &str) -> Option<Diagnostic> {
+    fn_item.param_list()?.self_param().map(|self_param| Diagnostic {
+        message: format!("ink! {ink_scope_name}s must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self)."),
+        range: self_param.syntax().text_range(),
         severity: Severity::Error,
     })
 }
@@ -893,21 +895,19 @@ pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<
 pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<Diagnostic> {
     let mut results = Vec::new();
 
-    let (has_pub_or_inherited_visibility, visibility) =
-        if let Some(visibility) = fn_item.visibility() {
-            (visibility.syntax().to_string() == "pub", Some(visibility))
-        } else {
-            // Inherited visibility.
-            (true, None)
-        };
+    let (has_pub_or_inherited_visibility, visibility) = match fn_item.visibility() {
+        // Check `pub` visibility.
+        Some(visibility) => (visibility.to_string() == "pub", Some(visibility)),
+        // Inherited visibility.
+        None => (true, None),
+    };
 
     if !has_pub_or_inherited_visibility {
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name}s must have `pub` or inherited visibility."),
-            range: if let Some(vis) = visibility {
-                vis.syntax().text_range()
-            } else {
-                fn_item.syntax().text_range()
+            range: match visibility {
+                Some(vis) => vis.syntax().text_range(),
+                None => fn_item.syntax().text_range(),
             },
             severity: Severity::Error,
         });
@@ -950,19 +950,19 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
         results.push(diagnostic);
     }
 
-    let (has_pub_visibility, visibility) = if let Some(visibility) = trait_item.visibility() {
-        (visibility.to_string() == "pub", Some(visibility))
-    } else {
-        (false, None)
+    let (has_pub_visibility, visibility) = match trait_item.visibility() {
+        // Check `pub` visibility.
+        Some(visibility) => (visibility.to_string() == "pub", Some(visibility)),
+        // Inherited visibility.
+        None => (false, None),
     };
 
     if !has_pub_visibility {
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name}s must have `pub` visibility."),
-            range: if let Some(vis) = visibility {
-                vis.syntax().text_range()
-            } else {
-                trait_item.syntax().text_range()
+            range: match visibility {
+                Some(vis) => vis.syntax().text_range(),
+                None => trait_item.syntax().text_range(),
             },
             severity: Severity::Error,
         });

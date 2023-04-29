@@ -6,6 +6,8 @@ use ink_analyzer_ir::{ast, FromSyntax, InkArgKind, InkAttributeKind, InkFn, InkI
 use super::{constructor, message, utils};
 use crate::{Diagnostic, Severity};
 
+const IMPL_SCOPE_NAME: &str = "impl";
+
 /// Runs all ink! impl diagnostics.
 ///
 /// The entry point for finding ink! impl semantic rules is the item_impl module of the ink_ir crate.
@@ -26,8 +28,9 @@ pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     // see `ensure_impl_invariants` doc.
     utils::append_diagnostics(&mut results, &mut ensure_impl_invariants(ink_impl));
 
-    // Ensure at least one ink! constructor or ink! message, see `ensure_contains_callable` doc.
-    if let Some(diagnostic) = ensure_contains_callable(ink_impl) {
+    // Ensure impl block either has an ink! impl annotation or
+    // contains at least one ink! constructor or ink! message, see `ensure_contains_callable` doc.
+    if let Some(diagnostic) = ensure_annotation_or_contains_callable(ink_impl) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -58,7 +61,7 @@ pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     // Ensure ink! impl is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, "impl") {
+    if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, IMPL_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -108,7 +111,7 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
             });
         }
 
-        if let Some(diagnostic) = utils::ensure_no_generics(&impl_item, "impl") {
+        if let Some(diagnostic) = utils::ensure_no_generics(&impl_item, IMPL_SCOPE_NAME) {
             results.push(diagnostic);
         }
 
@@ -164,19 +167,18 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
                     })
                 } else {
                     // Callables must have `pub` visibility for inherent implementation blocks.
-                    let (has_pub_visibility, visibility) = if let Some(visibility) = fn_item.visibility() {
-                        (visibility.syntax().to_string() == "pub", Some(visibility))
-                    } else {
+                    let (has_pub_visibility, visibility) = match fn_item.visibility() {
+                        // Check `pub` visibility.
+                        Some(visibility) => (visibility.syntax().to_string() == "pub", Some(visibility)),
                         // Inherited visibility.
-                        (false, None)
+                        None => (false, None)
                     };
 
                     (!has_pub_visibility).then_some(Diagnostic {
                         message: format!("ink! {name}s in inherent ink! impl blocks must have `pub` visibility."),
-                        range: if let Some(vis) = visibility {
-                            vis.syntax().text_range()
-                        } else {
-                            fn_item.syntax().text_range()
+                        range: match visibility {
+                            Some(vis) => vis.syntax().text_range(),
+                            None => fn_item.syntax().text_range()
                         },
                         severity: Severity::Error,
                     })
@@ -188,11 +190,14 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure at least one ink! constructor or ink! message.
+/// Ensure impl block either has an ink! impl annotation or contains at least one ink! constructor or ink! message.
 ///
-/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L189-L208>.
-fn ensure_contains_callable(ink_impl: &InkImpl) -> Option<Diagnostic> {
-    (ink_impl.constructors().is_empty() && ink_impl.messages().is_empty()).then_some(Diagnostic {
+/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L119-L210>.
+fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnostic> {
+    (ink_impl.impl_attr().is_none()
+        && ink_impl.constructors().is_empty()
+        && ink_impl.messages().is_empty())
+    .then_some(Diagnostic {
         message: "At least one ink! constructor or ink! message must be defined for an ink! impl."
             .to_string(),
         range: ink_impl.syntax().text_range(),
@@ -205,10 +210,9 @@ fn ensure_parent_impl<T>(ink_impl: &InkImpl, item: &T, ink_scope_name: &str) -> 
 where
     T: InkImplItem + FromSyntax,
 {
-    let is_parent = if let Some(parent_impl_item) = item.impl_item() {
-        parent_impl_item.syntax() == ink_impl.syntax()
-    } else {
-        false
+    let is_parent = match item.impl_item() {
+        Some(parent_impl_item) => parent_impl_item.syntax() == ink_impl.syntax(),
+        None => false,
     };
 
     (!is_parent).then_some(Diagnostic {
@@ -408,7 +412,20 @@ mod tests {
                             #code
                         },
                     ]
-                }),
+                }).chain(
+                    [
+                        // Empty.
+                        // An ink! impl with no ink! constructors or ink! messages is valid
+                        // as long as it has an ink! impl annotation.
+                        // Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/tests.rs#L212-L215>.
+                        quote! {
+                            #[ink(impl)]
+                            impl MyContract {
+
+                            }
+                        },
+                    ]
+                ),
             )
             // Wrap in contract for context sensitive tests.
             .map(|items| {
@@ -539,29 +556,34 @@ mod tests {
     }
 
     #[test]
-    fn ensure_contains_callables_works() {
+    fn annotated_or_contains_callables_works() {
         for code in valid_ink_impls!() {
             let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #code
             });
 
-            let result = ensure_contains_callable(&ink_impl);
+            let result = ensure_annotation_or_contains_callable(&ink_impl);
             assert!(result.is_none(), "impl: {}", code);
         }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L688-L704>.
-    fn missing_callable_fails() {
-        let ink_impl = parse_first_ink_impl(quote_as_str! {
-            #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
-            impl MyContract {
+    fn missing_annotation_and_no_callables_fails() {
+        let contract = InkFile::parse(quote_as_str! {
+            #[ink::contract]
+            mod my_contract {
+                impl MyContract {
+                }
             }
-        });
 
-        let result = ensure_contains_callable(&ink_impl);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+        })
+        .contracts()
+        .first()
+        .unwrap()
+        .to_owned();
+
+        assert!(contract.impls().is_empty());
     }
 
     #[test]

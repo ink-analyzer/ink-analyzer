@@ -100,15 +100,16 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
         &mut ensure_at_most_one_wildcard_selector(contract),
     );
 
+    // Ensure ink! storage, ink! events and ink! impls are defined in the root of the ink! contract,
+    // see `ensure_root_items` doc.
+    utils::append_diagnostics(&mut results, &mut ensure_root_items(contract));
+
     // Ensure ink! messages and constructors are defined in the root of an `impl` item,
     // see `ensure_impl_parent_for_callables` doc.
     utils::append_diagnostics(
         &mut results,
         &mut ensure_impl_parent_for_callables(contract),
     );
-
-    // Ensure ink! impls are defined in the root of the ink! contract, see `ensure_impls_in_root` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_impls_in_root(contract));
 
     // Run ink! test diagnostics, see `ink_test::diagnostics` doc.
     utils::append_diagnostics(
@@ -138,17 +139,12 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L66>.
 fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
-    let mut error = None;
-
-    if let Some(module) = contract.module() {
-        if module.item_list().is_none() {
-            error = Some(
-                "The content of ink! contracts `mod` items must be defined inline.".to_string(),
-            );
-        }
-    } else {
-        error = Some("ink! contracts must be inline `mod` items".to_string());
-    }
+    let error = match contract.module() {
+        Some(module) => module.item_list().is_none().then_some(
+            "The content of ink! contracts `mod` items must be defined inline.".to_string(),
+        ),
+        None => Some("ink! contracts must be inline `mod` items".to_string()),
+    };
 
     error.map(|message| Diagnostic {
         message,
@@ -232,19 +228,22 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_no_overlapping_selectors(contract: &Contract) -> Vec<Diagnostic> {
-    [(get_composed_selectors(contract.constructors()), "constructor"), (get_composed_selectors(contract.messages()), "message")].iter().flat_map(|(selectors, name)| {
+    [
+        (get_composed_selectors(contract.constructors()), "constructor"),
+        (get_composed_selectors(contract.messages()), "message")
+    ].iter().flat_map(|(selectors, name)| {
         let mut seen_selectors: HashSet<u32> = HashSet::new();
         selectors.iter().filter_map(|(selector, node)| {
             let selector_value = selector.into_be_u32();
-            if seen_selectors.get(&selector_value).is_some() {
-                return Some(Diagnostic {
-                    message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
-                    range: node.text_range(),
-                    severity: Severity::Error,
-                });
-            }
+            let is_seen = seen_selectors.get(&selector_value).is_some();
+
             seen_selectors.insert(selector_value);
-            None
+
+            is_seen.then_some(Diagnostic {
+                message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
+                range: node.text_range(),
+                severity: Severity::Error,
+            })
         }).collect::<Vec<Diagnostic>>()
     }).collect()
 }
@@ -293,6 +292,64 @@ fn ensure_at_most_one_wildcard_selector(contract: &Contract) -> Vec<Diagnostic> 
     }).collect()
 }
 
+/// Ensure item is defined in the root of this specific ink! contract.
+fn ensure_parent_contract<T>(
+    contract: &Contract,
+    item: &T,
+    ink_scope_name: &str,
+) -> Option<Diagnostic>
+where
+    T: FromSyntax,
+{
+    let is_parent = match ink_analyzer_ir::ink_parent::<Contract>(item.syntax()) {
+        Some(parent_contract) => parent_contract.syntax() == contract.syntax(),
+        None => false,
+    };
+
+    (!is_parent).then_some(Diagnostic {
+        message: format!(
+            "ink! {ink_scope_name}s must be defined in the root of the ink! contract's `mod` item."
+        ),
+        range: item.syntax().text_range(),
+        severity: Severity::Error,
+    })
+}
+
+/// Ensure ink! storage, ink! events and ink! impls are defined in the root of the ink! contract.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L377-L379>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L28-L29>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L74>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L475>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L79>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
+fn ensure_root_items(contract: &Contract) -> Vec<Diagnostic> {
+    contract
+        .storage()
+        .iter()
+        .filter_map(|item| ensure_parent_contract(contract, item, "storage"))
+        .chain(
+            contract
+                .events()
+                .iter()
+                .filter_map(|item| ensure_parent_contract(contract, item, "impl")),
+        )
+        .chain(
+            contract
+                .impls()
+                .iter()
+                .filter_map(|item| ensure_parent_contract(contract, item, "impl")),
+        )
+        .collect()
+}
+
 /// Ensure ink! messages and constructors are defined in the root of an `impl` item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
@@ -313,36 +370,6 @@ fn ensure_impl_parent_for_callables(contract: &Contract) -> Vec<Diagnostic> {
                 .iter()
                 .filter_map(|item| utils::ensure_impl_parent(item, "messages")),
         )
-        .collect()
-}
-
-/// Ensure ink! impls are defined in the root of the ink! contract.
-///
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
-fn ensure_impls_in_root(contract: &Contract) -> Vec<Diagnostic> {
-    contract
-        .impls()
-        .iter()
-        .filter_map(|item| {
-            let is_parent = if let Some(parent_contract) =
-                ink_analyzer_ir::ink_parent::<Contract>(item.syntax())
-            {
-                parent_contract.syntax() == contract.syntax()
-            } else {
-                false
-            };
-
-            (!is_parent).then_some(Diagnostic {
-                message:
-                    "ink! impls must be defined in the root of the ink! contract's `mod` item."
-                        .to_string(),
-                range: item.syntax().text_range(),
-                severity: Severity::Error,
-            })
-        })
         .collect()
 }
 
@@ -639,6 +666,14 @@ mod tests {
 
                             #[ink(message, payable, default)]
                             pub fn minimal_message10(&self) {}
+                        }
+
+                        // An ink! impl with no ink! constructors or ink! messages is valid
+                        // as long as it has an ink! impl annotation.
+                        // Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/tests.rs#L212-L215>.
+                        #[ink(impl)]
+                        impl Minimal {
+
                         }
                     }
                 },
@@ -1160,26 +1195,32 @@ mod tests {
     }
 
     #[test]
-    fn impls_in_root_works() {
+    fn root_items_in_root_works() {
         for code in valid_contracts!() {
             let contract = parse_first_contract(quote_as_str! {
                 #code
             });
 
-            let results = ensure_impls_in_root(&contract);
+            let results = ensure_root_items(&contract);
             assert!(results.is_empty(), "contract: {}", code);
         }
     }
 
     #[test]
-    fn impls_not_in_root_fails() {
+    fn root_items_not_in_root_fails() {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
             mod my_contract {
-                fn impl_container() {
-                    pub struct MyImpl;
+                fn my_contract_container() {
+                    #[ink(storage)]
+                    pub struct MyContract {
+                    }
 
-                    impl MyImpl {
+                    #[ink(event)]
+                    pub struct MyEvent {
+                    }
+
+                    impl MyContract {
                         #[ink(constructor)]
                         pub fn my_constructor() -> Self {
                         }
@@ -1190,23 +1231,23 @@ mod tests {
                     }
 
                     #[ink(impl)]
-                    impl MyImpl {
+                    impl MyContract {
                     }
                 }
             }
         });
 
-        let results = ensure_impls_in_root(&contract);
+        let results = ensure_root_items(&contract);
 
-        // There should be 2 errors (i.e one for each of the impls).
-        assert_eq!(results.len(), 2);
+        // There should be 4 errors (i.e `storage`, `contract` and one for each of the 2 impls).
+        assert_eq!(results.len(), 4);
         // All diagnostics should be errors.
         assert_eq!(
             results
                 .iter()
                 .filter(|item| item.severity == Severity::Error)
                 .count(),
-            2
+            4
         );
     }
 

@@ -5,6 +5,8 @@ use ink_analyzer_ir::{FromInkAttribute, FromSyntax, StorageItem};
 use super::utils;
 use crate::{Diagnostic, Severity};
 
+const STORAGE_ITEM_SCOPE_NAME: &str = "storage_item";
+
 /// Runs all ink! storage item diagnostics.
 ///
 /// The entry point for finding ink! storage item semantic rules is the storage_item module of the ink_ir crate.
@@ -27,7 +29,7 @@ pub fn diagnostics(storage_item: &StorageItem) -> Vec<Diagnostic> {
     // Ensure ink! storage item has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut utils::ensure_no_ink_descendants(storage_item, "test"),
+        &mut utils::ensure_no_ink_descendants(storage_item, STORAGE_ITEM_SCOPE_NAME),
     );
 
     results
@@ -137,7 +139,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&storage_item, "test");
+        let results = utils::ensure_no_ink_descendants(&storage_item, STORAGE_ITEM_SCOPE_NAME);
         assert!(results.is_empty());
     }
 
@@ -153,7 +155,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&storage_item, "test");
+        let results = utils::ensure_no_ink_descendants(&storage_item, STORAGE_ITEM_SCOPE_NAME);
         // 1 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.

@@ -5,6 +5,8 @@ use ink_analyzer_ir::Storage;
 use super::utils;
 use crate::Diagnostic;
 
+const STORAGE_SCOPE_NAME: &str = "storage";
+
 /// Runs all ink! storage diagnostics.
 ///
 /// The entry point for finding ink! storage semantic rules is the storage module of the ink_ir crate.
@@ -19,7 +21,7 @@ pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
     // Ensure ink! storage is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L94>.
-    if let Some(diagnostic) = utils::ensure_pub_struct(storage, "storage") {
+    if let Some(diagnostic) = utils::ensure_pub_struct(storage, STORAGE_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -27,14 +29,14 @@ pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L377-L379>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L28-L29>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L74>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(storage, "storage") {
+    if let Some(diagnostic) = utils::ensure_contract_parent(storage, STORAGE_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     // Ensure ink! storage has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut utils::ensure_no_ink_descendants(storage, "storage"),
+        &mut utils::ensure_no_ink_descendants(storage, STORAGE_SCOPE_NAME),
     );
 
     results
@@ -69,7 +71,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_pub_struct(&storage, "storage");
+        let result = utils::ensure_pub_struct(&storage, STORAGE_SCOPE_NAME);
         assert!(result.is_none());
     }
 
@@ -91,7 +93,7 @@ mod tests {
                 }
             });
 
-            let result = utils::ensure_pub_struct(&storage, "storage");
+            let result = utils::ensure_pub_struct(&storage, STORAGE_SCOPE_NAME);
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }
@@ -109,7 +111,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_contract_parent(&storage, "storage");
+        let result = utils::ensure_contract_parent(&storage, STORAGE_SCOPE_NAME);
         assert!(result.is_none());
     }
 
@@ -140,7 +142,7 @@ mod tests {
         ] {
             let storage = parse_first_storage_item(code);
 
-            let result = utils::ensure_contract_parent(&storage, "storage");
+            let result = utils::ensure_contract_parent(&storage, STORAGE_SCOPE_NAME);
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }
@@ -155,7 +157,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&storage, "storage");
+        let results = utils::ensure_no_ink_descendants(&storage, STORAGE_SCOPE_NAME);
         assert!(results.is_empty());
     }
 
@@ -169,7 +171,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&storage, "storage");
+        let results = utils::ensure_no_ink_descendants(&storage, STORAGE_SCOPE_NAME);
         assert_eq!(results.len(), 1);
         assert_eq!(
             results

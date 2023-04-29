@@ -5,6 +5,8 @@ use ink_analyzer_ir::{FromInkAttribute, FromSyntax, Topic};
 use super::utils;
 use crate::{Diagnostic, Severity};
 
+const TOPIC_SCOPE_NAME: &str = "topic";
+
 /// Runs all ink! topic diagnostics.
 ///
 /// The entry point for finding ink! topic semantic rules is the event module of the ink_ir crate.
@@ -24,7 +26,7 @@ pub fn diagnostics(topic: &Topic) -> Vec<Diagnostic> {
     // Ensure ink! topic has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut utils::ensure_no_ink_descendants(topic, "topic"),
+        &mut utils::ensure_no_ink_descendants(topic, TOPIC_SCOPE_NAME),
     );
 
     results

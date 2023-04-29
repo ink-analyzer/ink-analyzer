@@ -6,6 +6,8 @@ use ink_analyzer_ir::{ast, Constructor, InkFn};
 use super::utils;
 use crate::{Diagnostic, Severity};
 
+const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
+
 /// Runs all ink! constructor diagnostics.
 ///
 /// The entry point for finding ink! constructor semantic rules is the constructor module of the ink_ir crate.
@@ -22,7 +24,7 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
 
     // Ensure ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155>.
-    if let Some(diagnostic) = utils::ensure_fn(constructor, "constructor") {
+    if let Some(diagnostic) = utils::ensure_fn(constructor, CONSTRUCTOR_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -33,11 +35,13 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
         utils::append_diagnostics(
             &mut results,
-            &mut utils::ensure_callable_invariants(fn_item, "constructor"),
+            &mut utils::ensure_callable_invariants(fn_item, CONSTRUCTOR_SCOPE_NAME),
         );
 
-        // Ensure ink! constructor `fn` item has no self receiver, see `ensure_no_self_receiver` doc.
-        if let Some(diagnostic) = ensure_no_self_receiver(fn_item) {
+        // Ensure ink! constructor `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L158>.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L107-L128>.
+        if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, CONSTRUCTOR_SCOPE_NAME) {
             utils::push_diagnostic(&mut results, diagnostic);
         }
 
@@ -50,29 +54,10 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
     // Ensure ink! constructor has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut utils::ensure_no_ink_descendants(constructor, "constructor"),
+        &mut utils::ensure_no_ink_descendants(constructor, CONSTRUCTOR_SCOPE_NAME),
     );
 
     results
-}
-
-/// Ensure ink! constructor `fn` has no self receiver (i.e no `&self`, `&mut self`, self or mut self).
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L158>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L107-L128>.
-fn ensure_no_self_receiver(fn_item: &ast::Fn) -> Option<Diagnostic> {
-    if let Some(param_list) = fn_item.param_list() {
-        if let Some(self_param) = param_list.self_param() {
-            return Some(Diagnostic {
-                message: "ink! constructors must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self).".to_string(),
-                range: self_param.syntax().text_range(),
-                severity: Severity::Error,
-            });
-        }
-    }
-
-    None
 }
 
 /// Ensure ink! constructor has a return type.
@@ -81,21 +66,16 @@ fn ensure_no_self_receiver(fn_item: &ast::Fn) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L91-L105>.
 fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
-    let has_returns_type = if let Some(ret_type) = fn_item.ret_type() {
-        ret_type.ty().is_some()
-    } else {
-        false
+    let has_returns_type = match fn_item.ret_type() {
+        Some(ret_type) => ret_type.ty().is_some(),
+        None => false,
     };
 
-    if !has_returns_type {
-        return Some(Diagnostic {
-            message: "ink! constructors must have a return type.".to_string(),
-            range: fn_item.syntax().text_range(),
-            severity: Severity::Error,
-        });
-    }
-
-    None
+    (!has_returns_type).then_some(Diagnostic {
+        message: "ink! constructors must have a return type.".to_string(),
+        range: fn_item.syntax().text_range(),
+        severity: Severity::Error,
+    })
 }
 
 #[cfg(test)]
@@ -168,8 +148,10 @@ mod tests {
                 #code
             });
 
-            let results =
-                utils::ensure_callable_invariants(constructor.fn_item().unwrap(), "constructor");
+            let results = utils::ensure_callable_invariants(
+                constructor.fn_item().unwrap(),
+                CONSTRUCTOR_SCOPE_NAME,
+            );
             assert!(results.is_empty(), "constructor: {}", code);
         }
     }
@@ -269,8 +251,10 @@ mod tests {
                 #code
             });
 
-            let results =
-                utils::ensure_callable_invariants(constructor.fn_item().unwrap(), "constructor");
+            let results = utils::ensure_callable_invariants(
+                constructor.fn_item().unwrap(),
+                CONSTRUCTOR_SCOPE_NAME,
+            );
             assert_eq!(results.len(), 1, "constructor: {}", code);
             assert_eq!(
                 results[0].severity,
@@ -289,7 +273,10 @@ mod tests {
                 #code
             });
 
-            let result = ensure_no_self_receiver(constructor.fn_item().unwrap());
+            let result = utils::ensure_no_self_receiver(
+                constructor.fn_item().unwrap(),
+                CONSTRUCTOR_SCOPE_NAME,
+            );
             assert!(result.is_none(), "constructor: {}", code);
         }
     }
@@ -328,7 +315,10 @@ mod tests {
                 #code
             });
 
-            let result = ensure_no_self_receiver(constructor.fn_item().unwrap());
+            let result = utils::ensure_no_self_receiver(
+                constructor.fn_item().unwrap(),
+                CONSTRUCTOR_SCOPE_NAME,
+            );
             assert!(result.is_some(), "constructor: {}", code);
             assert_eq!(
                 result.unwrap().severity,
@@ -393,7 +383,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&constructor, "constructor");
+        let results = utils::ensure_no_ink_descendants(&constructor, CONSTRUCTOR_SCOPE_NAME);
         assert!(results.is_empty());
     }
 
@@ -410,7 +400,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&constructor, "constructor");
+        let results = utils::ensure_no_ink_descendants(&constructor, CONSTRUCTOR_SCOPE_NAME);
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // both diagnostics should be errors.

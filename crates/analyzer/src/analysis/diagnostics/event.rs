@@ -6,6 +6,8 @@ use ink_analyzer_ir::{Event, FromSyntax, InkArgKind, InkAttributeKind, InkItem, 
 use super::{topic, utils};
 use crate::{Diagnostic, Severity};
 
+const EVENT_SCOPE_NAME: &str = "event";
+
 /// Runs all ink! event diagnostics.
 ///
 /// The entry point for finding ink! event semantic rules is the event module of the ink_ir crate.
@@ -20,14 +22,14 @@ pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
     // Ensure ink! event is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L105>.
-    if let Some(diagnostic) = utils::ensure_pub_struct(event, "event") {
+    if let Some(diagnostic) = utils::ensure_pub_struct(event, EVENT_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     // Ensure ink! event is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L475>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L79>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(event, "event") {
+    if let Some(diagnostic) = utils::ensure_contract_parent(event, EVENT_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -45,7 +47,7 @@ pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
         &mut event.topics().iter().flat_map(topic::diagnostics).collect(),
     );
 
-    // Ensure ink! event fields are not annotated with cfg attributes, see `ensure_no_cfg_event_fields` doc.
+    // Ensure ink! event fields are not annotated with `cfg` attributes, see `ensure_no_cfg_event_fields` doc.
     utils::append_diagnostics(&mut results, &mut ensure_no_cfg_event_fields(event));
 
     results
@@ -55,18 +57,15 @@ pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L99-L104>.
 fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
-    if let Some(struct_item) = event.struct_item() {
-        if let Some(generics) = struct_item.generic_param_list() {
-            return Some(Diagnostic {
-                message: "Generic types on ink! event `struct` items are not currently supported."
-                    .to_string(),
-                range: generics.syntax().text_range(),
-                severity: Severity::Error,
-            });
-        }
-    }
-
-    None
+    event
+        .struct_item()?
+        .generic_param_list()
+        .map(|generics| Diagnostic {
+            message: "Generic types on ink! event `struct` items are not currently supported."
+                .to_string(),
+            range: generics.syntax().text_range(),
+            severity: Severity::Error,
+        })
 }
 
 /// Ensure ink! event has only ink! topic annotations (if any) on it's descendants.
@@ -76,15 +75,11 @@ fn ensure_only_ink_topic_descendants(item: &Event) -> Vec<Diagnostic> {
     item.ink_attrs_descendants()
         .iter()
         .filter_map(|attr| {
-            if *attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic) {
-                return Some(Diagnostic {
-                    message: format!("`{}` can't be used inside an ink! event.", attr.syntax()),
-                    range: attr.syntax().text_range(),
-                    severity: Severity::Error,
-                });
-            }
-
-            None
+            (*attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic)).then_some(Diagnostic {
+                message: format!("`{}` can't be used inside an ink! event.", attr.syntax()),
+                range: attr.syntax().text_range(),
+                severity: Severity::Error,
+            })
         })
         .collect()
 }
@@ -154,7 +149,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_pub_struct(&event, "event");
+        let result = utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME);
         assert!(result.is_none());
     }
 
@@ -177,7 +172,7 @@ mod tests {
                 }
             });
 
-            let result = utils::ensure_pub_struct(&event, "event");
+            let result = utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME);
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }
@@ -196,7 +191,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_contract_parent(&event, "event");
+        let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
         assert!(result.is_none());
     }
 
@@ -229,7 +224,7 @@ mod tests {
         ] {
             let event = parse_first_event_item(code);
 
-            let result = utils::ensure_contract_parent(&event, "event");
+            let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }

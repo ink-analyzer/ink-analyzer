@@ -9,6 +9,8 @@ use std::collections::HashSet;
 use super::{extension, utils};
 use crate::{Diagnostic, Severity};
 
+const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
+
 /// Runs all ink! chain extension diagnostics.
 ///
 /// The entry point for finding ink! chain extension semantic rules is the chain_extension module of the ink_ir crate.
@@ -27,7 +29,7 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
 
     // Ensure ink! chain extension is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L222>.
-    if let Some(diagnostic) = utils::ensure_trait(chain_extension, "chain extension") {
+    if let Some(diagnostic) = utils::ensure_trait(chain_extension, CHAIN_EXTENSION_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -37,7 +39,7 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
         utils::append_diagnostics(
             &mut results,
-            &mut utils::ensure_trait_invariants(trait_item, "chain extension"),
+            &mut utils::ensure_trait_invariants(trait_item, CHAIN_EXTENSION_SCOPE_NAME),
         );
 
         // Ensure ink! chain extension `trait` item's associated items satisfy all invariants,
@@ -54,11 +56,6 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
             .flat_map(extension::diagnostics)
             .collect(),
     );
-
-    // Ensure at least one ink! extension, see `ensure_contains_message` doc.
-    if let Some(diagnostic) = ensure_contains_extension(chain_extension) {
-        utils::push_diagnostic(&mut results, diagnostic);
-    }
 
     // Ensure exactly one `ErrorCode` associated type is defined, see `ensure_error_code_quantity` doc.
     utils::append_diagnostics(
@@ -100,19 +97,21 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
             // All trait methods should be ink! extensions.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L447-L464>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L501>.
-            if let Some(extension_item) = ink_analyzer_ir::ink_attrs(fn_item.syntax())
+            match ink_analyzer_ir::ink_attrs(fn_item.syntax())
                 .into_iter()
                 .find_map(Extension::cast)
             {
                 // Run ink! extension diagnostics, see `extension::diagnostics` doc.
-                results.append(&mut extension::diagnostics(&extension_item));
-            } else {
-                results.push(Diagnostic {
+                Some(extension_item) => {
+                    results.append(&mut extension::diagnostics(&extension_item))
+                }
+                // Add diagnostic if method isn't an ink! extension.
+                None => results.push(Diagnostic {
                     message: "All ink! chain extension methods must be ink! extensions."
                         .to_string(),
                     range: fn_item.syntax().text_range(),
                     severity: Severity::Error,
-                })
+                }),
             }
 
             results
@@ -122,10 +121,9 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L256-L307>.
             let mut results = Vec::new();
 
-            let (is_named_error_code, name_marker) = if let Some(name) = type_alias.name() {
-                (name.to_string() == "ErrorCode", Some(name))
-            } else {
-                (false, None)
+            let (is_named_error_code, name_marker) = match type_alias.name() {
+                Some(name) => (name.to_string() == "ErrorCode", Some(name)),
+                None => (false, None),
             };
 
             if !is_named_error_code {
@@ -133,10 +131,9 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
                     message:
                         "The associated type of ink! chain extensions must be named `ErrorCode`."
                             .to_string(),
-                    range: if let Some(name) = name_marker {
-                        name.syntax().text_range()
-                    } else {
-                        trait_item.syntax().text_range()
+                    range: match name_marker {
+                        Some(name) => name.syntax().text_range(),
+                        None => trait_item.syntax().text_range(),
                     },
                     severity: Severity::Error,
                 });
@@ -165,21 +162,6 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
             }
 
             results
-        },
-    )
-}
-
-/// Ensure at least one ink! extension.
-///
-/// Ref: <>.
-fn ensure_contains_extension(chain_extension: &ChainExtension) -> Option<Diagnostic> {
-    utils::ensure_at_least_one_item(
-        chain_extension.extensions(),
-        Diagnostic {
-            message: "At least one ink! extension has to be defined for an ink! chain extension."
-                .to_string(),
-            range: chain_extension.syntax().text_range(),
-            severity: Severity::Error,
         },
     )
 }
@@ -217,15 +199,15 @@ fn ensure_no_overlapping_ids(chain_extension: &ChainExtension) -> Vec<Diagnostic
     let mut seen_extensions: HashSet<u32> = HashSet::new();
     chain_extension.extensions().iter().filter_map(|extension| {
         let extension_id = extension.extension_arg()?.value()?.as_u32()?;
-        if seen_extensions.get(&extension_id).is_some() {
-            return Some(Diagnostic {
-                message: "Extension ids must be unique across all ink! extensions in an ink! chain extension.".to_string(),
-                range: extension.ink_attr().syntax().text_range(),
-                severity: Severity::Error,
-            });
-        }
+        let is_seen = seen_extensions.get(&extension_id).is_some();
+
         seen_extensions.insert(extension_id);
-        None
+
+        is_seen.then_some(Diagnostic {
+            message: "Extension ids must be unique across all ink! extensions in an ink! chain extension.".to_string(),
+            range: extension.ink_attr().syntax().text_range(),
+            severity: Severity::Error,
+        })
     }).collect()
 }
 
@@ -265,6 +247,10 @@ mod tests {
     macro_rules! valid_chain_extensions {
         () => {
             [
+                // No methods.
+                quote! {
+                    // Chain extension with no methods is valid.
+                },
                 // Simple.
                 quote! {
                     #[ink(extension=1)]
@@ -557,31 +543,6 @@ mod tests {
                 items
             );
         }
-    }
-
-    #[test]
-    fn one_or_multiple_extensions_works() {
-        for code in valid_chain_extensions!() {
-            let chain_extension = parse_first_chain_extension(quote_as_str! {
-                #code
-            });
-
-            let result = ensure_contains_extension(&chain_extension);
-            assert!(result.is_none(), "chain extension: {}", code);
-        }
-    }
-
-    #[test]
-    fn missing_extension_fails() {
-        let chain_extension = parse_first_chain_extension(quote_as_str! {
-            #[ink::chain_extension]
-            pub trait MyChainExtension {
-            }
-        });
-
-        let result = ensure_contains_extension(&chain_extension);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
     }
 
     #[test]

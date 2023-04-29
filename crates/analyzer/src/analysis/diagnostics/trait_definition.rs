@@ -9,6 +9,8 @@ use ink_analyzer_ir::{
 use super::{message, utils};
 use crate::{Diagnostic, Severity};
 
+const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
+
 /// Runs all ink! trait definition diagnostics.
 ///
 /// The entry point for finding ink! trait definition semantic rules is the trait_def module of the ink_ir crate.
@@ -27,7 +29,7 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
 
     // Ensure ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
-    if let Some(diagnostic) = utils::ensure_trait(trait_definition, "trait definition") {
+    if let Some(diagnostic) = utils::ensure_trait(trait_definition, TRAIT_DEFINITION_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -37,7 +39,7 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
         utils::append_diagnostics(
             &mut results,
-            &mut utils::ensure_trait_invariants(trait_item, "trait definition"),
+            &mut utils::ensure_trait_invariants(trait_item, TRAIT_DEFINITION_SCOPE_NAME),
         );
 
         // Ensure ink! trait definition `trait` item's associated items satisfy all invariants,
@@ -287,7 +289,7 @@ mod tests {
 
             let results = utils::ensure_trait_invariants(
                 trait_definition.trait_item().unwrap(),
-                "trait definition",
+                TRAIT_DEFINITION_SCOPE_NAME,
             );
             assert!(results.is_empty(), "trait definition: {}", code);
         }
@@ -344,7 +346,7 @@ mod tests {
 
             let results = utils::ensure_trait_invariants(
                 trait_definition.trait_item().unwrap(),
-                "trait definition",
+                TRAIT_DEFINITION_SCOPE_NAME,
             );
             assert_eq!(results.len(), 1, "trait definition: {}", code);
             assert_eq!(

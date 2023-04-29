@@ -5,6 +5,8 @@ use ink_analyzer_ir::InkTest;
 use super::utils;
 use crate::Diagnostic;
 
+const TEST_SCOPE_NAME: &str = "test";
+
 /// Runs all ink! test diagnostics.
 ///
 /// The entry point for finding ink! test semantic rules is the ink_test module of the ink_ir crate.
@@ -20,14 +22,14 @@ pub fn diagnostics(ink_test: &InkTest) -> Vec<Diagnostic> {
 
     // Ensure ink! test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
-    if let Some(diagnostic) = utils::ensure_fn(ink_test, "test") {
+    if let Some(diagnostic) = utils::ensure_fn(ink_test, TEST_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     // Ensure ink! test has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut utils::ensure_no_ink_descendants(ink_test, "test"),
+        &mut utils::ensure_no_ink_descendants(ink_test, TEST_SCOPE_NAME),
     );
 
     results
@@ -61,7 +63,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_fn(&ink_test, "test");
+        let result = utils::ensure_fn(&ink_test, TEST_SCOPE_NAME);
         assert!(result.is_none());
     }
 
@@ -89,7 +91,7 @@ mod tests {
                 #code
             });
 
-            let result = utils::ensure_fn(&ink_test, "test");
+            let result = utils::ensure_fn(&ink_test, TEST_SCOPE_NAME);
             assert!(result.is_some(), "ink test: {}", code);
             assert_eq!(
                 result.unwrap().severity,
@@ -108,7 +110,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&ink_test, "test");
+        let results = utils::ensure_no_ink_descendants(&ink_test, TEST_SCOPE_NAME);
         assert!(results.is_empty());
     }
 
@@ -125,7 +127,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&ink_test, "test");
+        let results = utils::ensure_no_ink_descendants(&ink_test, TEST_SCOPE_NAME);
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.

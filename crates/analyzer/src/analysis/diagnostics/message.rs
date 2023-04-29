@@ -6,6 +6,8 @@ use ink_analyzer_ir::{ast, InkFn, Message};
 use super::utils;
 use crate::{Diagnostic, Severity};
 
+const MESSAGE_SCOPE_NAME: &str = "message";
+
 /// Runs all ink! message diagnostics.
 ///
 /// The entry point for finding ink! message semantic rules is the message module of the ink_ir crate.
@@ -19,7 +21,7 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
 
     // Ensure ink! message is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
-    if let Some(diagnostic) = utils::ensure_fn(message, "message") {
+    if let Some(diagnostic) = utils::ensure_fn(message, MESSAGE_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
@@ -30,7 +32,7 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
         utils::append_diagnostics(
             &mut results,
-            &mut utils::ensure_callable_invariants(fn_item, "message"),
+            &mut utils::ensure_callable_invariants(fn_item, MESSAGE_SCOPE_NAME),
         );
 
         // Ensure ink! message `fn` item has a self reference receiver, see `ensure_receiver_is_self_ref` doc.
@@ -47,7 +49,7 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
     // Ensure ink! message has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut utils::ensure_no_ink_descendants(message, "message"),
+        &mut utils::ensure_no_ink_descendants(message, MESSAGE_SCOPE_NAME),
     );
 
     results
@@ -80,9 +82,10 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
     (!has_self_ref_receiver).then_some(Diagnostic {
         message: "ink! messages must have a self reference receiver (i.e `&self` or `&mut self`)."
             .to_string(),
-        range: marker_token
-            .unwrap_or(fn_item.syntax().to_owned())
-            .text_range(),
+        range: match marker_token {
+            Some(token) => token.text_range(),
+            None => fn_item.syntax().text_range(),
+        },
         severity: Severity::Error,
     })
 }
@@ -228,7 +231,8 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(message.fn_item().unwrap(), "message");
+            let results =
+                utils::ensure_callable_invariants(message.fn_item().unwrap(), MESSAGE_SCOPE_NAME);
             assert!(results.is_empty(), "message: {}", code);
         }
     }
@@ -328,7 +332,8 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(message.fn_item().unwrap(), "message");
+            let results =
+                utils::ensure_callable_invariants(message.fn_item().unwrap(), MESSAGE_SCOPE_NAME);
             assert_eq!(results.len(), 1, "message: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "message: {}", code);
         }
@@ -435,7 +440,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&message, "message");
+        let results = utils::ensure_no_ink_descendants(&message, MESSAGE_SCOPE_NAME);
         assert!(results.is_empty());
     }
 
@@ -452,7 +457,7 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&message, "message");
+        let results = utils::ensure_no_ink_descendants(&message, MESSAGE_SCOPE_NAME);
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
