@@ -44,30 +44,33 @@ impl InkAttribute {
             let args = utils::parse_ink_args(&attr);
             let possible_ink_macro_segment = path_segments.next();
             let mut possible_ink_arg_name: Option<MetaName> = None;
-            let ink_attr_kind = if let Some(ink_macro_segment) = &possible_ink_macro_segment {
-                // More than one path segment means an ink! attribute macro e.g `#[ink::contract]`.
-                if path_segments.next().is_some() {
-                    // Any more path segments means an unknown attribute macro e.g `#[ink::abc::xyz]`.
-                    InkAttributeKind::Macro(InkMacroKind::Unknown)
-                } else {
-                    InkAttributeKind::Macro(InkMacroKind::from(
-                        ink_macro_segment.to_string().as_str(),
-                    ))
+            let ink_attr_kind = match &possible_ink_macro_segment {
+                Some(ink_macro_segment) => {
+                    // More than one path segment means an ink! attribute macro e.g `#[ink::contract]`.
+                    if path_segments.next().is_some() {
+                        // Any more path segments means an unknown attribute macro e.g `#[ink::abc::xyz]`.
+                        InkAttributeKind::Macro(InkMacroKind::Unknown)
+                    } else {
+                        InkAttributeKind::Macro(InkMacroKind::from(
+                            ink_macro_segment.to_string().as_str(),
+                        ))
+                    }
                 }
-            } else {
-                // No additional path segments means an ink! attribute argument e.g ``#[ink(storage)]`.
-                let ink_arg_kind = if args.is_empty() {
-                    InkArgKind::Unknown
-                } else {
-                    // Prioritize arguments so that we choose the best `InkArgKind` for the attribute.
-                    // See `utils::sort_ink_args_by_kind` doc.
-                    // Returns a new list so we don't change the original order for later analysis.
-                    let sorted_args = utils::sort_ink_args_by_kind(&args);
-                    let primary_arg = &sorted_args[0];
-                    possible_ink_arg_name = primary_arg.name().map(|name| name.to_owned());
-                    *primary_arg.kind()
-                };
-                InkAttributeKind::Arg(ink_arg_kind)
+                None => {
+                    // No additional path segments means an ink! attribute argument e.g ``#[ink(storage)]`.
+                    let ink_arg_kind = if args.is_empty() {
+                        InkArgKind::Unknown
+                    } else {
+                        // Prioritize arguments so that we choose the best `InkArgKind` for the attribute.
+                        // See `utils::sort_ink_args_by_kind` doc.
+                        // Returns a new list so we don't change the original order for later analysis.
+                        let sorted_args = utils::sort_ink_args_by_kind(&args);
+                        let primary_arg = &sorted_args[0];
+                        possible_ink_arg_name = primary_arg.name().map(|name| name.to_owned());
+                        *primary_arg.kind()
+                    };
+                    InkAttributeKind::Arg(ink_arg_kind)
+                }
             };
 
             return Some(Self {

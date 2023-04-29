@@ -27,39 +27,40 @@ impl Selector {
     where
         T: InkCallable,
     {
-        let mut selector_bytes: Option<[u8; 4]> = None;
+        let selector_bytes: Option<[u8; 4]> = match Self::provided_int_selector(callable) {
+            // Manually provided integer selector is converted into bytes.
+            Some(manual_int_selector) => Some(manual_int_selector.to_be_bytes()),
+            // Otherwise the selector has to be computed.
+            None => {
+                match Self::get_ident(callable) {
+                    // But only if the callable is a valid `fn` item.
+                    Some(callable_ident) => {
+                        let trait_ident = Self::get_trait_ident(callable);
+                        let namespace = Self::get_namespace(callable);
 
-        // Manually provided integer selector is converted into bytes.
-        if let Some(arg) = callable.selector_arg() {
-            if let Some(manual_int_selector) = arg.as_u32() {
-                selector_bytes = Some(manual_int_selector.to_be_bytes())
+                        let pre_hash_bytes = [namespace, trait_ident, Some(callable_ident)]
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<String>>()
+                            .join("::")
+                            .into_bytes();
+
+                        let mut hasher = <Blake2b<U32>>::new();
+                        hasher.update(pre_hash_bytes);
+                        let hashed_bytes = hasher.finalize();
+
+                        Some([
+                            hashed_bytes[0],
+                            hashed_bytes[1],
+                            hashed_bytes[2],
+                            hashed_bytes[3],
+                        ])
+                    }
+                    // Otherwise no selector is returned.
+                    None => None,
+                }
             }
-        }
-
-        // Otherwise the selector has to be computed, but only if the callable is a valid `fn` item.
-        if selector_bytes.is_none() {
-            let callable_ident = Self::get_ident(callable)?;
-            let trait_ident = Self::get_trait_ident(callable);
-            let namespace = Self::get_namespace(callable);
-
-            let pre_hash_bytes = [namespace, trait_ident, Some(callable_ident)]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<String>>()
-                .join("::")
-                .into_bytes();
-
-            let mut hasher = <Blake2b<U32>>::new();
-            hasher.update(pre_hash_bytes);
-            let hashed_bytes = hasher.finalize();
-
-            selector_bytes = Some([
-                hashed_bytes[0],
-                hashed_bytes[1],
-                hashed_bytes[2],
-                hashed_bytes[3],
-            ]);
-        }
+        };
 
         selector_bytes.map(|value| Self { bytes: value })
     }
@@ -72,6 +73,14 @@ impl Selector {
     /// Returns the big-endian `u32` representation of the selector bytes.
     pub fn into_be_u32(self) -> u32 {
         u32::from_be_bytes(self.bytes)
+    }
+
+    /// Returns the manually provided integer selector (if any).
+    fn provided_int_selector<T>(callable: &T) -> Option<u32>
+    where
+        T: InkCallable,
+    {
+        callable.selector_arg()?.as_u32()
     }
 
     /// Returns the identifier for the callable as a string.

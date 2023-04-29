@@ -8,7 +8,9 @@ use std::fmt;
 /// An ink! attribute meta item value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MetaValue {
+    /// An expression that's equivalent to the meta value but with wrong text ranges and offsets.
     expr: Expr,
+    /// The syntax elements from which the meta value is derived.
     elements: Vec<SyntaxElement>,
 }
 

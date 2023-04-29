@@ -11,7 +11,7 @@ use crate::{InkArg, InkArgKind};
 pub fn parse_ink_args(attr: &Attr) -> Vec<InkArg> {
     if let Some(meta) = attr.meta() {
         if let Some(token_tree) = meta.token_tree() {
-            return parse_args(&token_tree)
+            return parse_meta_items(&token_tree)
                 .into_iter()
                 .map(InkArg::from)
                 .collect();
@@ -57,15 +57,14 @@ pub fn sort_ink_args_by_kind(args: &[InkArg]) -> Vec<InkArg> {
     sorted_args
 }
 
-/// Parse attribute arguments.
-pub fn parse_args(token_tree: &TokenTree) -> Vec<MetaNameValue> {
+/// Parse meta items.
+fn parse_meta_items(token_tree: &TokenTree) -> Vec<MetaNameValue> {
     let l_paren = token_tree.l_paren_token();
     let r_paren = token_tree.r_paren_token();
 
-    let mut last_separator_offset = if let Some(start_token) = l_paren.as_ref() {
-        start_token.text_range().end()
-    } else {
-        token_tree.syntax().text_range().start()
+    let mut last_separator_offset = match l_paren.as_ref() {
+        Some(start_token) => start_token.text_range().end(),
+        None => token_tree.syntax().text_range().start(),
     };
 
     token_tree
@@ -146,20 +145,18 @@ fn get_arg_name(elems: &[SyntaxElement]) -> MetaOption<MetaName> {
 
 fn get_arg_eq(elems: &[SyntaxElement]) -> Option<MetaSeparator> {
     let non_trivia_elems = only_non_trivia_elements(elems);
-    if non_trivia_elems.len() == 1 {
-        MetaSeparator::cast(get_token_at_index(&non_trivia_elems, 0)?.to_owned())
-    } else {
-        None
-    }
+    (non_trivia_elems.len() == 1)
+        .then(|| MetaSeparator::cast(get_token_at_index(&non_trivia_elems, 0)?.to_owned()))?
 }
 
 fn get_arg_value(elems: &[SyntaxElement]) -> MetaOption<MetaValue> {
     if elems.is_empty() {
-        MetaOption::None
-    } else if let Some(path_or_lit) = MetaValue::parse(elems) {
-        MetaOption::Ok(path_or_lit)
-    } else {
-        MetaOption::Err(elems.to_owned())
+        return MetaOption::None;
+    }
+
+    match MetaValue::parse(elems) {
+        Some(expr) => MetaOption::Ok(expr),
+        None => MetaOption::Err(elems.to_owned()),
     }
 }
 

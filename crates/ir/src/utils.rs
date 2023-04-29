@@ -48,9 +48,10 @@ pub fn ink_attrs_closest_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
         .partition_map(|child| {
             let child_ink_attrs = ink_attrs(&child);
             if !child_ink_attrs.is_empty() {
-                return Either::Left(child_ink_attrs);
+                Either::Left(child_ink_attrs)
+            } else {
+                Either::Right(child)
             }
-            Either::Right(child)
         });
 
     // Flatten collected ink attributes.
@@ -113,10 +114,9 @@ pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
 /// for the syntax node.
 pub fn parent_ast_item(node: &SyntaxNode) -> Option<Item> {
     let parent = node.parent()?;
-    if let Some(item) = Item::cast(parent.clone()) {
-        Some(item)
-    } else {
-        parent_ast_item(&parent)
+    match Item::cast(parent.clone()) {
+        Some(item) => Some(item),
+        None => parent_ast_item(&parent),
     }
 }
 
@@ -148,11 +148,10 @@ pub fn ink_parent<T>(node: &SyntaxNode) -> Option<T>
 where
     T: FromInkAttribute,
 {
-    if let Some(parent) = parent_ast_item(node) {
-        return ink_attrs(parent.syntax()).into_iter().find_map(T::cast);
+    match parent_ast_item(node) {
+        Some(parent) => ink_attrs(parent.syntax()).into_iter().find_map(T::cast),
+        None => None,
     }
-
-    None
 }
 
 /// Returns the syntax node's ancestor ink! entities of IR type `T`.
