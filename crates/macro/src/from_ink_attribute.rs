@@ -54,10 +54,9 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                         ident.span(),
                         format!("`{ident}` field must be annotated with ink! attribute kind info e.g `#[macro_kind(Contract)]`"),
                     );
-                    if let Some(combined_error) = &mut field_errors {
-                        combined_error.combine(error);
-                    } else {
-                        field_errors = Some(error);
+                    match &mut field_errors {
+                        Some(combined_error) => combined_error.combine(error),
+                        None => field_errors = Some(error),
                     }
                 }
             }
@@ -75,7 +74,7 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
             let kind_type = config.kind_type;
             let kind_type_variant = config.kind_type_variant;
 
-            let gen = quote! {
+            return Ok(quote! {
                 impl FromInkAttribute for #name {
                     fn ink_attr(&self) -> &InkAttribute {
                         &self.ink_attr.attr()
@@ -97,8 +96,7 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                         None
                     }
                 }
-            };
-            return Ok(gen);
+            });
         }
     }
 

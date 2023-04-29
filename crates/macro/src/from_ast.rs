@@ -14,7 +14,7 @@ pub fn impl_from_ast(ast: &DeriveInput) -> syn::Result<TokenStream> {
             let ast_type = &ast_field.ty;
             let ir_crate_path = utils::get_normalized_ir_crate_path();
 
-            let gen = quote! {
+            return Ok(quote! {
                 impl FromAST for #name {
                     type AST = #ir_crate_path::ast::#ast_type;
 
@@ -22,8 +22,7 @@ pub fn impl_from_ast(ast: &DeriveInput) -> syn::Result<TokenStream> {
                         &self.ast
                     }
                 }
-            };
-            return Ok(gen);
+            });
         }
     }
 

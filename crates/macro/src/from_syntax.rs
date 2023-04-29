@@ -11,25 +11,25 @@ pub fn impl_from_syntax(ast: &DeriveInput) -> syn::Result<TokenStream> {
     let name = &ast.ident;
 
     if let Some(fields) = utils::parse_struct_fields(ast) {
-        let mut expr: Option<TokenStream> = None;
-        if utils::contains_field(fields, "syntax") {
-            expr = Some(syntax_field_return_expr());
+        let expr: Option<TokenStream> = if utils::contains_field(fields, "syntax") {
+            Some(syntax_field_return_expr())
         } else if utils::contains_field(fields, "ast") {
-            expr = Some(ast_field_return_expr());
+            Some(ast_field_return_expr())
         } else if utils::contains_field(fields, "ink_attr") {
-            expr = Some(ink_attr_field_return_expr());
-        }
+            Some(ink_attr_field_return_expr())
+        } else {
+            None
+        };
 
         let ir_crate_path = utils::get_normalized_ir_crate_path();
         if let Some(return_expr) = expr {
-            let gen = quote! {
+            return Ok(quote! {
                 impl FromSyntax for #name {
                     fn syntax(&self) -> &#ir_crate_path::syntax::SyntaxNode {
                         #return_expr
                     }
                 }
-            };
-            return Ok(gen);
+            });
         }
     }
 

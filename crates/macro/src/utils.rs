@@ -28,11 +28,9 @@ pub fn parse_struct_fields(ast: &DeriveInput) -> Option<&FieldsNamed> {
 
 /// Returns field if the list of fields includes a field with the name.
 pub fn find_field<'a>(fields: &'a FieldsNamed, name: &str) -> Option<&'a Field> {
-    fields.named.iter().find(|field| {
-        if let Some(ident) = &field.ident {
-            return ident == name;
-        }
-        false
+    fields.named.iter().find(|field| match &field.ident {
+        Some(ident) => ident == name,
+        None => false,
     })
 }
 
