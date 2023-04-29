@@ -4,6 +4,7 @@ use ink_analyzer_ir::ast::{AstNode, HasName, Trait};
 use ink_analyzer_ir::{
     ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait,
 };
+use std::collections::HashSet;
 
 use super::{extension, utils};
 use crate::{Diagnostic, Severity};
@@ -63,6 +64,12 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
     utils::append_diagnostics(
         &mut results,
         &mut ensure_error_code_type_quantity(chain_extension),
+    );
+
+    // Ensure no ink! extension ids are overlapping, see `ensure_no_overlapping_selectors` doc.
+    utils::append_diagnostics(
+        &mut results,
+        &mut ensure_no_overlapping_ids(chain_extension),
     );
 
     // Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
@@ -203,6 +210,25 @@ fn ensure_error_code_type_quantity(chain_extension: &ChainExtension) -> Vec<Diag
     }
 }
 
+/// Ensure no ink! extension ids are overlapping.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L292-L306>.
+fn ensure_no_overlapping_ids(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
+    let mut seen_extensions: HashSet<u32> = HashSet::new();
+    chain_extension.extensions().iter().filter_map(|extension| {
+        let extension_id = extension.extension_arg()?.value()?.as_u32()?;
+        if seen_extensions.get(&extension_id).is_some() {
+            return Some(Diagnostic {
+                message: "Extension ids must be unique across all ink! extensions in an ink! chain extension.".to_string(),
+                range: extension.ink_attr().syntax().text_range(),
+                severity: Severity::Error,
+            });
+        }
+        seen_extensions.insert(extension_id);
+        None
+    }).collect()
+}
+
 /// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L476-L487>.
@@ -220,7 +246,7 @@ fn ensure_valid_quasi_direct_ink_descendants(chain_extension: &ChainExtension) -
 mod tests {
     use super::*;
     use ink_analyzer_ir::{quote_as_str, InkFile, InkItem, InkMacroKind, InkTrait};
-    use quote::{format_ident, quote};
+    use quote::quote;
 
     fn parse_first_chain_extension(code: &str) -> ChainExtension {
         ChainExtension::cast(
@@ -245,7 +271,7 @@ mod tests {
                     fn my_extension();
 
                     #[ink(extension=2)]
-                    fn my_extension_2();
+                    fn my_extension2();
                 },
                 // Input + output variations.
                 quote! {
@@ -253,22 +279,22 @@ mod tests {
                     fn my_extension();
 
                     #[ink(extension=2)]
-                    fn my_extension(a: i32);
+                    fn my_extension2(a: i32);
 
                     #[ink(extension=3)]
-                    fn my_extension() -> bool;
+                    fn my_extension3() -> bool;
 
                     #[ink(extension=4)]
-                    fn my_extension(a: i32) -> bool;
+                    fn my_extension4(a: i32) -> bool;
 
                     #[ink(extension=5)]
-                    fn my_extension(a: i32) -> (i32, u64, bool);
+                    fn my_extension5(a: i32) -> (i32, u64, bool);
 
                     #[ink(extension=6)]
-                    fn my_extension(a: i32, b: u64, c: [u8; 32]) -> bool;
+                    fn my_extension6(a: i32, b: u64, c: [u8; 32]) -> bool;
 
                     #[ink(extension=7)]
-                    fn my_extension(a: i32, b: u64, c: [u8; 32]) -> (i32, u64, bool);
+                    fn my_extension7(a: i32, b: u64, c: [u8; 32]) -> (i32, u64, bool);
                 },
                 // Handle status.
                 quote! {
@@ -276,22 +302,22 @@ mod tests {
                     fn my_extension();
 
                     #[ink(extension=2, handle_status=false)]
-                    fn my_extension(a: i32);
+                    fn my_extension2(a: i32);
 
                     #[ink(extension=3, handle_status=true)]
-                    fn my_extension() -> bool;
+                    fn my_extension3() -> bool;
 
                     #[ink(extension=4, handle_status=false)]
-                    fn my_extension(a: i32) -> bool;
+                    fn my_extension4(a: i32) -> bool;
 
                     #[ink(extension=5, handle_status=true)]
-                    fn my_extension(a: i32) -> (i32, u64, bool);
+                    fn my_extension5(a: i32) -> (i32, u64, bool);
 
                     #[ink(extension=6, handle_status=false)]
-                    fn my_extension(a: i32, b: u64, c: [u8; 32]) -> bool;
+                    fn my_extension6(a: i32, b: u64, c: [u8; 32]) -> bool;
 
                     #[ink(extension=7, handle_status=true)]
-                    fn my_extension(a: i32, b: u64, c: [u8; 32]) -> (i32, u64, bool);
+                    fn my_extension7(a: i32, b: u64, c: [u8; 32]) -> (i32, u64, bool);
                 },
             ]
             .iter()
@@ -534,44 +560,14 @@ mod tests {
     }
 
     #[test]
-    fn one_extension_works() {
-        let chain_extension = parse_first_chain_extension(quote_as_str! {
-            #[ink::chain_extension]
-            pub trait MyChainExtension {
-                #[ink(extension)]
-                fn my_extension(&self) {
-                }
-            }
-        });
-
-        let result = ensure_contains_extension(&chain_extension);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn multiple_extensions_works() {
-        // Tests snippets with btn 2 and 5 extensions.
-        for idx in 2..=5 {
-            // Creates multiple extensions.
-            let extensions = (1..=idx).map(|i| {
-                let name = format_ident!("my_extension{i}");
-                quote! {
-                    #[ink(extension)]
-                    fn #name(&self) {
-                    }
-                }
-            });
-
-            // Creates contract with multiple extensions.
+    fn one_or_multiple_extensions_works() {
+        for code in valid_chain_extensions!() {
             let chain_extension = parse_first_chain_extension(quote_as_str! {
-                #[ink::chain_extension]
-                pub trait MyChainExtension {
-                    #( #extensions )*
-                }
+                #code
             });
 
             let result = ensure_contains_extension(&chain_extension);
-            assert!(result.is_none());
+            assert!(result.is_none(), "chain extension: {}", code);
         }
     }
 
@@ -590,15 +586,14 @@ mod tests {
 
     #[test]
     fn one_error_code_type_works() {
-        let chain_extension = parse_first_chain_extension(quote_as_str! {
-            #[ink::chain_extension]
-            pub trait MyChainExtension {
-                type ErrorCode = ();
-            }
-        });
+        for code in valid_chain_extensions!() {
+            let chain_extension = parse_first_chain_extension(quote_as_str! {
+                #code
+            });
 
-        let results = ensure_error_code_type_quantity(&chain_extension);
-        assert!(results.is_empty());
+            let results = ensure_error_code_type_quantity(&chain_extension);
+            assert!(results.is_empty(), "chain extension: {}", code);
+        }
     }
 
     #[test]
@@ -648,6 +643,67 @@ mod tests {
     }
 
     #[test]
+    fn non_overlapping_ids_works() {
+        for code in valid_chain_extensions!() {
+            let chain_extension = parse_first_chain_extension(quote_as_str! {
+                #code
+            });
+
+            let results = ensure_no_overlapping_ids(&chain_extension);
+            assert!(results.is_empty(), "chain extension: {}", code);
+        }
+    }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L859-L870>.
+    fn overlapping_ids_fails() {
+        for code in [
+            // Overlapping decimal.
+            quote! {
+                #[ink(extension=1)]
+                fn my_extension();
+
+                #[ink(extension=1)]
+                fn my_extension2();
+            },
+            // Overlapping hexadecimal.
+            quote! {
+                #[ink(extension=0x1)]
+                fn my_extension();
+
+                #[ink(extension=0x1)]
+                fn my_extension2();
+            },
+            // Overlapping detected across decimal and hex representations.
+            quote! {
+                #[ink(extension=1)]
+                fn my_extension();
+
+                #[ink(extension=0x1)]
+                fn my_extension2();
+            },
+        ] {
+            let chain_extension = parse_first_chain_extension(quote_as_str! {
+                #[ink::chain_extension]
+                pub trait MyChainExtension {
+                    #code
+                }
+            });
+
+            let results = ensure_no_overlapping_ids(&chain_extension);
+            // 1 error the overlapping extension id.
+            assert_eq!(results.len(), 1, "chain extension: {}", code);
+            // All diagnostics should be errors.
+            assert_eq!(
+                results[0].severity,
+                Severity::Error,
+                "chain extension: {}",
+                code
+            );
+        }
+    }
+
+    #[test]
     fn valid_quasi_direct_descendant_works() {
         for code in valid_chain_extensions!() {
             let chain_extension = parse_first_chain_extension(quote_as_str! {
@@ -655,7 +711,7 @@ mod tests {
             });
 
             let results = ensure_valid_quasi_direct_ink_descendants(&chain_extension);
-            assert!(results.is_empty());
+            assert!(results.is_empty(), "chain extension: {}", code);
         }
     }
 
