@@ -28,7 +28,7 @@ impl ChainExtension {
         &self.extensions
     }
 
-    /// Returns the ink! extensions for the ink! chain extension.
+    /// Returns the `ErrorCode` associated types for the ink! chain extension.
     pub fn error_codes(&self) -> Vec<TypeAlias> {
         if let Some(trait_item) = self.trait_item() {
             if let Some(assoc_item_list) = trait_item.assoc_item_list() {

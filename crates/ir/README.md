@@ -2,7 +2,7 @@
 
 [ink!](https://use.ink/) intermediate representations (IRs) and abstractions for [ink! analyzer](/crates/analyzer).
 
-This library implements types and utilities for parsing ink! smart contract code into ink! intermediate representations (IRs) and abstractions.
+This library implements types, abstractions and utilities for parsing ink! smart contract code into ink! intermediate representations (IRs) and abstractions.
 
 It uses rust-analyzer's [ra_ap_syntax](https://docs.rs/ra_ap_syntax/latest/ra_ap_syntax/) crate for generating the syntax tree
 of the ink! smart contract code that it then converts into ink! entity intermediate representations and abstractions.

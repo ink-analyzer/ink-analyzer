@@ -112,7 +112,7 @@ impl InkAttribute {
     }
 }
 
-/// The kind of the ink! attribute.
+/// The ink! attribute kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InkAttributeKind {
     /// ink! attribute macros e.g `#[ink::contract]`.

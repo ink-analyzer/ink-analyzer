@@ -30,7 +30,7 @@ pub struct Diagnostic {
     pub severity: Severity,
 }
 
-/// The severity level of the diagnostic.
+/// The severity level of a diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
     /// A diagnostic error.

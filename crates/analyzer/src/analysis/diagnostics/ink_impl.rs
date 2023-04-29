@@ -228,7 +228,7 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L66-L96>.
 ///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/ink_impl.rs#L64-L87>.
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/impl_item.rs#L64-L87>.
 fn ensure_callables_in_root(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     ink_impl
         .constructors()
@@ -245,7 +245,7 @@ fn ensure_callables_in_root(ink_impl: &InkImpl) -> Vec<Diagnostic> {
 
 /// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
-/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/ink_impl.rs#L62-L106>.
+/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/impl_item.rs#L62-L106>.
 fn ensure_valid_quasi_direct_ink_descendants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     utils::ensure_valid_quasi_direct_ink_descendants(ink_impl, |attr| {
         matches!(

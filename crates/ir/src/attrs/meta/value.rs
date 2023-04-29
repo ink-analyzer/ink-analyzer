@@ -13,7 +13,7 @@ pub struct MetaValue {
 }
 
 impl MetaValue {
-    /// Parse (if possible) a sequence of `SyntaxElement`s into an `Expr` that represents meta value.
+    /// Parse (if possible) a sequence of `SyntaxElement`s into an `Expr` that represents the meta value.
     ///
     /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ast/attr_args.rs#L40-L49>.
     ///

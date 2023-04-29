@@ -66,7 +66,7 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
         &mut ensure_error_code_type_quantity(chain_extension),
     );
 
-    // Ensure no ink! extension ids are overlapping, see `ensure_no_overlapping_selectors` doc.
+    // Ensure no ink! extension ids are overlapping, see `ensure_no_overlapping_ids` doc.
     utils::append_diagnostics(
         &mut results,
         &mut ensure_no_overlapping_ids(chain_extension),

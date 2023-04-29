@@ -107,6 +107,9 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
         &mut ensure_impl_parent_for_callables(contract),
     );
 
+    // Ensure ink! impls are defined in the root of the ink! contract, see `ensure_impls_in_root` doc.
+    utils::append_diagnostics(&mut results, &mut ensure_impls_in_root(contract));
+
     // Run ink! test diagnostics, see `ink_test::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
@@ -310,6 +313,36 @@ fn ensure_impl_parent_for_callables(contract: &Contract) -> Vec<Diagnostic> {
                 .iter()
                 .filter_map(|item| utils::ensure_impl_parent(item, "messages")),
         )
+        .collect()
+}
+
+/// Ensure ink! impls are defined in the root of the ink! contract.
+///
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
+fn ensure_impls_in_root(contract: &Contract) -> Vec<Diagnostic> {
+    contract
+        .impls()
+        .iter()
+        .filter_map(|item| {
+            let is_parent = if let Some(parent_contract) =
+                ink_analyzer_ir::ink_parent::<Contract>(item.syntax())
+            {
+                parent_contract.syntax() == contract.syntax()
+            } else {
+                false
+            };
+
+            (!is_parent).then_some(Diagnostic {
+                message:
+                    "ink! impls must be defined in the root of the ink! contract's `mod` item."
+                        .to_string(),
+                range: item.syntax().text_range(),
+                severity: Severity::Error,
+            })
+        })
         .collect()
 }
 
@@ -1115,6 +1148,57 @@ mod tests {
         let results = ensure_impl_parent_for_callables(&contract);
 
         // There should be 2 errors (i.e for the `constructor` and `message`).
+        assert_eq!(results.len(), 2);
+        // All diagnostics should be errors.
+        assert_eq!(
+            results
+                .iter()
+                .filter(|item| item.severity == Severity::Error)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn impls_in_root_works() {
+        for code in valid_contracts!() {
+            let contract = parse_first_contract(quote_as_str! {
+                #code
+            });
+
+            let results = ensure_impls_in_root(&contract);
+            assert!(results.is_empty(), "contract: {}", code);
+        }
+    }
+
+    #[test]
+    fn impls_not_in_root_fails() {
+        let contract = parse_first_contract(quote_as_str! {
+            #[ink::contract]
+            mod my_contract {
+                fn impl_container() {
+                    pub struct MyImpl;
+
+                    impl MyImpl {
+                        #[ink(constructor)]
+                        pub fn my_constructor() -> Self {
+                        }
+
+                        #[ink(message)]
+                        pub fn my_message() {
+                        }
+                    }
+
+                    #[ink(impl)]
+                    impl MyImpl {
+                    }
+                }
+            }
+        });
+
+        let results = ensure_impls_in_root(&contract);
+
+        // There should be 2 errors (i.e one for each of the impls).
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
         assert_eq!(

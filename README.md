@@ -21,7 +21,7 @@ You can find their core implementations in the [diagnostics](/crates/analyzer/sr
 and its ink! entity specific [submodules](/crates/analyzer/src/analysis/diagnostics).
 
 ### 2. [IR (ink-analyzer-ir)](/crates/ir)
-This crate implements types and utilities for parsing ink! smart contract code into ink! intermediate representations (IRs) and abstractions.
+This crate implements types, abstractions and utilities for parsing ink! smart contract code into ink! intermediate representations (IRs) and abstractions.
 
 It uses rust-analyzer's [ra_ap_syntax](https://docs.rs/ra_ap_syntax/latest/ra_ap_syntax/) crate for generating the syntax tree
 of the ink! smart contract code that it then converts into ink! entity intermediate representations and abstractions.
