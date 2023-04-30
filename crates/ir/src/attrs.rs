@@ -223,3 +223,370 @@ impl<T: AstNode> InkAttrData<T> {
         &self.syntax
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+    use ra_ap_syntax::SyntaxKind;
+
+    #[test]
+    fn cast_ink_attribute_works() {
+        for (code, expected_ink_attr) in [
+            // Macro with no arguments.
+            (
+                quote_as_str! {
+                    #[ink::chain_extension]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::ChainExtension),
+                    vec![],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::Contract), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::storage_item]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::StorageItem), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::test]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::Test), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::trait_definition]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
+                    vec![],
+                )),
+            ),
+            // Macro with arguments.
+            (
+                quote_as_str! {
+                    #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::Contract),
+                    vec![
+                        (InkArgKind::Env, Some(SyntaxKind::PATH)),
+                        (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
+                    ],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::storage_item(derive=true)]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::StorageItem),
+                    vec![(InkArgKind::Derive, Some(SyntaxKind::TRUE_KW))],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
+                    vec![
+                        (InkArgKind::Namespace, Some(SyntaxKind::STRING)),
+                        (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
+                    ],
+                )),
+            ),
+            // Argument with no value.
+            (
+                quote_as_str! {
+                    #[ink(storage)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Storage),
+                    vec![(InkArgKind::Storage, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(anonymous)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Anonymous),
+                    vec![(InkArgKind::Anonymous, None)],
+                )),
+            ),
+            // Compound arguments with no value.
+            // NOTE: Required and/or root-level/unambiguous arguments always have the highest priority,
+            // so they become the attribute kind even when they're not the first attribute.
+            (
+                quote_as_str! {
+                    #[ink(event, anonymous)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Event),
+                    vec![(InkArgKind::Event, None), (InkArgKind::Anonymous, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(anonymous, event)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Event),
+                    vec![(InkArgKind::Anonymous, None), (InkArgKind::Event, None)],
+                )),
+            ),
+            // Argument with integer value.
+            (
+                quote_as_str! {
+                    #[ink(selector=1)] // Decimal.
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Selector),
+                    vec![(InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER))],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(extension=0x1)] // Hexadecimal.
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Extension),
+                    vec![(InkArgKind::Extension, Some(SyntaxKind::INT_NUMBER))],
+                )),
+            ),
+            // Argument with wildcard/underscore value.
+            (
+                quote_as_str! {
+                    #[ink(selector=_)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Selector),
+                    vec![(InkArgKind::Selector, Some(SyntaxKind::UNDERSCORE))],
+                )),
+            ),
+            // Argument with string value.
+            (
+                quote_as_str! {
+                    #[ink(namespace="my_namespace")]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Namespace),
+                    vec![(InkArgKind::Namespace, Some(SyntaxKind::STRING))],
+                )),
+            ),
+            // Argument with boolean value.
+            (
+                quote_as_str! {
+                    #[ink(handle_status=true)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::HandleStatus),
+                    vec![(InkArgKind::HandleStatus, Some(SyntaxKind::TRUE_KW))],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(derive=false)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Derive),
+                    vec![(InkArgKind::Derive, Some(SyntaxKind::FALSE_KW))],
+                )),
+            ),
+            // Argument with path value.
+            (
+                quote_as_str! {
+                    #[ink(env=my::env::Types)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Env),
+                    vec![(InkArgKind::Env, Some(SyntaxKind::PATH))],
+                )),
+            ),
+            // Compound arguments of different kinds.
+            // NOTE: Required and/or root-level/unambiguous arguments always have the highest priority,
+            // so they become the attribute kind even when they're not the first attribute.
+            (
+                quote_as_str! {
+                    #[ink(message, payable, selector=1)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Message),
+                    vec![
+                        (InkArgKind::Message, None),
+                        (InkArgKind::Payable, None),
+                        (InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER)),
+                    ],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(selector=1, payable, message)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Message),
+                    vec![
+                        (InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER)),
+                        (InkArgKind::Payable, None),
+                        (InkArgKind::Message, None),
+                    ],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(event, anonymous)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Event),
+                    vec![(InkArgKind::Event, None), (InkArgKind::Anonymous, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(anonymous, event)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Event),
+                    vec![(InkArgKind::Anonymous, None), (InkArgKind::Event, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(extension=1, handle_status=false)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Extension),
+                    vec![
+                        (InkArgKind::Extension, Some(SyntaxKind::INT_NUMBER)),
+                        (InkArgKind::HandleStatus, Some(SyntaxKind::FALSE_KW)),
+                    ],
+                )),
+            ),
+            // Unknown ink! macro.
+            // NOTE: Macros always have the highest priority, even the unknown variety.
+            (
+                quote_as_str! {
+                    #[ink::unknown]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::Unknown), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::xyz]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::Unknown), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::unknown(message)]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::Unknown),
+                    vec![(InkArgKind::Message, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::unknown(selector=1)]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::Unknown),
+                    vec![(InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER))],
+                )),
+            ),
+            // Unknown ink! argument.
+            // NOTE: Unknown arguments always have the lowest priority.
+            (
+                quote_as_str! {
+                    #[ink(unknown)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Unknown),
+                    vec![(InkArgKind::Unknown, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(xyz)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Unknown),
+                    vec![(InkArgKind::Unknown, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(xyz="abc")]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Unknown),
+                    vec![(InkArgKind::Unknown, Some(SyntaxKind::STRING))],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(message, unknown)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Message),
+                    vec![(InkArgKind::Message, None), (InkArgKind::Unknown, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(unknown, message)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Message),
+                    vec![(InkArgKind::Unknown, None), (InkArgKind::Message, None)],
+                )),
+            ),
+            // Non-ink attributes.
+            // These simply return none.
+            (
+                quote_as_str! {
+                    #[cfg_attr(not(feature = "std"), no_std)]
+                },
+                None,
+            ),
+        ] {
+            // Parse attribute.
+            let attr = get_first_attribute(code);
+
+            // Convert attribute to an ink! attribute (if possible).
+            let possible_ink_attr = InkAttribute::cast(attr);
+
+            // Convert the ink! attribute to an array of tuples with
+            // ink! attribute argument kind and an inner array of tuples with
+            // ink! attribute argument kind and meta value syntax kind for easy comparisons.
+            let actual_ink_attr: Option<(InkAttributeKind, Vec<(InkArgKind, Option<SyntaxKind>)>)> =
+                possible_ink_attr.map(|ink_attr| {
+                    (
+                        // ink! attribute kind.
+                        ink_attr.kind().to_owned(),
+                        // array tuples of ink! attribute argument kind and meta value syntax kind.
+                        ink_attr
+                            .args()
+                            .iter()
+                            .map(|arg| {
+                                (arg.kind().to_owned(), arg.value().map(|value| value.kind()))
+                            })
+                            .collect(),
+                    )
+                });
+
+            // actual arguments should match expected arguments.
+            assert_eq!(actual_ink_attr, expected_ink_attr);
+        }
+    }
+}

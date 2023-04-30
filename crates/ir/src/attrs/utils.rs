@@ -160,4 +160,284 @@ fn get_arg_value(elems: &[SyntaxElement]) -> MetaOption<MetaValue> {
     }
 }
 
-// TODO: Add unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::*;
+    use crate::{quote_as_str, InkArgKind};
+    use ra_ap_syntax::SyntaxKind;
+
+    #[test]
+    fn parse_ink_args_works() {
+        for (code, expected_args) in [
+            // No arguments.
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                },
+                vec![],
+            ),
+            // Macro with arguments.
+            (
+                quote_as_str! {
+                    #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+                },
+                vec![
+                    (InkArgKind::Env, Some(SyntaxKind::PATH)),
+                    (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
+                ],
+            ),
+            // Argument with no value.
+            (
+                quote_as_str! {
+                    #[ink(storage)]
+                },
+                vec![(InkArgKind::Storage, None)],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(anonymous)]
+                },
+                vec![(InkArgKind::Anonymous, None)],
+            ),
+            // Compound arguments with no value.
+            (
+                quote_as_str! {
+                    #[ink(event, anonymous)]
+                },
+                vec![(InkArgKind::Event, None), (InkArgKind::Anonymous, None)],
+            ),
+            // Argument with integer value.
+            (
+                quote_as_str! {
+                    #[ink(selector=1)] // Decimal.
+                },
+                vec![(InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER))],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(extension=0x1)] // Hexadecimal.
+                },
+                vec![(InkArgKind::Extension, Some(SyntaxKind::INT_NUMBER))],
+            ),
+            // Argument with wildcard/underscore value.
+            (
+                quote_as_str! {
+                    #[ink(selector=_)]
+                },
+                vec![(InkArgKind::Selector, Some(SyntaxKind::UNDERSCORE))],
+            ),
+            // Argument with string value.
+            (
+                quote_as_str! {
+                    #[ink(namespace="my_namespace")]
+                },
+                vec![(InkArgKind::Namespace, Some(SyntaxKind::STRING))],
+            ),
+            // Argument with boolean value.
+            (
+                quote_as_str! {
+                    #[ink(handle_status=true)]
+                },
+                vec![(InkArgKind::HandleStatus, Some(SyntaxKind::TRUE_KW))],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(derive=false)]
+                },
+                vec![(InkArgKind::Derive, Some(SyntaxKind::FALSE_KW))],
+            ),
+            // Argument with path value.
+            (
+                quote_as_str! {
+                    #[ink(env=my::env::Types)]
+                },
+                vec![(InkArgKind::Env, Some(SyntaxKind::PATH))],
+            ),
+            // Compound arguments of different kinds.
+            (
+                quote_as_str! {
+                    #[ink(message, payable, selector=1)]
+                },
+                vec![
+                    (InkArgKind::Message, None),
+                    (InkArgKind::Payable, None),
+                    (InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER)),
+                ],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(extension=1, handle_status=false)]
+                },
+                vec![
+                    (InkArgKind::Extension, Some(SyntaxKind::INT_NUMBER)),
+                    (InkArgKind::HandleStatus, Some(SyntaxKind::FALSE_KW)),
+                ],
+            ),
+            // Unknown argument.
+            (
+                quote_as_str! {
+                    #[ink(unknown)]
+                },
+                vec![(InkArgKind::Unknown, None)],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(xyz)]
+                },
+                vec![(InkArgKind::Unknown, None)],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(xyz="abc")]
+                },
+                vec![(InkArgKind::Unknown, Some(SyntaxKind::STRING))],
+            ),
+            // Non-ink argument.
+            (
+                quote_as_str! {
+                    #[cfg_attr(not(feature = "std"), no_std)]
+                },
+                vec![(InkArgKind::Unknown, None), (InkArgKind::Unknown, None)],
+            ),
+        ] {
+            // Parse attribute.
+            let attr = get_first_attribute(code);
+
+            // Parse ink! attribute arguments from attribute and convert to an array of tuples with
+            // ink! attribute argument kind and meta value syntax kind for easy comparisons.
+            let actual_args: Vec<(InkArgKind, Option<SyntaxKind>)> = parse_ink_args(&attr)
+                .iter()
+                .map(|arg| (arg.kind().to_owned(), arg.value().map(|value| value.kind())))
+                .collect();
+
+            // actual arguments should match expected arguments.
+            assert_eq!(actual_args, expected_args);
+        }
+    }
+
+    #[test]
+    fn sort_in_args_works() {
+        for (code, expected_order) in [
+            // Required and/or root-level/unambiguous arguments always have the highest priority.
+            (
+                quote_as_str! {
+                    #[ink(message, payable, default, selector=1)]
+                },
+                vec![
+                    InkArgKind::Message,
+                    InkArgKind::Payable,
+                    InkArgKind::Default,
+                    InkArgKind::Selector,
+                ],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(selector=1, payable, default, message)]
+                },
+                vec![
+                    InkArgKind::Message,
+                    InkArgKind::Selector,
+                    InkArgKind::Payable,
+                    InkArgKind::Default,
+                ],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(extension=1, handle_status=false)]
+                },
+                vec![InkArgKind::Extension, InkArgKind::HandleStatus],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(handle_status=false, extension=1)]
+                },
+                vec![InkArgKind::Extension, InkArgKind::HandleStatus],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(event, anonymous)]
+                },
+                vec![InkArgKind::Event, InkArgKind::Anonymous],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(anonymous, event)]
+                },
+                vec![InkArgKind::Event, InkArgKind::Anonymous],
+            ),
+            // Sorting is stable for arguments of the same priority level.
+            (
+                quote_as_str! {
+                    #[ink(payable, default, selector=1)]
+                },
+                vec![
+                    InkArgKind::Payable,
+                    InkArgKind::Default,
+                    InkArgKind::Selector,
+                ],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(selector=1, default, payable)]
+                },
+                vec![
+                    InkArgKind::Selector,
+                    InkArgKind::Default,
+                    InkArgKind::Payable,
+                ],
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+                },
+                vec![InkArgKind::Env, InkArgKind::KeepAttr],
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract(keep_attr="foo,bar", env=my::env::Types)]
+                },
+                vec![InkArgKind::KeepAttr, InkArgKind::Env],
+            ),
+            // Unknown arguments are always last.
+            (
+                quote_as_str! {
+                    #[ink::contract(unknown, keep_attr="foo,bar", env=my::env::Types)]
+                },
+                vec![InkArgKind::KeepAttr, InkArgKind::Env, InkArgKind::Unknown],
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract(xyz, keep_attr="foo,bar", env=my::env::Types)]
+                },
+                vec![InkArgKind::KeepAttr, InkArgKind::Env, InkArgKind::Unknown],
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract(keep_attr="foo,bar", xyz, env=my::env::Types)]
+                },
+                vec![InkArgKind::KeepAttr, InkArgKind::Env, InkArgKind::Unknown],
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract(keep_attr="foo,bar", env=my::env::Types, xyz)]
+                },
+                vec![InkArgKind::KeepAttr, InkArgKind::Env, InkArgKind::Unknown],
+            ),
+        ] {
+            // Parse attribute.
+            let attr = get_first_attribute(code);
+            let args = parse_ink_args(&attr);
+
+            // Parse ink! attribute arguments from attribute and
+            // convert to an array of ink! attribute argument kinds for easy comparisons.
+            let actual_order: Vec<InkArgKind> = sort_ink_args_by_kind(&args)
+                .iter()
+                .map(|arg| arg.kind().to_owned())
+                .collect();
+
+            // actual order of argument kinds should match expected order.
+            assert_eq!(actual_order, expected_order);
+        }
+    }
+}
