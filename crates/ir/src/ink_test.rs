@@ -18,3 +18,24 @@ impl InkFn for InkTest {
         self.ink_attr.parent_ast()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+            #[ink::test]
+            fn it_works() {
+            }
+        });
+
+        let ink_test = InkTest::cast(ink_attr).unwrap();
+
+        // `fn` item exists.
+        assert!(ink_test.fn_item().is_some());
+    }
+}

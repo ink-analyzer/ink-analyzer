@@ -14,9 +14,9 @@ pub struct Contract {
     /// ink! attribute IR data.
     #[macro_kind(Contract)]
     ink_attr: InkAttrData<Module>,
-    /// ink! storage items.
+    /// ink! storage definition.
     #[arg_kind(Storage)]
-    storage: Vec<Storage>,
+    storage: Option<Storage>,
     /// ink! events.
     #[arg_kind(Event)]
     events: Vec<Event>,
@@ -50,9 +50,9 @@ impl Contract {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::KeepAttr)
     }
 
-    /// Returns the ink! storage items for the ink! contract.
-    pub fn storage(&self) -> &[Storage] {
-        &self.storage
+    /// Returns the ink! storage definition for the ink! contract.
+    pub fn storage(&self) -> Option<&Storage> {
+        self.storage.as_ref()
     }
 
     /// Returns the ink! events for the ink! contract.
@@ -78,5 +78,134 @@ impl Contract {
     /// Returns the ink! tests for the ink! contract.
     pub fn tests(&self) -> &[InkTest] {
         &self.tests
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+            #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+            mod MyContract {
+                #[ink(storage)]
+                pub struct MyContract {}
+
+                #[ink(event)]
+                pub struct MyEvent {
+                }
+
+                #[ink(event, anonymous)]
+                pub struct MyEvent2 {
+                }
+
+                impl MyContract {
+                    #[ink(constructor, payable, default, selector=_)]
+                    pub fn my_constructor() -> Self {}
+
+                    #[ink(message, payable, default, selector=_)]
+                    pub fn my_message(&self) {}
+                }
+
+                impl MyTrait for MyContract {
+                    #[ink(constructor, payable, default, selector=1)]
+                    fn my_constructor() -> Self {}
+
+                    #[ink(message, payable, default, selector=1)]
+                    fn my_message(&self) {}
+                }
+
+                impl ::my_full::long_path::MyTrait for MyContract {
+                    #[ink(constructor, payable, default, selector=0x2)]
+                    fn my_constructor() -> Self {}
+
+                    #[ink(message, payable, default, selector=0x2)]
+                    fn my_message(&self) {}
+                }
+
+                impl relative_path::MyTrait for MyContract {
+                    #[ink(constructor, payable, default, selector=3)]
+                    fn my_constructor() -> Self {}
+
+                    #[ink(message, payable, default, selector=3)]
+                    fn my_message(&self) {}
+                }
+
+                #[ink(namespace="my_namespace")]
+                impl MyContract {
+                    #[ink(constructor, payable, default, selector=4)]
+                    pub fn my_constructor() -> Self {}
+
+                    #[ink(message, payable, default, selector=4)]
+                    pub fn my_message(&self) {}
+                }
+
+                #[ink(impl)]
+                impl MyContract {
+                    #[ink(constructor, payable, default, selector=5)]
+                    pub fn my_constructor() -> Self {}
+
+                    #[ink(message, payable, default, selector=5)]
+                    pub fn my_message(&self) {}
+                }
+
+                #[ink(impl, namespace="my_namespace")]
+                impl MyContract {
+                    #[ink(constructor, payable, default, selector=6)]
+                    pub fn my_constructor() -> Self {}
+
+                    #[ink(message, payable, default, selector=6)]
+                    pub fn my_message(&self) {}
+                }
+
+                #[ink(impl)]
+                impl MyContract {
+                }
+
+                #[cfg(test)]
+                mod tests {
+                    #[ink::test]
+                    fn it_works {
+                    }
+
+                    #[ink::test]
+                    fn it_works2 {
+                    }
+                }
+            }
+        });
+
+        let contract = Contract::cast(ink_attr).unwrap();
+
+        // `env` argument exists.
+        assert!(contract.env_arg().is_some());
+
+        // `keep_attr` argument exists.
+        assert!(contract.keep_attr_arg().is_some());
+
+        // storage definition exists.
+        assert!(contract.storage().is_some());
+
+        // 2 events.
+        assert_eq!(contract.events().len(), 2);
+
+        // 8 impls.
+        assert_eq!(contract.impls().len(), 8);
+
+        // 7 constructors.
+        assert_eq!(contract.constructors().len(), 7);
+
+        // 7 messages.
+        assert_eq!(contract.messages().len(), 7);
+
+        // 2 tests.
+        assert_eq!(contract.tests().len(), 2);
+
+        // `mod` item exists.
+        assert!(contract.module().is_some());
     }
 }

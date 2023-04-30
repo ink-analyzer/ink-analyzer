@@ -19,3 +19,25 @@ impl Topic {
         self.ink_attr.parent_ast()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+            pub struct MyEvent {
+                #[ink(topic)]
+                value: i32,
+            }
+        });
+
+        let topic = Topic::cast(ink_attr).unwrap();
+
+        // `field` item exists.
+        assert!(topic.field().is_some());
+    }
+}

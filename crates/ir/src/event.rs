@@ -36,3 +36,78 @@ impl Event {
         &self.topics
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        for (code, is_anonymous, expected_n_topics) in [
+            (
+                quote_as_str! {
+                    #[ink(event)]
+                    pub struct MyEvent {}
+                },
+                false,
+                0,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(event, anonymous)]
+                    pub struct MyEvent {}
+                },
+                true,
+                0,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(event)]
+                    #[ink(anonymous)]
+                    pub struct MyEvent {}
+                },
+                true,
+                0,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(event)]
+                    pub struct MyEvent {
+                        #[ink(topic)]
+                        value: i32,
+                    }
+                },
+                false,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(event)]
+                    pub struct MyEvent {
+                        #[ink(topic)]
+                        value: i32,
+                        #[ink(topic)]
+                        value2: bool,
+                    }
+                },
+                false,
+                2,
+            ),
+        ] {
+            let ink_attr = parse_first_ink_attribute(code);
+
+            let event = Event::cast(ink_attr).unwrap();
+
+            // `anonymous` argument exists.
+            assert_eq!(event.anonymous_arg().is_some(), is_anonymous);
+
+            // Checks the expected number of topics.
+            assert_eq!(event.topics().len(), expected_n_topics);
+
+            // `struct` item exists.
+            assert!(event.struct_item().is_some());
+        }
+    }
+}

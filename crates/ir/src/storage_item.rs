@@ -24,3 +24,42 @@ impl StorageItem {
         self.ink_attr.parent_ast()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+    use quote::quote;
+
+    #[test]
+    fn cast_works() {
+        for code in [
+            quote! {
+                struct MyStorageItem {
+                }
+            },
+            quote! {
+                enum MyStorageItem {
+                }
+            },
+            quote! {
+                union MyStorageItem {
+                }
+            },
+        ] {
+            let ink_attr = parse_first_ink_attribute(quote_as_str! {
+                #[ink::storage_item(derive=false)]
+                #code
+            });
+
+            let storage_item = StorageItem::cast(ink_attr).unwrap();
+
+            // 1 `derive` argument exists.
+            assert!(storage_item.derive_arg().is_some());
+
+            // ADT item exists.
+            assert!(storage_item.adt().is_some());
+        }
+    }
+}

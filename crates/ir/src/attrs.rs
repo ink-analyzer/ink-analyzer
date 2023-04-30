@@ -40,10 +40,12 @@ impl InkAttribute {
         let mut path_segments = attr.path()?.segments();
 
         let ink_segment = path_segments.next()?;
-        if ink_segment.to_string() == "ink" {
+
+        (ink_segment.to_string() == "ink").then(|| {
             let args = utils::parse_ink_args(&attr);
             let possible_ink_macro_segment = path_segments.next();
             let mut possible_ink_arg_name: Option<MetaName> = None;
+
             let ink_attr_kind = match &possible_ink_macro_segment {
                 Some(ink_macro_segment) => {
                     // More than one path segment means an ink! attribute macro e.g `#[ink::contract]`.
@@ -57,7 +59,7 @@ impl InkAttribute {
                     }
                 }
                 None => {
-                    // No additional path segments means an ink! attribute argument e.g ``#[ink(storage)]`.
+                    // No additional path segments means an ink! attribute argument e.g `#[ink(storage)]`.
                     let ink_arg_kind = if args.is_empty() {
                         InkArgKind::Unknown
                     } else {
@@ -73,17 +75,15 @@ impl InkAttribute {
                 }
             };
 
-            return Some(Self {
+            Self {
                 ast: attr,
                 kind: ink_attr_kind,
                 args,
                 ink: ink_segment,
                 ink_macro: possible_ink_macro_segment,
                 ink_arg_name: possible_ink_arg_name,
-            });
-        }
-
-        None
+            }
+        })
     }
 
     /// Returns the ink! attribute kind.
@@ -561,7 +561,7 @@ mod tests {
             ),
         ] {
             // Parse attribute.
-            let attr = get_first_attribute(code);
+            let attr = parse_first_attribute(code);
 
             // Converts an attribute to an ink! attribute (if possible).
             let possible_ink_attr = InkAttribute::cast(attr);

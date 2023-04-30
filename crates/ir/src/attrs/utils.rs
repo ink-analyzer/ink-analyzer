@@ -302,7 +302,7 @@ mod tests {
             ),
         ] {
             // Parse attribute.
-            let attr = get_first_attribute(code);
+            let attr = parse_first_attribute(code);
 
             // Parse ink! attribute arguments from attribute and convert to an array of tuples with
             // ink! attribute argument kind and meta value syntax kind for easy comparisons.
@@ -426,7 +426,7 @@ mod tests {
             ),
         ] {
             // Parse attribute.
-            let attr = get_first_attribute(code);
+            let attr = parse_first_attribute(code);
             let args = parse_ink_args(&attr);
 
             // Parse ink! attribute arguments from attribute and

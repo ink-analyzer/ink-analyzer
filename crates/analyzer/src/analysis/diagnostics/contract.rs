@@ -3,7 +3,7 @@
 use ink_analyzer_ir::syntax::SyntaxNode;
 use ink_analyzer_ir::{
     Contract, FromSyntax, InkArgKind, InkAttributeKind, InkCallable, InkItem, InkMacroKind,
-    Selector, SelectorArg,
+    Selector, SelectorArg, Storage,
 };
 use std::collections::HashSet;
 
@@ -26,14 +26,13 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensures that exactly one ink! storage item, see `ensure_storage_quantity` doc.
+    // Ensures that exactly one ink! storage definition, see `ensure_storage_quantity` doc.
     utils::append_diagnostics(&mut results, &mut ensure_storage_quantity(contract));
 
     // Run ink! storage diagnostics, see `storage::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
-        &mut contract
-            .storage()
+        &mut ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
             .iter()
             .flat_map(storage::diagnostics)
             .collect(),
@@ -160,13 +159,14 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L328>.
 fn ensure_storage_quantity(contract: &Contract) -> Vec<Diagnostic> {
     utils::ensure_exactly_one_item(
-        contract.storage(),
+        // All storage definitions.
+        &ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()),
         Diagnostic {
-            message: "Missing ink! storage item.".to_string(),
+            message: "Missing ink! storage definition.".to_string(),
             range: contract.syntax().text_range(),
             severity: Severity::Error,
         },
-        "Only one ink! storage item can be defined for an ink! contract.",
+        "Only one ink! storage definition can be defined for an ink! contract.",
         Severity::Error,
     )
 }
@@ -331,8 +331,7 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
 fn ensure_root_items(contract: &Contract) -> Vec<Diagnostic> {
-    contract
-        .storage()
+    ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()) // All storage definitions.
         .iter()
         .filter_map(|item| ensure_parent_contract(contract, item, "storage"))
         .chain(
@@ -422,6 +421,24 @@ mod tests {
 
                             #[ink(message)]
                             pub fn minimal_message(&self) {}
+                        }
+                    }
+                },
+                // Minimal + Mutable message receiver.
+                quote! {
+                    mod minimal {
+                        #[ink(storage)]
+                        pub struct Minimal {}
+
+                        impl Minimal {
+                            #[ink(constructor)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message)]
+                            pub fn minimal_message(&self) {}
+
+                            #[ink(message)]
+                            pub fn minimal_message_mut(&mut self) {}
                         }
                     }
                 },
@@ -891,9 +908,9 @@ mod tests {
 
     #[test]
     fn multiple_storage_items_fails() {
-        // Tests snippets with btn 2 and 5 storage items.
+        // Tests snippets with btn 2 and 5 storage definitions.
         for idx in 2..=5 {
-            // Creates multiple storage items.
+            // Creates multiple storage definitions.
             let storage_items = (1..=idx).map(|i| {
                 let name = format_ident!("MyContract{}", i);
                 quote! {
@@ -903,7 +920,7 @@ mod tests {
                 }
             });
 
-            // Creates contract with multiple storage items.
+            // Creates contract with multiple storage definitions.
             let contract = parse_first_contract(quote_as_str! {
                 #[ink::contract]
                 mod my_contract {
@@ -912,7 +929,7 @@ mod tests {
             });
 
             let results = ensure_storage_quantity(&contract);
-            // There should be `idx-1` extraneous storage items.
+            // There should be `idx-1` extraneous storage definitions.
             assert_eq!(results.len(), idx - 1);
             // All diagnostics should be errors.
             assert_eq!(

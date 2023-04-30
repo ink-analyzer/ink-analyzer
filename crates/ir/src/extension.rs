@@ -32,3 +32,58 @@ impl Extension {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::HandleStatus)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        for (code, has_handle_status) in [
+            (
+                quote_as_str! {
+                    #[ink(extension=1)]
+                    fn my_extension();
+                },
+                false,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(extension=0x1)]
+                    fn my_extension();
+                },
+                false,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(extension=1, handle_status=false)]
+                    fn my_extension();
+                },
+                true,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(extension=1)]
+                    #[ink(handle_status=true)]
+                    fn my_extension();
+                },
+                true,
+            ),
+        ] {
+            let ink_attr = parse_first_ink_attribute(code);
+
+            let extension = Extension::cast(ink_attr).unwrap();
+
+            // `extension_arg` argument exists.
+            assert!(extension.extension_arg().is_some());
+
+            // `handle_status` argument exists.
+            assert_eq!(extension.handle_status_arg().is_some(), has_handle_status);
+
+            // `fn` item exists.
+            assert!(extension.fn_item().is_some());
+        }
+    }
+}

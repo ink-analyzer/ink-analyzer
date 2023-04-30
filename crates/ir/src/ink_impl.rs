@@ -76,3 +76,163 @@ impl InkImpl {
         &self.messages
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use ra_ap_syntax::SourceFile;
+
+    pub fn parse_first_impl_item(code: &str) -> ast::Impl {
+        SourceFile::parse(code)
+            .tree()
+            .syntax()
+            .descendants()
+            .find_map(ast::Impl::cast)
+            .unwrap()
+    }
+
+    #[test]
+    fn cast_works() {
+        for (code, has_impl_attr, has_namespace, n_constructors, n_messages) in [
+            (
+                quote_as_str! {
+                    impl MyContract {
+                        #[ink(constructor, payable, default, selector=_)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message, payable, default, selector=_)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                false,
+                false,
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    impl MyTrait for MyContract {
+                        #[ink(constructor, payable, default, selector=1)]
+                        fn my_constructor() -> Self {}
+
+                        #[ink(message, payable, default, selector=1)]
+                        fn my_message(&self) {}
+                    }
+                },
+                false,
+                false,
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    impl ::my_full::long_path::MyTrait for MyContract {
+                        #[ink(constructor, payable, default, selector=0x2)]
+                        fn my_constructor() -> Self {}
+
+                        #[ink(message, payable, default, selector=0x2)]
+                        fn my_message(&self) {}
+                    }
+                },
+                false,
+                false,
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    impl relative_path::MyTrait for MyContract {
+                        #[ink(constructor, payable, default, selector=3)]
+                        fn my_constructor() -> Self {}
+
+                        #[ink(message, payable, default, selector=3)]
+                        fn my_message(&self) {}
+                    }
+                },
+                false,
+                false,
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(namespace="my_namespace")]
+                    impl MyContract {
+                        #[ink(constructor, payable, default, selector=4)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message, payable, default, selector=4)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                false,
+                true,
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(impl)]
+                    impl MyContract {
+                        #[ink(constructor, payable, default, selector=5)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message, payable, default, selector=5)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                true,
+                false,
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(impl, namespace="my_namespace")]
+                    impl MyContract {
+                        #[ink(constructor, payable, default, selector=6)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message, payable, default, selector=6)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                true,
+                true,
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(impl)]
+                    impl MyContract {
+                    }
+                },
+                true,
+                false,
+                0,
+                0,
+            ),
+        ] {
+            let impl_item = parse_first_impl_item(code);
+
+            let ink_impl = InkImpl::cast(impl_item.syntax().to_owned()).unwrap();
+
+            // ink! impl attribute exists.
+            assert_eq!(ink_impl.impl_attr().is_some(), has_impl_attr);
+
+            // `namespace` argument exists.
+            assert_eq!(ink_impl.namespace_arg().is_some(), has_namespace);
+
+            // number of constructors.
+            assert_eq!(ink_impl.constructors().len(), n_constructors);
+
+            // number of messages.
+            assert_eq!(ink_impl.messages().len(), n_messages);
+
+            // `impl` item exists.
+            assert!(ink_impl.impl_item().is_some());
+        }
+    }
+}

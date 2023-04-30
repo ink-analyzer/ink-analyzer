@@ -29,22 +29,52 @@ impl ChainExtension {
     }
 
     /// Returns the `ErrorCode` associated types for the ink! chain extension.
-    pub fn error_codes(&self) -> Vec<TypeAlias> {
-        if let Some(trait_item) = self.trait_item() {
-            if let Some(assoc_item_list) = trait_item.assoc_item_list() {
-                return assoc_item_list
-                    .assoc_items()
-                    .filter_map(|assoc_item| {
-                        if let AssocItem::TypeAlias(type_alias) = assoc_item {
-                            if let Some(name) = type_alias.name() {
-                                return (name.to_string() == "ErrorCode").then_some(type_alias);
-                            }
+    pub fn error_code(&self) -> Option<TypeAlias> {
+        self.trait_item()?
+            .assoc_item_list()
+            .map(|assoc_item_list| {
+                assoc_item_list.assoc_items().find_map(|assoc_item| {
+                    if let AssocItem::TypeAlias(type_alias) = assoc_item {
+                        if let Some(name) = type_alias.name() {
+                            return (name.to_string() == "ErrorCode").then_some(type_alias);
                         }
-                        None
-                    })
-                    .collect();
+                    }
+                    None
+                })
+            })?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+            #[ink::chain_extension]
+            pub trait MyChainExtension {
+                type ErrorCode = ();
+
+                #[ink(extension=1)]
+                fn my_extension();
+
+                #[ink(extension=2)]
+                fn my_extension2();
             }
-        }
-        Vec::new()
+        });
+
+        let chain_extension = ChainExtension::cast(ink_attr).unwrap();
+
+        // 1 error code.
+        assert!(chain_extension.error_code().is_some());
+
+        // 2 extensions.
+        assert_eq!(chain_extension.extensions().len(), 2);
+
+        // `trait` item exists.
+        assert!(chain_extension.trait_item().is_some());
     }
 }

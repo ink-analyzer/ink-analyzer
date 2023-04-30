@@ -1,6 +1,6 @@
 //! ink! chain extension diagnostics.
 
-use ink_analyzer_ir::ast::{AstNode, HasName, Trait};
+use ink_analyzer_ir::ast::{AssocItem, AstNode, HasName, Trait, TypeAlias};
 use ink_analyzer_ir::{
     ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait,
 };
@@ -172,24 +172,42 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L383-L391>.
 fn ensure_error_code_type_quantity(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
-    let error_codes = chain_extension.error_codes();
-    if error_codes.is_empty() {
-        vec![Diagnostic {
-            message: "Missing `ErrorCode` associated type for ink! chain extension.".to_string(),
-            range: chain_extension.syntax().text_range(),
-            severity: Severity::Error,
-        }]
-    } else {
-        error_codes[1..]
-            .iter()
-            .map(|item| Diagnostic {
-                message: "Duplicate `ErrorCode` associated type for ink! chain extension."
-                    .to_string(),
-                range: item.syntax().text_range(),
-                severity: Severity::Error,
-            })
-            .collect()
+    if let Some(trait_item) = chain_extension.trait_item() {
+        if let Some(assoc_item_list) = trait_item.assoc_item_list() {
+            let error_codes: Vec<TypeAlias> = assoc_item_list
+                .assoc_items()
+                .filter_map(|assoc_item| {
+                    if let AssocItem::TypeAlias(type_alias) = assoc_item {
+                        if let Some(name) = type_alias.name() {
+                            return (name.to_string() == "ErrorCode").then_some(type_alias);
+                        }
+                    }
+                    None
+                })
+                .collect();
+
+            return if error_codes.is_empty() {
+                vec![Diagnostic {
+                    message: "Missing `ErrorCode` associated type for ink! chain extension."
+                        .to_string(),
+                    range: chain_extension.syntax().text_range(),
+                    severity: Severity::Error,
+                }]
+            } else {
+                error_codes[1..]
+                    .iter()
+                    .map(|item| Diagnostic {
+                        message: "Duplicate `ErrorCode` associated type for ink! chain extension."
+                            .to_string(),
+                        range: item.syntax().text_range(),
+                        severity: Severity::Error,
+                    })
+                    .collect()
+            };
+        }
     }
+
+    Vec::new()
 }
 
 /// Ensures that no ink! extension ids are overlapping.
