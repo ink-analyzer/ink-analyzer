@@ -2,7 +2,7 @@
 
 Procedural macros for [ink-analyzer](/crates/analyzer) and [ink-analyzer-ir](/crates/ir).
 
-This library implements procedural macros (e.g. custom derive macros for ink! IR traits) used primarily by the [ir](/crates/ir) crate.
+This library implements procedural macros used primarily by the [ink-analyzer-ir](/crates/ir) crate (e.g. custom derive macros for ink! entity traits).
 
 ## Installation
 
@@ -15,7 +15,7 @@ cargo add ink-analyzer-macro
 ## Usage
 
 ### Example:
-Using custom derive macros for the `FromInkAttribute` and `FromSyntax` traits to create a `Contract` IR type.
+Using custom derive macros for the `FromInkAttribute` and `FromSyntax` traits to create a `Contract` type.
 
 ```rust
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};

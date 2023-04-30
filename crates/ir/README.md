@@ -2,10 +2,15 @@
 
 [ink!](https://use.ink/) intermediate representations (IRs) and abstractions for [ink! analyzer](/crates/analyzer).
 
-This library implements types, abstractions and utilities for parsing ink! smart contract code into ink! intermediate representations (IRs) and abstractions.
+This library implements types and abstractions for all ink! entities (e.g contracts, storage, events, topics, impls, constructors, messages, selectors, tests, trait definitions, chain extensions, storage items e.t.c).
 
-It uses rust-analyzer's [ra_ap_syntax](https://docs.rs/ra_ap_syntax/latest/ra_ap_syntax/) crate for generating the syntax tree
+It uses [rust-analyzer](https://github.com/rust-lang/rust-analyzer)'s [ra_ap_syntax](https://docs.rs/ra_ap_syntax/latest/ra_ap_syntax/) crate for generating the syntax tree
 of the ink! smart contract code that it then converts into ink! entity intermediate representations and abstractions.
+
+It uses [ra_ap_syntax](https://docs.rs/ra_ap_syntax/latest/ra_ap_syntax/) instead of other Rust parsing and syntax tree libraries because ink! analyzer has similar [design goals](https://github.com/rust-lang/rust-analyzer/blob/master/docs/dev/syntax.md#design-goals) to rust-analyzer.
+The most important being that parsing should be:
+- resilient (even if the input is invalid, parser tries to see as much syntax tree fragments in the input as it can).
+- lossless (even if the input is invalid, the tree produced by the parser represents it exactly).
 
 It's the main dependency for the [semantic analyzer](/crates/analyzer) crate.
 

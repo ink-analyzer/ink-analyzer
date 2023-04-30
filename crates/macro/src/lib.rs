@@ -1,7 +1,7 @@
 //! Procedural macros for [ink! analyzer](https://docs.rs/ink-analyzer/latest/ink_analyzer/).
 //!
 //! # Example
-//! Using custom derive macros for the `FromInkAttribute` and `FromSyntax` traits to create a `Contract` IR type.
+//! Using custom derive macros for the `FromInkAttribute` and `FromSyntax` traits to create a `Contract` type.
 //!
 //! ```
 //! use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
