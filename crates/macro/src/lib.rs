@@ -5,13 +5,15 @@
 //!
 //! ```
 //! use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-//! use ink_analyzer_ir::{Event, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Message};
+//! use ink_analyzer_ir::{Event, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Message, Storage};
 //! use ink_analyzer_ir::ast::Module;
 //!
 //! #[derive(FromInkAttribute, FromSyntax)]
 //! struct Contract {
 //!     #[macro_kind(Contract)]
 //!     ink_attr: InkAttrData<Module>,
+//!     #[arg_kind(Storage)]
+//!     storage: Option<Storage>,
 //!     #[arg_kind(Event)]
 //!     events: Vec<Event>,
 //!     #[arg_kind(Message)]
@@ -62,12 +64,12 @@ pub fn from_ast_derive(input: TokenStream) -> TokenStream {
 ///
 /// Apart from the `ink_attr` which is required,
 /// all other fields are optional and can use any valid identifier.
-/// However, if present, they must be `Vec`s of an IR type that matches the `attr_type` of their annotated attribute.
+/// However, if present, they must be either `Vec`s or `Option`s of an ink! entity type that matches the `attr_type` of their annotated attribute.
 ///
 /// # Example
 /// ```
 /// use ink_analyzer_macro::FromInkAttribute;
-/// use ink_analyzer_ir::{Event, FromInkAttribute, InkAttrData, InkAttribute};
+/// use ink_analyzer_ir::{Event, FromInkAttribute, InkAttrData, InkAttribute, Storage};
 /// use ink_analyzer_ir::ast::Module;
 ///
 /// #[derive(FromInkAttribute)]
@@ -75,7 +77,10 @@ pub fn from_ast_derive(input: TokenStream) -> TokenStream {
 ///     // Required `ink_attr` field.
 ///     #[macro_kind(Contract)]
 ///     ink_attr: InkAttrData<Module>,
-///     // Optional ink! events field whose IR type matches it's annotated `attr_type`.
+///     //Optional ink! storage field whose ink! entity type matches it's annotated `attr_type`.
+///     #[arg_kind(Storage)]
+///     storage: Option<Storage>,
+///     // Optional ink! events field whose ink! entity type matches it's annotated `attr_type`.
 ///     #[arg_kind(Event)]
 ///     events: Vec<Event>,
 /// }

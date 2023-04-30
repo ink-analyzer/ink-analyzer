@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned;
-use syn::{Attribute, DeriveInput, Field, Path};
+use syn::{Attribute, DeriveInput, Field, Path, Type};
 
 use crate::utils;
 
@@ -24,7 +24,7 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                         ink_attr_field_config = Some(field_config);
                     } else {
                         let kind_type_variant = field_config.kind_type_variant; // e.g `Contract`, `Storage` e.t.c.
-                        let field_value = if kind_type_variant == syn::parse_quote! { Impl } {
+                        let mut field_value = if kind_type_variant == syn::parse_quote! { Impl } {
                             // ink! impl are a special case because the attribute is actually optional
                             // and validity is determined based on context of descendants.
                             quote! {
@@ -44,6 +44,12 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                                 #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax())
                             }
                         };
+
+                        if is_option_type(&field.ty) {
+                            field_value = quote! {
+                                #field_value.into_iter().next()
+                            }
+                        }
 
                         field_values.push(quote! {
                             #ident: #field_value
@@ -111,6 +117,19 @@ fn get_ink_field_kind_attr(field: &Field) -> Option<&Attribute> {
         return Some(attr);
     }
     utils::find_attribute_by_path(&field.attrs, "arg_kind")
+}
+
+fn is_option_type(field_type: &Type) -> bool {
+    match field_type {
+        Type::Path(type_path) => {
+            if let Some(first_segment) = &type_path.path.segments.first() {
+                first_segment.ident == "Option"
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
 }
 
 struct FieldConfig {
