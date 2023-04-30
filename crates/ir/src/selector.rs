@@ -11,11 +11,10 @@ use crate::{utils, InkArg, InkArgKind, InkCallable, InkImplItem};
 /// The selector of an ink! callable entity.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/selector.rs#L21-L29>.
+///
+/// The selector is four byte array.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Selector {
-    /// The four byte array representation of the selector.
-    bytes: [u8; 4],
-}
+pub struct Selector([u8; 4]);
 
 impl Selector {
     /// Returns the composed selector of the ink! callable entity.
@@ -62,17 +61,17 @@ impl Selector {
             }
         };
 
-        selector_bytes.map(|value| Self { bytes: value })
+        selector_bytes.map(Self)
     }
 
     /// Returns the underlying four bytes.
     pub fn to_bytes(&self) -> [u8; 4] {
-        self.bytes
+        self.0
     }
 
     /// Returns the big-endian `u32` representation of the selector bytes.
     pub fn into_be_u32(self) -> u32 {
-        u32::from_be_bytes(self.bytes)
+        u32::from_be_bytes(self.0)
     }
 
     /// Returns the manually provided integer selector (if any).
