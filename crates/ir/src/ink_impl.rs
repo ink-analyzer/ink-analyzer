@@ -143,10 +143,10 @@ mod tests {
             (
                 quote_as_str! {
                     impl relative_path::MyTrait for MyContract {
-                        #[ink(constructor, payable, default, selector=3)]
+                        #[ink(constructor)]
                         fn my_constructor() -> Self {}
 
-                        #[ink(message, payable, default, selector=3)]
+                        #[ink(message)]
                         fn my_message(&self) {}
                     }
                 },
@@ -159,10 +159,10 @@ mod tests {
                 quote_as_str! {
                     #[ink(namespace="my_namespace")]
                     impl MyContract {
-                        #[ink(constructor, payable, default, selector=4)]
+                        #[ink(constructor)]
                         pub fn my_constructor() -> Self {}
 
-                        #[ink(message, payable, default, selector=4)]
+                        #[ink(message)]
                         pub fn my_message(&self) {}
                     }
                 },
@@ -175,10 +175,10 @@ mod tests {
                 quote_as_str! {
                     #[ink(impl)]
                     impl MyContract {
-                        #[ink(constructor, payable, default, selector=5)]
+                        #[ink(constructor)]
                         pub fn my_constructor() -> Self {}
 
-                        #[ink(message, payable, default, selector=5)]
+                        #[ink(message)]
                         pub fn my_message(&self) {}
                     }
                 },
@@ -191,10 +191,10 @@ mod tests {
                 quote_as_str! {
                     #[ink(impl, namespace="my_namespace")]
                     impl MyContract {
-                        #[ink(constructor, payable, default, selector=6)]
+                        #[ink(constructor)]
                         pub fn my_constructor() -> Self {}
 
-                        #[ink(message, payable, default, selector=6)]
+                        #[ink(message)]
                         pub fn my_message(&self) {}
                     }
                 },

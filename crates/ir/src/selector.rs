@@ -44,6 +44,7 @@ impl Selector {
                             .join("::")
                             .into_bytes();
 
+                        // Computes the BLAKE-2b 256-bit hash for the given input and stores it in output.
                         let mut hasher = <Blake2b<U32>>::new();
                         hasher.update(pre_hash_bytes);
                         let hashed_bytes = hasher.finalize();
@@ -193,4 +194,210 @@ pub enum SelectorArgKind {
     Integer,
     Wildcard,
     Other,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::*;
+    use crate::{Constructor, FromInkAttribute, InkAttribute, Message};
+    use ra_ap_syntax::ast::Attr;
+    use ra_ap_syntax::SourceFile;
+
+    fn first_ink_entity_of_type<T>(code: &str) -> T
+    where
+        T: FromInkAttribute + InkCallable,
+    {
+        SourceFile::parse(code)
+            .tree()
+            .syntax()
+            .descendants()
+            .find_map(|node| T::cast(InkAttribute::cast(Attr::cast(node)?)?))
+            .unwrap()
+    }
+
+    #[test]
+    fn compose_works() {
+        for (code, expected_constructor_selector, expected_message_selector) in [
+            (
+                quote_as_str! {
+                    impl MyContract {
+                        #[ink(constructor, selector=10)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message, selector=10)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                0x0000000A,
+                0x0000000A,
+            ),
+            (
+                quote_as_str! {
+                    impl MyContract {
+                        #[ink(constructor, selector=0xA)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message, selector=0xA)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                0x0000000A,
+                0x0000000A,
+            ),
+            (
+                quote_as_str! {
+                    impl MyContract {
+                        #[ink(constructor, selector=_)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message, selector=_)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                0xE11C2FAF, // First 4-bytes of Blake2b-256 hash of "my_constructor"
+                0x6A469E03, // First 4-bytes of Blake2b-256 hash of "my_message"
+            ),
+            (
+                quote_as_str! {
+                    impl MyContract {
+                        #[ink(constructor)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                0xE11C2FAF, // First 4-bytes of Blake2b-256 hash of "my_constructor"
+                0x6A469E03, // First 4-bytes of Blake2b-256 hash of "my_message"
+            ),
+            (
+                quote_as_str! {
+                    impl MyContract {
+                        #[ink(constructor)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                0xE11C2FAF, // First 4-bytes of Blake2b-256 hash of "my_constructor"
+                0x6A469E03, // First 4-bytes of Blake2b-256 hash of "my_message"
+            ),
+            (
+                quote_as_str! {
+                    impl MyTrait for MyContract {
+                        #[ink(constructor)]
+                        fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        fn my_message(&self) {}
+                    }
+                },
+                0x235E720C, // First 4-bytes of Blake2b-256 hash of "MyTrait::my_constructor"
+                0x04C49446, // First 4-bytes of Blake2b-256 hash of "MyTrait::my_message"
+            ),
+            (
+                quote_as_str! {
+                    impl ::my_full::long_path::MyTrait for MyContract {
+                        #[ink(constructor)]
+                        fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        fn my_message(&self) {}
+                    }
+                },
+                0x647E8959, // First 4-bytes of Blake2b-256 hash of "::my_full::long_path::MyTrait::my_constructor"
+                0x2EC56327, // First 4-bytes of Blake2b-256 hash of "::my_full::long_path::MyTrait::my_message"
+            ),
+            (
+                quote_as_str! {
+                    impl relative_path::MyTrait for MyContract {
+                        #[ink(constructor)]
+                        fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        fn my_message(&self) {}
+                    }
+                },
+                0x235E720C, // First 4-bytes of Blake2b-256 hash of "MyTrait::my_constructor"
+                0x04C49446, // First 4-bytes of Blake2b-256 hash of "MyTrait::my_message"
+            ),
+            (
+                quote_as_str! {
+                    #[ink(namespace="my_namespace")]
+                    impl MyContract {
+                        #[ink(constructor)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                0x3a739109, // First 4-bytes of Blake2b-256 hash of "my_namespace::my_constructor"
+                0xABE89C04, // First 4-bytes of Blake2b-256 hash of "my_namespace::my_message"
+            ),
+        ] {
+            // Parse ink! constructor and ink! message.
+            let constructor: Constructor = first_ink_entity_of_type(code);
+            let message: Message = first_ink_entity_of_type(code);
+
+            // Check selectors.
+            assert_eq!(
+                Selector::compose(&constructor).unwrap().into_be_u32(),
+                expected_constructor_selector
+            );
+            assert_eq!(
+                Selector::compose(&message).unwrap().into_be_u32(),
+                expected_message_selector
+            );
+        }
+    }
+
+    #[test]
+    fn cast_arg_works() {
+        for (code, expected_kind, expected_is_wildcard, expected_u32_value) in [
+            (
+                quote_as_str! {
+                    #[ink(selector=10)]
+                },
+                SelectorArgKind::Integer,
+                false,
+                Some(10u32),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(selector=0xA)]
+                },
+                SelectorArgKind::Integer,
+                false,
+                Some(10u32),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(selector=_)]
+                },
+                SelectorArgKind::Wildcard,
+                true,
+                None,
+            ),
+        ] {
+            // Parse ink! selector argument.
+            let selector_arg = SelectorArg::cast(
+                parse_first_ink_attribute(code)
+                    .args()
+                    .iter()
+                    .find(|arg| *arg.kind() == InkArgKind::Selector)
+                    .unwrap()
+                    .to_owned(),
+            )
+            .unwrap();
+
+            assert_eq!(*selector_arg.kind(), expected_kind);
+
+            assert_eq!(selector_arg.is_wildcard(), expected_is_wildcard);
+
+            assert_eq!(selector_arg.as_u32(), expected_u32_value);
+        }
+    }
 }
