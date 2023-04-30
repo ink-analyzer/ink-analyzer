@@ -18,14 +18,14 @@ pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(storage));
 
-    // Ensure ink! storage is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
+    // Ensures that ink! storage is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L94>.
     if let Some(diagnostic) = utils::ensure_pub_struct(storage, STORAGE_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! storage is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
+    // Ensures that ink! storage is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L377-L379>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L28-L29>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L74>.
@@ -33,7 +33,7 @@ pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! storage has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
+    // Ensures that ink! storage has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::ensure_no_ink_descendants(storage, STORAGE_SCOPE_NAME),

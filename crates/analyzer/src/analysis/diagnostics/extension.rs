@@ -18,14 +18,14 @@ pub fn diagnostics(extension: &Extension) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(extension));
 
-    // Ensure ink! extension is an `fn` item, see `utils::ensure_fn` doc.
+    // Ensures that ink! extension is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L473>.
     if let Some(diagnostic) = utils::ensure_fn(extension, EXTENSION_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     if let Some(fn_item) = extension.fn_item() {
-        // Ensure ink! extension `fn` item satisfies all common invariants of method-based ink! entities,
+        // Ensures that ink! extension `fn` item satisfies all common invariants of method-based ink! entities,
         // see `utils::ensure_method_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L395-L465>.
         utils::append_diagnostics(
@@ -33,14 +33,14 @@ pub fn diagnostics(extension: &Extension) -> Vec<Diagnostic> {
             &mut utils::ensure_method_invariants(fn_item, EXTENSION_SCOPE_NAME),
         );
 
-        // Ensure ink! extension `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
+        // Ensures that ink! extension `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L488-L493>.
         if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, EXTENSION_SCOPE_NAME) {
             utils::push_diagnostic(&mut results, diagnostic);
         }
     }
 
-    // Ensure ink! extension has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
+    // Ensures that ink! extension has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::ensure_no_ink_descendants(extension, EXTENSION_SCOPE_NAME),

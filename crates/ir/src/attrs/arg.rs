@@ -98,7 +98,7 @@ pub enum InkArgKind {
 }
 
 impl From<&str> for InkArgKind {
-    /// Convert a string slice representing a meta item name into an ink! attribute argument kind.
+    /// Converts a string slice representing a meta item name into an ink! attribute argument kind.
     fn from(arg_name: &str) -> Self {
         match arg_name {
             // `#[ink(anonymous)]`

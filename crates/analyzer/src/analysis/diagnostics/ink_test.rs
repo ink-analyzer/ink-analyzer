@@ -20,13 +20,13 @@ pub fn diagnostics(ink_test: &InkTest) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(ink_test));
 
-    // Ensure ink! test is an `fn` item, see `utils::ensure_fn` doc.
+    // Ensures that ink! test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
     if let Some(diagnostic) = utils::ensure_fn(ink_test, TEST_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! test has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
+    // Ensures that ink! test has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::ensure_no_ink_descendants(ink_test, TEST_SCOPE_NAME),

@@ -27,14 +27,14 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
         &mut utils::run_generic_diagnostics(chain_extension),
     );
 
-    // Ensure ink! chain extension is a `trait` item, see `utils::ensure_trait` doc.
+    // Ensures that ink! chain extension is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L222>.
     if let Some(diagnostic) = utils::ensure_trait(chain_extension, CHAIN_EXTENSION_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     if let Some(trait_item) = chain_extension.trait_item() {
-        // Ensure ink! chain extension `trait` item satisfies all common invariants of trait-based ink! entities,
+        // Ensures that ink! chain extension `trait` item satisfies all common invariants of trait-based ink! entities,
         // see `utils::ensure_trait_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
         utils::append_diagnostics(
@@ -42,7 +42,7 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
             &mut utils::ensure_trait_invariants(trait_item, CHAIN_EXTENSION_SCOPE_NAME),
         );
 
-        // Ensure ink! chain extension `trait` item's associated items satisfy all invariants,
+        // Ensures that ink! chain extension `trait` item's associated items satisfy all invariants,
         // see `ensure_trait_item_invariants` doc.
         utils::append_diagnostics(&mut results, &mut ensure_trait_item_invariants(trait_item));
     }
@@ -57,19 +57,19 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure exactly one `ErrorCode` associated type is defined, see `ensure_error_code_quantity` doc.
+    // Ensures that exactly one `ErrorCode` associated type is defined, see `ensure_error_code_quantity` doc.
     utils::append_diagnostics(
         &mut results,
         &mut ensure_error_code_type_quantity(chain_extension),
     );
 
-    // Ensure no ink! extension ids are overlapping, see `ensure_no_overlapping_ids` doc.
+    // Ensures that no ink! extension ids are overlapping, see `ensure_no_overlapping_ids` doc.
     utils::append_diagnostics(
         &mut results,
         &mut ensure_no_overlapping_ids(chain_extension),
     );
 
-    // Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
+    // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // see `ensure_valid_quasi_direct_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
@@ -79,7 +79,7 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! chain extension is a `trait` item whose associated items satisfy all invariants.
+/// Ensures that ink! chain extension is a `trait` item whose associated items satisfy all invariants.
 ///
 /// See reference below for details about checked invariants.
 ///
@@ -166,7 +166,7 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
     )
 }
 
-/// Ensure exactly one `ErrorCode` associated type is defined.
+/// Ensures that exactly one `ErrorCode` associated type is defined.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L292-L305>.
 ///
@@ -192,7 +192,7 @@ fn ensure_error_code_type_quantity(chain_extension: &ChainExtension) -> Vec<Diag
     }
 }
 
-/// Ensure no ink! extension ids are overlapping.
+/// Ensures that no ink! extension ids are overlapping.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L292-L306>.
 fn ensure_no_overlapping_ids(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
@@ -211,7 +211,7 @@ fn ensure_no_overlapping_ids(chain_extension: &ChainExtension) -> Vec<Diagnostic
     }).collect()
 }
 
-/// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L476-L487>.
 fn ensure_valid_quasi_direct_ink_descendants(chain_extension: &ChainExtension) -> Vec<Diagnostic> {

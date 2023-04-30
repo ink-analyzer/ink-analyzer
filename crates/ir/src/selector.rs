@@ -144,7 +144,7 @@ impl SelectorArg {
         *arg.kind() == InkArgKind::Selector
     }
 
-    /// Convert an ink! attribute argument into a Selector IR type.
+    /// Converts an ink! attribute argument into a Selector IR type.
     pub fn cast(arg: InkArg) -> Option<Self> {
         Self::can_cast(&arg).then_some(Self {
             kind: if let Some(value) = arg.value() {

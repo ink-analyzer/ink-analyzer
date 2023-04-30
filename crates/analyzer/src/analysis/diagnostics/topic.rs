@@ -18,12 +18,12 @@ pub fn diagnostics(topic: &Topic) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(topic));
 
-    // Ensure ink! topic is a `struct` field, see `ensure_struct_field` doc.
+    // Ensures that ink! topic is a `struct` field, see `ensure_struct_field` doc.
     if let Some(diagnostic) = ensure_struct_field(topic) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! topic has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
+    // Ensures that ink! topic has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::ensure_no_ink_descendants(topic, TOPIC_SCOPE_NAME),
@@ -32,7 +32,7 @@ pub fn diagnostics(topic: &Topic) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! topic is a `struct` field.
+/// Ensures that ink! topic is a `struct` field.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L106-L140>.
 fn ensure_struct_field(topic: &Topic) -> Option<Diagnostic> {

@@ -27,14 +27,14 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
         &mut utils::run_generic_diagnostics(trait_definition),
     );
 
-    // Ensure ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
+    // Ensures that ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
     if let Some(diagnostic) = utils::ensure_trait(trait_definition, TRAIT_DEFINITION_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     if let Some(trait_item) = trait_definition.trait_item() {
-        // Ensure ink! trait definition `trait` item satisfies all common invariants of trait-based ink! entities,
+        // Ensures that ink! trait definition `trait` item satisfies all common invariants of trait-based ink! entities,
         // see `utils::ensure_trait_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
         utils::append_diagnostics(
@@ -42,7 +42,7 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
             &mut utils::ensure_trait_invariants(trait_item, TRAIT_DEFINITION_SCOPE_NAME),
         );
 
-        // Ensure ink! trait definition `trait` item's associated items satisfy all invariants,
+        // Ensures that ink! trait definition `trait` item's associated items satisfy all invariants,
         // see `ensure_trait_item_invariants` doc.
         utils::append_diagnostics(&mut results, &mut ensure_trait_item_invariants(trait_item));
     }
@@ -57,12 +57,12 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure at least one ink! message, see `ensure_contains_message` doc.
+    // Ensures that at least one ink! message, see `ensure_contains_message` doc.
     if let Some(diagnostic) = ensure_contains_message(trait_definition) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
+    // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // see `ensure_valid_quasi_direct_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
@@ -72,7 +72,7 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! trait definition is a `trait` item whose associated items satisfy all invariants.
+/// Ensures that ink! trait definition is a `trait` item whose associated items satisfy all invariants.
 ///
 /// See reference below for details about checked invariants.
 ///
@@ -139,7 +139,7 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
     )
 }
 
-/// Ensure at least one ink! message.
+/// Ensures that at least one ink! message.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L73-L79>.
 fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnostic> {
@@ -154,7 +154,7 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
     )
 }
 
-/// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L163-L164>.
 ///

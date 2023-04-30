@@ -30,16 +30,16 @@ pub fn append_diagnostics(current: &mut Vec<Diagnostic>, updates: &mut Vec<Diagn
 pub fn run_generic_diagnostics<T: FromSyntax>(item: &T) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Ensure no `__ink_` prefixed identifiers, see `ensure_no_ink_identifiers` doc.
+    // Ensures that no `__ink_` prefixed identifiers, see `ensure_no_ink_identifiers` doc.
     append_diagnostics(&mut results, &mut ensure_no_ink_identifiers(item));
 
-    // Ensure no invalid ink! attributes, see `ensure_no_invalid_ink_attributes` doc.
+    // Ensures that no invalid ink! attributes, see `ensure_no_invalid_ink_attributes` doc.
     append_diagnostics(
         &mut results,
         &mut ensure_no_unknown_ink_attributes(&item.ink_attrs_in_scope()),
     );
 
-    // Ensure ink! attribute arguments are of the right format and have values are of the correct type (if any),
+    // Ensures that ink! attribute arguments are of the right format and have values are of the correct type (if any),
     // See `ensure_valid_attribute_arguments` doc.
     append_diagnostics(
         &mut results,
@@ -50,13 +50,13 @@ pub fn run_generic_diagnostics<T: FromSyntax>(item: &T) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure no duplicate ink! attributes and/or arguments, see `ensure_no_duplicate_attributes_and_arguments` doc.
+    // Ensures that no duplicate ink! attributes and/or arguments, see `ensure_no_duplicate_attributes_and_arguments` doc.
     append_diagnostics(
         &mut results,
         &mut ensure_no_duplicate_attributes_and_arguments(&item.ink_attrs()),
     );
 
-    // Ensure no conflicting ink! attributes and/or arguments, see `ensure_no_conflicting_attributes_and_arguments` doc.
+    // Ensures that no conflicting ink! attributes and/or arguments, see `ensure_no_conflicting_attributes_and_arguments` doc.
     append_diagnostics(
         &mut results,
         &mut ensure_no_conflicting_attributes_and_arguments(&item.ink_attrs()),
@@ -124,7 +124,7 @@ fn ensure_no_unknown_ink_attributes(attrs: &[InkAttribute]) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Ensure ink! attribute arguments are of the right format and have values (if any) of the correct type.
+/// Ensures that ink! attribute arguments are of the right format and have values (if any) of the correct type.
 ///
 /// This utility only cares about ink! attribute arguments, not ink! attribute macros.
 /// So `#[ink(env=my::env::Types)]` will pass with no complaints.
@@ -164,7 +164,7 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
                     (!ensure_valid_attribute_arg_value(
                         arg,
                         |meta_value| {
-                            // Ensure the meta value is either a decimal or hex encoded `u32`.
+                            // Ensures that the meta value is either a decimal or hex encoded `u32`.
                             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
                             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
                             meta_value.as_u32().is_some()
@@ -305,7 +305,7 @@ where
     }
 }
 
-/// Ensure no duplicate ink! attributes and/or arguments.
+/// Ensures that no duplicate ink! attributes and/or arguments.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L169-L208>.
 fn ensure_no_duplicate_attributes_and_arguments(attrs: &[InkAttribute]) -> Vec<Diagnostic> {
@@ -344,7 +344,7 @@ fn ensure_no_duplicate_attributes_and_arguments(attrs: &[InkAttribute]) -> Vec<D
     results
 }
 
-/// Ensure no conflicting ink! attributes and/or arguments.
+/// Ensures that no conflicting ink! attributes and/or arguments.
 ///
 /// In addition to straight forward conflicts
 /// (e.g both `contract` and `trait_definition` applied to the same item,
@@ -689,7 +689,7 @@ fn get_valid_sibling_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
     }
 }
 
-/// Ensure at least one item is defined.
+/// Ensures that at least one item is defined.
 pub fn ensure_at_least_one_item<T>(
     items: &[T],
     empty_diagnostic: Diagnostic,
@@ -697,7 +697,7 @@ pub fn ensure_at_least_one_item<T>(
     items.is_empty().then_some(empty_diagnostic)
 }
 
-/// Ensure an item is not missing and there are not multiple definitions of it as well.
+/// Ensures that an item is not missing and there are not multiple definitions of it as well.
 pub fn ensure_exactly_one_item<T: FromSyntax>(
     items: &[T],
     empty_diagnostic: Diagnostic,
@@ -711,7 +711,7 @@ pub fn ensure_exactly_one_item<T: FromSyntax>(
     ensure_at_most_one_item(items, error_too_many, severity_too_many)
 }
 
-/// Ensure there are not multiple definitions of an item.
+/// Ensures that there are not multiple definitions of an item.
 pub fn ensure_at_most_one_item<T: FromSyntax>(
     items: &[T],
     message: &str,
@@ -730,7 +730,7 @@ pub fn ensure_at_most_one_item<T: FromSyntax>(
     Vec::new()
 }
 
-/// Ensure ink! entity is a `struct` with `pub` visibility.
+/// Ensures that ink! entity is a `struct` with `pub` visibility.
 pub fn ensure_pub_struct<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: FromSyntax + InkStruct,
@@ -765,7 +765,7 @@ where
     })
 }
 
-/// Ensure ink! entity is an `fn` item.
+/// Ensures that ink! entity is an `fn` item.
 pub fn ensure_fn<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: FromSyntax + InkFn,
@@ -777,7 +777,7 @@ where
     })
 }
 
-/// Ensure ink! entity is a `trait` item.
+/// Ensures that ink! entity is a `trait` item.
 pub fn ensure_trait<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: FromSyntax + InkTrait,
@@ -789,7 +789,7 @@ where
     })
 }
 
-/// Ensure an `fn` item has no self receiver (i.e no `&self`, `&mut self`, self or mut self).
+/// Ensures that an `fn` item has no self receiver (i.e no `&self`, `&mut self`, self or mut self).
 pub fn ensure_no_self_receiver(fn_item: &ast::Fn, ink_scope_name: &str) -> Option<Diagnostic> {
     fn_item.param_list()?.self_param().map(|self_param| Diagnostic {
         message: format!("ink! {ink_scope_name}s must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self)."),
@@ -798,7 +798,7 @@ pub fn ensure_no_self_receiver(fn_item: &ast::Fn, ink_scope_name: &str) -> Optio
     })
 }
 
-/// Ensure item is has no generic parameters.
+/// Ensures that item is has no generic parameters.
 pub fn ensure_no_generics<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: HasGenericParams,
@@ -812,7 +812,7 @@ where
     })
 }
 
-/// Ensure item is has no trait bounds.
+/// Ensures that item is has no trait bounds.
 pub fn ensure_no_trait_bounds<T>(item: &T, message: &str) -> Option<Diagnostic>
 where
     T: HasTypeBounds,
@@ -824,7 +824,7 @@ where
     })
 }
 
-/// Ensure `fn` item satisfies all common invariants of method-based ink! entities
+/// Ensures that `fn` item satisfies all common invariants of method-based ink! entities
 /// (i.e `constructor`s, `message`s and `extension`s).
 ///
 /// See reference below for details about checked invariants.
@@ -886,7 +886,7 @@ pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<
     results
 }
 
-/// Ensure `fn` item satisfies all common invariants of externally callable ink! entities
+/// Ensures that `fn` item satisfies all common invariants of externally callable ink! entities
 /// (i.e `constructor`s and `message`s).
 ///
 /// See reference below for details about checked invariants.
@@ -919,7 +919,7 @@ pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Ve
     results
 }
 
-/// Ensure `trait` item satisfies all common invariants of trait-based ink! entities
+/// Ensures that `trait` item satisfies all common invariants of trait-based ink! entities
 /// (i.e `trait_definition`s and `chain_extension`s).
 ///
 /// See references below for details about checked invariants.
@@ -978,7 +978,7 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
     results
 }
 
-/// Ensure item is a `trait` whose associated items satisfy all common invariants of associated items for ink! entities
+/// Ensures that item is a `trait` whose associated items satisfy all common invariants of associated items for ink! entities
 /// (i.e `trait_definition`s and `chain_extension`s).
 ///
 /// See references below for details about checked invariants.
@@ -1039,7 +1039,7 @@ where
     }
 }
 
-/// Ensure item is defined in the root of an ink! contract.
+/// Ensures that item is defined in the root of an ink! contract.
 pub fn ensure_contract_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: FromSyntax,
@@ -1054,7 +1054,7 @@ where
     })
 }
 
-/// Ensure item is defined in the root of an `impl` item.
+/// Ensures that item is defined in the root of an `impl` item.
 pub fn ensure_impl_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: FromSyntax + InkImplItem,
@@ -1066,7 +1066,7 @@ where
     })
 }
 
-/// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
     item: &T,
     is_valid_quasi_direct_descendant: F,
@@ -1090,7 +1090,7 @@ where
         .collect()
 }
 
-/// Ensure no ink! descendants in the item's scope.
+/// Ensures that no ink! descendants in the item's scope.
 pub fn ensure_no_ink_descendants<T>(item: &T, ink_scope_name: &str) -> Vec<Diagnostic>
 where
     T: FromSyntax,

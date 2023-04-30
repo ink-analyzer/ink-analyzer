@@ -21,12 +21,12 @@ pub fn diagnostics(storage_item: &StorageItem) -> Vec<Diagnostic> {
         &mut utils::run_generic_diagnostics(storage_item),
     );
 
-    // Ensure ink! storage item is applied to an `adt` (i.e `enum`, `struct` or `union`) item., see `ensure_adt` doc.
+    // Ensures that ink! storage item is applied to an `adt` (i.e `enum`, `struct` or `union`) item., see `ensure_adt` doc.
     if let Some(diagnostic) = ensure_adt(storage_item) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! storage item has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
+    // Ensures that ink! storage item has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::ensure_no_ink_descendants(storage_item, STORAGE_ITEM_SCOPE_NAME),
@@ -35,7 +35,7 @@ pub fn diagnostics(storage_item: &StorageItem) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! storage item is an `adt` (i.e `enum`, `struct` or `union`) item.
+/// Ensures that ink! storage item is an `adt` (i.e `enum`, `struct` or `union`) item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/mod.rs#L28>.
 ///

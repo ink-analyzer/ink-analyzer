@@ -19,26 +19,26 @@ pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(event));
 
-    // Ensure ink! event is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
+    // Ensures that ink! event is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L105>.
     if let Some(diagnostic) = utils::ensure_pub_struct(event, EVENT_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! event is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
+    // Ensures that ink! event is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L475>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L79>.
     if let Some(diagnostic) = utils::ensure_contract_parent(event, EVENT_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! event struct has no generic parameters, see `ensure_no_generics_on_struct` doc.
+    // Ensures that ink! event struct has no generic parameters, see `ensure_no_generics_on_struct` doc.
     if let Some(diagnostic) = ensure_no_generics_on_struct(event) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure ink! event `struct` fields have no other ink! annotations other than ink! topic, see `ensure_only_ink_topic_fields` doc.
+    // Ensures that ink! event `struct` fields have no other ink! annotations other than ink! topic, see `ensure_only_ink_topic_fields` doc.
     utils::append_diagnostics(&mut results, &mut ensure_only_ink_topic_descendants(event));
 
     // Run ink! topic diagnostics, see `topic::diagnostics` doc.
@@ -47,13 +47,13 @@ pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
         &mut event.topics().iter().flat_map(topic::diagnostics).collect(),
     );
 
-    // Ensure ink! event fields are not annotated with `cfg` attributes, see `ensure_no_cfg_event_fields` doc.
+    // Ensures that ink! event fields are not annotated with `cfg` attributes, see `ensure_no_cfg_event_fields` doc.
     utils::append_diagnostics(&mut results, &mut ensure_no_cfg_event_fields(event));
 
     results
 }
 
-/// Ensure ink! event `struct` has no generic parameters.
+/// Ensures that ink! event `struct` has no generic parameters.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L99-L104>.
 fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
@@ -68,7 +68,7 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
         })
 }
 
-/// Ensure ink! event has only ink! topic annotations (if any) on it's descendants.
+/// Ensures that ink! event has only ink! topic annotations (if any) on it's descendants.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L126-L139>.
 fn ensure_only_ink_topic_descendants(item: &Event) -> Vec<Diagnostic> {
@@ -84,7 +84,7 @@ fn ensure_only_ink_topic_descendants(item: &Event) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Ensure ink! event fields are not annotated with cfg attributes.
+/// Ensures that ink! event fields are not annotated with cfg attributes.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L112-L117>.
 fn ensure_no_cfg_event_fields(event: &Event) -> Vec<Diagnostic> {

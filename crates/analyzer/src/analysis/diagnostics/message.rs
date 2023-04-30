@@ -19,14 +19,14 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(message));
 
-    // Ensure ink! message is an `fn` item, see `utils::ensure_fn` doc.
+    // Ensures that ink! message is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
     if let Some(diagnostic) = utils::ensure_fn(message, MESSAGE_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     if let Some(fn_item) = message.fn_item() {
-        // Ensure ink! message `fn` item satisfies all common invariants of externally callable ink! entities,
+        // Ensures that ink! message `fn` item satisfies all common invariants of externally callable ink! entities,
         // see `utils::ensure_callable_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L202>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
@@ -35,18 +35,18 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
             &mut utils::ensure_callable_invariants(fn_item, MESSAGE_SCOPE_NAME),
         );
 
-        // Ensure ink! message `fn` item has a self reference receiver, see `ensure_receiver_is_self_ref` doc.
+        // Ensures that ink! message `fn` item has a self reference receiver, see `ensure_receiver_is_self_ref` doc.
         if let Some(diagnostic) = ensure_receiver_is_self_ref(fn_item) {
             utils::push_diagnostic(&mut results, diagnostic);
         }
 
-        // Ensure ink! message `fn` item does not return `Self`, see `ensure_not_return_self` doc.
+        // Ensures that ink! message `fn` item does not return `Self`, see `ensure_not_return_self` doc.
         if let Some(diagnostic) = ensure_not_return_self(fn_item) {
             utils::push_diagnostic(&mut results, diagnostic);
         }
     }
 
-    // Ensure ink! message has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
+    // Ensures that ink! message has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::ensure_no_ink_descendants(message, MESSAGE_SCOPE_NAME),
@@ -55,7 +55,7 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! message `fn` has a self reference receiver (i.e `&self` or `&mut self`).
+/// Ensures that ink! message `fn` has a self reference receiver (i.e `&self` or `&mut self`).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L203>.
 ///
@@ -90,7 +90,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
     })
 }
 
-/// Ensure ink! message does not return `Self`.
+/// Ensures that ink! message does not return `Self`.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L204>.
 ///

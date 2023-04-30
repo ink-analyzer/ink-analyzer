@@ -19,16 +19,16 @@ pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(ink_impl));
 
-    // Ensure ink! impl is an `impl` item, see `ensure_impl` doc.
+    // Ensures that ink! impl is an `impl` item, see `ensure_impl` doc.
     if let Some(diagnostic) = ensure_impl(ink_impl) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure `impl` item satisfies all invariants of an ink! impl,
+    // Ensures that `impl` item satisfies all invariants of an ink! impl,
     // see `ensure_impl_invariants` doc.
     utils::append_diagnostics(&mut results, &mut ensure_impl_invariants(ink_impl));
 
-    // Ensure impl block either has an ink! impl annotation or
+    // Ensures that impl block either has an ink! impl annotation or
     // contains at least one ink! constructor or ink! message, see `ensure_contains_callable` doc.
     if let Some(diagnostic) = ensure_annotation_or_contains_callable(ink_impl) {
         utils::push_diagnostic(&mut results, diagnostic);
@@ -54,18 +54,18 @@ pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure ink! messages and constructors are defined in the root of an `impl` item,
+    // Ensures that ink! messages and constructors are defined in the root of an `impl` item,
     // see `ensure_impl_parent_for_callables` doc.
     utils::append_diagnostics(&mut results, &mut ensure_callables_in_root(ink_impl));
 
-    // Ensure ink! impl is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
+    // Ensures that ink! impl is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
     if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, IMPL_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
+    // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
@@ -75,7 +75,7 @@ pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! impl is an `impl` item.
+/// Ensures that ink! impl is an `impl` item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221>.
 fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
@@ -86,7 +86,7 @@ fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
     })
 }
 
-/// Ensure `impl` satisfies all invariants of an ink! impl.
+/// Ensures that `impl` satisfies all invariants of an ink! impl.
 ///
 /// See references below for details about checked invariants.
 ///
@@ -190,7 +190,7 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure impl block either has an ink! impl annotation or contains at least one ink! constructor or ink! message.
+/// Ensures that impl block either has an ink! impl annotation or contains at least one ink! constructor or ink! message.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L119-L210>.
 fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnostic> {
@@ -205,7 +205,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
     })
 }
 
-/// Ensure item is defined in the root of this specific `impl` item.
+/// Ensures that item is defined in the root of this specific `impl` item.
 fn ensure_parent_impl<T>(ink_impl: &InkImpl, item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: InkImplItem + FromSyntax,
@@ -224,7 +224,7 @@ where
     })
 }
 
-/// Ensure ink! messages and constructors are defined in the root of the `impl` item.
+/// Ensures that ink! messages and constructors are defined in the root of the `impl` item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
 ///
@@ -247,7 +247,7 @@ fn ensure_callables_in_root(ink_impl: &InkImpl) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/impl_item.rs#L62-L106>.
 fn ensure_valid_quasi_direct_ink_descendants(ink_impl: &InkImpl) -> Vec<Diagnostic> {

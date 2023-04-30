@@ -12,7 +12,7 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
     // Runs generic diagnostics `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(file));
 
-    // Ensure at most one ink! contract, See `ensure_contract_quantity`.
+    // Ensures that at most one ink! contract, See `ensure_contract_quantity`.
     utils::append_diagnostics(&mut results, &mut ensure_contract_quantity(file));
 
     // ink! contract diagnostics.
@@ -65,7 +65,7 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors),
+    // Ensures that only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
@@ -75,7 +75,7 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure there are not multiple ink! contract definitions.
+/// Ensures that there are not multiple ink! contract definitions.
 ///
 /// Multiple ink! contract definitions in a single file generate conflicting metadata definitions.
 ///
@@ -88,7 +88,7 @@ fn ensure_contract_quantity(file: &InkFile) -> Vec<Diagnostic> {
     )
 }
 
-/// Ensure only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L98-L114>.
 fn ensure_valid_quasi_direct_ink_descendants(file: &InkFile) -> Vec<Diagnostic> {

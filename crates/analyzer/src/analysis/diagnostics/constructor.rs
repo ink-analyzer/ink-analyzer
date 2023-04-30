@@ -22,14 +22,14 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
         &mut utils::run_generic_diagnostics(constructor),
     );
 
-    // Ensure ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
+    // Ensures that ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155>.
     if let Some(diagnostic) = utils::ensure_fn(constructor, CONSTRUCTOR_SCOPE_NAME) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
     if let Some(fn_item) = constructor.fn_item() {
-        // Ensure ink! constructor `fn` item satisfies all common invariants of externally callable ink! entities,
+        // Ensures that ink! constructor `fn` item satisfies all common invariants of externally callable ink! entities,
         // see `utils::ensure_callable_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L156>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
@@ -38,20 +38,20 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
             &mut utils::ensure_callable_invariants(fn_item, CONSTRUCTOR_SCOPE_NAME),
         );
 
-        // Ensure ink! constructor `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
+        // Ensures that ink! constructor `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L158>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L107-L128>.
         if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, CONSTRUCTOR_SCOPE_NAME) {
             utils::push_diagnostic(&mut results, diagnostic);
         }
 
-        // Ensure ink! constructor `fn` item has a return type, see `ensure_return_type` doc.
+        // Ensures that ink! constructor `fn` item has a return type, see `ensure_return_type` doc.
         if let Some(diagnostic) = ensure_return_type(fn_item) {
             utils::push_diagnostic(&mut results, diagnostic);
         }
     }
 
-    // Ensure ink! constructor has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
+    // Ensures that ink! constructor has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::ensure_no_ink_descendants(constructor, CONSTRUCTOR_SCOPE_NAME),
@@ -60,7 +60,7 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! constructor has a return type.
+/// Ensures that ink! constructor has a return type.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L157>.
 ///

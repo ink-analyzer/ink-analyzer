@@ -21,12 +21,12 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
     // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(contract));
 
-    // Ensure ink! contract is an inline `mod` item, see `ensure_inline_module` doc.
+    // Ensures that ink! contract is an inline `mod` item, see `ensure_inline_module` doc.
     if let Some(diagnostic) = ensure_inline_module(contract) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Ensure exactly one ink! storage item, see `ensure_storage_quantity` doc.
+    // Ensures that exactly one ink! storage item, see `ensure_storage_quantity` doc.
     utils::append_diagnostics(&mut results, &mut ensure_storage_quantity(contract));
 
     // Run ink! storage diagnostics, see `storage::diagnostics` doc.
@@ -59,7 +59,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure at least one ink! constructor, see `ensure_contains_constructor` doc.
+    // Ensures that at least one ink! constructor, see `ensure_contains_constructor` doc.
     if let Some(diagnostic) = ensure_contains_constructor(contract) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
@@ -74,7 +74,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure at least one ink! message, see `ensure_contains_message` doc.
+    // Ensures that at least one ink! message, see `ensure_contains_message` doc.
     if let Some(diagnostic) = ensure_contains_message(contract) {
         utils::push_diagnostic(&mut results, diagnostic);
     }
@@ -89,22 +89,22 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure no ink! message or constructor selectors are overlapping,
+    // Ensures that no ink! message or constructor selectors are overlapping,
     // see `ensure_no_overlapping_selectors` doc.
     utils::append_diagnostics(&mut results, &mut ensure_no_overlapping_selectors(contract));
 
-    // Ensure at most one wildcard selector exists among ink! messages, as well as ink! constructors,
+    // Ensures that at most one wildcard selector exists among ink! messages, as well as ink! constructors,
     // see `ensure_at_most_one_wildcard_selector` doc.
     utils::append_diagnostics(
         &mut results,
         &mut ensure_at_most_one_wildcard_selector(contract),
     );
 
-    // Ensure ink! storage, ink! events and ink! impls are defined in the root of the ink! contract,
+    // Ensures that ink! storage, ink! events and ink! impls are defined in the root of the ink! contract,
     // see `ensure_root_items` doc.
     utils::append_diagnostics(&mut results, &mut ensure_root_items(contract));
 
-    // Ensure ink! messages and constructors are defined in the root of an `impl` item,
+    // Ensures that ink! messages and constructors are defined in the root of an `impl` item,
     // see `ensure_impl_parent_for_callables` doc.
     utils::append_diagnostics(
         &mut results,
@@ -121,7 +121,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
+    // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
     utils::append_diagnostics(
         &mut results,
@@ -131,7 +131,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
     results
 }
 
-/// Ensure ink! contract attribute is applied to an inline `mod` item.
+/// Ensures that ink! contract attribute is applied to an inline `mod` item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L301-L309>.
 ///
@@ -153,7 +153,7 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
     })
 }
 
-/// Ensure ink! storage is not missing and there are not multiple ink! storage definitions.
+/// Ensures that ink! storage is not missing and there are not multiple ink! storage definitions.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L328>.
 ///
@@ -171,7 +171,7 @@ fn ensure_storage_quantity(contract: &Contract) -> Vec<Diagnostic> {
     )
 }
 
-/// Ensure at least one ink! constructor.
+/// Ensures that at least one ink! constructor.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L330>.
 ///
@@ -188,7 +188,7 @@ fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
     )
 }
 
-/// Ensure at least one ink! message.
+/// Ensures that at least one ink! message.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L329>.
 ///
@@ -218,7 +218,7 @@ where
         .collect()
 }
 
-/// Ensure no ink! message or constructor selectors are overlapping.
+/// Ensures that no ink! message or constructor selectors are overlapping.
 ///
 /// Overlaps between ink! constructor and message selectors are allowed.
 ///
@@ -263,7 +263,7 @@ where
         .collect()
 }
 
-/// Ensure at most one wildcard selector exists among ink! messages, as well as ink! constructors.
+/// Ensures that at most one wildcard selector exists among ink! messages, as well as ink! constructors.
 ///
 /// At most one wildcard is allowed for each group
 /// (i.e a single message and a single constructor each with a wildcard selector is a valid configuration).
@@ -292,7 +292,7 @@ fn ensure_at_most_one_wildcard_selector(contract: &Contract) -> Vec<Diagnostic> 
     }).collect()
 }
 
-/// Ensure item is defined in the root of this specific ink! contract.
+/// Ensures that item is defined in the root of this specific ink! contract.
 fn ensure_parent_contract<T>(
     contract: &Contract,
     item: &T,
@@ -315,7 +315,7 @@ where
     })
 }
 
-/// Ensure ink! storage, ink! events and ink! impls are defined in the root of the ink! contract.
+/// Ensures that ink! storage, ink! events and ink! impls are defined in the root of the ink! contract.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L377-L379>.
 ///
@@ -350,7 +350,7 @@ fn ensure_root_items(contract: &Contract) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Ensure ink! messages and constructors are defined in the root of an `impl` item.
+/// Ensures that ink! messages and constructors are defined in the root of an `impl` item.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
 ///
@@ -373,7 +373,7 @@ fn ensure_impl_parent_for_callables(contract: &Contract) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Ensure only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L98-L114>.
 fn ensure_valid_quasi_direct_ink_descendants(contract: &Contract) -> Vec<Diagnostic> {

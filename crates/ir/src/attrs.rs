@@ -34,7 +34,7 @@ pub struct InkAttribute {
 }
 
 impl InkAttribute {
-    /// Convert an AST attribute (`Attr`) into an `InkAttribute` IR type.
+    /// Converts an AST attribute (`Attr`) into an `InkAttribute` IR type.
     pub fn cast(attr: Attr) -> Option<Self> {
         // Get attribute path segments.
         let mut path_segments = attr.path()?.segments();
@@ -142,7 +142,7 @@ pub enum InkMacroKind {
 }
 
 impl From<&str> for InkMacroKind {
-    /// Convert a string slice representing an attribute path segment into an ink! attribute macro kind.
+    /// Converts a string slice representing an attribute path segment into an ink! attribute macro kind.
     fn from(path_segment: &str) -> Self {
         match path_segment {
             // `#[ink::chain_extension]`
@@ -563,10 +563,10 @@ mod tests {
             // Parse attribute.
             let attr = get_first_attribute(code);
 
-            // Convert attribute to an ink! attribute (if possible).
+            // Converts an attribute to an ink! attribute (if possible).
             let possible_ink_attr = InkAttribute::cast(attr);
 
-            // Convert the ink! attribute to an array of tuples with
+            // Converts the ink! attribute to an array of tuples with
             // ink! attribute argument kind and an inner array of tuples with
             // ink! attribute argument kind and meta value syntax kind for easy comparisons.
             let actual_ink_attr: Option<(InkAttributeKind, Vec<(InkArgKind, Option<SyntaxKind>)>)> =
