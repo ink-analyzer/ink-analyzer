@@ -317,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    fn sort_in_args_works() {
+    fn sort_ink_args_works() {
         for (code, expected_order) in [
             // Required and/or root-level/unambiguous arguments always have the highest priority.
             (
