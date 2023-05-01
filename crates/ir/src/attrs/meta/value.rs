@@ -24,18 +24,24 @@ impl MetaValue {
         (!elems.is_empty()).then(|| {
             let arg_text = elems.iter().map(|elem| elem.to_string()).join("");
 
-            // Try to parse as an expression
-            // For ink!, we're specifically interested in:
-            // 1. Literals e.g 1, 0xDEADBEEF, "my_namespace", true
-            // https://doc.rust-lang.org/reference/expressions/literal-expr.html
-            // 2. Paths e.g my::env::Types (i.e paths)
-            // https://doc.rust-lang.org/reference/expressions/path-expr.html
-            // 3. Underscore expressions/Wildcard i.e _ (e.g for wildcard selectors)
-            // https://doc.rust-lang.org/reference/expressions/underscore-expr.html
-            let expr = ra_ap_syntax::hacks::parse_expr_from_str(&arg_text);
-            expr.map(|exp| Self {
-                expr: exp,
-                elements: elems.to_owned(),
+            // Try to parse as an expression.
+            // For ink!, we're only interested in:
+            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ast/attr_args.rs#L51-L56>.
+            // Ref: <https://doc.rust-lang.org/reference/expressions/literal-expr.html>
+            // 1. Literals (mostly integers, strings and true/false, e.g 1, 0xDEADBEEF, "my_namespace", true).
+            // Ref: <https://doc.rust-lang.org/reference/expressions/path-expr.html>.
+            // 2. Paths e.g my::env::Types.
+            // Ref: <https://doc.rust-lang.org/reference/expressions/underscore-expr.html>.
+            // 3. Underscore expressions/Wildcard i.e _ (e.g for wildcard selectors).
+            ra_ap_syntax::hacks::parse_expr_from_str(&arg_text).and_then(|expr| {
+                (matches!(
+                    expr,
+                    Expr::Literal(_) | Expr::PathExpr(_) | Expr::UnderscoreExpr(_)
+                ))
+                .then_some(Self {
+                    expr,
+                    elements: elems.to_owned(),
+                })
             })
         })?
     }
@@ -161,5 +167,53 @@ impl MetaValue {
 impl fmt::Display for MetaValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.expr.fmt(f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        for (code, can_cast) in [
+            // Can cast integers.
+            (quote_as_str! { 10 }, true),
+            (quote_as_str! { 0xA }, true),
+            // Can cast strings.
+            (quote_as_str! { "Hello" }, true),
+            (quote_as_str! { "foo, bar" }, true),
+            // Can cast booleans (true/false).
+            (quote_as_str! { true }, true),
+            (quote_as_str! { false }, true),
+            // Can cast paths.
+            (quote_as_str! { my::env::Path }, true),
+            (quote_as_str! { ::my::env::Path }, true),
+            (quote_as_str! { Path }, true),
+            // Can cast wildcards/underscore expressions.
+            (quote_as_str! { _ }, true),
+            // Can't cast keywords.
+            (quote_as_str! { impl }, false),
+            (quote_as_str! { fn }, false),
+            (quote_as_str! { struct }, false),
+            (quote_as_str! { enum }, false),
+            (quote_as_str! { const }, false),
+            // Can't cast quasi-statements and/or invalid expressions.
+            (quote_as_str! { x = 10 }, false),
+            (quote_as_str! { x = true }, false),
+            (quote_as_str! { x: bool }, false),
+            (quote_as_str! { x, y, z }, false),
+            (quote_as_str! { x y z }, false),
+        ] {
+            // Check expected cast result.
+            assert_eq!(
+                MetaValue::parse(&parse_syntax_elements(code)).is_some(),
+                can_cast,
+                "meta value: {}",
+                code
+            );
+        }
     }
 }

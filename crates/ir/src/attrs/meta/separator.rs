@@ -21,3 +21,31 @@ impl AstToken for MetaSeparator {
         &self.syntax
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        for (code, can_cast) in [
+            // Can cast `=` symbol.
+            (quote_as_str! { = }, true),
+            // Can cast other symbols.
+            (quote_as_str! { + }, false),
+            (quote_as_str! { : }, false),
+            (quote_as_str! { , }, false),
+            (quote_as_str! { ? }, false),
+        ] {
+            // Check expected cast result.
+            assert_eq!(
+                MetaSeparator::cast(parse_first_syntax_token(code)).is_some(),
+                can_cast,
+                "meta name: {}",
+                code
+            );
+        }
+    }
+}

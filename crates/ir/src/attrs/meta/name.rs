@@ -30,3 +30,34 @@ impl fmt::Display for MetaName {
         self.syntax.fmt(f)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote_as_str;
+    use crate::test_utils::*;
+
+    #[test]
+    fn cast_works() {
+        for (code, can_cast) in [
+            // Can cast identifier.
+            (quote_as_str! { my_ident }, true),
+            (quote_as_str! { another_random_ident }, true),
+            // Can cast `impl` keyword.
+            (quote_as_str! { impl }, true),
+            // Can't cast other keywords.
+            (quote_as_str! { fn }, false),
+            (quote_as_str! { struct }, false),
+            (quote_as_str! { enum }, false),
+            (quote_as_str! { const }, false),
+        ] {
+            // Check expected cast result.
+            assert_eq!(
+                MetaName::cast(parse_first_syntax_token(code)).is_some(),
+                can_cast,
+                "meta name: {}",
+                code
+            );
+        }
+    }
+}

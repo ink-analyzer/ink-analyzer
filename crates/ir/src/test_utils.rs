@@ -4,8 +4,19 @@
 
 use crate::InkAttribute;
 use ra_ap_syntax::ast::Attr;
-use ra_ap_syntax::{AstNode, SourceFile};
+use ra_ap_syntax::{AstNode, SourceFile, SyntaxElement, SyntaxToken};
 
+/// Returns the first syntax token in the code snippet.
+pub fn parse_first_syntax_token(code: &str) -> SyntaxToken {
+    SourceFile::parse(code)
+        .tree()
+        .syntax()
+        .descendants_with_tokens()
+        .find_map(|elem| elem.as_token().cloned())
+        .unwrap()
+}
+
+/// Returns the first attribute in the code snippet.
 pub fn parse_first_attribute(code: &str) -> Attr {
     SourceFile::parse(code)
         .tree()
@@ -15,6 +26,7 @@ pub fn parse_first_attribute(code: &str) -> Attr {
         .unwrap()
 }
 
+/// Returns the first ink! attribute in the code snippet.
 pub fn parse_first_ink_attribute(code: &str) -> InkAttribute {
     SourceFile::parse(code)
         .tree()
@@ -22,4 +34,13 @@ pub fn parse_first_ink_attribute(code: &str) -> InkAttribute {
         .descendants()
         .find_map(|node| InkAttribute::cast(Attr::cast(node)?))
         .unwrap()
+}
+
+/// Returns all syntax elements for the code snippet.
+pub fn parse_syntax_elements(code: &str) -> Vec<SyntaxElement> {
+    SourceFile::parse(code)
+        .tree()
+        .syntax()
+        .children_with_tokens()
+        .collect()
 }
