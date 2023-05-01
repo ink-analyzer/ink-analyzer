@@ -201,9 +201,25 @@ mod tests {
                         #[ink(message, selector=0x1)]
                         #code
                     },
+                    quote! {
+                        #[ink(message, selector=_)]
+                        #code
+                    },
                     // Compound.
                     quote! {
-                        #[ink(message, payable, selector=1, default)]
+                        #[ink(message, payable, default, selector=1)]
+                        #code
+                    },
+                    quote! {
+                        #[ink(message)]
+                        #[ink(payable, default, selector=1)]
+                        #code
+                    },
+                    quote! {
+                        #[ink(message)]
+                        #[ink(payable)]
+                        #[ink(default)]
+                        #[ink(selector=1)]
                         #code
                     },
                 ]
@@ -421,14 +437,14 @@ mod tests {
 
     #[test]
     fn no_ink_descendants_works() {
-        let message = parse_first_message(quote_as_str! {
-            #[ink(message)]
-            pub fn my_message(&mut self) {
-            }
-        });
+        for code in valid_messages!() {
+            let message = parse_first_message(quote_as_str! {
+                #code
+            });
 
-        let results = utils::ensure_no_ink_descendants(&message, MESSAGE_SCOPE_NAME);
-        assert!(results.is_empty());
+            let results = utils::ensure_no_ink_descendants(&message, MESSAGE_SCOPE_NAME);
+            assert!(results.is_empty(), "message: {}", code);
+        }
     }
 
     #[test]
@@ -455,5 +471,20 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L545-L584>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L389-L412>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L341-L364>.
+    fn compound_diagnostic_works() {
+        for code in valid_messages!() {
+            let message = parse_first_message(quote_as_str! {
+                #code
+            });
+
+            let results = diagnostics(&message);
+            assert!(results.is_empty(), "message: {}", code);
+        }
     }
 }

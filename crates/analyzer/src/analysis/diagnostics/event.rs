@@ -123,7 +123,7 @@ mod tests {
     };
     use quote::quote;
 
-    fn parse_first_event_item(code: &str) -> Event {
+    fn parse_first_event(code: &str) -> Event {
         Event::cast(
             InkFile::parse(code)
                 .ink_attrs_in_scope()
@@ -134,18 +134,59 @@ mod tests {
         .unwrap()
     }
 
+    // List of valid minimal ink! events used for positive(`works`) tests for ink! event verifying utilities.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L251-L257>.
+    macro_rules! valid_events {
+        () => {
+            [quote! {
+                pub struct MyEvent {
+                    #[ink(topic)]
+                    field_1: i32,
+                    field_2: bool,
+                }
+            }]
+            .iter()
+            .flat_map(|code| {
+                [
+                    // Simple.
+                    quote! {
+                        #[ink(event)]
+                        #code
+                    },
+                    // Anonymous.
+                    quote! {
+                        #[ink(event, anonymous)]
+                        #code
+                    },
+                    quote! {
+                        #[ink(event)]
+                        #[ink(anonymous)]
+                        #code
+                    },
+                ]
+            })
+            // Wrap in contract for context sensitive tests.
+            .map(|items| {
+                quote! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #items
+                    }
+                }
+            })
+        };
+    }
+
     #[test]
     fn pub_struct_works() {
-        let event = parse_first_event_item(quote_as_str! {
-            #[ink(event)]
-            pub struct MyEvent {
-                #[ink(topic)]
-                value: bool,
-            }
-        });
+        for code in valid_events!() {
+            let event = parse_first_event(quote_as_str! {
+                #code
+            });
 
-        let result = utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME);
-        assert!(result.is_none());
+            let result = utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME);
+            assert!(result.is_none(), "event: {}", code);
+        }
     }
 
     #[test]
@@ -159,7 +200,7 @@ mod tests {
             quote! { pub(super) },
             quote! { pub(in my::path) },
         ] {
-            let event = parse_first_event_item(quote_as_str! {
+            let event = parse_first_event(quote_as_str! {
                 #[ink(event)]
                 #vis struct MyEvent {
                     #[ink(topic)]
@@ -175,19 +216,14 @@ mod tests {
 
     #[test]
     fn contract_parent_works() {
-        let event = parse_first_event_item(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                #[ink(event)]
-                pub struct MyEvent {
-                    #[ink(topic)]
-                    value: bool,
-                }
-            }
-        });
+        for code in valid_events!() {
+            let event = parse_first_event(quote_as_str! {
+                #code
+            });
 
-        let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
-        assert!(result.is_none());
+            let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
+            assert!(result.is_none(), "event: {}", code);
+        }
     }
 
     #[test]
@@ -217,7 +253,7 @@ mod tests {
                 }
             },
         ] {
-            let event = parse_first_event_item(code);
+            let event = parse_first_event(code);
 
             let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
             assert!(result.is_some());
@@ -227,22 +263,20 @@ mod tests {
 
     #[test]
     fn struct_with_no_generics_works() {
-        let event = parse_first_event_item(quote_as_str! {
-            #[ink(event)]
-            pub struct MyEvent {
-                #[ink(topic)]
-                value: bool,
-            }
-        });
+        for code in valid_events!() {
+            let event = parse_first_event(quote_as_str! {
+                #code
+            });
 
-        let result = ensure_no_generics_on_struct(&event);
-        assert!(result.is_none());
+            let result = ensure_no_generics_on_struct(&event);
+            assert!(result.is_none(), "event: {}", code);
+        }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L331-L344>.
     fn struct_with_generics_fails() {
-        let event = parse_first_event_item(quote_as_str! {
+        let event = parse_first_event(quote_as_str! {
             #[ink(event)]
             pub struct MyEvent<T> {
                 #[ink(topic)]
@@ -257,22 +291,20 @@ mod tests {
 
     #[test]
     fn ink_topic_field_works() {
-        let event = parse_first_event_item(quote_as_str! {
-            #[ink(event)]
-            pub struct MyEvent {
-                #[ink(topic)]
-                value: bool,
-            }
-        });
+        for code in valid_events!() {
+            let event = parse_first_event(quote_as_str! {
+                #code
+            });
 
-        let results = ensure_only_ink_topic_descendants(&event);
-        assert!(results.is_empty());
+            let results = ensure_only_ink_topic_descendants(&event);
+            assert!(results.is_empty(), "event: {}", code);
+        }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L377-L390>.
     fn non_topic_ink_field_fails() {
-        let event = parse_first_event_item(quote_as_str! {
+        let event = parse_first_event(quote_as_str! {
             #[ink(event)]
             pub struct MyEvent {
                 #[ink(message)]
@@ -287,22 +319,20 @@ mod tests {
 
     #[test]
     fn non_cfg_field_works() {
-        let event = parse_first_event_item(quote_as_str! {
-            #[ink(event)]
-            pub struct MyEvent {
-                #[ink(topic)]
-                value: bool,
-            }
-        });
+        for code in valid_events!() {
+            let event = parse_first_event(quote_as_str! {
+                #code
+            });
 
-        let results = ensure_no_cfg_event_fields(&event);
-        assert!(results.is_empty());
+            let results = ensure_no_cfg_event_fields(&event);
+            assert!(results.is_empty(), "event: {}", code);
+        }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L377-L390>.
     fn cfg_field_fails() {
-        let event = parse_first_event_item(quote_as_str! {
+        let event = parse_first_event(quote_as_str! {
             #[ink(event)]
             pub struct MyEvent {
                 #[cfg(test)]
@@ -313,5 +343,18 @@ mod tests {
         let results = ensure_no_cfg_event_fields(&event);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
+    }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L249-L260>.
+    fn compound_diagnostic_works() {
+        for code in valid_events!() {
+            let event = parse_first_event(quote_as_str! {
+                #code
+            });
+
+            let results = diagnostics(&event);
+            assert!(results.is_empty(), "event: {}", code);
+        }
     }
 }

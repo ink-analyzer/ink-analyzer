@@ -137,6 +137,51 @@ mod tests {
                     fn my_constructor(a: i32, b: u64, c: [u8; 32]) -> Self {}
                 },
             ]
+            .iter()
+            .flat_map(|code| {
+                [
+                    // Simple.
+                    quote! {
+                        #[ink(constructor)]
+                        #code
+                    },
+                    // Payable.
+                    quote! {
+                        #[ink(constructor, payable)]
+                        #code
+                    },
+                    // Selector.
+                    quote! {
+                        #[ink(constructor, selector=1)]
+                        #code
+                    },
+                    quote! {
+                        #[ink(constructor, selector=0x1)]
+                        #code
+                    },
+                    quote! {
+                        #[ink(constructor, selector=_)]
+                        #code
+                    },
+                    // Compound.
+                    quote! {
+                        #[ink(constructor, payable, default, selector=1)]
+                        #code
+                    },
+                    quote! {
+                        #[ink(constructor)]
+                        #[ink(payable, default, selector=1)]
+                        #code
+                    },
+                    quote! {
+                        #[ink(constructor)]
+                        #[ink(payable)]
+                        #[ink(default)]
+                        #[ink(selector=1)]
+                        #code
+                    },
+                ]
+            })
         };
     }
 
@@ -144,7 +189,6 @@ mod tests {
     fn valid_callable_works() {
         for code in valid_constructors!() {
             let constructor = parse_first_constructor(quote_as_str! {
-                #[ink(constructor)]
                 #code
             });
 
@@ -269,7 +313,6 @@ mod tests {
     fn no_self_receiver_works() {
         for code in valid_constructors!() {
             let constructor = parse_first_constructor(quote_as_str! {
-                #[ink(constructor)]
                 #code
             });
 
@@ -333,7 +376,6 @@ mod tests {
     fn return_type_works() {
         for code in valid_constructors!() {
             let constructor = parse_first_constructor(quote_as_str! {
-                #[ink(constructor)]
                 #code
             });
 
@@ -377,14 +419,14 @@ mod tests {
 
     #[test]
     fn no_ink_descendants_works() {
-        let constructor = parse_first_constructor(quote_as_str! {
-            #[ink(constructor)]
-            pub fn my_constructor() -> Self {
-            }
-        });
+        for code in valid_constructors!() {
+            let constructor = parse_first_constructor(quote_as_str! {
+                #code
+            });
 
-        let results = utils::ensure_no_ink_descendants(&constructor, CONSTRUCTOR_SCOPE_NAME);
-        assert!(results.is_empty());
+            let results = utils::ensure_no_ink_descendants(&constructor, CONSTRUCTOR_SCOPE_NAME);
+            assert!(results.is_empty(), "constructor: {}", code);
+        }
     }
 
     #[test]
@@ -411,5 +453,20 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L370-L397>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L259-L282>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L344-L359>.
+    fn compound_diagnostic_works() {
+        for code in valid_constructors!() {
+            let constructor = parse_first_constructor(quote_as_str! {
+                #code
+            });
+
+            let results = diagnostics(&constructor);
+            assert!(results.is_empty(), "constructor: {}", code);
+        }
     }
 }

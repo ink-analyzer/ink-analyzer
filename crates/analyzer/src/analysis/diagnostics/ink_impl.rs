@@ -278,7 +278,9 @@ mod tests {
     }
 
     // List of valid minimal ink! impls used for positive(`works`) tests for ink! impl verifying utilities.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L593-L640>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/tests.rs#L211-L235>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/tests.rs#L37-L91>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/tests.rs#L240-L248>.
     macro_rules! valid_ink_impls {
         () => {
             [
@@ -706,7 +708,9 @@ mod tests {
     }
 
     #[test]
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L593-L640>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/tests.rs#L209-L236>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/tests.rs#L35-L98>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/tests.rs#L238-L255>.
     fn compound_diagnostic_works() {
         for code in valid_ink_impls!() {
             let ink_impl = parse_first_ink_impl(quote_as_str! {

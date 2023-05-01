@@ -51,7 +51,7 @@ mod tests {
     };
     use quote::quote;
 
-    fn parse_first_storage_item(code: &str) -> Storage {
+    fn parse_first_storage_definition(code: &str) -> Storage {
         Storage::cast(
             InkFile::parse(code)
                 .ink_attrs_in_scope()
@@ -62,17 +62,39 @@ mod tests {
         .unwrap()
     }
 
+    // List of valid minimal ink! storage definitions used for positive(`works`) tests for ink! storaage verifying utilities.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L132-L138>.
+    macro_rules! valid_storage {
+        () => {
+            [quote! {
+                #[ink(storage)]
+                pub struct MyContract {
+                    field_1: i32,
+                    field_2: bool,
+                }
+            }]
+            // Wrap in contract for context sensitive tests.
+            .map(|items| {
+                quote! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #items
+                    }
+                }
+            })
+        };
+    }
+
     #[test]
     fn pub_struct_works() {
-        let storage = parse_first_storage_item(quote_as_str! {
-            #[ink(storage)]
-            pub struct MyStorage {
-                value: bool,
-            }
-        });
+        for code in valid_storage!() {
+            let storage = parse_first_storage_definition(quote_as_str! {
+                #code
+            });
 
-        let result = utils::ensure_pub_struct(&storage, STORAGE_SCOPE_NAME);
-        assert!(result.is_none());
+            let result = utils::ensure_pub_struct(&storage, STORAGE_SCOPE_NAME);
+            assert!(result.is_none(), "storage: {}", code);
+        }
     }
 
     #[test]
@@ -86,9 +108,9 @@ mod tests {
             quote! { pub(super) },
             quote! { pub(in my::path) },
         ] {
-            let storage = parse_first_storage_item(quote_as_str! {
+            let storage = parse_first_storage_definition(quote_as_str! {
                 #[ink(storage)]
-                #vis struct MyStorage {
+                #vis struct MyContract {
                     value: bool,
                 }
             });
@@ -101,18 +123,14 @@ mod tests {
 
     #[test]
     fn contract_parent_works() {
-        let storage = parse_first_storage_item(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                #[ink(storage)]
-                pub struct MyContract {
-                    value: bool,
-                }
-            }
-        });
+        for code in valid_storage!() {
+            let storage = parse_first_storage_definition(quote_as_str! {
+                #code
+            });
 
-        let result = utils::ensure_contract_parent(&storage, STORAGE_SCOPE_NAME);
-        assert!(result.is_none());
+            let result = utils::ensure_contract_parent(&storage, STORAGE_SCOPE_NAME);
+            assert!(result.is_none(), "storage: {}", code);
+        }
     }
 
     #[test]
@@ -140,7 +158,7 @@ mod tests {
                 }
             },
         ] {
-            let storage = parse_first_storage_item(code);
+            let storage = parse_first_storage_definition(code);
 
             let result = utils::ensure_contract_parent(&storage, STORAGE_SCOPE_NAME);
             assert!(result.is_some());
@@ -150,22 +168,21 @@ mod tests {
 
     #[test]
     fn no_ink_descendants_works() {
-        let storage = parse_first_storage_item(quote_as_str! {
-            #[ink(storage)]
-            struct MyStorage {
-                value: bool,
-            }
-        });
+        for code in valid_storage!() {
+            let storage = parse_first_storage_definition(quote_as_str! {
+                #code
+            });
 
-        let results = utils::ensure_no_ink_descendants(&storage, STORAGE_SCOPE_NAME);
-        assert!(results.is_empty());
+            let results = utils::ensure_no_ink_descendants(&storage, STORAGE_SCOPE_NAME);
+            assert!(results.is_empty(), "storage: {}", code);
+        }
     }
 
     #[test]
     fn ink_descendants_fails() {
-        let storage = parse_first_storage_item(quote_as_str! {
+        let storage = parse_first_storage_definition(quote_as_str! {
             #[ink(storage)]
-            struct MyStorage {
+            struct MyContract {
                 #[ink(topic)]
                 value: bool,
             }
@@ -180,5 +197,18 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L130-L140>.
+    fn compound_diagnostic_works() {
+        for code in valid_storage!() {
+            let storage = parse_first_storage_definition(quote_as_str! {
+                #code
+            });
+
+            let results = diagnostics(&storage);
+            assert!(results.is_empty(), "storage: {}", code);
+        }
     }
 }

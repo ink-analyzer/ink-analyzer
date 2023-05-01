@@ -234,13 +234,14 @@ mod tests {
 
     #[test]
     fn no_ink_descendants_works() {
-        let extension = parse_first_extension(quote_as_str! {
-            #[ink(extension=1)]
-            fn my_extension();
-        });
+        for code in valid_extensions!() {
+            let extension = parse_first_extension(quote_as_str! {
+                #code
+            });
 
-        let results = utils::ensure_no_ink_descendants(&extension, EXTENSION_SCOPE_NAME);
-        assert!(results.is_empty());
+            let results = utils::ensure_no_ink_descendants(&extension, EXTENSION_SCOPE_NAME);
+            assert!(results.is_empty(), "extension: {}", code);
+        }
     }
 
     #[test]
@@ -267,5 +268,17 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn compound_diagnostic_works() {
+        for code in valid_extensions!() {
+            let extension = parse_first_extension(quote_as_str! {
+                #code
+            });
+
+            let results = diagnostics(&extension);
+            assert!(results.is_empty(), "extension: {}", code);
+        }
     }
 }
