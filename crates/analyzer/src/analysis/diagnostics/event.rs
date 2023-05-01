@@ -16,7 +16,7 @@ const EVENT_SCOPE_NAME: &str = "event";
 pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(event));
 
     // Ensures that ink! event is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
@@ -41,7 +41,7 @@ pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
     // Ensures that ink! event `struct` fields have no other ink! annotations other than ink! topic, see `ensure_only_ink_topic_fields` doc.
     utils::append_diagnostics(&mut results, &mut ensure_only_ink_topic_descendants(event));
 
-    // Run ink! topic diagnostics, see `topic::diagnostics` doc.
+    // Runs ink! topic diagnostics, see `topic::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut event.topics().iter().flat_map(topic::diagnostics).collect(),

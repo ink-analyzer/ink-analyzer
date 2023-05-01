@@ -21,7 +21,7 @@ const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::run_generic_diagnostics(chain_extension),
@@ -47,7 +47,7 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
         utils::append_diagnostics(&mut results, &mut ensure_trait_item_invariants(trait_item));
     }
 
-    // Run ink! extension diagnostics, see `extension::diagnostics` doc.
+    // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut chain_extension
@@ -101,7 +101,7 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
                 .into_iter()
                 .find_map(Extension::cast)
             {
-                // Run ink! extension diagnostics, see `extension::diagnostics` doc.
+                // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
                 Some(extension_item) => {
                     results.append(&mut extension::diagnostics(&extension_item))
                 }
@@ -129,7 +129,7 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
             if !is_named_error_code {
                 results.push(Diagnostic {
                     message:
-                        "The associated type of ink! chain extensions must be named `ErrorCode`."
+                        "The associated type of a ink! chain extension must be named `ErrorCode`."
                             .to_string(),
                     range: match name_marker {
                         Some(name) => name.syntax().text_range(),

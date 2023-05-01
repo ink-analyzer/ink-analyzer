@@ -16,7 +16,7 @@ const MESSAGE_SCOPE_NAME: &str = "message";
 pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(message));
 
     // Ensures that ink! message is an `fn` item, see `utils::ensure_fn` doc.
@@ -80,7 +80,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
     }
 
     (!has_self_ref_receiver).then_some(Diagnostic {
-        message: "ink! messages must have a self reference receiver (i.e `&self` or `&mut self`)."
+        message: "ink! message must have a self reference receiver (i.e `&self` or `&mut self`)."
             .to_string(),
         range: match marker_token {
             Some(token) => token.text_range(),
@@ -98,7 +98,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
 fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
     let return_type = fn_item.ret_type()?.ty()?;
     (return_type.to_string() == "Self").then_some(Diagnostic {
-        message: "ink! messages must not return `Self`.".to_string(),
+        message: "ink! message must not return `Self`.".to_string(),
         range: return_type.syntax().text_range(),
         severity: Severity::Error,
     })

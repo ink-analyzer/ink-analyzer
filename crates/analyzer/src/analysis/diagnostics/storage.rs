@@ -15,7 +15,7 @@ const STORAGE_SCOPE_NAME: &str = "storage";
 pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(storage));
 
     // Ensures that ink! storage is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.

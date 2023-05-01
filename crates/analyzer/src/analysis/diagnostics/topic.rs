@@ -15,7 +15,7 @@ const TOPIC_SCOPE_NAME: &str = "topic";
 pub fn diagnostics(topic: &Topic) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(topic));
 
     // Ensures that ink! topic is a `struct` field, see `ensure_struct_field` doc.

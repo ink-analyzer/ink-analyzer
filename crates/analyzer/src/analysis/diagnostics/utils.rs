@@ -24,7 +24,7 @@ pub fn append_diagnostics(current: &mut Vec<Diagnostic>, updates: &mut Vec<Diagn
     current.append(updates)
 }
 
-/// Run generic diagnostics that apply to all IR items.
+/// Runs generic diagnostics that apply to all ink! entities.
 /// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
 /// `ensure_no_duplicate_attributes_and_arguments`, `ensure_valid_attribute_arguments`).
 pub fn run_generic_diagnostics<T: FromSyntax>(item: &T) -> Vec<Diagnostic> {
@@ -272,7 +272,7 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Helper utility that casts a string to an Rust identifier (`Ident`) (if possible).
+/// Casts a string to an Rust identifier (`Ident`) (if possible).
 fn parse_ident(value: &str) -> Option<Ident> {
     // Parse sanitized value and find the first identifier.
     let file = SourceFile::parse(value).tree();
@@ -287,7 +287,7 @@ fn parse_ident(value: &str) -> Option<Ident> {
     (ident.text() == value).then_some(ident)
 }
 
-/// Helper function for checking the validity of an ink! argument value.
+/// Ensures the validity of an ink! argument value using provided ok and err handlers and none outcome.
 fn ensure_valid_attribute_arg_value<F, G>(
     arg: &InkArg,
     ok_handler: F,
@@ -747,11 +747,10 @@ where
                 None => false,
             };
 
-            (!has_pub_visibility).then_some(format!(
-                "ink! {ink_scope_name}s must have `pub` visibility.",
-            ))
+            (!has_pub_visibility)
+                .then_some(format!("ink! {ink_scope_name} must have `pub` visibility.",))
         }
-        None => Some(format!("ink! {ink_scope_name}s must be `struct` items.",)),
+        None => Some(format!("ink! {ink_scope_name} must be a `struct` item.",)),
     };
 
     error.map(|message| Diagnostic {
@@ -771,7 +770,7 @@ where
     T: FromSyntax + InkFn,
 {
     item.fn_item().is_none().then_some(Diagnostic {
-        message: format!("ink! {ink_scope_name}s must be `fn` items.",),
+        message: format!("ink! {ink_scope_name} must be an `fn` item.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
     })
@@ -783,7 +782,7 @@ where
     T: FromSyntax + InkTrait,
 {
     item.trait_item().is_none().then_some(Diagnostic {
-        message: format!("ink! {ink_scope_name}s must be `trait` items.",),
+        message: format!("ink! {ink_scope_name} must be a `trait` item.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
     })
@@ -792,7 +791,7 @@ where
 /// Ensures that an `fn` item has no self receiver (i.e no `&self`, `&mut self`, self or mut self).
 pub fn ensure_no_self_receiver(fn_item: &ast::Fn, ink_scope_name: &str) -> Option<Diagnostic> {
     fn_item.param_list()?.self_param().map(|self_param| Diagnostic {
-        message: format!("ink! {ink_scope_name}s must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self)."),
+        message: format!("ink! {ink_scope_name} must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self)."),
         range: self_param.syntax().text_range(),
         severity: Severity::Error,
     })
@@ -805,7 +804,7 @@ where
 {
     item.generic_param_list().map(|generics| Diagnostic {
         message: format!(
-            "Generic parameters on ink! {ink_scope_name}s are not currently supported."
+            "Generic parameters on an ink! {ink_scope_name} are not currently supported."
         ),
         range: generics.syntax().text_range(),
         severity: Severity::Error,
@@ -841,7 +840,7 @@ pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<
 
     if let Some(const_token) = fn_item.const_token() {
         results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must not be `const`."),
+            message: format!("ink! {ink_scope_name} must not be `const`."),
             range: const_token.text_range(),
             severity: Severity::Error,
         });
@@ -849,7 +848,7 @@ pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<
 
     if let Some(async_token) = fn_item.async_token() {
         results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must not be `async`."),
+            message: format!("ink! {ink_scope_name} must not be `async`."),
             range: async_token.text_range(),
             severity: Severity::Error,
         });
@@ -857,7 +856,7 @@ pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<
 
     if let Some(unsafe_token) = fn_item.unsafe_token() {
         results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must not be `unsafe`."),
+            message: format!("ink! {ink_scope_name} must not be `unsafe`."),
             range: unsafe_token.text_range(),
             severity: Severity::Error,
         });
@@ -865,22 +864,25 @@ pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<
 
     if let Some(abi) = fn_item.abi() {
         results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must not have explicit ABI."),
+            message: format!("ink! {ink_scope_name} must not have explicit ABI."),
             range: abi.syntax().text_range(),
             severity: Severity::Error,
         });
     }
 
     if let Some(param_list) = fn_item.param_list() {
-        results.append(&mut param_list.params().filter_map(|param| {
-            param.dotdotdot_token().map(|dotdotdot| Diagnostic {
-                message: format!(
-                    "ink! {ink_scope_name}s must not be variadic and all arguments must have an identifier."
-                ),
-                range: dotdotdot.text_range(),
-                severity: Severity::Error,
-            })
-        }).collect());
+        results.append(
+            &mut param_list
+                .params()
+                .filter_map(|param| {
+                    param.dotdotdot_token().map(|dotdotdot| Diagnostic {
+                        message: format!("ink! {ink_scope_name} must not be variadic."),
+                        range: dotdotdot.text_range(),
+                        severity: Severity::Error,
+                    })
+                })
+                .collect(),
+        );
     }
 
     results
@@ -904,7 +906,7 @@ pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Ve
 
     if !has_pub_or_inherited_visibility {
         results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must have `pub` or inherited visibility."),
+            message: format!("ink! {ink_scope_name} must have `pub` or inherited visibility."),
             range: match visibility {
                 Some(vis) => vis.syntax().text_range(),
                 None => fn_item.syntax().text_range(),
@@ -932,7 +934,7 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
 
     if let Some(unsafe_token) = trait_item.unsafe_token() {
         results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must not be `unsafe`."),
+            message: format!("ink! {ink_scope_name} must not be `unsafe`."),
             range: unsafe_token.text_range(),
             severity: Severity::Error,
         });
@@ -940,7 +942,7 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
 
     if let Some(auto_token) = trait_item.auto_token() {
         results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s cannot be `auto` implemented."),
+            message: format!("ink! {ink_scope_name} must not be `auto` implemented."),
             range: auto_token.text_range(),
             severity: Severity::Error,
         });
@@ -959,7 +961,7 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
 
     if !has_pub_visibility {
         results.push(Diagnostic {
-            message: format!("ink! {ink_scope_name}s must have `pub` visibility."),
+            message: format!("ink! {ink_scope_name} must have `pub` visibility."),
             range: match visibility {
                 Some(vis) => vis.syntax().text_range(),
                 None => trait_item.syntax().text_range(),
@@ -970,7 +972,7 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
 
     if let Some(diagnostic) = ensure_no_trait_bounds(
         trait_item,
-        format!("ink! {ink_scope_name}s must not have any `supertraits`.").as_str(),
+        format!("ink! {ink_scope_name} must not have any `supertraits`.").as_str(),
     ) {
         results.push(diagnostic);
     }
@@ -1002,14 +1004,14 @@ where
             match assoc_item {
                 AssocItem::Const(node) => vec![Diagnostic {
                     message: format!(
-                        "Associated `const` items in ink! {ink_scope_name}s are not yet supported."
+                        "Associated `const` items in an ink! {ink_scope_name} are not yet supported."
                     ),
                     range: node.syntax().text_range(),
                     severity: Severity::Error,
                 }],
                 AssocItem::MacroCall(node) => vec![Diagnostic {
                     message: format!(
-                        "Macros in ink! {ink_scope_name}s are not supported."
+                        "Macros in an ink! {ink_scope_name} are not supported."
                     ),
                     range: node.syntax().text_range(),
                     severity: Severity::Error,
@@ -1022,7 +1024,7 @@ where
                     // No default implementations.
                     if let Some(body) = fn_item.body() {
                         results.push(Diagnostic {
-                            message: format!("ink! {ink_scope_name}s methods with a default implementation are not currently supported."),
+                            message: format!("ink! {ink_scope_name} methods with a default implementation are not currently supported."),
                             range: body.syntax().text_range(),
                             severity: Severity::Error,
                         });
@@ -1047,7 +1049,7 @@ where
     let has_contract_parent = ink_analyzer_ir::ink_parent::<Contract>(item.syntax()).is_some();
     (!has_contract_parent).then_some(Diagnostic {
         message: format!(
-            "ink! {ink_scope_name}s must be defined in the root of an ink! contract `mod`.",
+            "ink! {ink_scope_name} must be defined in the root of an ink! contract `mod`.",
         ),
         range: item.syntax().text_range(),
         severity: Severity::Error,
@@ -1060,7 +1062,7 @@ where
     T: FromSyntax + InkImplItem,
 {
     item.impl_item().is_none().then_some(Diagnostic {
-        message: format!("ink! {ink_scope_name}s must be defined in the root of an `impl` block.",),
+        message: format!("ink! {ink_scope_name} must be defined in the root of an `impl` block.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
     })
@@ -1099,7 +1101,7 @@ where
         .iter()
         .map(|attr| Diagnostic {
             message: format!(
-                "`{}` can't be used inside an ink! {ink_scope_name}.",
+                "`{}` cannot be used inside an ink! {ink_scope_name}.",
                 attr.syntax()
             ),
             range: attr

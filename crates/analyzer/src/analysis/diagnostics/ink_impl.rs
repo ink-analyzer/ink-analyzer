@@ -16,7 +16,7 @@ const IMPL_SCOPE_NAME: &str = "impl";
 pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(ink_impl));
 
     // Ensures that ink! impl is an `impl` item, see `ensure_impl` doc.
@@ -34,7 +34,7 @@ pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Run ink! constructor diagnostics, see `constructor::diagnostics` doc.
+    // Runs ink! constructor diagnostics, see `constructor::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut ink_impl
@@ -44,7 +44,7 @@ pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Run ink! message diagnostics, see `message::diagnostics` doc.
+    // Runs ink! message diagnostics, see `message::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut ink_impl
@@ -80,7 +80,7 @@ pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221>.
 fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
     ink_impl.impl_item().is_none().then_some(Diagnostic {
-        message: "ink! impls must be `impl` items".to_string(),
+        message: "ink! impl must be an `impl` item.".to_string(),
         range: ink_impl.syntax().text_range(),
         severity: Severity::Error,
     })
@@ -97,7 +97,7 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
     if let Some(impl_item) = ink_impl.impl_item() {
         if let Some(default_token) = impl_item.default_token() {
             results.push(Diagnostic {
-                message: "ink! impls must not be `default`.".to_string(),
+                message: "ink! impl must not be `default`.".to_string(),
                 range: default_token.text_range(),
                 severity: Severity::Error,
             });
@@ -105,7 +105,7 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
 
         if let Some(unsafe_token) = impl_item.unsafe_token() {
             results.push(Diagnostic {
-                message: "ink! impls must not be `unsafe`.".to_string(),
+                message: "ink! impl must not be `unsafe`.".to_string(),
                 range: unsafe_token.text_range(),
                 severity: Severity::Error,
             });
@@ -122,7 +122,7 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
                         .segments()
                         .filter_map(|arg| {
                             arg.generic_arg_list().map(|generic_arg_list| Diagnostic {
-                                message: "Generic types on ink! impls are not supported."
+                                message: "Generic types on an ink! impl are not supported."
                                     .to_string(),
                                 range: generic_arg_list.syntax().text_range(),
                                 severity: Severity::Error,
@@ -198,7 +198,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
         && ink_impl.constructors().is_empty()
         && ink_impl.messages().is_empty())
     .then_some(Diagnostic {
-        message: "At least one ink! constructor or ink! message must be defined for an ink! impl."
+        message: "At least one ink! constructor or ink! message must be defined for an ink! impl without an `#[ink(impl)]` annotation."
             .to_string(),
         range: ink_impl.syntax().text_range(),
         severity: Severity::Error,
@@ -217,7 +217,7 @@ where
 
     (!is_parent).then_some(Diagnostic {
         message: format!(
-            "ink! {ink_scope_name}s must be defined in the ink! contract's `impl` block."
+            "ink! {ink_scope_name}s must be defined in the root of an ink! contract's `impl` block."
         ),
         range: item.syntax().text_range(),
         severity: Severity::Error,

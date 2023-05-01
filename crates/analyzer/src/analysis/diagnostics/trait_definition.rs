@@ -20,7 +20,7 @@ const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
 pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::run_generic_diagnostics(trait_definition),
@@ -46,7 +46,7 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
         utils::append_diagnostics(&mut results, &mut ensure_trait_item_invariants(trait_item));
     }
 
-    // Run ink! message diagnostics, see `message::diagnostics` doc.
+    // Runs ink! message diagnostics, see `message::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut trait_definition
@@ -94,7 +94,7 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
                 .into_iter()
                 .find_map(Message::cast)
             {
-                // Run ink! message diagnostics, see `message::diagnostics` doc.
+                // Runs ink! message diagnostics, see `message::diagnostics` doc.
                 results.append(&mut message::diagnostics(&message_item));
             } else {
                 results.push(Diagnostic {
@@ -140,7 +140,7 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
     utils::ensure_at_least_one_item(
         trait_definition.messages(),
         Diagnostic {
-            message: "At least one ink! message has to be defined for an ink! trait definition."
+            message: "At least one ink! message must be defined for an ink! trait definition."
                 .to_string(),
             range: trait_definition.syntax().text_range(),
             severity: Severity::Error,

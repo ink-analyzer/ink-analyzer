@@ -18,7 +18,7 @@ use crate::{Diagnostic, Severity};
 pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(contract));
 
     // Ensures that ink! contract is an inline `mod` item, see `ensure_inline_module` doc.
@@ -29,7 +29,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
     // Ensures that exactly one ink! storage definition, see `ensure_storage_quantity` doc.
     utils::append_diagnostics(&mut results, &mut ensure_storage_quantity(contract));
 
-    // Run ink! storage diagnostics, see `storage::diagnostics` doc.
+    // Runs ink! storage diagnostics, see `storage::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
@@ -38,7 +38,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Run ink! event diagnostics, see `event::diagnostics` doc.
+    // Runs ink! event diagnostics, see `event::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut contract
@@ -48,7 +48,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Run ink! impl diagnostics, see `impl_item::diagnostics` doc.
+    // Runs ink! impl diagnostics, see `impl_item::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut contract
@@ -63,7 +63,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Run ink! constructor diagnostics, see `constructor::diagnostics` doc.
+    // Runs ink! constructor diagnostics, see `constructor::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut contract
@@ -78,7 +78,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
         utils::push_diagnostic(&mut results, diagnostic);
     }
 
-    // Run ink! message diagnostics, see `message::diagnostics` doc.
+    // Runs ink! message diagnostics, see `message::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut contract
@@ -110,7 +110,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
         &mut ensure_impl_parent_for_callables(contract),
     );
 
-    // Run ink! test diagnostics, see `ink_test::diagnostics` doc.
+    // Runs ink! test diagnostics, see `ink_test::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut contract
@@ -140,7 +140,7 @@ pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
 fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
     let error = match contract.module() {
         Some(module) => module.item_list().is_none().then_some(
-            "The content of ink! contracts `mod` items must be defined inline.".to_string(),
+            "The content of an ink! contract's `mod` item must be defined inline.".to_string(),
         ),
         None => Some("ink! contracts must be inline `mod` items".to_string()),
     };

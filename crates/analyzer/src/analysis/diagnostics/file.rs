@@ -25,7 +25,7 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Run ink! trait definition diagnostics, see `trait_definition::diagnostics` doc.
+    // Runs ink! trait definition diagnostics, see `trait_definition::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut file
@@ -35,7 +35,7 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Run ink! storage item diagnostics, see `storage_item::diagnostics` doc.
+    // Runs ink! storage item diagnostics, see `storage_item::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut file
@@ -45,7 +45,7 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Run ink! test diagnostics, see `ink_test::diagnostics` doc.
+    // Runs ink! test diagnostics, see `ink_test::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut file
@@ -55,7 +55,7 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
             .collect(),
     );
 
-    // Run ink! chain extension diagnostics, see `chain_extension::diagnostics` doc.
+    // Runs ink! chain extension diagnostics, see `chain_extension::diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut file

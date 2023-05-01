@@ -16,7 +16,7 @@ const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
 pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
     let mut results: Vec<Diagnostic> = Vec::new();
 
-    // Run generic diagnostics, see `utils::run_generic_diagnostics` doc.
+    // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::append_diagnostics(
         &mut results,
         &mut utils::run_generic_diagnostics(constructor),
@@ -72,7 +72,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
     };
 
     (!has_returns_type).then_some(Diagnostic {
-        message: "ink! constructors must have a return type.".to_string(),
+        message: "ink! constructor must have a return type.".to_string(),
         range: fn_item.syntax().text_range(),
         severity: Severity::Error,
     })
