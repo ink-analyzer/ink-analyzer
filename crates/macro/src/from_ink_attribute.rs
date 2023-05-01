@@ -91,15 +91,13 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
                     }
 
                     fn cast(attr: #ir_crate_path::InkAttribute) -> Option<Self> {
-                        if Self::can_cast(&attr) {
+                        Self::can_cast(&attr).then(|| {
                             let ink_attr_data = #ir_crate_path::InkAttrData::from(attr);
-
-                            return Some(Self {
+                            Self {
                                 #( #field_values, )*
                                 ink_attr: ink_attr_data,
-                            });
-                        }
-                        None
+                            }
+                        })
                     }
                 }
             });
@@ -177,13 +175,12 @@ mod tests {
                 }
 
                 fn cast(attr: #ir_crate_path::InkAttribute) -> Option<Self> {
-                    if Self::can_cast(&attr) {
+                    Self::can_cast(&attr).then(|| {
                         let ink_attr_data = #ir_crate_path::InkAttrData::from(attr);
-                        return Some(Self {
+                        Self {
                             ink_attr: ink_attr_data,
-                        });
-                    }
-                    None
+                        }
+                    })
                 }
             }
         }

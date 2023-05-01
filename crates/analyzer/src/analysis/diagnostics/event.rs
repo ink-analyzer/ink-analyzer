@@ -96,19 +96,14 @@ fn ensure_no_cfg_event_fields(event: &Event) -> Vec<Diagnostic> {
                     field
                         .attrs()
                         .filter_map(|attr| {
-                            if let Some(path) = attr.path() {
-                                if path.to_string() == "cfg" {
-                                    return Some(Diagnostic {
-                                        message: format!(
-                                            "`{}` attributes on event fields are not supported.",
-                                            attr
-                                        ),
-                                        range: attr.syntax().text_range(),
-                                        severity: Severity::Error,
-                                    });
-                                }
-                            }
-                            None
+                            (attr.path()?.to_string() == "cfg").then_some(Diagnostic {
+                                message: format!(
+                                    "`{}` attributes on event fields are not supported.",
+                                    attr
+                                ),
+                                range: attr.syntax().text_range(),
+                                severity: Severity::Error,
+                            })
                         })
                         .collect::<Vec<Diagnostic>>()
                 })

@@ -277,17 +277,18 @@ fn ensure_at_most_one_wildcard_selector(contract: &Contract) -> Vec<Diagnostic> 
     [(get_selector_args(contract.constructors()), "constructor"), (get_selector_args(contract.messages()), "message")].iter().flat_map(|(selectors, name)| {
         let mut has_seen_wildcard = false;
         selectors.iter().filter_map(|selector| {
-            if selector.is_wildcard() {
+            selector.is_wildcard().then(|| {
                 if has_seen_wildcard {
-                    return Some(Diagnostic {
+                    Some(Diagnostic {
                         message: format!("At most one wildcard (`_`) selector can be defined across all ink! {name}s in an ink! contract."),
                         range: selector.text_range(),
                         severity: Severity::Error,
-                    });
+                    })
+                } else {
+                    has_seen_wildcard = true;
+                    None
                 }
-                has_seen_wildcard = true;
-            }
-            None
+            })?
         }).collect::<Vec<Diagnostic>>()
     }).collect()
 }

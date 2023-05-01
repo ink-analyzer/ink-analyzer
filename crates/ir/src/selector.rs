@@ -29,36 +29,31 @@ impl Selector {
         let selector_bytes: Option<[u8; 4]> = match Self::provided_int_selector(callable) {
             // Manually provided integer selector is converted into bytes.
             Some(manual_int_selector) => Some(manual_int_selector.to_be_bytes()),
-            // Otherwise the selector has to be computed.
+            // Otherwise the selector has to be computed, but only if the callable is a valid `fn` item.
             None => {
-                match Self::get_ident(callable) {
-                    // But only if the callable is a valid `fn` item.
-                    Some(callable_ident) => {
-                        let trait_ident = Self::get_trait_ident(callable);
-                        let namespace = Self::get_namespace(callable);
+                Self::get_ident(callable).map(|callable_ident| {
+                    let trait_ident = Self::get_trait_ident(callable);
+                    let namespace = Self::get_namespace(callable);
 
-                        let pre_hash_bytes = [namespace, trait_ident, Some(callable_ident)]
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<String>>()
-                            .join("::")
-                            .into_bytes();
+                    let pre_hash_bytes = [namespace, trait_ident, Some(callable_ident)]
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<String>>()
+                        .join("::")
+                        .into_bytes();
 
-                        // Computes the BLAKE-2b 256-bit hash for the given input and stores it in output.
-                        let mut hasher = <Blake2b<U32>>::new();
-                        hasher.update(pre_hash_bytes);
-                        let hashed_bytes = hasher.finalize();
+                    // Computes the BLAKE-2b 256-bit hash for the given input and stores it in output.
+                    let mut hasher = <Blake2b<U32>>::new();
+                    hasher.update(pre_hash_bytes);
+                    let hashed_bytes = hasher.finalize();
 
-                        Some([
-                            hashed_bytes[0],
-                            hashed_bytes[1],
-                            hashed_bytes[2],
-                            hashed_bytes[3],
-                        ])
-                    }
-                    // Otherwise no selector is returned.
-                    None => None,
-                }
+                    [
+                        hashed_bytes[0],
+                        hashed_bytes[1],
+                        hashed_bytes[2],
+                        hashed_bytes[3],
+                    ]
+                })
             }
         };
 
@@ -98,23 +93,24 @@ impl Selector {
     where
         T: InkCallable,
     {
-        if let Type::PathType(trait_path_type) = callable.impl_item()?.trait_()? {
-            let trait_path = trait_path_type.path()?;
-            let is_full_path = trait_path.to_string().starts_with("::");
-            let trait_ident = if is_full_path {
-                let mut full_path = trait_path.to_string();
-                full_path.retain(|c| !c.is_whitespace());
-                full_path
-            } else {
-                trait_path
-                    .segments()
-                    .last()
-                    .map(|segment| segment.to_string())
-                    .unwrap_or(String::new())
-            };
-            (!trait_ident.is_empty()).then_some(trait_ident)
-        } else {
-            None
+        match callable.impl_item()?.trait_()? {
+            Type::PathType(trait_path_type) => {
+                let trait_path = trait_path_type.path()?;
+                let is_full_path = trait_path.to_string().starts_with("::");
+                let trait_ident = if is_full_path {
+                    let mut full_path = trait_path.to_string();
+                    full_path.retain(|c| !c.is_whitespace());
+                    full_path
+                } else {
+                    trait_path
+                        .segments()
+                        .last()
+                        .map(|segment| segment.to_string())
+                        .unwrap_or(String::new())
+                };
+                (!trait_ident.is_empty()).then_some(trait_ident)
+            }
+            _ => None,
         }
     }
 

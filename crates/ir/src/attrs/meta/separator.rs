@@ -14,11 +14,7 @@ impl AstToken for MetaSeparator {
     }
 
     fn cast(syntax: SyntaxToken) -> Option<Self> {
-        if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
-        } else {
-            None
-        }
+        Self::can_cast(syntax.kind()).then_some(Self { syntax })
     }
 
     fn syntax(&self) -> &SyntaxToken {

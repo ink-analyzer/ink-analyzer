@@ -1,7 +1,6 @@
 //! ink! trait definition diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, Trait};
-use ink_analyzer_ir::syntax::SyntaxKind;
 use ink_analyzer_ir::{
     FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait, Message, TraitDefinition,
 };
@@ -110,19 +109,14 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L304>.
             results.append(&mut ink_analyzer_ir::ink_attrs(fn_item.syntax()).iter().flat_map(|attr| {
                 attr.args().iter().filter_map(|arg| {
-                    if let Some(value) = arg.value() {
-                        if matches!(value.kind(), SyntaxKind::UNDERSCORE | SyntaxKind::UNDERSCORE_EXPR) {
-                            return Some(Diagnostic {
-                                message:
-                                "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
+                    (arg.value()?.is_wildcard()).then_some(Diagnostic {
+                        message:
+                        "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
                                 They're only supported on inherent ink! messages and constructors."
-                                    .to_string(),
-                                range: arg.text_range(),
-                                severity: Severity::Error,
-                            });
-                        }
-                    }
-                    None
+                            .to_string(),
+                        range: arg.text_range(),
+                        severity: Severity::Error,
+                    })
                 })
             }).collect());
 

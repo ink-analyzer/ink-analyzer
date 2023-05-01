@@ -33,14 +33,15 @@ impl ChainExtension {
         self.trait_item()?
             .assoc_item_list()
             .map(|assoc_item_list| {
-                assoc_item_list.assoc_items().find_map(|assoc_item| {
-                    if let AssocItem::TypeAlias(type_alias) = assoc_item {
-                        if let Some(name) = type_alias.name() {
-                            return (name.to_string() == "ErrorCode").then_some(type_alias);
+                assoc_item_list
+                    .assoc_items()
+                    .find_map(|assoc_item| match assoc_item {
+                        AssocItem::TypeAlias(type_alias) => {
+                            let name = type_alias.name()?;
+                            (name.to_string() == "ErrorCode").then_some(type_alias)
                         }
-                    }
-                    None
-                })
+                        _ => None,
+                    })
             })?
     }
 }

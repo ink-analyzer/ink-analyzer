@@ -21,7 +21,7 @@ impl MetaValue {
     ///
     /// Ref: <https://doc.rust-lang.org/reference/attributes.html#meta-item-attribute-syntax>.
     pub fn parse(elems: &[SyntaxElement]) -> Option<Self> {
-        if !elems.is_empty() {
+        (!elems.is_empty()).then(|| {
             let arg_text = elems.iter().map(|elem| elem.to_string()).join("");
 
             // Try to parse as an expression
@@ -33,12 +33,11 @@ impl MetaValue {
             // 3. Underscore expressions/Wildcard i.e _ (e.g for wildcard selectors)
             // https://doc.rust-lang.org/reference/expressions/underscore-expr.html
             let expr = ra_ap_syntax::hacks::parse_expr_from_str(&arg_text);
-            return expr.map(|exp| Self {
+            expr.map(|exp| Self {
                 expr: exp,
                 elements: elems.to_owned(),
-            });
-        }
-        None
+            })
+        })?
     }
 
     /// Returns the syntax elements.
@@ -116,17 +115,16 @@ impl MetaValue {
 
     /// Converts the value if it's an integer literal (decimal or hexadecimal) into a `u32`.
     pub fn as_u32(&self) -> Option<u32> {
-        if self.kind() == SyntaxKind::INT_NUMBER {
+        (self.kind() == SyntaxKind::INT_NUMBER).then(|| {
             let value = self.to_string();
-            return if value.starts_with("0x") {
+            if value.starts_with("0x") {
                 // Check as hex.
                 u32::from_str_radix(value.strip_prefix("0x").unwrap(), 16).ok()
             } else {
                 // Check as decimal.
                 value.parse::<u32>().ok()
-            };
-        }
-        None
+            }
+        })?
     }
 
     /// Converts the value if it's a boolean literal (true or false keyword) into a `bool`.
@@ -140,7 +138,7 @@ impl MetaValue {
 
     /// Converts the value if it's a string literal into a `String`.
     pub fn as_string(&self) -> Option<String> {
-        if self.kind() == SyntaxKind::STRING {
+        (self.kind() == SyntaxKind::STRING).then(|| {
             let mut value = self.to_string();
             // Strip leading and trailing escaped quotes.
             if value.starts_with('\"') {
@@ -155,9 +153,8 @@ impl MetaValue {
                     .expect("Should be able to strip suffix")
                     .to_string();
             }
-            return Some(value);
-        }
-        None
+            value
+        })
     }
 }
 

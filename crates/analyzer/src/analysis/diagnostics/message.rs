@@ -96,23 +96,10 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L152-L174>.
 fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
-    let mut returns_self = false;
-    let mut marker_token = None;
-
-    if let Some(ret_type) = fn_item.ret_type() {
-        if let Some(ty) = ret_type.ty() {
-            returns_self = ty.to_string() == "Self";
-            if returns_self {
-                marker_token = Some(ty.syntax().to_owned());
-            }
-        }
-    }
-
-    returns_self.then_some(Diagnostic {
+    let return_type = fn_item.ret_type()?.ty()?;
+    (return_type.to_string() == "Self").then_some(Diagnostic {
         message: "ink! messages must not return `Self`.".to_string(),
-        range: marker_token
-            .unwrap_or(fn_item.syntax().to_owned())
-            .text_range(),
+        range: return_type.syntax().text_range(),
         severity: Severity::Error,
     })
 }

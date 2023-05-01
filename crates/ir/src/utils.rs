@@ -148,10 +148,8 @@ pub fn ink_parent<T>(node: &SyntaxNode) -> Option<T>
 where
     T: FromInkAttribute,
 {
-    match parent_ast_item(node) {
-        Some(parent) => ink_attrs(parent.syntax()).into_iter().find_map(T::cast),
-        None => None,
-    }
+    parent_ast_item(node)
+        .and_then(|parent| ink_attrs(parent.syntax()).into_iter().find_map(T::cast))
 }
 
 /// Returns the syntax node's ancestor ink! entities of IR type `T`.

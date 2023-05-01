@@ -18,12 +18,13 @@ pub fn parse_syntax_tree_and_call_derive_impl(
 
 /// Returns struct fields if any from a syntax tree.
 pub fn parse_struct_fields(ast: &DeriveInput) -> Option<&FieldsNamed> {
-    if let Data::Struct(data_struct) = &ast.data {
-        if let Fields::Named(fields) = &data_struct.fields {
-            return Some(fields);
-        }
+    match &ast.data {
+        Data::Struct(data_struct) => match &data_struct.fields {
+            Fields::Named(fields) => Some(fields),
+            _ => None,
+        },
+        _ => None,
     }
-    None
 }
 
 /// Returns field if the list of fields includes a field with the name.

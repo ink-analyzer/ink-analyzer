@@ -5,7 +5,7 @@ use std::fmt;
 
 /// An ink! attribute meta item name.
 // We need a custom type because can't simply use `Ident`
-// ink! attributes includes an `impl` argument which is parsed as the `impl` keyword.
+// ink! attributes include an `impl` argument which is parsed as the `impl` keyword.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MetaName {
     syntax: SyntaxToken,
@@ -17,11 +17,7 @@ impl AstToken for MetaName {
     }
 
     fn cast(syntax: SyntaxToken) -> Option<Self> {
-        if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
-        } else {
-            None
-        }
+        Self::can_cast(syntax.kind()).then_some(Self { syntax })
     }
 
     fn syntax(&self) -> &SyntaxToken {

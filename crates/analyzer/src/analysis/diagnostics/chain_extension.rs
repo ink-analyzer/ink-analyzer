@@ -176,13 +176,12 @@ fn ensure_error_code_type_quantity(chain_extension: &ChainExtension) -> Vec<Diag
         if let Some(assoc_item_list) = trait_item.assoc_item_list() {
             let error_codes: Vec<TypeAlias> = assoc_item_list
                 .assoc_items()
-                .filter_map(|assoc_item| {
-                    if let AssocItem::TypeAlias(type_alias) = assoc_item {
-                        if let Some(name) = type_alias.name() {
-                            return (name.to_string() == "ErrorCode").then_some(type_alias);
-                        }
+                .filter_map(|assoc_item| match assoc_item {
+                    AssocItem::TypeAlias(type_alias) => {
+                        let name = type_alias.name()?;
+                        (name.to_string() == "ErrorCode").then_some(type_alias)
                     }
-                    None
+                    _ => None,
                 })
                 .collect();
 
