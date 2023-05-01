@@ -239,7 +239,8 @@ where
         .collect()
 }
 
-/// Returns impl! item closest descendants of a syntax node.
+/// Returns the syntax node's descendant ink! impl items that don't have any
+/// ink! ancestor between them and the current node.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
 pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> Vec<InkImpl> {
@@ -284,4 +285,672 @@ macro_rules! quote_as_str {
     ($($tt:tt)*) => {
         quote::quote!($($tt)*).to_string().as_str()
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::*;
+    use quote::quote;
+
+    #[test]
+    fn ink_attrs_works() {
+        for (node, n_attrs) in [
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    mod my_contract {}
+                })
+                .syntax(),
+                0,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                })
+                .syntax(),
+                1,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Fn>(quote_as_str! {
+                    #[ink(message)]
+                    #[ink(payable, default, selector=1)]
+                    pub fn my_message(&self) {}
+                })
+                .syntax(),
+                2,
+            ),
+        ] {
+            assert_eq!(ink_attrs(node).len(), n_attrs);
+        }
+    }
+
+    #[test]
+    fn ink_attrs_descendants_works() {
+        for (node, n_attrs) in [
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    mod my_contract {}
+                })
+                .syntax(),
+                0,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                })
+                .syntax(),
+                0, // `mod` has no ink! descendants.
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(event)]
+                        pub struct MyEvent {
+                            #[ink(topic)]
+                            field_1: i32,
+                            field_2: bool,
+                        }
+
+                        impl MyContract {
+                            #[ink(message)]
+                            #[ink(payable, default, selector=1)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                })
+                .syntax(),
+                4, // i.e `#[ink(event)]`, `#[ink(topic)]`, `#[ink(message)]` and `#[ink(payable, default, selector=1)]`.
+            ),
+        ] {
+            assert_eq!(ink_attrs_descendants(node).len(), n_attrs);
+        }
+    }
+
+    #[test]
+    fn ink_attrs_closest_descendants_works() {
+        for (node, n_attrs) in [
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    mod my_contract {}
+                })
+                .syntax(),
+                0,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                })
+                .syntax(),
+                0, // contract has no ink! descendants.
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(event)]
+                        pub struct MyEvent {
+                            #[ink(topic)]
+                            field_1: i32,
+                            field_2: bool,
+                        }
+
+                        impl MyContract {
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                })
+                .syntax(),
+                2, // i.e only `#[ink(event)]` and `#[ink(message)]` but not `#[ink(topic)]`.
+            ),
+        ] {
+            assert_eq!(ink_attrs_closest_descendants(node).len(), n_attrs);
+        }
+    }
+
+    #[test]
+    fn ink_attrs_in_scope_works() {
+        for (node, n_attrs) in [
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    mod my_contract {}
+                })
+                .syntax(),
+                0,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                })
+                .syntax(),
+                1, // `#[ink::contract]`.
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(event)]
+                        pub struct MyEvent {
+                            #[ink(topic)]
+                            field_1: i32,
+                            field_2: bool,
+                        }
+
+                        impl MyContract {
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                })
+                .syntax(),
+                4, // i.e only `#[ink(event)]`, `#[ink(topic)]` and `#[ink(message)]`.
+            ),
+        ] {
+            assert_eq!(ink_attrs_in_scope(node).len(), n_attrs);
+        }
+    }
+
+    #[test]
+    fn ink_attrs_ancestors_works() {
+        for (node, n_attrs) in [
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    mod my_contract {}
+                })
+                .syntax(),
+                0,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                })
+                .syntax(),
+                0, // `mod` has no ancestors.
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::RecordField>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(event)]
+                        pub struct MyEvent {
+                            #[ink(topic)]
+                            field_1: i32,
+                            field_2: bool,
+                        }
+                    }
+                })
+                .syntax(),
+                2, // i.e `#[ink(event)]` and `#[ink::contract]` are ancestors of `field_1`.
+            ),
+        ] {
+            assert_eq!(ink_attrs_ancestors(node).len(), n_attrs);
+        }
+    }
+
+    #[test]
+    fn ink_attrs_closest_ancestors_works() {
+        for (node, n_attrs) in [
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    mod my_contract {}
+                })
+                .syntax(),
+                0,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                })
+                .syntax(),
+                0, // `mod` has no ancestors.
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::RecordField>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(event)]
+                        pub struct MyEvent {
+                            #[ink(topic)]
+                            field_1: i32,
+                            field_2: bool,
+                        }
+                    }
+                })
+                .syntax(),
+                1, // i.e only `#[ink(event)]` (but not and `#[ink::contract]`) is the closest ancestors for `field_1`.
+            ),
+        ] {
+            assert_eq!(ink_attrs_closest_ancestors(node).len(), n_attrs);
+        }
+    }
+
+    #[test]
+    fn parent_ast_item_works() {
+        let code = quote! {
+            #[ink::contract]
+            mod my_contract {
+                #[ink(event)]
+                pub struct MyEvent {
+                    #[ink(topic)]
+                    field_1: i32,
+                    field_2: bool,
+                }
+            }
+        };
+
+        let module = parse_first_ast_node_of_type::<ast::Module>(quote_as_str! { #code });
+        let struct_item = parse_first_ast_node_of_type::<ast::Struct>(quote_as_str! { #code });
+        let field = parse_first_ast_node_of_type::<ast::RecordField>(quote_as_str! { #code });
+
+        // struct is the AST parent of the field.
+        assert_eq!(
+            parent_ast_item(field.syntax())
+                .unwrap()
+                .syntax()
+                .text_range(),
+            struct_item.syntax().text_range()
+        );
+
+        // module is the AST parent of the struct.
+        assert_eq!(
+            parent_ast_item(struct_item.syntax())
+                .unwrap()
+                .syntax()
+                .text_range(),
+            module.syntax().text_range()
+        );
+    }
+
+    #[test]
+    fn ink_args_works() {
+        for (node, n_args) in [
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    mod my_contract {}
+                })
+                .syntax(),
+                0,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                })
+                .syntax(),
+                0, // ink! contract has no args.
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+                    mod my_contract {}
+                })
+                .syntax(),
+                2, // i.e `env=my::env::Types` and `keep_attr="foo,bar"`.
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Fn>(quote_as_str! {
+                    #[ink(message)]
+                    #[ink(payable, default, selector=1)]
+                    pub fn my_message(&self) {}
+                })
+                .syntax(),
+                4, // i.e `message`, `payable`, `default`, and `selector=1`.
+            ),
+        ] {
+            assert_eq!(ink_args(node).len(), n_args);
+        }
+    }
+
+    #[test]
+    fn ink_arg_by_kind_works() {
+        for (node, arg_kind, is_expected) in [
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    mod my_contract {}
+                })
+                .syntax(),
+                InkArgKind::Env,
+                false,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                })
+                .syntax(),
+                InkArgKind::Env,
+                false,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+                    mod my_contract {}
+                })
+                .syntax(),
+                InkArgKind::Env,
+                true,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Module>(quote_as_str! {
+                    #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+                    mod my_contract {}
+                })
+                .syntax(),
+                InkArgKind::Namespace,
+                false,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Fn>(quote_as_str! {
+                    #[ink(message)]
+                    #[ink(payable, default, selector=1)]
+                    pub fn my_message(&self) {}
+                })
+                .syntax(),
+                InkArgKind::Message,
+                true,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Fn>(quote_as_str! {
+                    #[ink(message)]
+                    #[ink(payable, default, selector=1)]
+                    pub fn my_message(&self) {}
+                })
+                .syntax(),
+                InkArgKind::Selector,
+                true,
+            ),
+            (
+                parse_first_ast_node_of_type::<ast::Fn>(quote_as_str! {
+                    #[ink(message)]
+                    #[ink(payable, default, selector=1)]
+                    pub fn my_message(&self) {}
+                })
+                .syntax(),
+                InkArgKind::Constructor,
+                false,
+            ),
+        ] {
+            assert_eq!(ink_arg_by_kind(node, arg_kind).is_some(), is_expected);
+        }
+    }
+
+    #[test]
+    fn ink_callable_closest_descendants_works() {
+        for (code, n_constructors, n_messages) in [
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                },
+                0,
+                0,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> Self {}
+                        }
+                    }
+                },
+                1,
+                0,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                },
+                0,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> Self {}
+
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+
+                        impl Mytrait for MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor2() -> Self {}
+
+                            #[ink(message)]
+                            pub fn my_message2(&self) {}
+                        }
+                    }
+                },
+                2,
+                2,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(namespace="my_namespace")]
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> Self {}
+
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                },
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(impl)]
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> Self {}
+
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                },
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(impl, namespace="my_namespace")]
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> Self {}
+
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                },
+                1,
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+
+                        #[ink::test]
+                        fn it_works() {
+                            impl MyContract {
+                                #[ink(constructor)]
+                                pub fn my_constructor() -> Self {}
+
+                                #[ink(message)]
+                                pub fn my_message(&self) {}
+                            }
+                        }
+                    }
+                },
+                // Only `impl` and `namespace` attributes are peeked through.
+                0,
+                0,
+            ),
+        ] {
+            // Parse contract `mod` item.
+            let module: ast::Module = parse_first_ast_node_of_type(code);
+
+            // Check number of constructors.
+            assert_eq!(
+                ink_callable_closest_descendants::<Constructor>(module.syntax()).len(),
+                n_constructors,
+                "constructor: {}",
+                code
+            );
+            // Check number of messages.
+            assert_eq!(
+                ink_callable_closest_descendants::<Message>(module.syntax()).len(),
+                n_messages,
+                "message: {}",
+                code
+            );
+        }
+    }
+
+    #[test]
+    fn ink_impl_closest_descendants_works() {
+        for (code, n_impls) in [
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {}
+                },
+                0,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                        }
+                    }
+                },
+                0, // No ink! constructors or ink! messages.
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> Self {}
+                        }
+                    }
+                },
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                },
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> Self {}
+
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+
+                        impl Mytrait for MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor2() -> Self {}
+
+                            #[ink(message)]
+                            pub fn my_message2(&self) {}
+                        }
+                    }
+                },
+                2,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(namespace="my_namespace")]
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> Self {}
+
+                            #[ink(message)]
+                            pub fn my_message(&self) {}
+                        }
+                    }
+                },
+                1,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(impl)]
+                        impl MyContract {
+                        }
+                    }
+                },
+                1, // empty `impl` block is valid if annotated with ink! impl attribute.
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(impl, namespace="my_namespace")]
+                        impl MyContract {
+                        }
+                    }
+                },
+                1, // empty `impl` block is valid if annotated with ink! impl attribute.
+            ),
+        ] {
+            // Parse contract `mod` item.
+            let module: ast::Module = parse_first_ast_node_of_type(code);
+
+            // Check number of constructors.
+            assert_eq!(
+                ink_impl_closest_descendants(module.syntax()).len(),
+                n_impls,
+                "impls: {}",
+                code
+            );
+        }
+    }
 }

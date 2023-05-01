@@ -16,14 +16,22 @@ pub fn parse_first_syntax_token(code: &str) -> SyntaxToken {
         .unwrap()
 }
 
-/// Returns the first attribute in the code snippet.
-pub fn parse_first_attribute(code: &str) -> Attr {
+/// Returns the first AST node of the generic type in the code snippet.
+pub fn parse_first_ast_node_of_type<T>(code: &str) -> T
+where
+    T: AstNode,
+{
     SourceFile::parse(code)
         .tree()
         .syntax()
         .descendants()
-        .find_map(Attr::cast)
+        .find_map(T::cast)
         .unwrap()
+}
+
+/// Returns the first attribute in the code snippet.
+pub fn parse_first_attribute(code: &str) -> Attr {
+    parse_first_ast_node_of_type(code)
 }
 
 /// Returns the first ink! attribute in the code snippet.
