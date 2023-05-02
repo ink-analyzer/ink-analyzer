@@ -1,6 +1,6 @@
 [package]
 name = "ink-analyzer"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 description = "A library for semantic analysis of ink! smart contract code."
 license = "MIT OR Apache-2.0"
@@ -13,7 +13,7 @@ keywords = ["ink", "smart-contract", "polkadot", "substrate", "blockchain"]
 categories = ["development-tools"]
 
 [dependencies]
-ink-analyzer-ir = { version = "0.4", path = "../ir" }
+ink-analyzer-ir = { version = "0.5", path = "../ir" }
 
 [dev-dependencies]
 quote = "1.0.26"
