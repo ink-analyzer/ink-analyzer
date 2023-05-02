@@ -73,7 +73,7 @@ You can run unit tests for all the core functionality for all crates by running 
 cargo test
 ```
 
-**NOTE:** To run only tests for a single crate specific, add a `-p <crate_name>` argument to the above command e.g.
+**NOTE:** To run only tests for a single crate, add a `-p <crate_name>` argument to the above command e.g.
 ```shell
 cargo test -p ink-analyzer-ir
 ```
@@ -90,7 +90,7 @@ Run tests from the container.
 docker run -it ink-analyzer
 ```
 
-**NOTE:** To run only tests for a single crate specific, add a `-p <crate_name>` argument to the docker run command e.g.
+**NOTE:** To run only tests for a single crate, add a `-p <crate_name>` argument to the docker run command e.g.
 ```shell
 docker run -it ink-analyzer -p ink-analyzer-ir
 ```
