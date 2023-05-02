@@ -67,12 +67,34 @@ To open crate specific docs, see instructions in the readme in each crate's dire
 
 You can run unit tests for all the core functionality for all crates by running the following command from the project root
 
+### Option 1: Native Rust and cargo
+
 ```shell
 cargo test
 ```
 
-To run only crate specific tests, see instructions in the readme in each crate's directory.
+**NOTE:** To run only tests for a single crate specific, add a `-p <crate_name>` argument to the above command e.g.
+```shell
+cargo test -p ink-analyzer-ir
+```
+
+### Option 2: Docker
+
+Build the docker image.
+```shell
+docker build -t ink-analyzer .
+```
+
+Run tests from the container.
+```shell
+docker run -it ink-analyzer
+```
+
+**NOTE:** To run only tests for a single crate specific, add a `-p <crate_name>` argument to the docker run command e.g.
+```shell
+docker run -it ink-analyzer -p ink-analyzer-ir
+```
 
 ## License
 
-This code is released under both MIT and Apache-2.0 licenses.
+This code is released under both [MIT](/LICENSE-MIT) and [Apache-2.0](/LICENSE-APACHE) licenses.

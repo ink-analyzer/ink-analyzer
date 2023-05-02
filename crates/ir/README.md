@@ -81,4 +81,4 @@ cargo test -p ink-analyzer-ir
 
 ## License
 
-This code is released under both MIT and Apache-2.0 licenses.
+This code is released under both [MIT](/LICENSE-MIT) and [Apache-2.0](/LICENSE-APACHE) licenses.

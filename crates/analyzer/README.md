@@ -74,4 +74,4 @@ Implementations of the unit tests (and hence a good overview of the current func
 
 ## License
 
-This code is released under both MIT and Apache-2.0 licenses.
+This code is released under both [MIT](/LICENSE-MIT) and [Apache-2.0](/LICENSE-APACHE) licenses.
