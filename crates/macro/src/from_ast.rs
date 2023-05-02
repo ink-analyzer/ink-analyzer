@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use crate::utils;
@@ -10,14 +10,23 @@ pub fn impl_from_ast(ast: &syn::DeriveInput) -> syn::Result<TokenStream> {
 
     if let Some(fields) = utils::parse_struct_fields(ast) {
         if let Some(ast_field) = utils::find_field(fields, "ast") {
-            let ast_type = &ast_field.ty;
             let ir_crate_path = utils::get_normalized_ir_crate_path();
+            let ast_field_type = &ast_field.ty;
+            let ast_type = if ast_field_type
+                .to_token_stream()
+                .to_string()
+                .starts_with("ast ::")
+            {
+                quote! { #ast_field_type }
+            } else {
+                quote! { ast::#ast_field_type }
+            };
 
             return Ok(quote! {
                 impl FromAST for #name {
-                    type AST = #ir_crate_path::ast::#ast_type;
+                    type AST = #ir_crate_path::#ast_type;
 
-                    fn ast(&self) -> &#ir_crate_path::ast::#ast_type {
+                    fn ast(&self) -> &#ir_crate_path::#ast_type {
                         &self.ast
                     }
                 }
