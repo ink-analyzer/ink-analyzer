@@ -3,7 +3,7 @@
 //! # Note
 //! The [ink_ir crate](https://github.com/paritytech/ink/tree/v4.1.0/crates/ink/ir) is used as a reference implementation for ink!'s semantic rules.
 //!
-//! References to the source of enforced semantic rules are included either in the rustdoc for most utilities or at the call site for more generic utilties.
+//! References to the source of enforced semantic rules are included either in the rustdoc for most utilities or at the call site for more generic utilities.
 //!
 //! ## Methodology for extracting ink! semantic rules
 //! 1. Start by reviewing each ink! attribute macro's definition in the [ink_macro crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs).
