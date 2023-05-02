@@ -3,24 +3,23 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{Attribute, Data, DeriveInput, Field, Fields, FieldsNamed};
 
 /// Parses a syntax tree for the input token stream, calls derive the derive implementation function
 /// and either returns the output token or panics with the supplied error message.
 pub fn parse_syntax_tree_and_call_derive_impl(
     input: TokenStream,
-    derive_impl: fn(&DeriveInput) -> syn::Result<TokenStream2>,
+    derive_impl: fn(&syn::DeriveInput) -> syn::Result<TokenStream2>,
 ) -> TokenStream {
-    derive_impl(&syn::parse_macro_input!(input as DeriveInput))
+    derive_impl(&syn::parse_macro_input!(input as syn::DeriveInput))
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }
 
 /// Returns struct fields if any from a syntax tree.
-pub fn parse_struct_fields(ast: &DeriveInput) -> Option<&FieldsNamed> {
+pub fn parse_struct_fields(ast: &syn::DeriveInput) -> Option<&syn::FieldsNamed> {
     match &ast.data {
-        Data::Struct(data_struct) => match &data_struct.fields {
-            Fields::Named(fields) => Some(fields),
+        syn::Data::Struct(data_struct) => match &data_struct.fields {
+            syn::Fields::Named(fields) => Some(fields),
             _ => None,
         },
         _ => None,
@@ -28,7 +27,7 @@ pub fn parse_struct_fields(ast: &DeriveInput) -> Option<&FieldsNamed> {
 }
 
 /// Returns field if the list of fields includes a field with the name.
-pub fn find_field<'a>(fields: &'a FieldsNamed, name: &str) -> Option<&'a Field> {
+pub fn find_field<'a>(fields: &'a syn::FieldsNamed, name: &str) -> Option<&'a syn::Field> {
     fields.named.iter().find(|field| match &field.ident {
         Some(ident) => ident == name,
         None => false,
@@ -36,12 +35,15 @@ pub fn find_field<'a>(fields: &'a FieldsNamed, name: &str) -> Option<&'a Field> 
 }
 
 /// Returns true if the list of fields contains a field with the name.
-pub fn contains_field(fields: &FieldsNamed, name: &str) -> bool {
+pub fn contains_field(fields: &syn::FieldsNamed, name: &str) -> bool {
     find_field(fields, name).is_some()
 }
 
 /// Returns attribute if the list of attributes includes an attribute with the name.
-pub fn find_attribute_by_path<'a>(attrs: &'a [Attribute], name: &str) -> Option<&'a Attribute> {
+pub fn find_attribute_by_path<'a>(
+    attrs: &'a [syn::Attribute],
+    name: &str,
+) -> Option<&'a syn::Attribute> {
     attrs.iter().find(|attr| attr.path().is_ident(name))
 }
 

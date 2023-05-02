@@ -1,12 +1,11 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned;
-use syn::DeriveInput;
 
 use crate::utils;
 
 /// Returns an implementation of the `FromAST` trait for any `struct` with an `ast` field.
-pub fn impl_from_ast(ast: &DeriveInput) -> syn::Result<TokenStream> {
+pub fn impl_from_ast(ast: &syn::DeriveInput) -> syn::Result<TokenStream> {
     let name = &ast.ident;
 
     if let Some(fields) = utils::parse_struct_fields(ast) {
@@ -51,7 +50,7 @@ mod tests {
         }
     }
 
-    fn parse_actual_impl(input: DeriveInput) -> ItemImpl {
+    fn parse_actual_impl(input: syn::DeriveInput) -> ItemImpl {
         syn::parse2::<ItemImpl>(impl_from_ast(&input).unwrap()).unwrap()
     }
 

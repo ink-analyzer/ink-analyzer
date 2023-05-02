@@ -1,12 +1,11 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned;
-use syn::{Attribute, DeriveInput, Field, Path, Type};
 
 use crate::utils;
 
 /// Returns an implementation of the `FromInkAttribute` trait for any `struct` with an `ink_attr` field.
-pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
+pub fn impl_from_ink_attribute(ast: &syn::DeriveInput) -> syn::Result<TokenStream> {
     let name = &ast.ident;
 
     if let Some(fields) = utils::parse_struct_fields(ast) {
@@ -110,16 +109,16 @@ pub fn impl_from_ink_attribute(ast: &DeriveInput) -> syn::Result<TokenStream> {
     ))
 }
 
-fn get_ink_field_kind_attr(field: &Field) -> Option<&Attribute> {
+fn get_ink_field_kind_attr(field: &syn::Field) -> Option<&syn::Attribute> {
     if let Some(attr) = utils::find_attribute_by_path(&field.attrs, "macro_kind") {
         return Some(attr);
     }
     utils::find_attribute_by_path(&field.attrs, "arg_kind")
 }
 
-fn is_option_type(field_type: &Type) -> bool {
+fn is_option_type(field_type: &syn::Type) -> bool {
     match field_type {
-        Type::Path(type_path) => {
+        syn::Type::Path(type_path) => {
             if let Some(first_segment) = &type_path.path.segments.first() {
                 first_segment.ident == "Option"
             } else {
@@ -133,18 +132,18 @@ fn is_option_type(field_type: &Type) -> bool {
 struct FieldConfig {
     kind_variant: TokenStream,
     kind_type: TokenStream,
-    kind_type_variant: Path,
+    kind_type_variant: syn::Path,
 }
 
 impl FieldConfig {
-    pub fn build(ink_attr_field: &Field) -> Option<Self> {
+    pub fn build(ink_attr_field: &syn::Field) -> Option<Self> {
         let field_kind_attr = get_ink_field_kind_attr(ink_attr_field)?;
         let (kind_variant, kind_type) = if field_kind_attr.path().is_ident("macro_kind") {
             (quote! { Macro }, quote! { InkMacroKind })
         } else {
             (quote! { Arg }, quote! { InkArgKind })
         };
-        let kind_type_variant = field_kind_attr.clone().parse_args::<Path>().ok()?;
+        let kind_type_variant = field_kind_attr.clone().parse_args::<syn::Path>().ok()?;
 
         Some(Self {
             kind_variant,
@@ -186,7 +185,7 @@ mod tests {
         }
     }
 
-    fn parse_actual_impl(input: DeriveInput) -> ItemImpl {
+    fn parse_actual_impl(input: syn::DeriveInput) -> ItemImpl {
         syn::parse2::<ItemImpl>(impl_from_ink_attribute(&input).unwrap()).unwrap()
     }
 
