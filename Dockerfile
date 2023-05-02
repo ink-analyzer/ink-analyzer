@@ -4,8 +4,8 @@ FROM rust:1.69-slim-bullseye
 # Create app working directory.
 WORKDIR /app
 
-# Copy source code
+# Copy source code.
 COPY . .
 
-# Set cargo test as the executable.
+# Set `cargo test` as the executable.
 ENTRYPOINT ["/usr/local/cargo/bin/cargo", "test"]
