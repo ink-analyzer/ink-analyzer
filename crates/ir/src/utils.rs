@@ -1,7 +1,6 @@
 //! ink! IR utilities.
 
 use itertools::{Either, Itertools};
-use ra_ap_syntax::ast::{Attr, Item};
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use crate::{
@@ -11,7 +10,7 @@ use crate::{
 
 /// Casts a syntax node to an ink! attribute (if possible).
 fn ink_attribute_from_node(node: SyntaxNode) -> Option<InkAttribute> {
-    Attr::cast(node).and_then(InkAttribute::cast)
+    ast::Attr::cast(node).and_then(InkAttribute::cast)
 }
 
 /// Returns ink! attributes for the syntax node.
@@ -112,9 +111,9 @@ pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
 
 /// Returns parent [AST Item](https://github.com/rust-lang/rust-analyzer/blob/master/crates/syntax/src/ast/generated/nodes.rs#L1589-L1610)
 /// for the syntax node.
-pub fn parent_ast_item(node: &SyntaxNode) -> Option<Item> {
+pub fn parent_ast_item(node: &SyntaxNode) -> Option<ast::Item> {
     let parent = node.parent()?;
-    match Item::cast(parent.clone()) {
+    match ast::Item::cast(parent.clone()) {
         Some(item) => Some(item),
         None => parent_ast_item(&parent),
     }

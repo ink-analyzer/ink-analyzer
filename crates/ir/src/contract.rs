@@ -1,7 +1,7 @@
 //! ink! contract IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::Module;
+use ra_ap_syntax::ast;
 
 use crate::{
     utils, Constructor, Event, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData,
@@ -13,7 +13,7 @@ use crate::{
 pub struct Contract {
     /// ink! attribute IR data.
     #[macro_kind(Contract)]
-    ink_attr: InkAttrData<Module>,
+    ink_attr: InkAttrData<ast::Module>,
     /// ink! storage definition.
     #[arg_kind(Storage)]
     storage: Option<Storage>,
@@ -36,7 +36,7 @@ pub struct Contract {
 
 impl Contract {
     /// Returns the `mod` item (if any) for the ink! contract.
-    pub fn module(&self) -> Option<&Module> {
+    pub fn module(&self) -> Option<&ast::Module> {
         self.ink_attr.parent_ast()
     }
 

@@ -1,7 +1,7 @@
 //! ink! topic IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::RecordField;
+use ra_ap_syntax::ast;
 
 use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
 
@@ -10,12 +10,12 @@ use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
 pub struct Topic {
     /// ink! attribute IR data.
     #[arg_kind(Topic)]
-    ink_attr: InkAttrData<RecordField>,
+    ink_attr: InkAttrData<ast::RecordField>,
 }
 
 impl Topic {
     /// Returns the `field` item (if any) for the ink! topic.
-    pub fn field(&self) -> Option<&RecordField> {
+    pub fn field(&self) -> Option<&ast::RecordField> {
         self.ink_attr.parent_ast()
     }
 }

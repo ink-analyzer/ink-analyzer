@@ -1,14 +1,13 @@
 //! ink! attribute IR utilities.
 
 use itertools::Itertools;
-use ra_ap_syntax::ast::{Attr, TokenTree};
-use ra_ap_syntax::{AstNode, AstToken, SyntaxElement, SyntaxToken, T};
+use ra_ap_syntax::{ast, AstNode, AstToken, SyntaxElement, SyntaxToken, T};
 
 use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaSeparator, MetaValue};
 use crate::{InkArg, InkArgKind};
 
 /// Parse ink! attribute arguments.
-pub fn parse_ink_args(attr: &Attr) -> Vec<InkArg> {
+pub fn parse_ink_args(attr: &ast::Attr) -> Vec<InkArg> {
     if let Some(meta) = attr.meta() {
         if let Some(token_tree) = meta.token_tree() {
             return parse_meta_items(&token_tree)
@@ -58,7 +57,7 @@ pub fn sort_ink_args_by_kind(args: &[InkArg]) -> Vec<InkArg> {
 }
 
 /// Parse meta items.
-fn parse_meta_items(token_tree: &TokenTree) -> Vec<MetaNameValue> {
+fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
     let l_paren = token_tree.l_paren_token();
     let r_paren = token_tree.r_paren_token();
 

@@ -1,7 +1,7 @@
 //! ink! trait definition IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::Trait;
+use ra_ap_syntax::ast;
 
 use crate::{
     utils, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute, InkTrait,
@@ -13,14 +13,14 @@ use crate::{
 pub struct TraitDefinition {
     /// ink! attribute IR data.
     #[macro_kind(TraitDefinition)]
-    ink_attr: InkAttrData<Trait>,
+    ink_attr: InkAttrData<ast::Trait>,
     /// ink! messages.
     #[arg_kind(Message)]
     messages: Vec<Message>,
 }
 
 impl InkTrait for TraitDefinition {
-    fn trait_item(&self) -> Option<&Trait> {
+    fn trait_item(&self) -> Option<&ast::Trait> {
         self.ink_attr.parent_ast()
     }
 }

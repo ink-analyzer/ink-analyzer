@@ -3,8 +3,8 @@
 use blake2::digest::consts::U32;
 use blake2::digest::Digest;
 use blake2::Blake2b;
-use ra_ap_syntax::ast::{HasName, Type};
-use ra_ap_syntax::{AstNode, SyntaxKind, TextRange};
+use ra_ap_syntax::ast::HasName;
+use ra_ap_syntax::{ast, AstNode, SyntaxKind, TextRange};
 
 use crate::{utils, InkArg, InkArgKind, InkCallable, InkImplItem};
 
@@ -94,7 +94,7 @@ impl Selector {
         T: InkCallable,
     {
         match callable.impl_item()?.trait_()? {
-            Type::PathType(trait_path_type) => {
+            ast::Type::PathType(trait_path_type) => {
                 let trait_path = trait_path_type.path()?;
                 let is_full_path = trait_path.to_string().starts_with("::");
                 let trait_ident = if is_full_path {
@@ -197,7 +197,7 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use crate::{Constructor, FromInkAttribute, InkAttribute, Message};
-    use ra_ap_syntax::ast::Attr;
+    use ra_ap_syntax::ast;
     use ra_ap_syntax::SourceFile;
 
     fn first_ink_entity_of_type<T>(code: &str) -> T
@@ -208,7 +208,7 @@ mod tests {
             .tree()
             .syntax()
             .descendants()
-            .find_map(|node| T::cast(InkAttribute::cast(Attr::cast(node)?)?))
+            .find_map(|node| T::cast(InkAttribute::cast(ast::Attr::cast(node)?)?))
             .unwrap()
     }
 

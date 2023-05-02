@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use crate::InkAttribute;
-use ra_ap_syntax::ast::Attr;
+use ra_ap_syntax::ast;
 use ra_ap_syntax::{AstNode, SourceFile, SyntaxElement, SyntaxToken};
 
 /// Returns the first syntax token in the code snippet.
@@ -30,7 +30,7 @@ where
 }
 
 /// Returns the first attribute in the code snippet.
-pub fn parse_first_attribute(code: &str) -> Attr {
+pub fn parse_first_attribute(code: &str) -> ast::Attr {
     parse_first_ast_node_of_type(code)
 }
 
@@ -40,7 +40,7 @@ pub fn parse_first_ink_attribute(code: &str) -> InkAttribute {
         .tree()
         .syntax()
         .descendants()
-        .find_map(|node| InkAttribute::cast(Attr::cast(node)?))
+        .find_map(|node| InkAttribute::cast(ast::Attr::cast(node)?))
         .unwrap()
 }
 

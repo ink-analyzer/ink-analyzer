@@ -1,7 +1,8 @@
 //! ink! chain extension IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::{AssocItem, HasName, Trait, TypeAlias};
+use ra_ap_syntax::ast;
+use ra_ap_syntax::ast::HasName;
 
 use crate::{Extension, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, InkTrait};
 
@@ -10,14 +11,14 @@ use crate::{Extension, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, 
 pub struct ChainExtension {
     /// ink! attribute IR data.
     #[macro_kind(ChainExtension)]
-    ink_attr: InkAttrData<Trait>,
+    ink_attr: InkAttrData<ast::Trait>,
     /// ink! extensions.
     #[arg_kind(Extension)]
     extensions: Vec<Extension>,
 }
 
 impl InkTrait for ChainExtension {
-    fn trait_item(&self) -> Option<&Trait> {
+    fn trait_item(&self) -> Option<&ast::Trait> {
         self.ink_attr.parent_ast()
     }
 }
@@ -29,14 +30,14 @@ impl ChainExtension {
     }
 
     /// Returns the `ErrorCode` associated types for the ink! chain extension.
-    pub fn error_code(&self) -> Option<TypeAlias> {
+    pub fn error_code(&self) -> Option<ast::TypeAlias> {
         self.trait_item()?
             .assoc_item_list()
             .map(|assoc_item_list| {
                 assoc_item_list
                     .assoc_items()
                     .find_map(|assoc_item| match assoc_item {
-                        AssocItem::TypeAlias(type_alias) => {
+                        ast::AssocItem::TypeAlias(type_alias) => {
                             let name = type_alias.name()?;
                             (name.to_string() == "ErrorCode").then_some(type_alias)
                         }

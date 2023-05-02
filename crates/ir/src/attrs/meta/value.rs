@@ -1,15 +1,14 @@
 //! ink! attribute meta item value.
 
 use itertools::Itertools;
-use ra_ap_syntax::ast::Expr;
-use ra_ap_syntax::{AstNode, SyntaxElement, SyntaxKind, TextRange, TextSize};
+use ra_ap_syntax::{ast, AstNode, SyntaxElement, SyntaxKind, TextRange, TextSize};
 use std::fmt;
 
 /// An ink! attribute meta item value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MetaValue {
     /// An expression that's equivalent to the meta value but with wrong text ranges and offsets.
-    expr: Expr,
+    expr: ast::Expr,
     /// The syntax elements from which the meta value is derived.
     elements: Vec<SyntaxElement>,
 }
@@ -36,7 +35,7 @@ impl MetaValue {
             ra_ap_syntax::hacks::parse_expr_from_str(&arg_text).and_then(|expr| {
                 (matches!(
                     expr,
-                    Expr::Literal(_) | Expr::PathExpr(_) | Expr::UnderscoreExpr(_)
+                    ast::Expr::Literal(_) | ast::Expr::PathExpr(_) | ast::Expr::UnderscoreExpr(_)
                 ))
                 .then_some(Self {
                     expr,
@@ -52,22 +51,22 @@ impl MetaValue {
     }
 
     /// Returns the equivalent expression with an inaccurate text range.
-    pub fn as_expr_with_inaccurate_text_range(&self) -> &Expr {
+    pub fn as_expr_with_inaccurate_text_range(&self) -> &ast::Expr {
         &self.expr
     }
 
     /// Returns the syntax kind of meta value.
     pub fn kind(&self) -> SyntaxKind {
         match &self.expr {
-            Expr::Literal(lit) => lit.token().kind(),
-            Expr::PathExpr(path_expr) => {
+            ast::Expr::Literal(lit) => lit.token().kind(),
+            ast::Expr::PathExpr(path_expr) => {
                 if let Some(path) = path_expr.path() {
                     path.syntax().kind()
                 } else {
                     path_expr.syntax().kind()
                 }
             }
-            Expr::UnderscoreExpr(underscore_expr) => {
+            ast::Expr::UnderscoreExpr(underscore_expr) => {
                 if let Some(underscore) = underscore_expr.underscore_token() {
                     underscore.kind()
                 } else {

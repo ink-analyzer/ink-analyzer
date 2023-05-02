@@ -1,6 +1,5 @@
 //! ink! IR traits.
 
-use ra_ap_syntax::ast::{Item, Struct, Trait};
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use crate::{utils, InkArg, InkArgKind, InkAttribute, Selector, SelectorArg};
@@ -44,7 +43,7 @@ pub trait FromInkAttribute {
 /// Implemented by IR items whose valid AST node is a `struct` item.
 pub trait InkStruct {
     /// Returns the `struct` item (if any) for the ink! entity.
-    fn struct_item(&self) -> Option<&Struct>;
+    fn struct_item(&self) -> Option<&ast::Struct>;
 }
 
 /// Implemented by IR items whose valid AST node is an `fn` item.
@@ -56,7 +55,7 @@ pub trait InkFn {
 /// Implemented by IR items whose valid AST node is a `trait` item.
 pub trait InkTrait {
     /// Returns the `trait` item (if any) for the ink! entity.
-    fn trait_item(&self) -> Option<&Trait>;
+    fn trait_item(&self) -> Option<&ast::Trait>;
 }
 
 /// Implemented by IR items whose valid AST parent item node is an `impl` item.
@@ -72,7 +71,7 @@ where
 {
     fn impl_item(&self) -> Option<ast::Impl> {
         match utils::parent_ast_item(self.fn_item()?.syntax())? {
-            Item::Impl(item) => Some(item),
+            ast::Item::Impl(item) => Some(item),
             _ => None,
         }
     }

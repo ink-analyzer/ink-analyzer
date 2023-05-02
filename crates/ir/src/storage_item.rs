@@ -1,7 +1,7 @@
 //! ink! storage item IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::Adt;
+use ra_ap_syntax::ast;
 
 use crate::{utils, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute};
 
@@ -10,7 +10,7 @@ use crate::{utils, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData
 pub struct StorageItem {
     /// ink! attribute IR data.
     #[macro_kind(StorageItem)]
-    ink_attr: InkAttrData<Adt>,
+    ink_attr: InkAttrData<ast::Adt>,
 }
 
 impl StorageItem {
@@ -20,7 +20,7 @@ impl StorageItem {
     }
 
     /// Returns the `adt` (i.e `enum`, `struct` or `union`) item (if any) for the ink! storage item.
-    pub fn adt(&self) -> Option<&Adt> {
+    pub fn adt(&self) -> Option<&ast::Adt> {
         self.ink_attr.parent_ast()
     }
 }

@@ -1,7 +1,7 @@
 //! ink! event IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::Struct;
+use ra_ap_syntax::ast;
 
 use crate::{
     utils, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute, InkStruct,
@@ -13,14 +13,14 @@ use crate::{
 pub struct Event {
     /// ink! attribute IR data.
     #[arg_kind(Event)]
-    ink_attr: InkAttrData<Struct>,
+    ink_attr: InkAttrData<ast::Struct>,
     /// ink! topics.
     #[arg_kind(Topic)]
     topics: Vec<Topic>,
 }
 
 impl InkStruct for Event {
-    fn struct_item(&self) -> Option<&Struct> {
+    fn struct_item(&self) -> Option<&ast::Struct> {
         self.ink_attr.parent_ast()
     }
 }

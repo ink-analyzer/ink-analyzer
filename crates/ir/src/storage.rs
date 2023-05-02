@@ -1,7 +1,7 @@
 //! ink! storage IR.
 
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ra_ap_syntax::ast::Struct;
+use ra_ap_syntax::ast;
 
 use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, InkStruct};
 
@@ -10,11 +10,11 @@ use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, InkStruct};
 pub struct Storage {
     /// ink! attribute IR data.
     #[arg_kind(Storage)]
-    ink_attr: InkAttrData<Struct>,
+    ink_attr: InkAttrData<ast::Struct>,
 }
 
 impl InkStruct for Storage {
-    fn struct_item(&self) -> Option<&Struct> {
+    fn struct_item(&self) -> Option<&ast::Struct> {
         self.ink_attr.parent_ast()
     }
 }

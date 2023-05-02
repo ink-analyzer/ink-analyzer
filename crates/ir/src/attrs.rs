@@ -1,8 +1,7 @@
 //! ink! attribute IR.
 
 use ink_analyzer_macro::FromAST;
-use ra_ap_syntax::ast::{Attr, PathSegment};
-use ra_ap_syntax::{AstNode, SyntaxNode};
+use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 use std::fmt;
 
 use crate::{FromAST, InkItem};
@@ -24,18 +23,18 @@ pub struct InkAttribute {
     /// for `#[ink(message, payable, selector = 1)]`
     args: Vec<InkArg>,
     /// AST Node for ink! attribute.
-    ast: Attr,
+    ast: ast::Attr,
     /// ink! path segment node.
-    ink: PathSegment,
+    ink: ast::PathSegment,
     /// ink! macro path segment node (if any) from which the attribute macro kind is derived.
-    ink_macro: Option<PathSegment>,
+    ink_macro: Option<ast::PathSegment>,
     /// ink! argument name (if any) from which the attribute argument kind is derived.
     ink_arg_name: Option<MetaName>,
 }
 
 impl InkAttribute {
     /// Converts an AST attribute (`Attr`) into an `InkAttribute` IR type.
-    pub fn cast(attr: Attr) -> Option<Self> {
+    pub fn cast(attr: ast::Attr) -> Option<Self> {
         // Get attribute path segments.
         let mut path_segments = attr.path()?.segments();
 
@@ -100,12 +99,12 @@ impl InkAttribute {
     }
 
     /// Returns the ink! path segment node.
-    pub fn ink(&self) -> &PathSegment {
+    pub fn ink(&self) -> &ast::PathSegment {
         &self.ink
     }
 
     /// Returns the ink! macro path segment node (if any) from which the attribute macro kind is derived.
-    pub fn ink_macro(&self) -> Option<&PathSegment> {
+    pub fn ink_macro(&self) -> Option<&ast::PathSegment> {
         self.ink_macro.as_ref()
     }
 
