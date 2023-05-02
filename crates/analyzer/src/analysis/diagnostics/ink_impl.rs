@@ -1,6 +1,6 @@
 //! ink! impl diagnostics.
 
-use ink_analyzer_ir::ast::{AstNode, HasVisibility, Type};
+use ink_analyzer_ir::ast::{AstNode, HasVisibility};
 use ink_analyzer_ir::{ast, FromSyntax, InkArgKind, InkAttributeKind, InkFn, InkImpl, InkImplItem};
 
 use super::{constructor, message, utils};
@@ -115,7 +115,7 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
             results.push(diagnostic);
         }
 
-        if let Some(Type::PathType(path_type)) = impl_item.self_ty() {
+        if let Some(ast::Type::PathType(path_type)) = impl_item.self_ty() {
             if let Some(path) = path_type.path() {
                 results.append(
                     &mut path

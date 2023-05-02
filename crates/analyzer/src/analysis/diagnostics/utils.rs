@@ -1,9 +1,6 @@
 //! Utilities for ink! diagnostics.
 
-use ink_analyzer_ir::ast::{
-    AssocItem, AstNode, AstToken, HasGenericParams, HasTypeBounds, HasVisibility, Ident, Trait,
-    TypeAlias,
-};
+use ink_analyzer_ir::ast::{AstNode, AstToken, HasGenericParams, HasTypeBounds, HasVisibility};
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
@@ -72,19 +69,21 @@ fn ensure_no_ink_identifiers<T: FromSyntax>(item: &T) -> Vec<Diagnostic> {
     item.syntax()
         .descendants_with_tokens()
         .filter_map(|elem| {
-            elem.into_token().and_then(Ident::cast).and_then(|ident| {
-                ident
-                    .to_string()
-                    .starts_with("__ink_")
-                    .then_some(Diagnostic {
-                        message: format!(
-                            "Invalid identifier starting with __ink_: {}",
-                            ident.text()
-                        ),
-                        range: ident.syntax().text_range(),
-                        severity: Severity::Error,
-                    })
-            })
+            elem.into_token()
+                .and_then(ast::Ident::cast)
+                .and_then(|ident| {
+                    ident
+                        .to_string()
+                        .starts_with("__ink_")
+                        .then_some(Diagnostic {
+                            message: format!(
+                                "Invalid identifier starting with __ink_: {}",
+                                ident.text()
+                            ),
+                            range: ident.syntax().text_range(),
+                            severity: Severity::Error,
+                        })
+                })
         })
         .collect()
 }
@@ -273,7 +272,7 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
 }
 
 /// Casts a string to an Rust identifier (`Ident`) (if possible).
-fn parse_ident(value: &str) -> Option<Ident> {
+fn parse_ident(value: &str) -> Option<ast::Ident> {
     // Parse sanitized value and find the first identifier.
     let file = SourceFile::parse(value).tree();
 
@@ -281,7 +280,7 @@ fn parse_ident(value: &str) -> Option<Ident> {
     let ident = file
         .syntax()
         .descendants_with_tokens()
-        .find_map(|elem| Ident::cast(elem.as_token()?.to_owned()))?;
+        .find_map(|elem| ast::Ident::cast(elem.as_token()?.to_owned()))?;
 
     // Parsed identifier must be equal to the sanitized meta value.
     (ident.text() == value).then_some(ident)
@@ -929,7 +928,7 @@ pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Ve
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
-pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<Diagnostic> {
+pub fn ensure_trait_invariants(trait_item: &ast::Trait, ink_scope_name: &str) -> Vec<Diagnostic> {
     let mut results = Vec::new();
 
     if let Some(unsafe_token) = trait_item.unsafe_token() {
@@ -990,35 +989,35 @@ pub fn ensure_trait_invariants(trait_item: &Trait, ink_scope_name: &str) -> Vec<
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L309-L393>.
 pub fn ensure_trait_item_invariants<F, G>(
-    trait_item: &Trait,
+    trait_item: &ast::Trait,
     ink_scope_name: &str,
     assoc_fn_handler: F,
     assoc_type_handler: G,
 ) -> Vec<Diagnostic>
 where
     F: Fn(&ast::Fn) -> Vec<Diagnostic>,
-    G: Fn(&TypeAlias) -> Vec<Diagnostic>,
+    G: Fn(&ast::TypeAlias) -> Vec<Diagnostic>,
 {
     if let Some(assoc_item_list) = trait_item.assoc_item_list() {
         assoc_item_list.assoc_items().flat_map(|assoc_item| {
             match assoc_item {
-                AssocItem::Const(node) => vec![Diagnostic {
+                ast::AssocItem::Const(node) => vec![Diagnostic {
                     message: format!(
                         "Associated `const` items in an ink! {ink_scope_name} are not yet supported."
                     ),
                     range: node.syntax().text_range(),
                     severity: Severity::Error,
                 }],
-                AssocItem::MacroCall(node) => vec![Diagnostic {
+                ast::AssocItem::MacroCall(node) => vec![Diagnostic {
                     message: format!(
                         "Macros in an ink! {ink_scope_name} are not supported."
                     ),
                     range: node.syntax().text_range(),
                     severity: Severity::Error,
                 }],
-                AssocItem::TypeAlias(type_alias) => assoc_type_handler(&type_alias),
+                ast::AssocItem::TypeAlias(type_alias) => assoc_type_handler(&type_alias),
                 // No default implementations.
-                AssocItem::Fn(fn_item) => {
+                ast::AssocItem::Fn(fn_item) => {
                     let mut results = Vec::new();
 
                     // No default implementations.

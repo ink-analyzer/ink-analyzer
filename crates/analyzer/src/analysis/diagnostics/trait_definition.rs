@@ -1,8 +1,9 @@
 //! ink! trait definition diagnostics.
 
-use ink_analyzer_ir::ast::{AstNode, Trait};
+use ink_analyzer_ir::ast::AstNode;
 use ink_analyzer_ir::{
-    FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait, Message, TraitDefinition,
+    ast, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait, Message,
+    TraitDefinition,
 };
 
 use super::{message, utils};
@@ -79,7 +80,7 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
 ///
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
 /// This utility also runs `message::diagnostics` on trait methods with a ink! message attribute.
-fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
+fn ensure_trait_item_invariants(trait_item: &ast::Trait) -> Vec<Diagnostic> {
     utils::ensure_trait_item_invariants(
         trait_item,
         "trait definition",

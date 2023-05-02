@@ -1,8 +1,9 @@
 //! ink! chain extension diagnostics.
 
-use ink_analyzer_ir::ast::{AssocItem, AstNode, HasName, Trait, TypeAlias};
+use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::{
-    ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait,
+    ast, ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind,
+    InkTrait,
 };
 use std::collections::HashSet;
 
@@ -87,7 +88,7 @@ pub fn diagnostics(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
 ///
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
 /// This utility also runs `extension::diagnostics` on trait methods with a ink! extension attribute.
-fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
+fn ensure_trait_item_invariants(trait_item: &ast::Trait) -> Vec<Diagnostic> {
     utils::ensure_trait_item_invariants(
         trait_item,
         "chain extension",
@@ -174,10 +175,10 @@ fn ensure_trait_item_invariants(trait_item: &Trait) -> Vec<Diagnostic> {
 fn ensure_error_code_type_quantity(chain_extension: &ChainExtension) -> Vec<Diagnostic> {
     if let Some(trait_item) = chain_extension.trait_item() {
         if let Some(assoc_item_list) = trait_item.assoc_item_list() {
-            let error_codes: Vec<TypeAlias> = assoc_item_list
+            let error_codes: Vec<ast::TypeAlias> = assoc_item_list
                 .assoc_items()
                 .filter_map(|assoc_item| match assoc_item {
-                    AssocItem::TypeAlias(type_alias) => {
+                    ast::AssocItem::TypeAlias(type_alias) => {
                         let name = type_alias.name()?;
                         (name.to_string() == "ErrorCode").then_some(type_alias)
                     }

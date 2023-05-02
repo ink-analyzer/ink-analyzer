@@ -1,7 +1,7 @@
 //! ink! event diagnostics.
 
-use ink_analyzer_ir::ast::{AstNode, FieldList, HasAttrs, HasGenericParams};
-use ink_analyzer_ir::{Event, FromSyntax, InkArgKind, InkAttributeKind, InkItem, InkStruct};
+use ink_analyzer_ir::ast::{AstNode, HasAttrs, HasGenericParams};
+use ink_analyzer_ir::{ast, Event, FromSyntax, InkArgKind, InkAttributeKind, InkItem, InkStruct};
 
 use super::{topic, utils};
 use crate::{Diagnostic, Severity};
@@ -89,7 +89,7 @@ fn ensure_only_ink_topic_descendants(item: &Event) -> Vec<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L112-L117>.
 fn ensure_no_cfg_event_fields(event: &Event) -> Vec<Diagnostic> {
     if let Some(struct_item) = event.struct_item() {
-        if let Some(FieldList::RecordFieldList(field_list)) = struct_item.field_list() {
+        if let Some(ast::FieldList::RecordFieldList(field_list)) = struct_item.field_list() {
             return field_list
                 .fields()
                 .flat_map(|field| {
