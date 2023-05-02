@@ -20,12 +20,12 @@ Using custom derive macros for the `FromInkAttribute` and `FromSyntax` traits to
 ```rust
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ink_analyzer_ir::{Event, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Message, Storage};
-use ink_analyzer_ir::ast::Module;
+use ink_analyzer_ir::ast;
 
 #[derive(FromInkAttribute, FromSyntax)]
 struct Contract {
     #[macro_kind(Contract)]
-    ink_attr: InkAttrData<Module>,
+    ink_attr: InkAttrData<ast::Module>,
     #[arg_kind(Storage)]
     storage: Option<Storage>,
     #[arg_kind(Event)]
