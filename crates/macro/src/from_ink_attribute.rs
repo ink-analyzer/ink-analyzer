@@ -160,7 +160,7 @@ mod tests {
     use quote::format_ident;
     use syn::{Ident, ItemImpl};
 
-    fn expected_impl(name: Ident) -> ItemImpl {
+    fn expected_impl(name: Ident, optional_fields: &[TokenStream]) -> ItemImpl {
         let ir_crate_path = utils::get_normalized_ir_crate_path();
 
         syn::parse_quote! {
@@ -177,6 +177,7 @@ mod tests {
                     Self::can_cast(&attr).then(|| {
                         let ink_attr_data = #ir_crate_path::InkAttrData::from(attr);
                         Self {
+                            #( #optional_fields, )*
                             ink_attr: ink_attr_data,
                         }
                     })
@@ -199,7 +200,7 @@ mod tests {
             }
         };
 
-        assert_eq!(parse_actual_impl(input), expected_impl(name));
+        assert_eq!(parse_actual_impl(input), expected_impl(name, &Vec::new()));
     }
 
     #[test]
@@ -214,5 +215,47 @@ mod tests {
         let output = impl_from_ink_attribute(&input);
 
         assert!(output.is_err());
+    }
+
+    #[test]
+    fn optional_fields_works() {
+        let name = format_ident!("Contract");
+        let input = syn::parse_quote! {
+            struct #name {
+                #[macro_kind(Contract)]
+                ink_attr: InkAttrData<Module>,
+                #[arg_kind(Storage)]
+                storage: Option<Storage>,
+                #[arg_kind(Event)]
+                events: Vec<Event>,
+                #[arg_kind(Impl)]
+                impls: Vec<InkImpl>,
+                #[arg_kind(Constructor)]
+                constructors: Vec<Constructor>,
+                #[arg_kind(Message)]
+                messages: Vec<Message>,
+            }
+        };
+
+        let ir_crate_path = utils::get_normalized_ir_crate_path();
+        let optional_fields = vec![
+            quote! {
+                storage: #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax()).into_iter().next()
+            },
+            quote! {
+                events: #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax())
+            },
+            quote! {
+                impls: #ir_crate_path::ink_impl_closest_descendants(ink_attr_data.parent_syntax())
+            },
+            quote! {
+                constructors: #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax())
+            },
+            quote! {
+                messages: #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax())
+            }
+        ];
+
+        assert_eq!(parse_actual_impl(input), expected_impl(name, &optional_fields));
     }
 }
