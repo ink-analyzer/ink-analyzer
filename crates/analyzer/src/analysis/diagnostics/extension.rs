@@ -12,41 +12,31 @@ const EXTENSION_SCOPE_NAME: &str = "extension";
 /// The entry point for finding ink! extension semantic rules is the chain_extension module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L500>.
-pub fn diagnostics(extension: &Extension) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, extension: &Extension) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(extension));
+    utils::run_generic_diagnostics(results, extension);
 
     // Ensures that ink! extension is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L473>.
     if let Some(diagnostic) = utils::ensure_fn(extension, EXTENSION_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     if let Some(fn_item) = extension.fn_item() {
         // Ensures that ink! extension `fn` item satisfies all common invariants of method-based ink! entities,
         // see `utils::ensure_method_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L395-L465>.
-        utils::append_diagnostics(
-            &mut results,
-            &mut utils::ensure_method_invariants(fn_item, EXTENSION_SCOPE_NAME),
-        );
+        utils::ensure_method_invariants(results, fn_item, EXTENSION_SCOPE_NAME);
 
         // Ensures that ink! extension `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L488-L493>.
         if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, EXTENSION_SCOPE_NAME) {
-            utils::push_diagnostic(&mut results, diagnostic);
+            results.push(diagnostic);
         }
     }
 
     // Ensures that ink! extension has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_no_ink_descendants(extension, EXTENSION_SCOPE_NAME),
-    );
-
-    results
+    utils::ensure_no_ink_descendants(results, extension, EXTENSION_SCOPE_NAME);
 }
 
 #[cfg(test)]
@@ -129,7 +119,9 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(
+            let mut results = Vec::new();
+            utils::ensure_method_invariants(
+                &mut results,
                 extension.fn_item().unwrap(),
                 EXTENSION_SCOPE_NAME,
             );
@@ -176,7 +168,9 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(
+            let mut results = Vec::new();
+            utils::ensure_method_invariants(
+                &mut results,
                 extension.fn_item().unwrap(),
                 EXTENSION_SCOPE_NAME,
             );
@@ -239,7 +233,8 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_no_ink_descendants(&extension, EXTENSION_SCOPE_NAME);
+            let mut results = Vec::new();
+            utils::ensure_no_ink_descendants(&mut results, &extension, EXTENSION_SCOPE_NAME);
             assert!(results.is_empty(), "extension: {}", code);
         }
     }
@@ -257,7 +252,8 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&extension, EXTENSION_SCOPE_NAME);
+        let mut results = Vec::new();
+        utils::ensure_no_ink_descendants(&mut results, &extension, EXTENSION_SCOPE_NAME);
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
@@ -277,7 +273,8 @@ mod tests {
                 #code
             });
 
-            let results = diagnostics(&extension);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &extension);
             assert!(results.is_empty(), "extension: {}", code);
         }
     }

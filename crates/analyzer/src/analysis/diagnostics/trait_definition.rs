@@ -18,58 +18,41 @@ const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/mod.rs#L42-L49>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L64-L84>.
-pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, trait_definition: &TraitDefinition) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::run_generic_diagnostics(trait_definition),
-    );
+    utils::run_generic_diagnostics(results, trait_definition);
 
     // Ensures that ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
     if let Some(diagnostic) = utils::ensure_trait(trait_definition, TRAIT_DEFINITION_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     if let Some(trait_item) = trait_definition.trait_item() {
         // Ensures that ink! trait definition `trait` item satisfies all common invariants of trait-based ink! entities,
         // see `utils::ensure_trait_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
-        utils::append_diagnostics(
-            &mut results,
-            &mut utils::ensure_trait_invariants(trait_item, TRAIT_DEFINITION_SCOPE_NAME),
-        );
+        utils::ensure_trait_invariants(results, trait_item, TRAIT_DEFINITION_SCOPE_NAME);
 
         // Ensures that ink! trait definition `trait` item's associated items satisfy all invariants,
         // see `ensure_trait_item_invariants` doc.
-        utils::append_diagnostics(&mut results, &mut ensure_trait_item_invariants(trait_item));
+        ensure_trait_item_invariants(results, trait_item);
     }
 
     // Runs ink! message diagnostics, see `message::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut trait_definition
-            .messages()
-            .iter()
-            .flat_map(message::diagnostics)
-            .collect(),
-    );
+    trait_definition
+        .messages()
+        .iter()
+        .for_each(|item| message::diagnostics(results, item));
 
     // Ensures that at least one ink! message, see `ensure_contains_message` doc.
     if let Some(diagnostic) = ensure_contains_message(trait_definition) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // see `ensure_valid_quasi_direct_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ensure_valid_quasi_direct_ink_descendants(trait_definition),
-    );
-
-    results
+    ensure_valid_quasi_direct_ink_descendants(results, trait_definition);
 }
 
 /// Ensures that ink! trait definition is a `trait` item whose associated items satisfy all invariants.
@@ -80,13 +63,12 @@ pub fn diagnostics(trait_definition: &TraitDefinition) -> Vec<Diagnostic> {
 ///
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
 /// This utility also runs `message::diagnostics` on trait methods with a ink! message attribute.
-fn ensure_trait_item_invariants(trait_item: &ast::Trait) -> Vec<Diagnostic> {
+fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast::Trait) {
     utils::ensure_trait_item_invariants(
+        results,
         trait_item,
         "trait definition",
-        |fn_item| {
-            let mut results = Vec::new();
-
+        |results, fn_item| {
             // All trait methods should be ink! messages.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L210-L288>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L298-L322>.
@@ -96,7 +78,7 @@ fn ensure_trait_item_invariants(trait_item: &ast::Trait) -> Vec<Diagnostic> {
                 .find_map(Message::cast)
             {
                 // Runs ink! message diagnostics, see `message::diagnostics` doc.
-                results.append(&mut message::diagnostics(&message_item));
+                message::diagnostics(results, &message_item);
             } else {
                 results.push(Diagnostic {
                     message: "All ink! trait definition methods must be ink! messages.".to_string(),
@@ -108,30 +90,30 @@ fn ensure_trait_item_invariants(trait_item: &ast::Trait) -> Vec<Diagnostic> {
             // Wildcard selectors are not supported.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L80-L101>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L304>.
-            results.append(&mut ink_analyzer_ir::ink_attrs(fn_item.syntax()).iter().flat_map(|attr| {
-                attr.args().iter().filter_map(|arg| {
-                    (arg.value()?.is_wildcard()).then_some(Diagnostic {
-                        message:
-                        "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
+            ink_analyzer_ir::ink_attrs(fn_item.syntax()).iter().for_each(|attr| {
+                attr.args().iter().for_each(|arg| {
+                    arg.value().and_then(|value| {
+                        (value.is_wildcard()).then(|| results.push(Diagnostic {
+                            message:
+                            "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
                                 They're only supported on inherent ink! messages and constructors."
-                            .to_string(),
-                        range: arg.text_range(),
-                        severity: Severity::Error,
-                    })
-                })
-            }).collect());
-
-            results
+                                .to_string(),
+                            range: arg.text_range(),
+                            severity: Severity::Error,
+                        }))
+                    });
+                });
+            });
         },
-        |type_alias| {
-            vec![Diagnostic {
+        |results, type_alias| {
+            results.push(Diagnostic {
                 message: "Associated types in ink! trait definitions are not yet supported."
                     .to_string(),
                 range: type_alias.syntax().text_range(),
                 severity: Severity::Error,
-            }]
+            })
         },
-    )
+    );
 }
 
 /// Ensures that at least one ink! message.
@@ -157,9 +139,10 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L85-L99>.
 fn ensure_valid_quasi_direct_ink_descendants(
+    results: &mut Vec<Diagnostic>,
     trait_definition: &TraitDefinition,
-) -> Vec<Diagnostic> {
-    utils::ensure_valid_quasi_direct_ink_descendants(trait_definition, |attr| {
+) {
+    utils::ensure_valid_quasi_direct_ink_descendants(results, trait_definition, |attr| {
         matches!(
             attr.kind(),
             InkAttributeKind::Arg(InkArgKind::Message)
@@ -167,7 +150,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
                 | InkAttributeKind::Arg(InkArgKind::Default)
                 | InkAttributeKind::Arg(InkArgKind::Selector)
         )
-    })
+    });
 }
 
 #[cfg(test)]
@@ -282,7 +265,9 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_trait_invariants(
+            let mut results = Vec::new();
+            utils::ensure_trait_invariants(
+                &mut results,
                 trait_definition.trait_item().unwrap(),
                 TRAIT_DEFINITION_SCOPE_NAME,
             );
@@ -339,7 +324,9 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_trait_invariants(
+            let mut results = Vec::new();
+            utils::ensure_trait_invariants(
+                &mut results,
                 trait_definition.trait_item().unwrap(),
                 TRAIT_DEFINITION_SCOPE_NAME,
             );
@@ -360,7 +347,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_trait_item_invariants(trait_definition.trait_item().unwrap());
+            let mut results = Vec::new();
+            ensure_trait_item_invariants(&mut results, trait_definition.trait_item().unwrap());
             assert!(results.is_empty(), "trait definition: {}", code);
         }
     }
@@ -479,7 +467,8 @@ mod tests {
                 }
             });
 
-            let results = ensure_trait_item_invariants(trait_definition.trait_item().unwrap());
+            let mut results = Vec::new();
+            ensure_trait_item_invariants(&mut results, trait_definition.trait_item().unwrap());
             assert_eq!(results.len(), 1, "trait definition: {}", items);
             assert_eq!(
                 results[0].severity,
@@ -553,7 +542,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_valid_quasi_direct_ink_descendants(&trait_definition);
+            let mut results = Vec::new();
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition);
             assert!(results.is_empty());
         }
     }
@@ -575,7 +565,8 @@ mod tests {
             }
         });
 
-        let results = ensure_valid_quasi_direct_ink_descendants(&trait_definition);
+        let mut results = Vec::new();
+        ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition);
         // 1 diagnostics for `constructor` `event` and `unknown`.
         assert_eq!(results.len(), 3);
         // All diagnostics should be errors.
@@ -595,7 +586,8 @@ mod tests {
                 #code
             });
 
-            let results = diagnostics(&trait_definition);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &trait_definition);
             assert!(results.is_empty(), "trait definition: {}", code);
         }
     }

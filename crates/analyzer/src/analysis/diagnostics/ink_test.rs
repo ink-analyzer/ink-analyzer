@@ -14,25 +14,18 @@ const TEST_SCOPE_NAME: &str = "test";
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L34-L44>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27-L30>.
-pub fn diagnostics(ink_test: &InkTest) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_test: &InkTest) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(ink_test));
+    utils::run_generic_diagnostics(results, ink_test);
 
     // Ensures that ink! test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
     if let Some(diagnostic) = utils::ensure_fn(ink_test, TEST_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that ink! test has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_no_ink_descendants(ink_test, TEST_SCOPE_NAME),
-    );
-
-    results
+    utils::ensure_no_ink_descendants(results, ink_test, TEST_SCOPE_NAME);
 }
 
 #[cfg(test)]
@@ -110,7 +103,8 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&ink_test, TEST_SCOPE_NAME);
+        let mut results = Vec::new();
+        utils::ensure_no_ink_descendants(&mut results, &ink_test, TEST_SCOPE_NAME);
         assert!(results.is_empty());
     }
 
@@ -127,7 +121,8 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&ink_test, TEST_SCOPE_NAME);
+        let mut results = Vec::new();
+        utils::ensure_no_ink_descendants(&mut results, &ink_test, TEST_SCOPE_NAME);
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
@@ -162,7 +157,8 @@ mod tests {
         ] {
             let ink_test = parse_first_ink_test(code);
 
-            let results = diagnostics(&ink_test);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &ink_test);
             assert!(results.is_empty(), "ink test: {}", code);
         }
     }

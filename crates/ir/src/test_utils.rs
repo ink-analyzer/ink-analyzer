@@ -12,7 +12,7 @@ pub fn parse_first_syntax_token(code: &str) -> SyntaxToken {
         .tree()
         .syntax()
         .descendants_with_tokens()
-        .find_map(|elem| elem.as_token().cloned())
+        .find_map(|elem| elem.into_token())
         .unwrap()
 }
 

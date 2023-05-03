@@ -22,6 +22,11 @@ impl InkFn for Extension {
 }
 
 impl Extension {
+    /// Returns the id (if any) of the ink! extension.
+    pub fn id(&self) -> Option<u32> {
+        self.extension_arg()?.value()?.as_u32()
+    }
+
     /// Returns the ink! extension argument (if any) for the ink! extension.
     pub fn extension_arg(&self) -> Option<InkArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::Extension)

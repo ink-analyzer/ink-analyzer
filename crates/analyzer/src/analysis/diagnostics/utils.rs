@@ -11,81 +11,49 @@ use std::collections::HashSet;
 
 use crate::{Diagnostic, Severity};
 
-/// Pushes a new diagnostic into the current list of diagnostics.
-pub fn push_diagnostic(current: &mut Vec<Diagnostic>, value: Diagnostic) {
-    current.push(value)
-}
-
-/// Appends new diagnostics to the current list of diagnostics.
-pub fn append_diagnostics(current: &mut Vec<Diagnostic>, updates: &mut Vec<Diagnostic>) {
-    current.append(updates)
-}
-
 /// Runs generic diagnostics that apply to all ink! entities.
 /// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
 /// `ensure_no_duplicate_attributes_and_arguments`, `ensure_valid_attribute_arguments`).
-pub fn run_generic_diagnostics<T: FromSyntax>(item: &T) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn run_generic_diagnostics<T: FromSyntax>(results: &mut Vec<Diagnostic>, item: &T) {
     // Ensures that no `__ink_` prefixed identifiers, see `ensure_no_ink_identifiers` doc.
-    append_diagnostics(&mut results, &mut ensure_no_ink_identifiers(item));
+    ensure_no_ink_identifiers(results, item);
 
     // Ensures that no invalid ink! attributes, see `ensure_no_invalid_ink_attributes` doc.
-    append_diagnostics(
-        &mut results,
-        &mut ensure_no_unknown_ink_attributes(&item.ink_attrs_in_scope()),
-    );
+    ensure_no_unknown_ink_attributes(results, &item.ink_attrs_in_scope());
 
     // Ensures that ink! attribute arguments are of the right format and have values are of the correct type (if any),
     // See `ensure_valid_attribute_arguments` doc.
-    append_diagnostics(
-        &mut results,
-        &mut item
-            .ink_attrs()
-            .iter()
-            .flat_map(ensure_valid_attribute_arguments)
-            .collect(),
-    );
+    item.ink_attrs()
+        .iter()
+        .for_each(|attr| ensure_valid_attribute_arguments(results, attr));
 
     // Ensures that no duplicate ink! attributes and/or arguments, see `ensure_no_duplicate_attributes_and_arguments` doc.
-    append_diagnostics(
-        &mut results,
-        &mut ensure_no_duplicate_attributes_and_arguments(&item.ink_attrs()),
-    );
+    ensure_no_duplicate_attributes_and_arguments(results, &item.ink_attrs());
 
     // Ensures that no conflicting ink! attributes and/or arguments, see `ensure_no_conflicting_attributes_and_arguments` doc.
-    append_diagnostics(
-        &mut results,
-        &mut ensure_no_conflicting_attributes_and_arguments(&item.ink_attrs()),
-    );
-
-    results
+    ensure_no_conflicting_attributes_and_arguments(results, &item.ink_attrs());
 }
 
 /// Returns an error diagnostic for every instance of `__ink_` prefixed identifier found.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/idents_lint.rs#L20>.
-fn ensure_no_ink_identifiers<T: FromSyntax>(item: &T) -> Vec<Diagnostic> {
-    item.syntax()
-        .descendants_with_tokens()
-        .filter_map(|elem| {
-            elem.into_token()
-                .and_then(ast::Ident::cast)
-                .and_then(|ident| {
-                    ident
-                        .to_string()
-                        .starts_with("__ink_")
-                        .then_some(Diagnostic {
-                            message: format!(
-                                "Invalid identifier starting with __ink_: {}",
-                                ident.text()
-                            ),
-                            range: ident.syntax().text_range(),
-                            severity: Severity::Error,
-                        })
+fn ensure_no_ink_identifiers<T: FromSyntax>(results: &mut Vec<Diagnostic>, item: &T) {
+    item.syntax().descendants_with_tokens().for_each(|elem| {
+        elem.into_token()
+            .and_then(ast::Ident::cast)
+            .and_then(|ident| {
+                ident.to_string().starts_with("__ink_").then(|| {
+                    results.push(Diagnostic {
+                        message: format!(
+                            "Invalid identifier starting with __ink_: {}",
+                            ident.text()
+                        ),
+                        range: ident.syntax().text_range(),
+                        severity: Severity::Error,
+                    })
                 })
-        })
-        .collect()
+            });
+    });
 }
 
 /// Returns a warning diagnostic for every unknown ink! attribute found.
@@ -99,16 +67,15 @@ fn ensure_no_ink_identifiers<T: FromSyntax>(item: &T) -> Vec<Diagnostic> {
 /// Those are handled by `ensure_valid_attribute_arguments`.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L876-L1024>.
-fn ensure_no_unknown_ink_attributes(attrs: &[InkAttribute]) -> Vec<Diagnostic> {
-    attrs
-        .iter()
-        .filter_map(|attr| {
-            matches!(
-                attr.kind(),
-                InkAttributeKind::Macro(InkMacroKind::Unknown)
-                    | InkAttributeKind::Arg(InkArgKind::Unknown)
-            )
-            .then_some(Diagnostic {
+fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkAttribute]) {
+    attrs.iter().for_each(|attr| {
+        matches!(
+            attr.kind(),
+            InkAttributeKind::Macro(InkMacroKind::Unknown)
+                | InkAttributeKind::Arg(InkArgKind::Unknown)
+        )
+        .then(|| {
+            results.push(Diagnostic {
                 message: format!("Unknown ink! attribute: '{}'", attr.syntax()),
                 range: if let Some(ink_path) = attr.ink_macro() {
                     ink_path.syntax().text_range()
@@ -119,8 +86,8 @@ fn ensure_no_unknown_ink_attributes(attrs: &[InkAttribute]) -> Vec<Diagnostic> {
                 },
                 severity: Severity::Warning, // warning because it's possible ink! analyzer is just outdated.
             })
-        })
-        .collect()
+        });
+    });
 }
 
 /// Ensures that ink! attribute arguments are of the right format and have values (if any) of the correct type.
@@ -136,10 +103,10 @@ fn ensure_no_unknown_ink_attributes(attrs: &[InkAttribute]) -> Vec<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
-fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
+fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAttribute) {
     attr.args()
         .iter()
-        .filter_map(|arg| {
+        .for_each(|arg| {
             let text_range = arg.text_range();
             let arg_name_text = arg.meta().name().to_string();
             match arg.kind() {
@@ -152,15 +119,17 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
                 | InkArgKind::Anonymous
                 | InkArgKind::Topic
                 | InkArgKind::Payable
-                | InkArgKind::Impl => (arg.meta().eq().is_some() || arg.meta().value().is_some()).then_some(Diagnostic {
-                    message: format!("`{}` argument shouldn't have a value.", arg_name_text),
-                    range: text_range,
-                    severity: Severity::Error,
-                }),
+                | InkArgKind::Impl => if arg.meta().eq().is_some() || arg.meta().value().is_some() {
+                    results.push(Diagnostic {
+                        message: format!("`{}` argument shouldn't have a value.", arg_name_text),
+                        range: text_range,
+                        severity: Severity::Error,
+                    });
+                }
                 // Arguments that should have an integer (`u32` to be specific) value.
                 InkArgKind::Selector | InkArgKind::Extension => {
                     let is_selector = *arg.kind() == InkArgKind::Selector;
-                    (!ensure_valid_attribute_arg_value(
+                    if !ensure_valid_attribute_arg_value(
                         arg,
                         |meta_value| {
                             // Ensures that the meta value is either a decimal or hex encoded `u32`.
@@ -174,23 +143,24 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
                         },
                         |_| false,
                         false,
-                    ))
-                    .then_some(Diagnostic {
-                        message: format!(
-                            "`{}` argument should have an `integer` (`u32`) {} value.",
-                            arg_name_text,
-                            if is_selector {
-                                "or wildcard/underscore (`_`)"
-                            } else {
-                                ""
-                            }
-                        ),
-                        range: text_range,
-                        severity: Severity::Error,
-                    })
+                    ) {
+                        results.push(Diagnostic {
+                            message: format!(
+                                "`{}` argument should have an `integer` (`u32`) {} value.",
+                                arg_name_text,
+                                if is_selector {
+                                    "or wildcard/underscore (`_`)"
+                                } else {
+                                    ""
+                                }
+                            ),
+                            range: text_range,
+                            severity: Severity::Error,
+                        });
+                    }
                 }
                 // Arguments that should have a string value.
-                InkArgKind::KeepAttr | InkArgKind::Namespace => (!ensure_valid_attribute_arg_value(
+                InkArgKind::KeepAttr | InkArgKind::Namespace => if !ensure_valid_attribute_arg_value(
                     arg,
                     |meta_value| {
                         meta_value.as_string().is_some()
@@ -200,75 +170,73 @@ fn ensure_valid_attribute_arguments(attr: &InkAttribute) -> Vec<Diagnostic> {
                     },
                     |_| false,
                     false,
-                ))
-                .then_some(Diagnostic {
-                    message: format!(
-                        "`{}` argument should have a {} `string` (`&str`) value.",
-                        arg_name_text,
-                        if *arg.kind() == InkArgKind::KeepAttr {
-                            "comma separated"
-                        } else {
-                            ""
-                        }
-                    ),
-                    range: text_range,
-                    severity: Severity::Error,
-                }),
+                ) {
+                    results.push(Diagnostic {
+                        message: format!(
+                            "`{}` argument should have a {} `string` (`&str`) value.",
+                            arg_name_text,
+                            if *arg.kind() == InkArgKind::KeepAttr {
+                                "comma separated"
+                            } else {
+                                ""
+                            }
+                        ),
+                        range: text_range,
+                        severity: Severity::Error,
+                    });
+                }
                 // Arguments that should have a boolean value.
-                InkArgKind::HandleStatus | InkArgKind::Derive => {
-                    (!ensure_valid_attribute_arg_value(
-                        arg,
-                        |meta_value| meta_value.as_boolean().is_some(),
-                        |_| false,
-                        false,
-                    ))
-                    .then_some(Diagnostic {
+                InkArgKind::HandleStatus | InkArgKind::Derive => if !ensure_valid_attribute_arg_value(
+                    arg,
+                    |meta_value| meta_value.as_boolean().is_some(),
+                    |_| false,
+                    false,
+                ) {
+                    results.push(Diagnostic {
                         message: format!(
                             "`{}` argument should have a `boolean` (`bool`) value.",
                             arg_name_text
                         ),
                         range: text_range,
                         severity: Severity::Error,
-                    })
+                    });
                 }
                 // Arguments that should have a path value.
-                InkArgKind::Env => (!ensure_valid_attribute_arg_value(
+                InkArgKind::Env => if !ensure_valid_attribute_arg_value(
                     arg,
                     |meta_value| {
                         matches!(meta_value.kind(), SyntaxKind::PATH | SyntaxKind::PATH_EXPR)
                     },
                     |_| false,
                     false,
-                ))
-                .then_some(Diagnostic {
-                    message: format!(
-                        "`{}` argument should have a `path` (e.g `my::env::Types`) value.",
-                        arg_name_text
-                    ),
-                    range: text_range,
-                    severity: Severity::Error,
-                }),
-                // Handle unknown argument.
-                InkArgKind::Unknown => {
-                    Some(Diagnostic {
-                        message: if arg_name_text.is_empty() {
-                            "Missing ink! attribute argument.".to_string()
-                        } else {
-                            format!("Unknown ink! attribute argument: '{}'.", arg_name_text)
-                        },
+                ) {
+                    results.push(Diagnostic {
+                        message: format!(
+                            "`{}` argument should have a `path` (e.g `my::env::Types`) value.",
+                            arg_name_text
+                        ),
                         range: text_range,
-                        severity: if arg_name_text.is_empty() {
-                            // error for missing.
-                            Severity::Error
-                        } else {
-                            // warning because it's possible ink! analyzer is just outdated.
-                            Severity::Warning
-                        },
-                    })
-                }
-            }
-        })
-        .collect()
+                        severity: Severity::Error,
+                    });
+                },
+                // Handle unknown argument.
+                InkArgKind::Unknown => results.push(Diagnostic {
+                    message: if arg_name_text.is_empty() {
+                        "Missing ink! attribute argument.".to_string()
+                    } else {
+                        format!("Unknown ink! attribute argument: '{}'.", arg_name_text)
+                    },
+                    range: text_range,
+                    severity: if arg_name_text.is_empty() {
+                        // error for missing.
+                        Severity::Error
+                    } else {
+                        // warning because it's possible ink! analyzer is just outdated.
+                        Severity::Warning
+                    },
+                })
+            };
+        });
 }
 
 /// Casts a string to an Rust identifier (`Ident`) (if possible).
@@ -280,7 +248,7 @@ fn parse_ident(value: &str) -> Option<ast::Ident> {
     let ident = file
         .syntax()
         .descendants_with_tokens()
-        .find_map(|elem| ast::Ident::cast(elem.as_token()?.to_owned()))?;
+        .find_map(|elem| ast::Ident::cast(elem.into_token()?))?;
 
     // Parsed identifier must be equal to the sanitized meta value.
     (ident.text() == value).then_some(ident)
@@ -307,8 +275,10 @@ where
 /// Ensures that no duplicate ink! attributes and/or arguments.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L169-L208>.
-fn ensure_no_duplicate_attributes_and_arguments(attrs: &[InkAttribute]) -> Vec<Diagnostic> {
-    let mut results = Vec::new();
+fn ensure_no_duplicate_attributes_and_arguments(
+    results: &mut Vec<Diagnostic>,
+    attrs: &[InkAttribute],
+) {
     let mut seen_macros: HashSet<&InkMacroKind> = HashSet::new();
     let mut seen_args: HashSet<&InkArgKind> = HashSet::new();
 
@@ -339,8 +309,6 @@ fn ensure_no_duplicate_attributes_and_arguments(attrs: &[InkAttribute]) -> Vec<D
             seen_args.insert(arg_kind);
         }
     }
-
-    results
 }
 
 /// Ensures that no conflicting ink! attributes and/or arguments.
@@ -365,9 +333,10 @@ fn ensure_no_duplicate_attributes_and_arguments(attrs: &[InkAttribute]) -> Vec<D
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L154-L167>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L829-L873>.
-fn ensure_no_conflicting_attributes_and_arguments(attrs: &[InkAttribute]) -> Vec<Diagnostic> {
-    let mut results = Vec::new();
-
+fn ensure_no_conflicting_attributes_and_arguments(
+    results: &mut Vec<Diagnostic>,
+    attrs: &[InkAttribute],
+) {
     // We can only move forward if there is at least one "valid" attribute.
     // We treat the first "valid" attribute like the "primary" attribute that other attributes and arguments shouldn't conflict with.
     if let Some(first_valid_attribute) = attrs.iter().find(|attr| {
@@ -579,8 +548,6 @@ fn ensure_no_conflicting_attributes_and_arguments(attrs: &[InkAttribute]) -> Vec
             }
         }
     }
-
-    results
 }
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
@@ -698,35 +665,35 @@ pub fn ensure_at_least_one_item<T>(
 
 /// Ensures that an item is not missing and there are not multiple definitions of it as well.
 pub fn ensure_exactly_one_item<T: FromSyntax>(
+    results: &mut Vec<Diagnostic>,
     items: &[T],
     empty_diagnostic: Diagnostic,
     error_too_many: &str,
     severity_too_many: Severity,
-) -> Vec<Diagnostic> {
+) {
     if items.is_empty() {
-        return vec![empty_diagnostic];
+        results.push(empty_diagnostic);
+    } else {
+        ensure_at_most_one_item(results, items, error_too_many, severity_too_many);
     }
-
-    ensure_at_most_one_item(items, error_too_many, severity_too_many)
 }
 
 /// Ensures that there are not multiple definitions of an item.
 pub fn ensure_at_most_one_item<T: FromSyntax>(
+    results: &mut Vec<Diagnostic>,
     items: &[T],
     message: &str,
     severity: Severity,
-) -> Vec<Diagnostic> {
+) {
     if items.len() > 1 {
-        return items[1..]
-            .iter()
-            .map(|item| Diagnostic {
+        items[1..].iter().for_each(|item| {
+            results.push(Diagnostic {
                 message: message.to_string(),
                 range: item.syntax().text_range(),
                 severity,
             })
-            .collect();
+        });
     }
-    Vec::new()
 }
 
 /// Ensures that ink! entity is a `struct` with `pub` visibility.
@@ -830,9 +797,11 @@ where
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L395-L465>.
-pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<Diagnostic> {
-    let mut results = Vec::new();
-
+pub fn ensure_method_invariants(
+    results: &mut Vec<Diagnostic>,
+    fn_item: &ast::Fn,
+    ink_scope_name: &str,
+) {
     if let Some(diagnostic) = ensure_no_generics(fn_item, ink_scope_name) {
         results.push(diagnostic);
     }
@@ -883,8 +852,6 @@ pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<
                 .collect(),
         );
     }
-
-    results
 }
 
 /// Ensures that `fn` item satisfies all common invariants of externally callable ink! entities
@@ -893,9 +860,11 @@ pub fn ensure_method_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<
 /// See reference below for details about checked invariants.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Vec<Diagnostic> {
-    let mut results = Vec::new();
-
+pub fn ensure_callable_invariants(
+    results: &mut Vec<Diagnostic>,
+    fn_item: &ast::Fn,
+    ink_scope_name: &str,
+) {
     let (has_pub_or_inherited_visibility, visibility) = match fn_item.visibility() {
         // Check `pub` visibility.
         Some(visibility) => (visibility.to_string() == "pub", Some(visibility)),
@@ -915,9 +884,7 @@ pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Ve
     }
 
     // See `ensure_method_invariants` doc.
-    results.append(&mut ensure_method_invariants(fn_item, ink_scope_name));
-
-    results
+    ensure_method_invariants(results, fn_item, ink_scope_name);
 }
 
 /// Ensures that `trait` item satisfies all common invariants of trait-based ink! entities
@@ -928,9 +895,11 @@ pub fn ensure_callable_invariants(fn_item: &ast::Fn, ink_scope_name: &str) -> Ve
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
-pub fn ensure_trait_invariants(trait_item: &ast::Trait, ink_scope_name: &str) -> Vec<Diagnostic> {
-    let mut results = Vec::new();
-
+pub fn ensure_trait_invariants(
+    results: &mut Vec<Diagnostic>,
+    trait_item: &ast::Trait,
+    ink_scope_name: &str,
+) {
     if let Some(unsafe_token) = trait_item.unsafe_token() {
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must not be `unsafe`."),
@@ -975,8 +944,6 @@ pub fn ensure_trait_invariants(trait_item: &ast::Trait, ink_scope_name: &str) ->
     ) {
         results.push(diagnostic);
     }
-
-    results
 }
 
 /// Ensures that item is a `trait` whose associated items satisfy all common invariants of associated items for ink! entities
@@ -989,37 +956,34 @@ pub fn ensure_trait_invariants(trait_item: &ast::Trait, ink_scope_name: &str) ->
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L309-L393>.
 pub fn ensure_trait_item_invariants<F, G>(
+    results: &mut Vec<Diagnostic>,
     trait_item: &ast::Trait,
     ink_scope_name: &str,
     assoc_fn_handler: F,
     assoc_type_handler: G,
-) -> Vec<Diagnostic>
-where
-    F: Fn(&ast::Fn) -> Vec<Diagnostic>,
-    G: Fn(&ast::TypeAlias) -> Vec<Diagnostic>,
+) where
+    F: Fn(&mut Vec<Diagnostic>, &ast::Fn),
+    G: Fn(&mut Vec<Diagnostic>, &ast::TypeAlias),
 {
     if let Some(assoc_item_list) = trait_item.assoc_item_list() {
-        assoc_item_list.assoc_items().flat_map(|assoc_item| {
+        assoc_item_list.assoc_items().for_each(|assoc_item| {
             match assoc_item {
-                ast::AssocItem::Const(node) => vec![Diagnostic {
+                ast::AssocItem::Const(node) => results.push(Diagnostic {
                     message: format!(
                         "Associated `const` items in an ink! {ink_scope_name} are not yet supported."
                     ),
                     range: node.syntax().text_range(),
                     severity: Severity::Error,
-                }],
-                ast::AssocItem::MacroCall(node) => vec![Diagnostic {
+                }),
+                ast::AssocItem::MacroCall(node) => results.push(Diagnostic {
                     message: format!(
                         "Macros in an ink! {ink_scope_name} are not supported."
                     ),
                     range: node.syntax().text_range(),
                     severity: Severity::Error,
-                }],
-                ast::AssocItem::TypeAlias(type_alias) => assoc_type_handler(&type_alias),
-                // No default implementations.
+                }),
+                ast::AssocItem::TypeAlias(type_alias) => assoc_type_handler(results, &type_alias),
                 ast::AssocItem::Fn(fn_item) => {
-                    let mut results = Vec::new();
-
                     // No default implementations.
                     if let Some(body) = fn_item.body() {
                         results.push(Diagnostic {
@@ -1029,14 +993,10 @@ where
                         });
                     }
 
-                    results.append(&mut assoc_fn_handler(&fn_item));
-
-                    results
+                    assoc_fn_handler(results, &fn_item)
                 },
             }
-        }).collect()
-    } else {
-        Vec::new()
+        });
     }
 }
 
@@ -1069,36 +1029,36 @@ where
 
 /// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
+    results: &mut Vec<Diagnostic>,
     item: &T,
     is_valid_quasi_direct_descendant: F,
-) -> Vec<Diagnostic>
-where
+) where
     T: FromSyntax,
     F: Fn(&InkAttribute) -> bool,
 {
     item.ink_attrs_closest_descendants()
         .iter()
-        .filter_map(|attr| {
-            (!is_valid_quasi_direct_descendant(attr)).then_some(Diagnostic {
-                message: format!("Invalid scope for an `{}` item.", attr.syntax()),
-                range: attr
-                    .syntax_parent()
-                    .unwrap_or(attr.syntax().to_owned())
-                    .text_range(),
-                severity: Severity::Error,
-            })
-        })
-        .collect()
+        .for_each(|attr| {
+            (!is_valid_quasi_direct_descendant(attr)).then(|| {
+                results.push(Diagnostic {
+                    message: format!("Invalid scope for an `{}` item.", attr.syntax()),
+                    range: attr
+                        .syntax_parent()
+                        .unwrap_or(attr.syntax().to_owned())
+                        .text_range(),
+                    severity: Severity::Error,
+                })
+            });
+        });
 }
 
 /// Ensures that no ink! descendants in the item's scope.
-pub fn ensure_no_ink_descendants<T>(item: &T, ink_scope_name: &str) -> Vec<Diagnostic>
+pub fn ensure_no_ink_descendants<T>(results: &mut Vec<Diagnostic>, item: &T, ink_scope_name: &str)
 where
     T: FromSyntax,
 {
-    item.ink_attrs_descendants()
-        .iter()
-        .map(|attr| Diagnostic {
+    item.ink_attrs_descendants().iter().for_each(|attr| {
+        results.push(Diagnostic {
             message: format!(
                 "`{}` cannot be used inside an ink! {ink_scope_name}.",
                 attr.syntax()
@@ -1109,7 +1069,7 @@ where
                 .text_range(),
             severity: Severity::Error,
         })
-        .collect()
+    });
 }
 
 #[cfg(test)]
@@ -1279,7 +1239,8 @@ mod tests {
             }
         });
 
-        let results = ensure_no_ink_identifiers(&file);
+        let mut results = Vec::new();
+        ensure_no_ink_identifiers(&mut results, &file);
         assert!(results.is_empty());
     }
 
@@ -1302,7 +1263,8 @@ mod tests {
             }
         });
 
-        let results = ensure_no_ink_identifiers(&file);
+        let mut results = Vec::new();
+        ensure_no_ink_identifiers(&mut results, &file);
         // There are 6 occurrences of __ink_ prefixed identifiers in the code snippet.
         assert_eq!(results.len(), 6);
         // All diagnostics should be errors.
@@ -1320,7 +1282,8 @@ mod tests {
         for code in valid_attributes!() {
             let attrs = parse_all_ink_attrs(&code);
 
-            let results = ensure_no_unknown_ink_attributes(&attrs);
+            let mut results = Vec::new();
+            ensure_no_unknown_ink_attributes(&mut results, &attrs);
             assert!(results.is_empty());
         }
     }
@@ -1340,7 +1303,8 @@ mod tests {
         ] {
             let attrs = parse_all_ink_attrs(code);
 
-            let results = ensure_no_unknown_ink_attributes(&attrs);
+            let mut results = Vec::new();
+            ensure_no_unknown_ink_attributes(&mut results, &attrs);
             assert_eq!(results.len(), 1);
             assert_eq!(results[0].severity, Severity::Warning);
         }
@@ -1353,7 +1317,8 @@ mod tests {
         for code in valid_attributes!() {
             let attr = parse_first_ink_attr(code);
 
-            let results = ensure_valid_attribute_arguments(&attr);
+            let mut results = Vec::new();
+            ensure_valid_attribute_arguments(&mut results, &attr);
             assert!(results.is_empty(), "attribute: {}", code);
         }
     }
@@ -1463,7 +1428,8 @@ mod tests {
         ] {
             let attr = parse_first_ink_attr(code);
 
-            let results = ensure_valid_attribute_arguments(&attr);
+            let mut results = Vec::new();
+            ensure_valid_attribute_arguments(&mut results, &attr);
             assert_eq!(results.len(), 1, "attribute: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "attribute: {}", code);
         }
@@ -1476,7 +1442,8 @@ mod tests {
         for code in valid_attributes!() {
             let attrs = parse_all_ink_attrs(code);
 
-            let results = ensure_no_duplicate_attributes_and_arguments(&attrs);
+            let mut results = Vec::new();
+            ensure_no_duplicate_attributes_and_arguments(&mut results, &attrs);
             assert!(results.is_empty(), "attributes: {}", code);
         }
     }
@@ -1510,7 +1477,8 @@ mod tests {
         ] {
             let attrs = parse_all_ink_attrs(code);
 
-            let results = ensure_no_duplicate_attributes_and_arguments(&attrs);
+            let mut results = Vec::new();
+            ensure_no_duplicate_attributes_and_arguments(&mut results, &attrs);
             assert_eq!(results.len(), 1, "attributes: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "attributes: {}", code);
         }
@@ -1523,7 +1491,8 @@ mod tests {
         for code in valid_attributes!() {
             let attrs = parse_all_ink_attrs(code);
 
-            let results = ensure_no_conflicting_attributes_and_arguments(&attrs);
+            let mut results = Vec::new();
+            ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs);
             assert!(results.is_empty(), "attributes: {}", code);
         }
     }
@@ -1652,7 +1621,8 @@ mod tests {
         ] {
             let attrs = parse_all_ink_attrs(code);
 
-            let results = ensure_no_conflicting_attributes_and_arguments(&attrs);
+            let mut results = Vec::new();
+            ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs);
             assert_eq!(results.len(), 1, "attributes: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "attributes: {}", code);
         }

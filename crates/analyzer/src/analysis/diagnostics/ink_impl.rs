@@ -13,66 +13,57 @@ const IMPL_SCOPE_NAME: &str = "impl";
 /// The entry point for finding ink! impl semantic rules is the item_impl module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221-L334>.
-pub fn diagnostics(ink_impl: &InkImpl) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(
+    results: &mut Vec<Diagnostic>,
+    ink_impl: &InkImpl,
+    skip_callable_diagnostics: bool,
+) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(ink_impl));
+    utils::run_generic_diagnostics(results, ink_impl);
 
     // Ensures that ink! impl is an `impl` item, see `ensure_impl` doc.
     if let Some(diagnostic) = ensure_impl(ink_impl) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that `impl` item satisfies all invariants of an ink! impl,
     // see `ensure_impl_invariants` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_impl_invariants(ink_impl));
+    ensure_impl_invariants(results, ink_impl);
 
     // Ensures that impl block either has an ink! impl annotation or
     // contains at least one ink! constructor or ink! message, see `ensure_contains_callable` doc.
     if let Some(diagnostic) = ensure_annotation_or_contains_callable(ink_impl) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
-    // Runs ink! constructor diagnostics, see `constructor::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ink_impl
+    if !skip_callable_diagnostics {
+        // Runs ink! constructor diagnostics, see `constructor::diagnostics` doc.
+        ink_impl
             .constructors()
             .iter()
-            .flat_map(constructor::diagnostics)
-            .collect(),
-    );
+            .for_each(|item| constructor::diagnostics(results, item));
 
-    // Runs ink! message diagnostics, see `message::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ink_impl
+        // Runs ink! message diagnostics, see `message::diagnostics` doc.
+        ink_impl
             .messages()
             .iter()
-            .flat_map(message::diagnostics)
-            .collect(),
-    );
+            .for_each(|item| message::diagnostics(results, item));
+    }
 
     // Ensures that ink! messages and constructors are defined in the root of an `impl` item,
     // see `ensure_impl_parent_for_callables` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_callables_in_root(ink_impl));
+    ensure_callables_in_root(results, ink_impl);
 
     // Ensures that ink! impl is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
     if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, IMPL_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ensure_valid_quasi_direct_ink_descendants(ink_impl),
-    );
-
-    results
+    ensure_valid_quasi_direct_ink_descendants(results, ink_impl);
 }
 
 /// Ensures that ink! impl is an `impl` item.
@@ -91,9 +82,7 @@ fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
 /// See references below for details about checked invariants.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221-L334>.
-pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
-    let mut results = Vec::new();
-
+pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
     if let Some(impl_item) = ink_impl.impl_item() {
         if let Some(default_token) = impl_item.default_token() {
             results.push(Diagnostic {
@@ -156,15 +145,17 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
             .iter()
             .filter_map(|item| item.fn_item())
             .collect();
-        results.append(&mut [(constructor_fns, "constructor"), (message_fns, "message")].iter().flat_map(|(fns, name)| {
-            fns.iter().filter_map(move |fn_item| {
+        [(constructor_fns, "constructor"), (message_fns, "message")].iter().for_each(|(fns, name)| {
+            fns.iter().for_each(|fn_item| {
                 if is_trait_impl {
                     // Callables must have inherent visibility for trait implementation blocks.
-                    fn_item.visibility().map(|visibility| Diagnostic {
-                        message: format!("ink! {name}s in trait ink! impl blocks must have inherited visibility."),
-                        range: visibility.syntax().text_range(),
-                        severity: Severity::Error,
-                    })
+                    if let Some(visibility) = fn_item.visibility() {
+                        results.push(Diagnostic {
+                            message: format!("ink! {name}s in trait ink! impl blocks must have inherited visibility."),
+                            range: visibility.syntax().text_range(),
+                            severity: Severity::Error,
+                        });
+                    }
                 } else {
                     // Callables must have `pub` visibility for inherent implementation blocks.
                     let (has_pub_visibility, visibility) = match fn_item.visibility() {
@@ -174,20 +165,18 @@ pub fn ensure_impl_invariants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
                         None => (false, None)
                     };
 
-                    (!has_pub_visibility).then_some(Diagnostic {
+                    (!has_pub_visibility).then(|| results.push(Diagnostic {
                         message: format!("ink! {name}s in inherent ink! impl blocks must have `pub` visibility."),
                         range: match visibility {
                             Some(vis) => vis.syntax().text_range(),
                             None => fn_item.syntax().text_range()
                         },
                         severity: Severity::Error,
-                    })
+                    }));
                 }
             })
-        }).collect());
+        });
     }
-
-    results
 }
 
 /// Ensures that impl block either has an ink! impl annotation or contains at least one ink! constructor or ink! message.
@@ -233,7 +222,7 @@ where
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L66-L96>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/impl_item.rs#L64-L87>.
-fn ensure_callables_in_root(ink_impl: &InkImpl) -> Vec<Diagnostic> {
+fn ensure_callables_in_root(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
     ink_impl
         .constructors()
         .iter()
@@ -244,14 +233,14 @@ fn ensure_callables_in_root(ink_impl: &InkImpl) -> Vec<Diagnostic> {
                 .iter()
                 .filter_map(|item| ensure_parent_impl(ink_impl, item, "message")),
         )
-        .collect()
+        .for_each(|diagnostic| results.push(diagnostic));
 }
 
 /// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/impl_item.rs#L62-L106>.
-fn ensure_valid_quasi_direct_ink_descendants(ink_impl: &InkImpl) -> Vec<Diagnostic> {
-    utils::ensure_valid_quasi_direct_ink_descendants(ink_impl, |attr| {
+fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
+    utils::ensure_valid_quasi_direct_ink_descendants(results, ink_impl, |attr| {
         matches!(
             attr.kind(),
             InkAttributeKind::Arg(InkArgKind::Constructor)
@@ -260,7 +249,7 @@ fn ensure_valid_quasi_direct_ink_descendants(ink_impl: &InkImpl) -> Vec<Diagnost
                 | InkAttributeKind::Arg(InkArgKind::Default)
                 | InkAttributeKind::Arg(InkArgKind::Selector)
         )
-    })
+    });
 }
 
 #[cfg(test)]
@@ -494,7 +483,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_impl_invariants(&ink_impl);
+            let mut results = Vec::new();
+            ensure_impl_invariants(&mut results, &ink_impl);
             assert!(results.is_empty(), "impl: {}", code);
         }
     }
@@ -551,7 +541,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_impl_invariants(&ink_impl);
+            let mut results = Vec::new();
+            ensure_impl_invariants(&mut results, &ink_impl);
             assert_eq!(results.len(), 1, "impl: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "impl: {}", code);
         }
@@ -595,7 +586,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_callables_in_root(&ink_impl);
+            let mut results = Vec::new();
+            ensure_callables_in_root(&mut results, &ink_impl);
             assert!(results.is_empty(), "impl: {}", code);
         }
     }
@@ -638,7 +630,8 @@ mod tests {
                 }
             });
 
-            let results = ensure_callables_in_root(&ink_impl);
+            let mut results = Vec::new();
+            ensure_callables_in_root(&mut results, &ink_impl);
 
             // There should be 2 errors (i.e for the `constructor` and `message`).
             assert_eq!(results.len(), 2, "impl: {}", code);
@@ -662,7 +655,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_valid_quasi_direct_ink_descendants(&ink_impl);
+            let mut results = Vec::new();
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl);
             assert!(results.is_empty(), "impl: {}", code);
         }
     }
@@ -694,7 +688,8 @@ mod tests {
             }
         });
 
-        let results = ensure_valid_quasi_direct_ink_descendants(&ink_impl);
+        let mut results = Vec::new();
+        ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl);
         // There should be 5 errors (i.e `storage`, `event`, `trait_definition`, `chain_extension` and `storage_item`).
         assert_eq!(results.len(), 5);
         // All diagnostics should be errors.
@@ -717,7 +712,8 @@ mod tests {
                 #code
             });
 
-            let results = diagnostics(&ink_impl);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &ink_impl, false);
             assert!(results.is_empty(), "impl: {}", code);
         }
     }

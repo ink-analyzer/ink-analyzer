@@ -15,119 +15,82 @@ use crate::{Diagnostic, Severity};
 /// The entry point for finding ink! contract semantic rules is the contract module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L47-L73>.
-pub fn diagnostics(contract: &Contract) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(contract));
+    utils::run_generic_diagnostics(results, contract);
 
     // Ensures that ink! contract is an inline `mod` item, see `ensure_inline_module` doc.
     if let Some(diagnostic) = ensure_inline_module(contract) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that exactly one ink! storage definition, see `ensure_storage_quantity` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_storage_quantity(contract));
+    ensure_storage_quantity(results, contract);
 
     // Runs ink! storage diagnostics, see `storage::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
-            .iter()
-            .flat_map(storage::diagnostics)
-            .collect(),
-    );
+    ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
+        .iter()
+        .for_each(|item| storage::diagnostics(results, item));
 
     // Runs ink! event diagnostics, see `event::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut contract
-            .events()
-            .iter()
-            .flat_map(event::diagnostics)
-            .collect(),
-    );
+    contract
+        .events()
+        .iter()
+        .for_each(|item| event::diagnostics(results, item));
 
-    // Runs ink! impl diagnostics, see `impl_item::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut contract
-            .impls()
-            .iter()
-            .flat_map(ink_impl::diagnostics)
-            .collect(),
-    );
+    // Runs ink! impl diagnostics, see `ink_impl::diagnostics` doc.
+    contract
+        .impls()
+        .iter()
+        .for_each(|item| ink_impl::diagnostics(results, item, true));
 
     // Ensures that at least one ink! constructor, see `ensure_contains_constructor` doc.
     if let Some(diagnostic) = ensure_contains_constructor(contract) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Runs ink! constructor diagnostics, see `constructor::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut contract
-            .constructors()
-            .iter()
-            .flat_map(constructor::diagnostics)
-            .collect(),
-    );
+    contract
+        .constructors()
+        .iter()
+        .for_each(|item| constructor::diagnostics(results, item));
 
     // Ensures that at least one ink! message, see `ensure_contains_message` doc.
     if let Some(diagnostic) = ensure_contains_message(contract) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Runs ink! message diagnostics, see `message::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut contract
-            .messages()
-            .iter()
-            .flat_map(message::diagnostics)
-            .collect(),
-    );
+    contract
+        .messages()
+        .iter()
+        .for_each(|item| message::diagnostics(results, item));
 
     // Ensures that no ink! message or constructor selectors are overlapping,
     // see `ensure_no_overlapping_selectors` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_no_overlapping_selectors(contract));
+    ensure_no_overlapping_selectors(results, contract);
 
     // Ensures that at most one wildcard selector exists among ink! messages, as well as ink! constructors,
     // see `ensure_at_most_one_wildcard_selector` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ensure_at_most_one_wildcard_selector(contract),
-    );
+    ensure_at_most_one_wildcard_selector(results, contract);
 
     // Ensures that ink! storage, ink! events and ink! impls are defined in the root of the ink! contract,
     // see `ensure_root_items` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_root_items(contract));
+    ensure_root_items(results, contract);
 
     // Ensures that ink! messages and constructors are defined in the root of an `impl` item,
     // see `ensure_impl_parent_for_callables` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ensure_impl_parent_for_callables(contract),
-    );
+    ensure_impl_parent_for_callables(results, contract);
 
     // Runs ink! test diagnostics, see `ink_test::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut contract
-            .tests()
-            .iter()
-            .flat_map(ink_test::diagnostics)
-            .collect(),
-    );
+    contract
+        .tests()
+        .iter()
+        .for_each(|item| ink_test::diagnostics(results, item));
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut ensure_valid_quasi_direct_ink_descendants(contract),
-    );
-
-    results
+    ensure_valid_quasi_direct_ink_descendants(results, contract);
 }
 
 /// Ensures that ink! contract attribute is applied to an inline `mod` item.
@@ -157,8 +120,9 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L328>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L328>.
-fn ensure_storage_quantity(contract: &Contract) -> Vec<Diagnostic> {
+fn ensure_storage_quantity(results: &mut Vec<Diagnostic>, contract: &Contract) {
     utils::ensure_exactly_one_item(
+        results,
         // All storage definitions.
         &ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()),
         Diagnostic {
@@ -168,7 +132,7 @@ fn ensure_storage_quantity(contract: &Contract) -> Vec<Diagnostic> {
         },
         "Only one ink! storage definition can be defined for an ink! contract.",
         Severity::Error,
-    )
+    );
 }
 
 /// Ensures that at least one ink! constructor.
@@ -227,25 +191,25 @@ where
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L167-L240>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
-fn ensure_no_overlapping_selectors(contract: &Contract) -> Vec<Diagnostic> {
+fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Contract) {
     [
         (get_composed_selectors(contract.constructors()), "constructor"),
         (get_composed_selectors(contract.messages()), "message")
-    ].iter().flat_map(|(selectors, name)| {
+    ].iter().for_each(|(selectors, name)| {
         let mut seen_selectors: HashSet<u32> = HashSet::new();
-        selectors.iter().filter_map(|(selector, node)| {
+        selectors.iter().for_each(|(selector, node)| {
             let selector_value = selector.into_be_u32();
             let is_seen = seen_selectors.get(&selector_value).is_some();
 
             seen_selectors.insert(selector_value);
 
-            is_seen.then_some(Diagnostic {
+            is_seen.then(|| results.push(Diagnostic {
                 message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
                 range: node.text_range(),
                 severity: Severity::Error,
-            })
-        }).collect::<Vec<Diagnostic>>()
-    }).collect()
+            }));
+        });
+    });
 }
 
 /// Returns all ink! selector arguments for a list of ink! callable entities.
@@ -273,24 +237,23 @@ where
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L242-L293>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
-fn ensure_at_most_one_wildcard_selector(contract: &Contract) -> Vec<Diagnostic> {
-    [(get_selector_args(contract.constructors()), "constructor"), (get_selector_args(contract.messages()), "message")].iter().flat_map(|(selectors, name)| {
+fn ensure_at_most_one_wildcard_selector(results: &mut Vec<Diagnostic>, contract: &Contract) {
+    [(get_selector_args(contract.constructors()), "constructor"), (get_selector_args(contract.messages()), "message")].iter().for_each(|(selectors, name)| {
         let mut has_seen_wildcard = false;
-        selectors.iter().filter_map(|selector| {
+        selectors.iter().for_each(|selector| {
             selector.is_wildcard().then(|| {
                 if has_seen_wildcard {
-                    Some(Diagnostic {
+                    results.push(Diagnostic {
                         message: format!("At most one wildcard (`_`) selector can be defined across all ink! {name}s in an ink! contract."),
                         range: selector.text_range(),
                         severity: Severity::Error,
                     })
                 } else {
                     has_seen_wildcard = true;
-                    None
                 }
-            })?
-        }).collect::<Vec<Diagnostic>>()
-    }).collect()
+            });
+        });
+    });
 }
 
 /// Ensures that item is defined in the root of this specific ink! contract.
@@ -331,7 +294,7 @@ where
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
-fn ensure_root_items(contract: &Contract) -> Vec<Diagnostic> {
+fn ensure_root_items(results: &mut Vec<Diagnostic>, contract: &Contract) {
     ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()) // All storage definitions.
         .iter()
         .filter_map(|item| ensure_parent_contract(contract, item, "storage"))
@@ -347,7 +310,7 @@ fn ensure_root_items(contract: &Contract) -> Vec<Diagnostic> {
                 .iter()
                 .filter_map(|item| ensure_parent_contract(contract, item, "impl")),
         )
-        .collect()
+        .for_each(|diagnostic| results.push(diagnostic));
 }
 
 /// Ensures that ink! messages and constructors are defined in the root of an `impl` item.
@@ -359,7 +322,7 @@ fn ensure_root_items(contract: &Contract) -> Vec<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L66-L96>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/impl_item.rs#L64-L87>.
-fn ensure_impl_parent_for_callables(contract: &Contract) -> Vec<Diagnostic> {
+fn ensure_impl_parent_for_callables(results: &mut Vec<Diagnostic>, contract: &Contract) {
     contract
         .constructors()
         .iter()
@@ -370,14 +333,14 @@ fn ensure_impl_parent_for_callables(contract: &Contract) -> Vec<Diagnostic> {
                 .iter()
                 .filter_map(|item| utils::ensure_impl_parent(item, "messages")),
         )
-        .collect()
+        .for_each(|diagnostic| results.push(diagnostic));
 }
 
 /// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L98-L114>.
-fn ensure_valid_quasi_direct_ink_descendants(contract: &Contract) -> Vec<Diagnostic> {
-    utils::ensure_valid_quasi_direct_ink_descendants(contract, |attr| {
+fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, contract: &Contract) {
+    utils::ensure_valid_quasi_direct_ink_descendants(results, contract, |attr| {
         matches!(
             attr.kind(),
             InkAttributeKind::Arg(InkArgKind::Storage)
@@ -392,7 +355,7 @@ fn ensure_valid_quasi_direct_ink_descendants(contract: &Contract) -> Vec<Diagnos
                 | InkAttributeKind::Arg(InkArgKind::Selector)
                 | InkAttributeKind::Macro(InkMacroKind::Test)
         )
-    })
+    });
 }
 
 #[cfg(test)]
@@ -888,7 +851,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_storage_quantity(&contract);
+            let mut results = Vec::new();
+            ensure_storage_quantity(&mut results, &contract);
             assert!(results.is_empty(), "contract: {}", code);
         }
     }
@@ -902,7 +866,8 @@ mod tests {
             }
         });
 
-        let results = ensure_storage_quantity(&contract);
+        let mut results = Vec::new();
+        ensure_storage_quantity(&mut results, &contract);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
     }
@@ -929,7 +894,8 @@ mod tests {
                 }
             });
 
-            let results = ensure_storage_quantity(&contract);
+            let mut results = Vec::new();
+            ensure_storage_quantity(&mut results, &contract);
             // There should be `idx-1` extraneous storage definitions.
             assert_eq!(results.len(), idx - 1);
             // All diagnostics should be errors.
@@ -1003,7 +969,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_no_overlapping_selectors(&contract);
+            let mut results = Vec::new();
+            ensure_no_overlapping_selectors(&mut results, &contract);
             assert!(results.is_empty(), "contract: {}", code);
         }
     }
@@ -1104,7 +1071,8 @@ mod tests {
                 }
             });
 
-            let results = ensure_no_overlapping_selectors(&contract);
+            let mut results = Vec::new();
+            ensure_no_overlapping_selectors(&mut results, &contract);
             // 2 errors, 1 each for constructors and messages (i.e `my_constructor2` and `my_message2` are the overlapping selectors).
             assert_eq!(results.len(), 2);
             // All diagnostics should be errors.
@@ -1127,7 +1095,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_at_most_one_wildcard_selector(&contract);
+            let mut results = Vec::new();
+            ensure_at_most_one_wildcard_selector(&mut results, &contract);
             assert!(results.is_empty(), "contract: {}", code);
         }
     }
@@ -1158,7 +1127,8 @@ mod tests {
             }
         });
 
-        let results = ensure_at_most_one_wildcard_selector(&contract);
+        let mut results = Vec::new();
+        ensure_at_most_one_wildcard_selector(&mut results, &contract);
         // 2 errors, 1 each for constructors and messages (i.e `my_constructor2` and `my_message2` are the extraneous wildcard selectors).
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
@@ -1178,7 +1148,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_impl_parent_for_callables(&contract);
+            let mut results = Vec::new();
+            ensure_impl_parent_for_callables(&mut results, &contract);
             assert!(results.is_empty(), "contract: {}", code);
         }
     }
@@ -1198,7 +1169,8 @@ mod tests {
             }
         });
 
-        let results = ensure_impl_parent_for_callables(&contract);
+        let mut results = Vec::new();
+        ensure_impl_parent_for_callables(&mut results, &contract);
 
         // There should be 2 errors (i.e for the `constructor` and `message`).
         assert_eq!(results.len(), 2);
@@ -1219,7 +1191,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_root_items(&contract);
+            let mut results = Vec::new();
+            ensure_root_items(&mut results, &contract);
             assert!(results.is_empty(), "contract: {}", code);
         }
     }
@@ -1255,7 +1228,8 @@ mod tests {
             }
         });
 
-        let results = ensure_root_items(&contract);
+        let mut results = Vec::new();
+        ensure_root_items(&mut results, &contract);
 
         // There should be 4 errors (i.e `storage`, `contract` and one for each of the 2 impls).
         assert_eq!(results.len(), 4);
@@ -1276,7 +1250,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_valid_quasi_direct_ink_descendants(&contract);
+            let mut results = Vec::new();
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &contract);
             assert!(results.is_empty(), "contract: {}", code);
         }
     }
@@ -1300,7 +1275,8 @@ mod tests {
             }
         });
 
-        let results = ensure_valid_quasi_direct_ink_descendants(&contract);
+        let mut results = Vec::new();
+        ensure_valid_quasi_direct_ink_descendants(&mut results, &contract);
         // There should be 3 errors (i.e `trait_definition`, `chain_extension` and `storage_item`).
         assert_eq!(results.len(), 3);
         // All diagnostics should be errors.
@@ -1321,7 +1297,8 @@ mod tests {
                 #code
             });
 
-            let results = diagnostics(&contract);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &contract);
             assert!(results.is_empty(), "contract: {}", code);
         }
     }

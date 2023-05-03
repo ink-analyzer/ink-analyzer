@@ -12,27 +12,17 @@ const STORAGE_ITEM_SCOPE_NAME: &str = "storage_item";
 /// The entry point for finding ink! storage item semantic rules is the storage_item module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/mod.rs#L33-L54>.
-pub fn diagnostics(storage_item: &StorageItem) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, storage_item: &StorageItem) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::run_generic_diagnostics(storage_item),
-    );
+    utils::run_generic_diagnostics(results, storage_item);
 
     // Ensures that ink! storage item is applied to an `adt` (i.e `enum`, `struct` or `union`) item., see `ensure_adt` doc.
     if let Some(diagnostic) = ensure_adt(storage_item) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that ink! storage item has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_no_ink_descendants(storage_item, STORAGE_ITEM_SCOPE_NAME),
-    );
-
-    results
+    utils::ensure_no_ink_descendants(results, storage_item, STORAGE_ITEM_SCOPE_NAME);
 }
 
 /// Ensures that ink! storage item is an `adt` (i.e `enum`, `struct` or `union`) item.
@@ -139,7 +129,8 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&storage_item, STORAGE_ITEM_SCOPE_NAME);
+        let mut results = Vec::new();
+        utils::ensure_no_ink_descendants(&mut results, &storage_item, STORAGE_ITEM_SCOPE_NAME);
         assert!(results.is_empty());
     }
 
@@ -155,7 +146,8 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&storage_item, STORAGE_ITEM_SCOPE_NAME);
+        let mut results = Vec::new();
+        utils::ensure_no_ink_descendants(&mut results, &storage_item, STORAGE_ITEM_SCOPE_NAME);
         // 1 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
@@ -234,7 +226,8 @@ mod tests {
         ] {
             let storage_item = parse_first_storage_item(code);
 
-            let results = diagnostics(&storage_item);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &storage_item);
             assert!(results.is_empty(), "storage_item: {}", code);
         }
     }

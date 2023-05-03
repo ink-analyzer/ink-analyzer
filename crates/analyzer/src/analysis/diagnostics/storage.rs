@@ -12,17 +12,15 @@ const STORAGE_SCOPE_NAME: &str = "storage";
 /// The entry point for finding ink! storage semantic rules is the storage module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81-L101>.
-pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, storage: &Storage) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(storage));
+    utils::run_generic_diagnostics(results, storage);
 
     // Ensures that ink! storage is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L94>.
     if let Some(diagnostic) = utils::ensure_pub_struct(storage, STORAGE_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that ink! storage is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
@@ -30,16 +28,11 @@ pub fn diagnostics(storage: &Storage) -> Vec<Diagnostic> {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L28-L29>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L74>.
     if let Some(diagnostic) = utils::ensure_contract_parent(storage, STORAGE_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that ink! storage has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_no_ink_descendants(storage, STORAGE_SCOPE_NAME),
-    );
-
-    results
+    utils::ensure_no_ink_descendants(results, storage, STORAGE_SCOPE_NAME);
 }
 
 #[cfg(test)]
@@ -173,7 +166,8 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_no_ink_descendants(&storage, STORAGE_SCOPE_NAME);
+            let mut results = Vec::new();
+            utils::ensure_no_ink_descendants(&mut results, &storage, STORAGE_SCOPE_NAME);
             assert!(results.is_empty(), "storage: {}", code);
         }
     }
@@ -188,7 +182,8 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&storage, STORAGE_SCOPE_NAME);
+        let mut results = Vec::new();
+        utils::ensure_no_ink_descendants(&mut results, &storage, STORAGE_SCOPE_NAME);
         assert_eq!(results.len(), 1);
         assert_eq!(
             results
@@ -207,7 +202,8 @@ mod tests {
                 #code
             });
 
-            let results = diagnostics(&storage);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &storage);
             assert!(results.is_empty(), "storage: {}", code);
         }
     }

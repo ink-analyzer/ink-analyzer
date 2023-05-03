@@ -13,16 +13,14 @@ const MESSAGE_SCOPE_NAME: &str = "message";
 /// The entry point for finding ink! message semantic rules is the message module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201-L216>.
-pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(message));
+    utils::run_generic_diagnostics(results, message);
 
     // Ensures that ink! message is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
     if let Some(diagnostic) = utils::ensure_fn(message, MESSAGE_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     if let Some(fn_item) = message.fn_item() {
@@ -30,29 +28,21 @@ pub fn diagnostics(message: &Message) -> Vec<Diagnostic> {
         // see `utils::ensure_callable_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L202>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-        utils::append_diagnostics(
-            &mut results,
-            &mut utils::ensure_callable_invariants(fn_item, MESSAGE_SCOPE_NAME),
-        );
+        utils::ensure_callable_invariants(results, fn_item, MESSAGE_SCOPE_NAME);
 
         // Ensures that ink! message `fn` item has a self reference receiver, see `ensure_receiver_is_self_ref` doc.
         if let Some(diagnostic) = ensure_receiver_is_self_ref(fn_item) {
-            utils::push_diagnostic(&mut results, diagnostic);
+            results.push(diagnostic);
         }
 
         // Ensures that ink! message `fn` item does not return `Self`, see `ensure_not_return_self` doc.
         if let Some(diagnostic) = ensure_not_return_self(fn_item) {
-            utils::push_diagnostic(&mut results, diagnostic);
+            results.push(diagnostic);
         }
     }
 
     // Ensures that ink! message has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_no_ink_descendants(message, MESSAGE_SCOPE_NAME),
-    );
-
-    results
+    utils::ensure_no_ink_descendants(results, message, MESSAGE_SCOPE_NAME);
 }
 
 /// Ensures that ink! message `fn` has a self reference receiver (i.e `&self` or `&mut self`).
@@ -234,8 +224,12 @@ mod tests {
                 #code
             });
 
-            let results =
-                utils::ensure_callable_invariants(message.fn_item().unwrap(), MESSAGE_SCOPE_NAME);
+            let mut results = Vec::new();
+            utils::ensure_callable_invariants(
+                &mut results,
+                message.fn_item().unwrap(),
+                MESSAGE_SCOPE_NAME,
+            );
             assert!(results.is_empty(), "message: {}", code);
         }
     }
@@ -335,8 +329,12 @@ mod tests {
                 #code
             });
 
-            let results =
-                utils::ensure_callable_invariants(message.fn_item().unwrap(), MESSAGE_SCOPE_NAME);
+            let mut results = Vec::new();
+            utils::ensure_callable_invariants(
+                &mut results,
+                message.fn_item().unwrap(),
+                MESSAGE_SCOPE_NAME,
+            );
             assert_eq!(results.len(), 1, "message: {}", code);
             assert_eq!(results[0].severity, Severity::Error, "message: {}", code);
         }
@@ -442,7 +440,8 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_no_ink_descendants(&message, MESSAGE_SCOPE_NAME);
+            let mut results = Vec::new();
+            utils::ensure_no_ink_descendants(&mut results, &message, MESSAGE_SCOPE_NAME);
             assert!(results.is_empty(), "message: {}", code);
         }
     }
@@ -460,7 +459,8 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&message, MESSAGE_SCOPE_NAME);
+        let mut results = Vec::new();
+        utils::ensure_no_ink_descendants(&mut results, &message, MESSAGE_SCOPE_NAME);
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
@@ -483,7 +483,8 @@ mod tests {
                 #code
             });
 
-            let results = diagnostics(&message);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &message);
             assert!(results.is_empty(), "message: {}", code);
         }
     }

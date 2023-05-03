@@ -13,44 +13,40 @@ const EVENT_SCOPE_NAME: &str = "event";
 /// The entry point for finding ink! event semantic rules is the event module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86-L148>.
-pub fn diagnostics(event: &Event) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(event));
+    utils::run_generic_diagnostics(results, event);
 
     // Ensures that ink! event is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L105>.
     if let Some(diagnostic) = utils::ensure_pub_struct(event, EVENT_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that ink! event is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L475>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L79>.
     if let Some(diagnostic) = utils::ensure_contract_parent(event, EVENT_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that ink! event struct has no generic parameters, see `ensure_no_generics_on_struct` doc.
     if let Some(diagnostic) = ensure_no_generics_on_struct(event) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that ink! event `struct` fields have no other ink! annotations other than ink! topic, see `ensure_only_ink_topic_fields` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_only_ink_topic_descendants(event));
+    ensure_only_ink_topic_descendants(results, event);
 
     // Runs ink! topic diagnostics, see `topic::diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut event.topics().iter().flat_map(topic::diagnostics).collect(),
-    );
+    event
+        .topics()
+        .iter()
+        .for_each(|item| topic::diagnostics(results, item));
 
     // Ensures that ink! event fields are not annotated with `cfg` attributes, see `ensure_no_cfg_event_fields` doc.
-    utils::append_diagnostics(&mut results, &mut ensure_no_cfg_event_fields(event));
-
-    results
+    ensure_no_cfg_event_fields(results, event);
 }
 
 /// Ensures that ink! event `struct` has no generic parameters.
@@ -71,47 +67,42 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
 /// Ensures that ink! event has only ink! topic annotations (if any) on it's descendants.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L126-L139>.
-fn ensure_only_ink_topic_descendants(item: &Event) -> Vec<Diagnostic> {
-    item.ink_attrs_descendants()
-        .iter()
-        .filter_map(|attr| {
-            (*attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic)).then_some(Diagnostic {
+fn ensure_only_ink_topic_descendants(results: &mut Vec<Diagnostic>, item: &Event) {
+    item.ink_attrs_descendants().iter().for_each(|attr| {
+        (*attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic)).then(|| {
+            results.push(Diagnostic {
                 message: format!("`{}` can't be used inside an ink! event.", attr.syntax()),
                 range: attr.syntax().text_range(),
                 severity: Severity::Error,
             })
-        })
-        .collect()
+        });
+    });
 }
 
 /// Ensures that ink! event fields are not annotated with cfg attributes.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L112-L117>.
-fn ensure_no_cfg_event_fields(event: &Event) -> Vec<Diagnostic> {
+fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
     if let Some(struct_item) = event.struct_item() {
         if let Some(ast::FieldList::RecordFieldList(field_list)) = struct_item.field_list() {
-            return field_list
-                .fields()
-                .flat_map(|field| {
-                    field
-                        .attrs()
-                        .filter_map(|attr| {
-                            (attr.path()?.to_string() == "cfg").then_some(Diagnostic {
+            field_list.fields().for_each(|field| {
+                field.attrs().for_each(|attr| {
+                    if let Some(path) = attr.path() {
+                        (path.to_string() == "cfg").then(|| {
+                            results.push(Diagnostic {
                                 message: format!(
                                     "`{}` attributes on event fields are not supported.",
                                     attr
                                 ),
                                 range: attr.syntax().text_range(),
                                 severity: Severity::Error,
-                            })
-                        })
-                        .collect::<Vec<Diagnostic>>()
-                })
-                .collect();
+                            });
+                        });
+                    }
+                });
+            });
         }
     }
-
-    Vec::new()
 }
 
 #[cfg(test)]
@@ -296,7 +287,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_only_ink_topic_descendants(&event);
+            let mut results = Vec::new();
+            ensure_only_ink_topic_descendants(&mut results, &event);
             assert!(results.is_empty(), "event: {}", code);
         }
     }
@@ -312,7 +304,8 @@ mod tests {
             }
         });
 
-        let results = ensure_only_ink_topic_descendants(&event);
+        let mut results = Vec::new();
+        ensure_only_ink_topic_descendants(&mut results, &event);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
     }
@@ -324,7 +317,8 @@ mod tests {
                 #code
             });
 
-            let results = ensure_no_cfg_event_fields(&event);
+            let mut results = Vec::new();
+            ensure_no_cfg_event_fields(&mut results, &event);
             assert!(results.is_empty(), "event: {}", code);
         }
     }
@@ -340,7 +334,8 @@ mod tests {
             }
         });
 
-        let results = ensure_no_cfg_event_fields(&event);
+        let mut results = Vec::new();
+        ensure_no_cfg_event_fields(&mut results, &event);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
     }
@@ -353,7 +348,8 @@ mod tests {
                 #code
             });
 
-            let results = diagnostics(&event);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &event);
             assert!(results.is_empty(), "event: {}", code);
         }
     }

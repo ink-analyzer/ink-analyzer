@@ -12,24 +12,17 @@ const TOPIC_SCOPE_NAME: &str = "topic";
 /// The entry point for finding ink! topic semantic rules is the event module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86-L148>.
-pub fn diagnostics(topic: &Topic) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, topic: &Topic) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(&mut results, &mut utils::run_generic_diagnostics(topic));
+    utils::run_generic_diagnostics(results, topic);
 
     // Ensures that ink! topic is a `struct` field, see `ensure_struct_field` doc.
     if let Some(diagnostic) = ensure_struct_field(topic) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     // Ensures that ink! topic has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_no_ink_descendants(topic, TOPIC_SCOPE_NAME),
-    );
-
-    results
+    utils::ensure_no_ink_descendants(results, topic, TOPIC_SCOPE_NAME);
 }
 
 /// Ensures that ink! topic is a `struct` field.
@@ -69,7 +62,6 @@ mod tests {
     #[test]
     fn struct_field_works() {
         let topic = parse_first_topic_field(quote_as_str! {
-            #[ink(event)]
             pub struct MyEvent {
                 #[ink(topic)]
                 value: bool,
@@ -103,5 +95,19 @@ mod tests {
             assert!(result.is_some());
             assert_eq!(result.unwrap().severity, Severity::Error);
         }
+    }
+
+    #[test]
+    fn compound_diagnostic_works() {
+        let topic = parse_first_topic_field(quote_as_str! {
+            pub struct MyEvent {
+                #[ink(topic)]
+                value: bool,
+            }
+        });
+
+        let mut results = Vec::new();
+        diagnostics(&mut results, &topic);
+        assert!(results.is_empty());
     }
 }

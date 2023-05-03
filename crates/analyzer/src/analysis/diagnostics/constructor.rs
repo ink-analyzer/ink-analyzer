@@ -13,19 +13,14 @@ const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
 /// The entry point for finding ink! constructor semantic rules is the constructor module of the ink_ir crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155-L170>.
-pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
-    let mut results: Vec<Diagnostic> = Vec::new();
-
+pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::run_generic_diagnostics(constructor),
-    );
+    utils::run_generic_diagnostics(results, constructor);
 
     // Ensures that ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155>.
     if let Some(diagnostic) = utils::ensure_fn(constructor, CONSTRUCTOR_SCOPE_NAME) {
-        utils::push_diagnostic(&mut results, diagnostic);
+        results.push(diagnostic);
     }
 
     if let Some(fn_item) = constructor.fn_item() {
@@ -33,31 +28,23 @@ pub fn diagnostics(constructor: &Constructor) -> Vec<Diagnostic> {
         // see `utils::ensure_callable_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L156>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-        utils::append_diagnostics(
-            &mut results,
-            &mut utils::ensure_callable_invariants(fn_item, CONSTRUCTOR_SCOPE_NAME),
-        );
+        utils::ensure_callable_invariants(results, fn_item, CONSTRUCTOR_SCOPE_NAME);
 
         // Ensures that ink! constructor `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L158>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L107-L128>.
         if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, CONSTRUCTOR_SCOPE_NAME) {
-            utils::push_diagnostic(&mut results, diagnostic);
+            results.push(diagnostic);
         }
 
         // Ensures that ink! constructor `fn` item has a return type, see `ensure_return_type` doc.
         if let Some(diagnostic) = ensure_return_type(fn_item) {
-            utils::push_diagnostic(&mut results, diagnostic);
+            results.push(diagnostic);
         }
     }
 
     // Ensures that ink! constructor has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::append_diagnostics(
-        &mut results,
-        &mut utils::ensure_no_ink_descendants(constructor, CONSTRUCTOR_SCOPE_NAME),
-    );
-
-    results
+    utils::ensure_no_ink_descendants(results, constructor, CONSTRUCTOR_SCOPE_NAME);
 }
 
 /// Ensures that ink! constructor has a return type.
@@ -192,7 +179,9 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(
+            let mut results = Vec::new();
+            utils::ensure_callable_invariants(
+                &mut results,
                 constructor.fn_item().unwrap(),
                 CONSTRUCTOR_SCOPE_NAME,
             );
@@ -295,7 +284,9 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_callable_invariants(
+            let mut results = Vec::new();
+            utils::ensure_callable_invariants(
+                &mut results,
                 constructor.fn_item().unwrap(),
                 CONSTRUCTOR_SCOPE_NAME,
             );
@@ -424,7 +415,8 @@ mod tests {
                 #code
             });
 
-            let results = utils::ensure_no_ink_descendants(&constructor, CONSTRUCTOR_SCOPE_NAME);
+            let mut results = Vec::new();
+            utils::ensure_no_ink_descendants(&mut results, &constructor, CONSTRUCTOR_SCOPE_NAME);
             assert!(results.is_empty(), "constructor: {}", code);
         }
     }
@@ -442,7 +434,8 @@ mod tests {
             }
         });
 
-        let results = utils::ensure_no_ink_descendants(&constructor, CONSTRUCTOR_SCOPE_NAME);
+        let mut results = Vec::new();
+        utils::ensure_no_ink_descendants(&mut results, &constructor, CONSTRUCTOR_SCOPE_NAME);
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // both diagnostics should be errors.
@@ -465,7 +458,8 @@ mod tests {
                 #code
             });
 
-            let results = diagnostics(&constructor);
+            let mut results = Vec::new();
+            diagnostics(&mut results, &constructor);
             assert!(results.is_empty(), "constructor: {}", code);
         }
     }
