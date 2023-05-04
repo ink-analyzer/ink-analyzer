@@ -1,6 +1,6 @@
 //! ink! IR utilities.
 
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use crate::{
@@ -41,32 +41,19 @@ pub fn ink_attrs_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
 pub fn ink_attrs_closest_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
     // Simply calling children on the syntax node directly would include the syntax node's own ink! attributes.
     // So we get the non-attribute children first and then either get their ink! attributes or return them if they have none.
-    let (ink_children_groups, non_ink_children): (Vec<Vec<InkAttribute>>, Vec<SyntaxNode>) = node
-        .children()
+    node.children()
         .filter(|child| child.kind() != SyntaxKind::ATTR)
-        .partition_map(|child| {
+        .flat_map(|child| {
             let child_ink_attrs = ink_attrs(&child);
             if !child_ink_attrs.is_empty() {
-                Either::Left(child_ink_attrs)
+                // Return child ink! attributes (if any).
+                child_ink_attrs
             } else {
-                Either::Right(child)
+                // Otherwise recurse on children with no ink! attributes.
+                ink_attrs_closest_descendants(&child)
             }
-        });
-
-    // Flatten collected ink attributes.
-    let mut attrs: Vec<InkAttribute> = ink_children_groups.into_iter().flatten().collect();
-
-    // Recurse on children with no ink! attributes.
-    if !non_ink_children.is_empty() {
-        attrs.append(
-            &mut non_ink_children
-                .iter()
-                .flat_map(ink_attrs_closest_descendants)
-                .collect(),
-        );
-    }
-
-    attrs
+        })
+        .collect()
 }
 
 /// Returns ink! attributes in the syntax node's scope.

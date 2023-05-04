@@ -253,9 +253,12 @@ mod tests {
             },
             quote! {
                 messages: #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax())
-            }
+            },
         ];
 
-        assert_eq!(parse_actual_impl(input), expected_impl(name, &optional_fields));
+        assert_eq!(
+            parse_actual_impl(input),
+            expected_impl(name, &optional_fields)
+        );
     }
 }
