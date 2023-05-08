@@ -38,7 +38,7 @@ pub fn impl_from_ink_attribute(ast: &syn::DeriveInput) -> syn::Result<TokenStrea
                                 #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax())
                             }
                         } else {
-                            // For everything else, we simply return closest ink! descendants .
+                            // For everything else, we simply return closest ink! descendants.
                             quote! {
                                 #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax())
                             }
@@ -46,7 +46,11 @@ pub fn impl_from_ink_attribute(ast: &syn::DeriveInput) -> syn::Result<TokenStrea
 
                         if is_option_type(&field.ty) {
                             field_value = quote! {
-                                #field_value.into_iter().next()
+                                #field_value.next()
+                            }
+                        } else {
+                            field_value = quote! {
+                                #field_value.collect()
                             }
                         }
 
@@ -240,19 +244,19 @@ mod tests {
         let ir_crate_path = utils::get_normalized_ir_crate_path();
         let optional_fields = vec![
             quote! {
-                storage: #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax()).into_iter().next()
+                storage: #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax()).next()
             },
             quote! {
-                events: #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax())
+                events: #ir_crate_path::ink_closest_descendants(ink_attr_data.parent_syntax()).collect()
             },
             quote! {
-                impls: #ir_crate_path::ink_impl_closest_descendants(ink_attr_data.parent_syntax())
+                impls: #ir_crate_path::ink_impl_closest_descendants(ink_attr_data.parent_syntax()).collect()
             },
             quote! {
-                constructors: #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax())
+                constructors: #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax()).collect()
             },
             quote! {
-                messages: #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax())
+                messages: #ir_crate_path::ink_callable_closest_descendants(ink_attr_data.parent_syntax()).collect()
             },
         ];
 

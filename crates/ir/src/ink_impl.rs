@@ -4,7 +4,8 @@ use ink_analyzer_macro::FromSyntax;
 use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 
 use crate::{
-    utils, Constructor, FromSyntax, InkArg, InkArgKind, InkAttribute, InkAttributeKind, Message,
+    utils, Constructor, FromSyntax, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkEntity,
+    Message,
 };
 
 /// An ink! impl block.
@@ -25,12 +26,10 @@ impl InkImpl {
     pub fn can_cast(node: &SyntaxNode) -> bool {
         // Has ink! impl attribute.
         utils::ink_attrs(node)
-            .iter()
             .any(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
             // Is an `impl` item and has any ink! constructor or ink! message annotated descendants.
             || (ast::Impl::can_cast(node.kind())
                 && utils::ink_attrs_closest_descendants(node)
-                    .iter()
                     .any(|attr| {
                         matches!(
                             attr.kind(),
@@ -43,8 +42,8 @@ impl InkImpl {
     /// Converts a syntax node into an ink! impl item (if possible).
     pub fn cast(node: SyntaxNode) -> Option<Self> {
         Self::can_cast(&node).then_some(Self {
-            constructors: utils::ink_closest_descendants(&node),
-            messages: utils::ink_closest_descendants(&node),
+            constructors: utils::ink_closest_descendants(&node).collect(),
+            messages: utils::ink_closest_descendants(&node).collect(),
             syntax: node,
         })
     }
@@ -56,8 +55,8 @@ impl InkImpl {
 
     /// Returns the ink! impl attribute (if any).
     pub fn impl_attr(&self) -> Option<InkAttribute> {
-        utils::ink_attrs(&self.syntax)
-            .into_iter()
+        self.tree()
+            .ink_attrs()
             .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
     }
 

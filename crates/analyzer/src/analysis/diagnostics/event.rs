@@ -1,7 +1,7 @@
 //! ink! event diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasAttrs, HasGenericParams};
-use ink_analyzer_ir::{ast, Event, FromSyntax, InkArgKind, InkAttributeKind, InkItem, InkStruct};
+use ink_analyzer_ir::{ast, Event, FromSyntax, InkArgKind, InkAttributeKind, InkEntity, InkStruct};
 
 use super::{topic, utils};
 use crate::{Diagnostic, Severity};
@@ -68,7 +68,7 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L126-L139>.
 fn ensure_only_ink_topic_descendants(results: &mut Vec<Diagnostic>, item: &Event) {
-    item.ink_attrs_descendants().iter().for_each(|attr| {
+    item.tree().ink_attrs_descendants().for_each(|attr| {
         (*attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic)).then(|| {
             results.push(Diagnostic {
                 message: format!("`{}` can't be used inside an ink! event.", attr.syntax()),
@@ -110,15 +110,15 @@ mod tests {
     use super::*;
     use crate::Severity;
     use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, InkItem,
+        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile,
     };
     use quote::quote;
 
     fn parse_first_event(code: &str) -> Event {
         Event::cast(
             InkFile::parse(code)
+                .tree()
                 .ink_attrs_in_scope()
-                .into_iter()
                 .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
                 .unwrap(),
         )

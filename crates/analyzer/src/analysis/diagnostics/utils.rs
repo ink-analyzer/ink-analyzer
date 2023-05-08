@@ -4,8 +4,8 @@ use ink_analyzer_ir::ast::{AstNode, AstToken, HasGenericParams, HasTypeBounds, H
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
-    ast, Contract, FromSyntax, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkFn,
-    InkImplItem, InkItem, InkMacroKind, InkStruct, InkTrait,
+    ast, Contract, FromSyntax, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkEntity,
+    InkFn, InkImplItem, InkMacroKind, InkStruct, InkTrait,
 };
 use std::collections::HashSet;
 
@@ -19,19 +19,31 @@ pub fn run_generic_diagnostics<T: FromSyntax>(results: &mut Vec<Diagnostic>, ite
     ensure_no_ink_identifiers(results, item);
 
     // Ensures that no invalid ink! attributes, see `ensure_no_invalid_ink_attributes` doc.
-    ensure_no_unknown_ink_attributes(results, &item.ink_attrs_in_scope());
+    ensure_no_unknown_ink_attributes(
+        results,
+        &item
+            .tree()
+            .ink_attrs_in_scope()
+            .collect::<Vec<InkAttribute>>(),
+    );
 
     // Ensures that ink! attribute arguments are of the right format and have values are of the correct type (if any),
     // See `ensure_valid_attribute_arguments` doc.
-    item.ink_attrs()
-        .iter()
-        .for_each(|attr| ensure_valid_attribute_arguments(results, attr));
+    item.tree()
+        .ink_attrs()
+        .for_each(|attr| ensure_valid_attribute_arguments(results, &attr));
 
     // Ensures that no duplicate ink! attributes and/or arguments, see `ensure_no_duplicate_attributes_and_arguments` doc.
-    ensure_no_duplicate_attributes_and_arguments(results, &item.ink_attrs());
+    ensure_no_duplicate_attributes_and_arguments(
+        results,
+        &item.tree().ink_attrs().collect::<Vec<InkAttribute>>(),
+    );
 
     // Ensures that no conflicting ink! attributes and/or arguments, see `ensure_no_conflicting_attributes_and_arguments` doc.
-    ensure_no_conflicting_attributes_and_arguments(results, &item.ink_attrs());
+    ensure_no_conflicting_attributes_and_arguments(
+        results,
+        &item.tree().ink_attrs().collect::<Vec<InkAttribute>>(),
+    );
 }
 
 /// Returns an error diagnostic for every instance of `__ink_` prefixed identifier found.
@@ -1036,14 +1048,15 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
     T: FromSyntax,
     F: Fn(&InkAttribute) -> bool,
 {
-    item.ink_attrs_closest_descendants()
-        .iter()
+    item.tree()
+        .ink_attrs_closest_descendants()
         .for_each(|attr| {
-            (!is_valid_quasi_direct_descendant(attr)).then(|| {
+            (!is_valid_quasi_direct_descendant(&attr)).then(|| {
                 results.push(Diagnostic {
                     message: format!("Invalid scope for an `{}` item.", attr.syntax()),
                     range: attr
-                        .syntax_parent()
+                        .syntax()
+                        .parent()
                         .unwrap_or(attr.syntax().to_owned())
                         .text_range(),
                     severity: Severity::Error,
@@ -1057,14 +1070,15 @@ pub fn ensure_no_ink_descendants<T>(results: &mut Vec<Diagnostic>, item: &T, ink
 where
     T: FromSyntax,
 {
-    item.ink_attrs_descendants().iter().for_each(|attr| {
+    item.tree().ink_attrs_descendants().for_each(|attr| {
         results.push(Diagnostic {
             message: format!(
                 "`{}` cannot be used inside an ink! {ink_scope_name}.",
                 attr.syntax()
             ),
             range: attr
-                .syntax_parent()
+                .syntax()
+                .parent()
                 .unwrap_or(attr.syntax().to_owned())
                 .text_range(),
             severity: Severity::Error,
@@ -1079,14 +1093,14 @@ mod tests {
 
     fn parse_first_ink_attr(code: &str) -> InkAttribute {
         InkFile::parse(code)
+            .tree()
             .ink_attrs_in_scope()
-            .first()
+            .next()
             .unwrap()
-            .to_owned()
     }
 
     fn parse_all_ink_attrs(code: &str) -> Vec<InkAttribute> {
-        InkFile::parse(code).ink_attrs_in_scope()
+        InkFile::parse(code).tree().ink_attrs_in_scope().collect()
     }
 
     // List of valid ink! attributes used for positive(`works`) tests

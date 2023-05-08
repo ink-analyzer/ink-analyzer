@@ -3,6 +3,7 @@
 use itertools::Itertools;
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
+use crate::iter::IterSuccessors;
 use crate::{
     Constructor, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute,
     InkAttributeKind, InkImpl, InkImplItem, Message,
@@ -14,86 +15,72 @@ fn ink_attribute_from_node(node: SyntaxNode) -> Option<InkAttribute> {
 }
 
 /// Returns ink! attributes for the syntax node.
-pub fn ink_attrs(node: &SyntaxNode) -> Vec<InkAttribute> {
+pub fn ink_attrs(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> {
     // ink! attributes are children of the current syntax node.
-    node.children()
-        .filter_map(ink_attribute_from_node)
-        .collect()
+    node.children().filter_map(ink_attribute_from_node)
 }
 
 /// Returns ink! attributes for all the syntax node's descendants.
-pub fn ink_attrs_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
+pub fn ink_attrs_descendants(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> {
     // Simply calling descendants on the syntax node directly would include the syntax node's own ink! attributes.
     // So we get the non-attribute children first and then call descendants on all of them.
     node.children()
         .filter(|child| child.kind() != SyntaxKind::ATTR)
-        .flat_map(|child| {
-            child
-                .descendants()
-                .filter_map(ink_attribute_from_node)
-                .collect::<Vec<InkAttribute>>()
-        })
-        .collect()
+        .flat_map(|child| child.descendants().filter_map(ink_attribute_from_node))
 }
 
 /// Returns ink! attributes for all the syntax node's descendants
 /// that don't have any ink! ancestor between them and the current node.
-pub fn ink_attrs_closest_descendants(node: &SyntaxNode) -> Vec<InkAttribute> {
+pub fn ink_attrs_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> {
     // Simply calling children on the syntax node directly would include the syntax node's own ink! attributes.
-    // So we get the non-attribute children first and then either get their ink! attributes or return them if they have none.
-    node.children()
-        .filter(|child| child.kind() != SyntaxKind::ATTR)
-        .flat_map(|child| {
-            let child_ink_attrs = ink_attrs(&child);
-            if !child_ink_attrs.is_empty() {
-                // Return child ink! attributes (if any).
-                child_ink_attrs
-            } else {
-                // Otherwise recurse on children with no ink! attributes.
-                ink_attrs_closest_descendants(&child)
-            }
-        })
-        .collect()
+    // So we get the non-attribute children first and then either get their ink! attributes or recurse them if they have none.
+    node.children().flat_map(|child| {
+        // Return child ink! attributes (if any), otherwise recurse on children with no ink! attributes..
+        if ink_attrs(&child).next().is_some() {
+            // Cast to a boxed iterator trait object, otherwise the opaque types will mismatch.
+            Box::new(ink_attrs(&child)) as Box<dyn Iterator<Item = InkAttribute>>
+        } else {
+            // Otherwise recurse on children with no ink! attributes.
+            Box::new(ink_attrs_closest_descendants(&child))
+        }
+    })
 }
 
 /// Returns ink! attributes in the syntax node's scope.
 /// This includes both the nodes own ink! attributes and those of all of it's descendants.
-pub fn ink_attrs_in_scope(node: &SyntaxNode) -> Vec<InkAttribute> {
+pub fn ink_attrs_in_scope(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> {
     // Get node's ink! attributes.
-    let mut attrs = ink_attrs(node);
-    // Append ink! attributes of all descendants.
-    attrs.append(&mut ink_attrs_descendants(node));
-
-    attrs
+    ink_attrs(node).chain(
+        // Append ink! attributes of all descendants.
+        ink_attrs_descendants(node),
+    )
 }
 
 /// Returns ink! attributes for all the syntax node's ancestors.
-pub fn ink_attrs_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
-    // Calling ancestors directly would include the current node.
-    // (it's a rowan/ra_ap_syntax quirk https://github.com/rust-analyzer/rowan/blob/v0.15.11/src/cursor.rs#L625).
-    // So we get the parent first and then call ancestors on that.
-    let mut attrs = Vec::new();
-    if let Some(parent) = node.parent() {
-        attrs = parent
-            .ancestors()
-            .flat_map(|ancestor| ink_attrs(&ancestor))
-            .collect();
-    }
-    attrs
+pub fn ink_attrs_ancestors(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> + '_ {
+    node.ancestors()
+        // Ancestors includes the current node, so we filter it out first.
+        // (it's a rowan/ra_ap_syntax quirk https://github.com/rust-analyzer/rowan/blob/v0.15.11/src/cursor.rs#L625).
+        .filter(move |ancestor| ancestor != node)
+        .flat_map(|ancestor| ink_attrs(&ancestor))
 }
 
 /// Returns ink! attributes for all the syntax node's ancestors
 /// that don't have any ink! descendant between them and the current node.
-pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> Vec<InkAttribute> {
-    let mut attrs = Vec::new();
-    if let Some(parent) = node.parent() {
-        attrs = ink_attrs(&parent);
-        if attrs.is_empty() {
-            // Only recurse if parent node has no ink! attributes.
-            attrs = ink_attrs_closest_ancestors(&parent);
-        }
-    }
-    attrs
+pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> {
+    IterSuccessors::new(node.parent(), |source| {
+        // Get a reference to the current node or return None to stop the recursion.
+        source.as_ref().map(|current_node| {
+            let has_attrs = ink_attrs(current_node).next().is_some();
+            if has_attrs {
+                // Return the next iter of ink! attributes (if any).
+                (Some(ink_attrs(current_node)), None)
+            } else {
+                // Otherwise the current node's parent becomes next source.
+                (None, current_node.parent())
+            }
+        })
+    })
 }
 
 /// Returns parent [AST Item](https://github.com/rust-lang/rust-analyzer/blob/master/crates/syntax/src/ast/generated/nodes.rs#L1589-L1610)
@@ -107,26 +94,20 @@ pub fn parent_ast_item(node: &SyntaxNode) -> Option<ast::Item> {
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T`.
-pub fn ink_descendants<T>(node: &SyntaxNode) -> Vec<T>
+pub fn ink_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
     T: FromInkAttribute,
 {
-    ink_attrs_descendants(node)
-        .into_iter()
-        .filter_map(T::cast)
-        .collect()
+    ink_attrs_descendants(node).filter_map(T::cast)
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T` that don't have any
 /// ink! ancestor between them and the current node.
-pub fn ink_closest_descendants<T>(node: &SyntaxNode) -> Vec<T>
+pub fn ink_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
     T: FromInkAttribute,
 {
-    ink_attrs_closest_descendants(node)
-        .into_iter()
-        .filter_map(T::cast)
-        .collect()
+    ink_attrs_closest_descendants(node).filter_map(T::cast)
 }
 
 /// Returns the syntax node's parent ink! entity of IR type `T` (if any).
@@ -134,57 +115,40 @@ pub fn ink_parent<T>(node: &SyntaxNode) -> Option<T>
 where
     T: FromInkAttribute,
 {
-    parent_ast_item(node)
-        .and_then(|parent| ink_attrs(parent.syntax()).into_iter().find_map(T::cast))
+    parent_ast_item(node).and_then(|parent| ink_attrs(parent.syntax()).find_map(T::cast))
 }
 
 /// Returns the syntax node's ancestor ink! entities of IR type `T`.
-pub fn ink_ancestors<T>(node: &SyntaxNode) -> Vec<T>
+pub fn ink_ancestors<'a, T>(node: &'a SyntaxNode) -> impl Iterator<Item = T> + 'a
 where
-    T: FromInkAttribute,
+    T: FromInkAttribute + 'a,
 {
-    ink_attrs_ancestors(node)
-        .into_iter()
-        .filter_map(T::cast)
-        .collect()
+    ink_attrs_ancestors(node).filter_map(T::cast)
 }
 
 /// Returns the syntax node's ancestor ink! entities of IR type `T` that don't have any
 /// ink! descendant between them and the current node.
-pub fn ink_closest_ancestors<T>(node: &SyntaxNode) -> Vec<T>
+pub fn ink_closest_ancestors<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
     T: FromInkAttribute,
 {
-    ink_attrs_closest_ancestors(node)
-        .into_iter()
-        .filter_map(T::cast)
-        .collect()
+    ink_attrs_closest_ancestors(node).filter_map(T::cast)
 }
 
 /// Returns ink! arguments of the syntax node.
-pub fn ink_args(node: &SyntaxNode) -> Vec<InkArg> {
-    ink_attrs(node)
-        .iter()
-        .flat_map(|attr| attr.args())
-        .cloned()
-        .collect()
+pub fn ink_args(node: &SyntaxNode) -> impl Iterator<Item = InkArg> {
+    ink_attrs(node).flat_map(|attr| attr.args().to_owned())
 }
 
 /// Returns ink! arguments of a specific kind (if any) for the syntax node.
-pub fn ink_args_by_kind(node: &SyntaxNode, kind: InkArgKind) -> Vec<InkArg> {
+pub fn ink_args_by_kind(node: &SyntaxNode, kind: InkArgKind) -> impl Iterator<Item = InkArg> {
     ink_attrs(node)
-        .iter()
-        .flat_map(|attr| attr.args().iter().filter(|arg| *arg.kind() == kind))
-        .cloned()
-        .collect()
+        .flat_map(move |attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
 }
 
 /// Returns ink! argument of a specific kind (if any) for the syntax node.
 pub fn ink_arg_by_kind(node: &SyntaxNode, kind: InkArgKind) -> Option<InkArg> {
-    ink_attrs(node)
-        .iter()
-        .find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == kind))
-        .cloned()
+    ink_attrs(node).find_map(|attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
 }
 
 /// Returns true if the ink! attribute can be a quasi-direct parent for an ink! callable entity
@@ -200,12 +164,11 @@ fn is_possible_callable_ancestor(attr: &InkAttribute) -> bool {
 
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
 /// ink! ancestor or only have an ink! impl entity between them and the current node.
-pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> Vec<T>
+pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
     T: FromSyntax + FromInkAttribute + InkImplItem,
 {
     ink_attrs_closest_descendants(node)
-        .into_iter()
         .flat_map(|attr| {
             if T::can_cast(&attr) {
                 vec![T::cast(attr).expect("Should be able to cast")]
@@ -213,7 +176,6 @@ where
                 ink_attrs_closest_descendants(
                     <InkAttrData<ast::Impl> as From<_>>::from(attr).parent_syntax(),
                 )
-                .into_iter()
                 .filter_map(T::cast)
                 .collect()
             } else {
@@ -222,46 +184,40 @@ where
         })
         // Deduplicate by wrapped syntax node.
         .unique_by(|item| item.syntax().to_owned())
-        .collect()
 }
 
 /// Returns the syntax node's descendant ink! impl items that don't have any
 /// ink! ancestor between them and the current node.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
-pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> Vec<InkImpl> {
+pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = InkImpl> {
     node.children()
         .filter_map(ast::Impl::cast)
         // `impl` children.
         .map(|item| item.syntax().to_owned())
-        .chain(
-            ink_attrs_closest_descendants(node)
-                .iter()
-                .filter_map(|attr| {
-                    // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
-                    if is_possible_callable_ancestor(attr) {
-                        parent_ast_item(attr.syntax()).map(|item| item.syntax().to_owned())
-                    } else if Constructor::can_cast(attr) {
-                        // impl parent of ink! constructor closest descendant.
-                        Constructor::cast(attr.to_owned())
-                            .expect("Should be able to cast")
-                            .impl_item()
-                            .map(|item| item.syntax().to_owned())
-                    } else if Message::can_cast(attr) {
-                        // impl parent of ink! message closest descendant.
-                        Message::cast(attr.to_owned())
-                            .expect("Should be able to cast")
-                            .impl_item()
-                            .map(|item| item.syntax().to_owned())
-                    } else {
-                        None
-                    }
-                }),
-        )
+        .chain(ink_attrs_closest_descendants(node).filter_map(|attr| {
+            // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
+            if is_possible_callable_ancestor(&attr) {
+                parent_ast_item(attr.syntax()).map(|item| item.syntax().to_owned())
+            } else if Constructor::can_cast(&attr) {
+                // impl parent of ink! constructor closest descendant.
+                Constructor::cast(attr)
+                    .expect("Should be able to cast")
+                    .impl_item()
+                    .map(|item| item.syntax().to_owned())
+            } else if Message::can_cast(&attr) {
+                // impl parent of ink! message closest descendant.
+                Message::cast(attr)
+                    .expect("Should be able to cast")
+                    .impl_item()
+                    .map(|item| item.syntax().to_owned())
+            } else {
+                None
+            }
+        }))
         .filter_map(InkImpl::cast)
         // Deduplicate by wrapped syntax node.
         .unique_by(|item| item.syntax().to_owned())
-        .collect()
 }
 
 /// Quasi-quotation macro that accepts input like the `quote!` macro
@@ -307,7 +263,7 @@ mod tests {
                 2,
             ),
         ] {
-            assert_eq!(ink_attrs(node).len(), n_attrs);
+            assert_eq!(ink_attrs(node).count(), n_attrs);
         }
     }
 
@@ -351,7 +307,7 @@ mod tests {
                 4, // i.e `#[ink(event)]`, `#[ink(topic)]`, `#[ink(message)]` and `#[ink(payable, default, selector=1)]`.
             ),
         ] {
-            assert_eq!(ink_attrs_descendants(node).len(), n_attrs);
+            assert_eq!(ink_attrs_descendants(node).count(), n_attrs);
         }
     }
 
@@ -394,7 +350,7 @@ mod tests {
                 2, // i.e only `#[ink(event)]` and `#[ink(message)]` but not `#[ink(topic)]`.
             ),
         ] {
-            assert_eq!(ink_attrs_closest_descendants(node).len(), n_attrs);
+            assert_eq!(ink_attrs_closest_descendants(node).count(), n_attrs);
         }
     }
 
@@ -437,7 +393,7 @@ mod tests {
                 4, // i.e only `#[ink(event)]`, `#[ink(topic)]` and `#[ink(message)]`.
             ),
         ] {
-            assert_eq!(ink_attrs_in_scope(node).len(), n_attrs);
+            assert_eq!(ink_attrs_in_scope(node).count(), n_attrs);
         }
     }
 
@@ -475,7 +431,7 @@ mod tests {
                 2, // i.e `#[ink(event)]` and `#[ink::contract]` are ancestors of `field_1`.
             ),
         ] {
-            assert_eq!(ink_attrs_ancestors(node).len(), n_attrs);
+            assert_eq!(ink_attrs_ancestors(node).count(), n_attrs);
         }
     }
 
@@ -513,7 +469,7 @@ mod tests {
                 1, // i.e only `#[ink(event)]` (but not and `#[ink::contract]`) is the closest ancestors for `field_1`.
             ),
         ] {
-            assert_eq!(ink_attrs_closest_ancestors(node).len(), n_attrs);
+            assert_eq!(ink_attrs_closest_ancestors(node).count(), n_attrs);
         }
     }
 
@@ -590,7 +546,7 @@ mod tests {
                 4, // i.e `message`, `payable`, `default`, and `selector=1`.
             ),
         ] {
-            assert_eq!(ink_args(node).len(), n_args);
+            assert_eq!(ink_args(node).count(), n_args);
         }
     }
 
@@ -806,14 +762,14 @@ mod tests {
 
             // Check number of constructors.
             assert_eq!(
-                ink_callable_closest_descendants::<Constructor>(module.syntax()).len(),
+                ink_callable_closest_descendants::<Constructor>(module.syntax()).count(),
                 n_constructors,
                 "constructor: {}",
                 code
             );
             // Check number of messages.
             assert_eq!(
-                ink_callable_closest_descendants::<Message>(module.syntax()).len(),
+                ink_callable_closest_descendants::<Message>(module.syntax()).count(),
                 n_messages,
                 "message: {}",
                 code
@@ -932,7 +888,7 @@ mod tests {
 
             // Check number of constructors.
             assert_eq!(
-                ink_impl_closest_descendants(module.syntax()).len(),
+                ink_impl_closest_descendants(module.syntax()).count(),
                 n_impls,
                 "impls: {}",
                 code

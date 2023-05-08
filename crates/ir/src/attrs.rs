@@ -4,7 +4,7 @@ use ink_analyzer_macro::FromAST;
 use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 use std::fmt;
 
-use crate::{FromAST, InkItem};
+use crate::{FromAST, FromSyntax};
 
 use crate::meta::MetaName;
 pub use arg::{InkArg, InkArgKind};
@@ -197,9 +197,10 @@ pub struct InkAttrData<T: AstNode> {
 impl<T: AstNode> From<InkAttribute> for InkAttrData<T> {
     fn from(attr: InkAttribute) -> Self {
         Self {
-            ast: attr.syntax_parent().and_then(T::cast),
+            ast: attr.syntax().parent().and_then(T::cast),
             syntax: attr
-                .syntax_parent()
+                .syntax()
+                .parent()
                 .expect("An attribute should always have a parent."),
             attr,
         }

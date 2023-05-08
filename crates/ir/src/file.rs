@@ -25,11 +25,11 @@ pub struct InkFile {
 impl From<SourceFile> for InkFile {
     fn from(file: SourceFile) -> Self {
         Self {
-            contracts: utils::ink_closest_descendants(file.syntax()),
-            trait_definitions: utils::ink_closest_descendants(file.syntax()),
-            chain_extensions: utils::ink_closest_descendants(file.syntax()),
-            storage_items: utils::ink_closest_descendants(file.syntax()),
-            tests: utils::ink_closest_descendants(file.syntax()),
+            contracts: utils::ink_closest_descendants(file.syntax()).collect(),
+            trait_definitions: utils::ink_closest_descendants(file.syntax()).collect(),
+            chain_extensions: utils::ink_closest_descendants(file.syntax()).collect(),
+            storage_items: utils::ink_closest_descendants(file.syntax()).collect(),
+            tests: utils::ink_closest_descendants(file.syntax()).collect(),
             ast: file,
         }
     }
