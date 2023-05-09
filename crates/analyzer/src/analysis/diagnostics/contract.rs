@@ -353,7 +353,10 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, cont
                 | InkAttributeKind::Arg(InkArgKind::Payable)
                 | InkAttributeKind::Arg(InkArgKind::Default)
                 | InkAttributeKind::Arg(InkArgKind::Selector)
+                | InkAttributeKind::Macro(InkMacroKind::ChainExtension)
+                | InkAttributeKind::Macro(InkMacroKind::StorageItem)
                 | InkAttributeKind::Macro(InkMacroKind::Test)
+                | InkAttributeKind::Macro(InkMacroKind::TraitDefinition)
         )
     });
 }
@@ -1261,31 +1264,27 @@ mod tests {
         let contract = parse_first_contract(quote_as_str! {
             #[ink::contract]
             mod my_contract {
-                #[ink::trait_definition]
-                trait MyTrait {
+                pub struct MyEvent {
+                    #[ink(topic)]
+                    value: bool,
                 }
 
-                #[ink::chain_extension]
-                trait MyChainExtension {
-                }
-
-                #[ink::storage_item]
-                struct MyStorageItem {
-                }
+                #[ink(extension=1, handle_status=false)]
+                fn my_extension();
             }
         });
 
         let mut results = Vec::new();
         ensure_valid_quasi_direct_ink_descendants(&mut results, &contract);
-        // There should be 3 errors (i.e `trait_definition`, `chain_extension` and `storage_item`).
-        assert_eq!(results.len(), 3);
+        // There should be 2 errors (i.e `topic`, `extension/handle_status`).
+        assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
         assert_eq!(
             results
                 .iter()
                 .filter(|item| item.severity == Severity::Error)
                 .count(),
-            3
+            2
         );
     }
 
