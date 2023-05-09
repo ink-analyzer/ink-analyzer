@@ -9,7 +9,6 @@ fn get_trait_definition_code(name: &str) -> String {
 fn erc20_trait_works() {
     let diagnostics = Analysis.diagnostics(&get_trait_definition_code("erc20_trait"));
 
-    dbg!(&diagnostics);
     assert_eq!(diagnostics.len(), 0);
 }
 
