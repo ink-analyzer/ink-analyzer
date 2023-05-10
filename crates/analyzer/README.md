@@ -64,7 +64,7 @@ cargo doc -p ink-analyzer-ir --open
 
 ## Testing
 
-You can run unit tests for all the core functionality by running the following command from the project root
+You can run unit and integration tests for all the core functionality by running the following command from the project root
 
 ```shell
 cargo test -p ink-analyzer-ir
@@ -74,7 +74,7 @@ Implementations of the unit tests (and hence a good overview of the current func
 
 ## License
 
-Licensed under either of [MIT](/LICENSE-MIT) or [Apache-2.0](/LICENSE-APACHE) licenses at your option.
+Licensed under either [MIT](/LICENSE-MIT) or [Apache-2.0](/LICENSE-APACHE) license at your option.
 
 ## Contribution
 

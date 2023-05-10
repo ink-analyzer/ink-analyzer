@@ -81,7 +81,7 @@ cargo test -p ink-analyzer-ir
 
 ## License
 
-Licensed under either of [MIT](/LICENSE-MIT) or [Apache-2.0](/LICENSE-APACHE) licenses at your option.
+Licensed under either [MIT](/LICENSE-MIT) or [Apache-2.0](/LICENSE-APACHE) license at your option.
 
 ## Contribution
 
