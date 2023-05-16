@@ -50,14 +50,14 @@ fn ensure_adt(storage_item: &StorageItem) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkAttributeKind, InkFile, InkItem, InkMacroKind};
+    use ink_analyzer_ir::{quote_as_str, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
     use quote::quote;
 
     fn parse_first_storage_item(code: &str) -> StorageItem {
         StorageItem::cast(
             InkFile::parse(code)
+                .tree()
                 .ink_attrs_in_scope()
-                .into_iter()
                 .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem))
                 .unwrap(),
         )

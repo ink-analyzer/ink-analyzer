@@ -44,15 +44,15 @@ mod tests {
     use super::*;
     use crate::Severity;
     use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, InkItem,
+        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile,
     };
     use quote::quote;
 
     fn parse_first_extension(code: &str) -> Extension {
         Extension::cast(
             InkFile::parse(code)
+                .tree()
                 .ink_attrs_in_scope()
-                .into_iter()
                 .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Extension))
                 .unwrap(),
         )

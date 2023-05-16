@@ -69,15 +69,15 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
 mod tests {
     use super::*;
     use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, InkItem,
+        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile,
     };
     use quote::quote;
 
     fn parse_first_constructor(code: &str) -> Constructor {
         Constructor::cast(
             InkFile::parse(code)
+                .tree()
                 .ink_attrs_in_scope()
-                .into_iter()
                 .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Constructor))
                 .unwrap(),
         )

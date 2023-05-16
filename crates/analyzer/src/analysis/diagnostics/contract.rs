@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::syntax::SyntaxNode;
 use ink_analyzer_ir::{
-    Contract, FromSyntax, InkArgKind, InkAttributeKind, InkCallable, InkItem, InkMacroKind,
+    Contract, FromSyntax, InkArgKind, InkAttributeKind, InkCallable, InkEntity, InkMacroKind,
     Selector, SelectorArg, Storage,
 };
 use std::collections::HashSet;
@@ -29,8 +29,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
 
     // Runs ink! storage diagnostics, see `storage::diagnostics` doc.
     ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
-        .iter()
-        .for_each(|item| storage::diagnostics(results, item));
+        .for_each(|item| storage::diagnostics(results, &item));
 
     // Runs ink! event diagnostics, see `event::diagnostics` doc.
     contract
@@ -124,7 +123,8 @@ fn ensure_storage_quantity(results: &mut Vec<Diagnostic>, contract: &Contract) {
     utils::ensure_exactly_one_item(
         results,
         // All storage definitions.
-        &ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()),
+        &ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
+            .collect::<Vec<Storage>>(),
         Diagnostic {
             message: "Missing ink! storage definition.".to_string(),
             range: contract.syntax().text_range(),
@@ -215,13 +215,13 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
 /// Returns all ink! selector arguments for a list of ink! callable entities.
 fn get_selector_args<T>(items: &[T]) -> Vec<SelectorArg>
 where
-    T: InkItem,
+    T: InkEntity,
 {
     items
         .iter()
         .flat_map(|item| {
-            item.ink_args_by_kind(InkArgKind::Selector)
-                .into_iter()
+            item.tree()
+                .ink_args_by_kind(InkArgKind::Selector)
                 .filter_map(SelectorArg::cast)
         })
         .collect()
@@ -238,7 +238,10 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_at_most_one_wildcard_selector(results: &mut Vec<Diagnostic>, contract: &Contract) {
-    [(get_selector_args(contract.constructors()), "constructor"), (get_selector_args(contract.messages()), "message")].iter().for_each(|(selectors, name)| {
+    [
+        (get_selector_args(contract.constructors()), "constructor"),
+        (get_selector_args(contract.messages()), "message")
+    ].iter().for_each(|(selectors, name)| {
         let mut has_seen_wildcard = false;
         selectors.iter().for_each(|selector| {
             selector.is_wildcard().then(|| {
@@ -296,8 +299,7 @@ where
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
 fn ensure_root_items(results: &mut Vec<Diagnostic>, contract: &Contract) {
     ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()) // All storage definitions.
-        .iter()
-        .filter_map(|item| ensure_parent_contract(contract, item, "storage"))
+        .filter_map(|item| ensure_parent_contract(contract, &item, "storage"))
         .chain(
             contract
                 .events()

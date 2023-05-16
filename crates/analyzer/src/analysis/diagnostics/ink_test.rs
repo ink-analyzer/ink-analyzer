@@ -33,15 +33,15 @@ mod tests {
     use super::*;
     use crate::Severity;
     use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, InkAttributeKind, InkFile, InkItem, InkMacroKind,
+        quote_as_str, FromInkAttribute, InkAttributeKind, InkEntity, InkFile, InkMacroKind,
     };
     use quote::quote;
 
     fn parse_first_ink_test(code: &str) -> InkTest {
         InkTest::cast(
             InkFile::parse(code)
+                .tree()
                 .ink_attrs_in_scope()
-                .into_iter()
                 .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::Test))
                 .unwrap(),
         )

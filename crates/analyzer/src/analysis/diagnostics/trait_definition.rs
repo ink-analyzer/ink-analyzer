@@ -73,9 +73,8 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L210-L288>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L298-L322>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L290-L296>.
-            if let Some(message_item) = ink_analyzer_ir::ink_attrs(fn_item.syntax())
-                .into_iter()
-                .find_map(Message::cast)
+            if let Some(message_item) =
+                ink_analyzer_ir::ink_attrs(fn_item.syntax()).find_map(Message::cast)
             {
                 // Runs ink! message diagnostics, see `message::diagnostics` doc.
                 message::diagnostics(results, &message_item);
@@ -90,7 +89,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
             // Wildcard selectors are not supported.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L80-L101>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L304>.
-            ink_analyzer_ir::ink_attrs(fn_item.syntax()).iter().for_each(|attr| {
+            ink_analyzer_ir::ink_attrs(fn_item.syntax()).for_each(|attr| {
                 attr.args().iter().for_each(|arg| {
                     arg.value().and_then(|value| {
                         (value.is_wildcard()).then(|| results.push(Diagnostic {
@@ -156,14 +155,14 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkFile, InkItem, InkMacroKind};
+    use ink_analyzer_ir::{quote_as_str, InkEntity, InkFile, InkMacroKind};
     use quote::{format_ident, quote};
 
     fn parse_first_trait_definition(code: &str) -> TraitDefinition {
         TraitDefinition::cast(
             InkFile::parse(code)
+                .tree()
                 .ink_attrs_in_scope()
-                .into_iter()
                 .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::TraitDefinition))
                 .unwrap(),
         )

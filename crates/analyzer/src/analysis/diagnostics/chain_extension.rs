@@ -74,10 +74,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
             // All trait methods should be ink! extensions.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L447-L464>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L501>.
-            match ink_analyzer_ir::ink_attrs(fn_item.syntax())
-                .into_iter()
-                .find_map(Extension::cast)
-            {
+            match ink_analyzer_ir::ink_attrs(fn_item.syntax()).find_map(Extension::cast) {
                 // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
                 Some(extension_item) => extension::diagnostics(results, &extension_item),
                 // Add diagnostic if method isn't an ink! extension.
@@ -216,14 +213,14 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkFile, InkItem, InkMacroKind, InkTrait};
+    use ink_analyzer_ir::{quote_as_str, InkEntity, InkFile, InkMacroKind, InkTrait};
     use quote::quote;
 
     fn parse_first_chain_extension(code: &str) -> ChainExtension {
         ChainExtension::cast(
             InkFile::parse(code)
+                .tree()
                 .ink_attrs_in_scope()
-                .into_iter()
                 .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::ChainExtension))
                 .unwrap(),
         )

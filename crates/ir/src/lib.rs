@@ -55,8 +55,8 @@ pub use self::{
     topic::Topic,
     trait_definition::TraitDefinition,
     traits::{
-        FromAST, FromInkAttribute, FromSyntax, InkCallable, InkFn, InkImplItem, InkItem, InkStruct,
-        InkTrait,
+        FromAST, FromInkAttribute, FromSyntax, InkCallable, InkEntity, InkFn, InkImplItem,
+        InkStruct, InkTrait,
     },
     utils::{
         ink_ancestors, ink_arg_by_kind, ink_args, ink_args_by_kind, ink_attrs, ink_attrs_ancestors,
@@ -91,5 +91,6 @@ mod trait_definition;
 mod traits;
 #[macro_use]
 mod utils;
+mod iter;
 mod selector;
 mod test_utils;
