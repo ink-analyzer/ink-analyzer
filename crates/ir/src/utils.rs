@@ -87,9 +87,10 @@ pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> impl Iterator<Item = In
 /// for the syntax node.
 pub fn parent_ast_item(node: &SyntaxNode) -> Option<ast::Item> {
     let parent = node.parent()?;
-    match ast::Item::cast(parent.clone()) {
-        Some(item) => Some(item),
-        None => parent_ast_item(&parent),
+    if ast::Item::can_cast(parent.kind()) {
+        ast::Item::cast(parent)
+    } else {
+        parent_ast_item(&parent)
     }
 }
 
