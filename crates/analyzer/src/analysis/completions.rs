@@ -1,10 +1,11 @@
 //! ink! attribute completions.
 
-use super::utils;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, TextRange, TextSize};
 use ink_analyzer_ir::{
     ast, FromSyntax, InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind,
 };
+
+use super::utils;
 
 /// An ink! attribute completion item.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -338,7 +339,7 @@ mod tests {
 
     #[test]
     fn macro_completions_works() {
-        for (code, scenarios) in [
+        for (code, pat, expected_results) in [
             // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
@@ -347,33 +348,29 @@ mod tests {
             // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
 
             // No AST item context.
-            ("#[", vec![(None, vec![])]),
-            ("#[i", vec![(None, vec![("ink", Some("<-i"), Some("i"))])]),
+            ("#[", None, vec![]),
+            ("#[i", None, vec![("ink", Some("<-i"), Some("i"))]),
             (
                 "#[ink:",
-                vec![(
-                    Some(":"),
-                    vec![
-                        ("::chain_extension", Some("<-:"), Some(":")),
-                        ("::contract", Some("<-:"), Some(":")),
-                        ("::storage_item", Some("<-:"), Some(":")),
-                        ("::test", Some("<-:"), Some(":")),
-                        ("::trait_definition", Some("<-:"), Some(":")),
-                    ],
-                )],
+                Some(":"),
+                vec![
+                    ("::chain_extension", Some("<-:"), Some(":")),
+                    ("::contract", Some("<-:"), Some(":")),
+                    ("::storage_item", Some("<-:"), Some(":")),
+                    ("::test", Some("<-:"), Some(":")),
+                    ("::trait_definition", Some("<-:"), Some(":")),
+                ],
             ),
             (
                 "#[ink::",
-                vec![(
-                    Some("::"),
-                    vec![
-                        ("::chain_extension", Some("<-::"), Some("::")),
-                        ("::contract", Some("<-::"), Some("::")),
-                        ("::storage_item", Some("<-::"), Some("::")),
-                        ("::test", Some("<-::"), Some("::")),
-                        ("::trait_definition", Some("<-::"), Some("::")),
-                    ],
-                )],
+                Some("::"),
+                vec![
+                    ("::chain_extension", Some("<-::"), Some("::")),
+                    ("::contract", Some("<-::"), Some("::")),
+                    ("::storage_item", Some("<-::"), Some("::")),
+                    ("::test", Some("<-::"), Some("::")),
+                    ("::trait_definition", Some("<-::"), Some("::")),
+                ],
             ),
             // Module context.
             (
@@ -381,38 +378,40 @@ mod tests {
                     #[]
                     mod my_contract {}
                 "#,
-                vec![(Some("["), vec![("ink::contract", Some("["), Some("<-]"))])],
+                Some("["),
+                vec![("ink::contract", Some("["), Some("<-]"))],
             ),
             (
                 r#"
                     #[i]
                     mod my_contract {}
                 "#,
-                vec![(Some("i"), vec![("ink::contract", Some("<-i"), Some("i"))])],
+                Some("i"),
+                vec![("ink::contract", Some("<-i"), Some("i"))],
             ),
             (
                 r#"
                     #[ink]
                     mod my_contract {}
                 "#,
-                vec![(
-                    Some("i"),
-                    vec![("ink::contract", Some("<-ink"), Some("ink"))],
-                )],
+                Some("i"),
+                vec![("ink::contract", Some("<-ink"), Some("ink"))],
             ),
             (
                 r#"
                     #[ink::]
                     mod my_contract {}
                 "#,
-                vec![(Some("::"), vec![("::contract", Some("<-:"), Some("<-]"))])],
+                Some("::"),
+                vec![("::contract", Some("<-:"), Some("<-]"))],
             ),
             (
                 r#"
                     #[ink::co]
                     mod my_contract {}
                 "#,
-                vec![(Some(":c"), vec![("contract", Some("::"), Some("<-]"))])],
+                Some(":c"),
+                vec![("contract", Some("::"), Some("<-]"))],
             ),
             // Trait context.
             (
@@ -420,72 +419,60 @@ mod tests {
                     #[]
                     trait MyTrait {}
                 "#,
-                vec![(
-                    Some("["),
-                    vec![
-                        ("ink::chain_extension", Some("["), Some("<-]")),
-                        ("ink::trait_definition", Some("["), Some("<-]")),
-                    ],
-                )],
+                Some("["),
+                vec![
+                    ("ink::chain_extension", Some("["), Some("<-]")),
+                    ("ink::trait_definition", Some("["), Some("<-]")),
+                ],
             ),
             (
                 r#"
                     #[i]
                     trait MyTrait {}
                 "#,
-                vec![(
-                    Some("i"),
-                    vec![
-                        ("ink::chain_extension", Some("<-i"), Some("i")),
-                        ("ink::trait_definition", Some("<-i"), Some("i")),
-                    ],
-                )],
+                Some("i"),
+                vec![
+                    ("ink::chain_extension", Some("<-i"), Some("i")),
+                    ("ink::trait_definition", Some("<-i"), Some("i")),
+                ],
             ),
             (
                 r#"
                     #[ink]
                     trait MyTrait {}
                 "#,
-                vec![(
-                    Some("i"),
-                    vec![
-                        ("ink::chain_extension", Some("<-ink"), Some("ink")),
-                        ("ink::trait_definition", Some("<-ink"), Some("ink")),
-                    ],
-                )],
+                Some("i"),
+                vec![
+                    ("ink::chain_extension", Some("<-ink"), Some("ink")),
+                    ("ink::trait_definition", Some("<-ink"), Some("ink")),
+                ],
             ),
             (
                 r#"
                     #[ink::]
                     trait MyTrait {}
                 "#,
-                vec![(
-                    Some("::"),
-                    vec![
-                        ("::chain_extension", Some("<-:"), Some("<-]")),
-                        ("::trait_definition", Some("<-:"), Some("<-]")),
-                    ],
-                )],
+                Some("::"),
+                vec![
+                    ("::chain_extension", Some("<-:"), Some("<-]")),
+                    ("::trait_definition", Some("<-:"), Some("<-]")),
+                ],
             ),
             (
                 r#"
                     #[ink::ch]
                     trait MyTrait {}
                 "#,
-                vec![(
-                    Some(":c"),
-                    vec![("chain_extension", Some("::"), Some("<-]"))],
-                )],
+                Some(":c"),
+                vec![("chain_extension", Some("::"), Some("<-]"))],
             ),
             (
                 r#"
                     #[ink::tr]
                     trait MyTrait {}
                 "#,
-                vec![(
-                    Some(":t"),
-                    vec![("trait_definition", Some("::"), Some("<-]"))],
-                )],
+                Some(":t"),
+                vec![("trait_definition", Some("::"), Some("<-]"))],
             ),
             // ADT context.
             (
@@ -493,47 +480,40 @@ mod tests {
                     #[]
                     enum MyEnum {}
                 "#,
-                vec![(
-                    Some("["),
-                    vec![("ink::storage_item", Some("["), Some("<-]"))],
-                )],
+                Some("["),
+                vec![("ink::storage_item", Some("["), Some("<-]"))],
             ),
             (
                 r#"
                     #[i]
                     struct MyStruct {}
                 "#,
-                vec![(
-                    Some("i"),
-                    vec![("ink::storage_item", Some("<-i"), Some("i"))],
-                )],
+                Some("i"),
+                vec![("ink::storage_item", Some("<-i"), Some("i"))],
             ),
             (
                 r#"
                     #[ink]
                     union MyUnion {}
                 "#,
-                vec![(
-                    Some("i"),
-                    vec![("ink::storage_item", Some("<-ink"), Some("ink"))],
-                )],
+                Some("i"),
+                vec![("ink::storage_item", Some("<-ink"), Some("ink"))],
             ),
             (
                 r#"
                     #[ink::]
                     enum MyEnum {}
                 "#,
-                vec![(
-                    Some("::"),
-                    vec![("::storage_item", Some("<-:"), Some("<-]"))],
-                )],
+                Some("::"),
+                vec![("::storage_item", Some("<-:"), Some("<-]"))],
             ),
             (
                 r#"
                     #[ink::st]
                     struct MyStruct {}
                 "#,
-                vec![(Some(":s"), vec![("storage_item", Some("::"), Some("<-]"))])],
+                Some(":s"),
+                vec![("storage_item", Some("::"), Some("<-]"))],
             ),
             // Function context.
             (
@@ -541,35 +521,40 @@ mod tests {
                     #[]
                     fn my_fn {}
                 "#,
-                vec![(Some("["), vec![("ink::test", Some("["), Some("<-]"))])],
+                Some("["),
+                vec![("ink::test", Some("["), Some("<-]"))],
             ),
             (
                 r#"
                     #[i]
                     fn my_fn {}
                 "#,
-                vec![(Some("i"), vec![("ink::test", Some("<-i"), Some("i"))])],
+                Some("i"),
+                vec![("ink::test", Some("<-i"), Some("i"))],
             ),
             (
                 r#"
                     #[ink]
                     fn my_fn {}
                 "#,
-                vec![(Some("i"), vec![("ink::test", Some("<-ink"), Some("ink"))])],
+                Some("i"),
+                vec![("ink::test", Some("<-ink"), Some("ink"))],
             ),
             (
                 r#"
                     #[ink::]
                     fn my_fn {}
                 "#,
-                vec![(Some("::"), vec![("::test", Some("<-:"), Some("<-]"))])],
+                Some("::"),
+                vec![("::test", Some("<-:"), Some("<-]"))],
             ),
             (
                 r#"
                     #[ink::te]
                     fn my_fn {}
                 "#,
-                vec![(Some(":t"), vec![("test", Some("::"), Some("<-]"))])],
+                Some(":t"),
+                vec![("test", Some("::"), Some("<-]"))],
             ),
             // Contract scope.
             (
@@ -579,49 +564,45 @@ mod tests {
                         #[ink::
                     }
                 "#,
-                vec![(
-                    Some("::->"),
-                    vec![
-                        ("::chain_extension", Some("<-::->"), Some("::->")),
-                        ("::storage_item", Some("<-::->"), Some("::->")),
-                        ("::test", Some("<-::->"), Some("::->")),
-                        ("::trait_definition", Some("<-::->"), Some("::->")),
-                    ],
-                )],
+                Some("::->"),
+                vec![
+                    ("::chain_extension", Some("<-::->"), Some("::->")),
+                    ("::storage_item", Some("<-::->"), Some("::->")),
+                    ("::test", Some("<-::->"), Some("::->")),
+                    ("::trait_definition", Some("<-::->"), Some("::->")),
+                ],
             ),
         ] {
-            for (pat, expected_results) in scenarios {
-                let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
+            let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
 
-                let mut results = Vec::new();
-                macro_completions(&mut results, &InkFile::parse(code), offset);
+            let mut results = Vec::new();
+            macro_completions(&mut results, &InkFile::parse(code), offset);
 
-                assert_eq!(
-                    results
-                        .iter()
-                        .map(|completion| (completion.edit.as_str(), completion.range))
-                        .collect::<Vec<(&str, TextRange)>>(),
-                    expected_results
-                        .into_iter()
-                        .map(|(edit, pat_start, pat_end)| (
-                            edit,
-                            TextRange::new(
-                                TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
-                                TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
-                            )
-                        ))
-                        .collect::<Vec<(&str, TextRange)>>(),
-                    "code: {}",
-                    code
-                );
-            }
+            assert_eq!(
+                results
+                    .iter()
+                    .map(|completion| (completion.edit.as_str(), completion.range))
+                    .collect::<Vec<(&str, TextRange)>>(),
+                expected_results
+                    .into_iter()
+                    .map(|(edit, pat_start, pat_end)| (
+                        edit,
+                        TextRange::new(
+                            TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
+                            TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
+                        )
+                    ))
+                    .collect::<Vec<(&str, TextRange)>>(),
+                "code: {}",
+                code
+            );
         }
     }
 
     #[test]
     fn argument_completions_works() {
-        for (code, scenarios) in [
-            // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
+        for (code, pat, expected_results) in [
+            // (code, pat, [(edit, pat_start, pat_end)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
             // edit = the substring that will be replaced,
@@ -629,47 +610,45 @@ mod tests {
             // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
 
             // Non ink! attribute.
-            ("#[cfg(", vec![(None, vec![])]),
-            ("#[unknown(", vec![(None, vec![])]),
+            ("#[cfg(", None, vec![]),
+            ("#[unknown(", None, vec![]),
             // No AST item context.
             (
                 "#[ink(",
-                vec![(
-                    None,
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("extension", Some("("), Some("(")),
-                        ("handle_status", Some("("), Some("(")),
-                        ("impl", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                        ("topic", Some("("), Some("(")),
-                    ],
-                )],
+                None,
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("constructor", Some("("), Some("(")),
+                    ("default", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("extension", Some("("), Some("(")),
+                    ("handle_status", Some("("), Some("(")),
+                    ("impl", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                    ("topic", Some("("), Some("(")),
+                ],
             ),
             (
                 "#[ink(e",
-                vec![(
-                    None,
-                    vec![
-                        ("event", Some("<-e"), Some("e")),
-                        ("extension", Some("<-e"), Some("e")),
-                    ],
-                )],
+                None,
+                vec![
+                    ("event", Some("<-e"), Some("e")),
+                    ("extension", Some("<-e"), Some("e")),
+                ],
             ),
             (
                 "#[ink(con",
-                vec![(None, vec![("constructor", Some("<-con"), Some("con"))])],
+                None,
+                vec![("constructor", Some("<-con"), Some("con"))],
             ),
             (
                 "#[ink(message, pa",
-                vec![(None, vec![("payable", Some("<-pa"), Some("pa"))])],
+                None,
+                vec![("payable", Some("<-pa"), Some("pa"))],
             ),
             (
                 r#"
@@ -677,24 +656,22 @@ mod tests {
                         #[ink(
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("extension", Some("("), Some("(")),
-                        ("handle_status", Some("("), Some("(")),
-                        ("impl", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                        ("topic", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("constructor", Some("("), Some("(")),
+                    ("default", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("extension", Some("("), Some("(")),
+                    ("handle_status", Some("("), Some("(")),
+                    ("impl", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                    ("topic", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
@@ -702,24 +679,22 @@ mod tests {
                         #[ink()
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("extension", Some("("), Some("(")),
-                        ("handle_status", Some("("), Some("(")),
-                        ("impl", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                        ("topic", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("constructor", Some("("), Some("(")),
+                    ("default", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("extension", Some("("), Some("(")),
+                    ("handle_status", Some("("), Some("(")),
+                    ("impl", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                    ("topic", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
@@ -727,24 +702,22 @@ mod tests {
                         #[ink()]
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("extension", Some("("), Some("(")),
-                        ("handle_status", Some("("), Some("(")),
-                        ("impl", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                        ("topic", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("constructor", Some("("), Some("(")),
+                    ("default", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("extension", Some("("), Some("(")),
+                    ("handle_status", Some("("), Some("(")),
+                    ("impl", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                    ("topic", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
@@ -752,96 +725,93 @@ mod tests {
                         #[ink(]
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("extension", Some("("), Some("(")),
-                        ("handle_status", Some("("), Some("(")),
-                        ("impl", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                        ("topic", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("constructor", Some("("), Some("(")),
+                    ("default", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("extension", Some("("), Some("(")),
+                    ("handle_status", Some("("), Some("(")),
+                    ("impl", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                    ("topic", Some("("), Some("(")),
+                ],
             ),
             // ink! attribute argument context with no AST item.
             (
                 "#[ink(event,",
-                vec![(None, vec![("anonymous", Some(","), Some(","))])],
+                None,
+                vec![("anonymous", Some(","), Some(","))],
             ),
             (
                 "#[ink(constructor,",
-                vec![(
-                    None,
-                    vec![
-                        ("default", Some(","), Some(",")),
-                        ("payable", Some(","), Some(",")),
-                        ("selector", Some(","), Some(",")),
-                    ],
-                )],
+                None,
+                vec![
+                    ("default", Some(","), Some(",")),
+                    ("payable", Some(","), Some(",")),
+                    ("selector", Some(","), Some(",")),
+                ],
             ),
             (
                 "#[ink(message,",
-                vec![(
-                    None,
-                    vec![
-                        ("default", Some(","), Some(",")),
-                        ("payable", Some(","), Some(",")),
-                        ("selector", Some(","), Some(",")),
-                    ],
-                )],
+                None,
+                vec![
+                    ("default", Some(","), Some(",")),
+                    ("payable", Some(","), Some(",")),
+                    ("selector", Some(","), Some(",")),
+                ],
             ),
             (
                 "#[ink(extension = 1,",
-                vec![(None, vec![("handle_status", Some(","), Some(","))])],
+                None,
+                vec![("handle_status", Some(","), Some(","))],
             ),
             (
                 "#[ink(impl,",
-                vec![(None, vec![("namespace", Some(","), Some(","))])],
+                None,
+                vec![("namespace", Some(","), Some(","))],
             ),
             // ink! attribute macro context with no AST item.
             (
                 "#[ink::contract(",
-                vec![(
-                    None,
-                    vec![
-                        ("env", Some("("), Some("(")),
-                        ("keep_attr", Some("("), Some("(")),
-                    ],
-                )],
+                None,
+                vec![
+                    ("env", Some("("), Some("(")),
+                    ("keep_attr", Some("("), Some("(")),
+                ],
             ),
             (
                 "#[ink::contract(env=my::env::Types,",
-                vec![(None, vec![("keep_attr", Some(","), Some(","))])],
+                None,
+                vec![("keep_attr", Some(","), Some(","))],
             ),
             (
                 r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar","#,
-                vec![(None, vec![])],
+                None,
+                vec![],
             ),
             (
                 "#[ink::storage_item(",
-                vec![(None, vec![("derive", Some("("), Some("("))])],
+                None,
+                vec![("derive", Some("("), Some("("))],
             ),
             (
                 "#[ink::trait_definition(",
-                vec![(
-                    None,
-                    vec![
-                        ("keep_attr", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                    ],
-                )],
+                None,
+                vec![
+                    ("keep_attr", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"#[ink::trait_definition(namespace="my_namespace","#,
-                vec![(None, vec![("keep_attr", Some(","), Some(","))])],
+                None,
+                vec![("keep_attr", Some(","), Some(","))],
             ),
             // Struct context.
             (
@@ -849,42 +819,36 @@ mod tests {
                     #[ink(
                     struct MyStruct {}
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
                     #[ink()]
                     struct MyStruct {}
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
                     #[ink(]
                     struct MyStruct {}
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                ],
             ),
             // Struct field context.
             (
@@ -894,7 +858,8 @@ mod tests {
                         value: bool,
                     }
                 "#,
-                vec![(Some("("), vec![("topic", Some("("), Some("("))])],
+                Some("("),
+                vec![("topic", Some("("), Some("("))],
             ),
             (
                 r#"
@@ -903,7 +868,8 @@ mod tests {
                         value: bool,
                     }
                 "#,
-                vec![(Some("("), vec![("topic", Some("("), Some("("))])],
+                Some("("),
+                vec![("topic", Some("("), Some("("))],
             ),
             (
                 r#"
@@ -912,7 +878,8 @@ mod tests {
                         value: bool,
                     }
                 "#,
-                vec![(Some("("), vec![("topic", Some("("), Some("("))])],
+                Some("("),
+                vec![("topic", Some("("), Some("("))],
             ),
             // Fn context.
             (
@@ -920,18 +887,16 @@ mod tests {
                     #[ink(
                     pub fn my_fn {}
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("extension", Some("("), Some("(")),
-                        ("handle_status", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("constructor", Some("("), Some("(")),
+                    ("default", Some("("), Some("(")),
+                    ("extension", Some("("), Some("(")),
+                    ("handle_status", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                ],
             ),
             // Impl context.
             (
@@ -939,13 +904,11 @@ mod tests {
                     #[ink(
                     impl MyImpl {}
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("impl", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("impl", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                ],
             ),
             // Contract scope.
             (
@@ -955,21 +918,19 @@ mod tests {
                         #[ink(
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("impl", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("constructor", Some("("), Some("(")),
+                    ("default", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("impl", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
@@ -979,14 +940,12 @@ mod tests {
                         pub struct MyContract {}
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        ("event", Some("("), Some("(")),
-                        ("storage", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    ("event", Some("("), Some("(")),
+                    ("storage", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
@@ -996,7 +955,8 @@ mod tests {
                         pub struct MyContract {}
                     }
                 "#,
-                vec![(Some("("), vec![("anonymous", Some("("), Some("("))])],
+                Some("("),
+                vec![("anonymous", Some("("), Some("("))],
             ),
             (
                 r#"
@@ -1006,13 +966,11 @@ mod tests {
                         impl MyContract {}
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("impl", Some("("), Some("(")),
-                        ("namespace", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("impl", Some("("), Some("(")),
+                    ("namespace", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
@@ -1024,16 +982,14 @@ mod tests {
                         }
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("constructor", Some("("), Some("(")),
+                    ("default", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                ],
             ),
             // Chain extension scope.
             (
@@ -1043,13 +999,11 @@ mod tests {
                         #[ink(
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("extension", Some("("), Some("(")),
-                        ("handle_status", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("extension", Some("("), Some("(")),
+                    ("handle_status", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
@@ -1059,13 +1013,11 @@ mod tests {
                         fn my_extension();
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("extension", Some("("), Some("(")),
-                        ("handle_status", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("extension", Some("("), Some("(")),
+                    ("handle_status", Some("("), Some("(")),
+                ],
             ),
             // Trait definition scope.
             (
@@ -1075,15 +1027,13 @@ mod tests {
                         #[ink(
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("default", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("default", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                ],
             ),
             (
                 r#"
@@ -1093,42 +1043,38 @@ mod tests {
                         fn my_message(&self);
                     }
                 "#,
-                vec![(
-                    Some("("),
-                    vec![
-                        ("default", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector", Some("("), Some("(")),
-                    ],
-                )],
+                Some("("),
+                vec![
+                    ("default", Some("("), Some("(")),
+                    ("message", Some("("), Some("(")),
+                    ("payable", Some("("), Some("(")),
+                    ("selector", Some("("), Some("(")),
+                ],
             ),
         ] {
-            for (pat, expected_results) in scenarios {
-                let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
+            let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
 
-                let mut results = Vec::new();
-                argument_completions(&mut results, &InkFile::parse(code), offset);
+            let mut results = Vec::new();
+            argument_completions(&mut results, &InkFile::parse(code), offset);
 
-                assert_eq!(
-                    results
-                        .iter()
-                        .map(|completion| (completion.edit.as_str(), completion.range))
-                        .collect::<Vec<(&str, TextRange)>>(),
-                    expected_results
-                        .into_iter()
-                        .map(|(edit, pat_start, pat_end)| (
-                            edit,
-                            TextRange::new(
-                                TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
-                                TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
-                            )
-                        ))
-                        .collect::<Vec<(&str, TextRange)>>(),
-                    "code: {}",
-                    code
-                );
-            }
+            assert_eq!(
+                results
+                    .iter()
+                    .map(|completion| (completion.edit.as_str(), completion.range))
+                    .collect::<Vec<(&str, TextRange)>>(),
+                expected_results
+                    .into_iter()
+                    .map(|(edit, pat_start, pat_end)| (
+                        edit,
+                        TextRange::new(
+                            TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
+                            TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
+                        )
+                    ))
+                    .collect::<Vec<(&str, TextRange)>>(),
+                "code: {}",
+                code
+            );
         }
     }
 }
