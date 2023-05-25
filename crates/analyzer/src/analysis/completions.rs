@@ -2,7 +2,9 @@
 
 use super::utils;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, TextRange, TextSize};
-use ink_analyzer_ir::{FromSyntax, InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
+use ink_analyzer_ir::{
+    ast, FromSyntax, InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind,
+};
 
 /// An ink! attribute completion item.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -279,16 +281,20 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                         // Handles cases where either the AST item type is unknown or
                         // the ink! attribute is not applied to an AST item (e.g. ink! topic).
                         None => {
+                            // Checks whether for the parent is a struct `RecordField`.
+                            // `RecordFieldList` is also matched for cases where the ink! attribute is
+                            // unclosed and so the field is parsed as if it's part of the attribute.
                             match ink_attr.syntax().parent().and_then(|attr_parent| {
-                                matches!(
+                                (matches!(
                                     attr_parent.kind(),
                                     SyntaxKind::RECORD_FIELD | SyntaxKind::RECORD_FIELD_LIST
-                                )
+                                ) && matches!(
+                                    ink_analyzer_ir::parent_ast_item(&attr_parent),
+                                    Some(ast::Item::Struct(_))
+                                ))
                                 .then_some(attr_parent)
                             }) {
-                                // Handles ink! topic suggestions but checking for the parent struct `RecordField`.
-                                // `RecordFieldList` is also included for cases where the ink! attribute is
-                                // unclosed and so the field is parsed as if it's part of the attribute.
+                                // Returns ink! topic suggest for struct fields.
                                 Some(_) => vec![InkArgKind::Topic],
                                 // Returns all attribute argument suggestions if the AST item type is unknown.
                                 None => vec![
