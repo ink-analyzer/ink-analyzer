@@ -1,5 +1,6 @@
 //! Utilities for ink! analysis.
 
+use ink_analyzer_ir::syntax::SyntaxKind;
 use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkMacroKind};
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
@@ -192,7 +193,7 @@ pub fn valid_quasi_direct_descendant_ink_args(attr_kind: &InkAttributeKind) -> V
 
 /// Returns valid quasi-direct descendant ink! macro kinds for the given ink! attribute kind.
 ///
-/// (i.e argument kinds that are allowed in the scope of the given ink! attribute kind,
+/// (i.e macro kinds that are allowed in the scope of the given ink! attribute kind,
 /// e.g for the `contract` attribute macro kind, this would be `chain_extension`, `storage_item`, `test` and `trait_definition`.
 pub fn valid_quasi_direct_descendant_ink_macros(attr_kind: &InkAttributeKind) -> Vec<InkMacroKind> {
     match attr_kind {
@@ -217,5 +218,60 @@ pub fn valid_quasi_direct_descendant_ink_macros(attr_kind: &InkAttributeKind) ->
         // ink! attribute arguments can't have ink! macro descendants.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs>.
         InkAttributeKind::Arg(_) => Vec::new(),
+    }
+}
+
+/// Returns valid ink! argument kinds for the given syntax kind.
+///
+/// (i.e argument kinds that can be applied to the given syntax kind,
+/// e.g for the `impl` syntax kind, this would be `impl` and `namespace`.
+pub fn valid_ink_ink_args_by_syntax_kind(syntax_kind: SyntaxKind) -> Vec<InkArgKind> {
+    match syntax_kind {
+        // `env` and `keep_attr` can only be applied to a `mod` as siblings of an `ink::contract` macro.
+        SyntaxKind::MODULE | SyntaxKind::MOD_KW => Vec::new(),
+        // `keep_attr` and `namespace` can only be applied to a `trait` as siblings of an `ink::trait_definition` macro.
+        SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => Vec::new(),
+        // `derive` can only be applied to an ADT (`enum`, `struct` or `union`) as a sibling of an `ink::storage_item` macro.
+        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW => vec![
+            InkArgKind::Anonymous,
+            InkArgKind::Event,
+            InkArgKind::Storage,
+        ],
+        SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW => {
+            Vec::new()
+        }
+        SyntaxKind::RECORD_FIELD => vec![InkArgKind::Topic],
+        SyntaxKind::FN | SyntaxKind::FN_KW => vec![
+            InkArgKind::Constructor,
+            InkArgKind::Default,
+            InkArgKind::Extension,
+            InkArgKind::HandleStatus,
+            InkArgKind::Message,
+            InkArgKind::Payable,
+            InkArgKind::Selector,
+        ],
+        SyntaxKind::IMPL | SyntaxKind::IMPL_KW => vec![InkArgKind::Impl, InkArgKind::Namespace],
+        _ => Vec::new(),
+    }
+}
+
+/// Returns valid ink! macro kinds for the given syntax kind.
+///
+/// (i.e macro kinds that can be applied to the given syntax kind,
+/// e.g for the `module` syntax kind, this would be `contract`.
+pub fn valid_ink_macros_by_syntax_kind(syntax_kind: SyntaxKind) -> Vec<InkMacroKind> {
+    match syntax_kind {
+        SyntaxKind::MODULE | SyntaxKind::MOD_KW => vec![InkMacroKind::Contract],
+        SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => {
+            vec![InkMacroKind::ChainExtension, InkMacroKind::TraitDefinition]
+        }
+        SyntaxKind::ENUM
+        | SyntaxKind::ENUM_KW
+        | SyntaxKind::STRUCT
+        | SyntaxKind::STRUCT_KW
+        | SyntaxKind::UNION
+        | SyntaxKind::UNION_KW => vec![InkMacroKind::StorageItem],
+        SyntaxKind::FN | SyntaxKind::FN_KW => vec![InkMacroKind::Test],
+        _ => Vec::new(),
     }
 }

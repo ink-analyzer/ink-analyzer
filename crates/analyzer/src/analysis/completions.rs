@@ -100,18 +100,9 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                 let mut context_specific_ink_attr_macro_suggestions =
                     match item_at_offset.normalized_parent_ast_item_keyword() {
                         // Returns suggestions based on the AST item type keyword.
-                        Some((ast_item_keyword, _, _)) => match ast_item_keyword.kind() {
-                            SyntaxKind::MOD_KW => vec![InkMacroKind::Contract],
-                            SyntaxKind::TRAIT_KW => {
-                                vec![InkMacroKind::ChainExtension, InkMacroKind::TraitDefinition]
-                            }
-                            SyntaxKind::ENUM_KW | SyntaxKind::STRUCT_KW | SyntaxKind::UNION_KW => {
-                                vec![InkMacroKind::StorageItem]
-                            }
-                            SyntaxKind::FN_KW => vec![InkMacroKind::Test],
-                            // Returns nothing if for AST items that can't be annotated with ink! attributes.
-                            _ => Vec::new(),
-                        },
+                        Some((ast_item_keyword, _, _)) => {
+                            utils::valid_ink_macros_by_syntax_kind(ast_item_keyword.kind())
+                        }
                         // Handles the case where the AST item type is unknown.
                         None => {
                             // Returns all attribute argument suggestions if focused token is part of an ink! path segment.
@@ -250,74 +241,53 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                 let mut context_specific_ink_arg_suggestions = match ink_attr.kind() {
                     // For unknown ink! attributes, suggestions are based on the AST item (if any).
                     InkAttributeKind::Macro(InkMacroKind::Unknown)
-                    | InkAttributeKind::Arg(InkArgKind::Unknown) => match item_at_offset
-                        .normalized_parent_ast_item_keyword()
-                    {
-                        // Returns suggestions based on the AST item type keyword.
-                        Some((ast_item_keyword, _, _)) => match ast_item_keyword.kind() {
-                            SyntaxKind::MOD_KW => vec![InkArgKind::Env, InkArgKind::KeepAttr],
-                            SyntaxKind::TRAIT_KW => {
-                                vec![InkArgKind::KeepAttr, InkArgKind::Namespace]
+                    | InkAttributeKind::Arg(InkArgKind::Unknown) => {
+                        match item_at_offset.normalized_parent_ast_item_keyword() {
+                            // Returns suggestions based on the AST item type keyword.
+                            Some((ast_item_keyword, _, _)) => {
+                                utils::valid_ink_ink_args_by_syntax_kind(ast_item_keyword.kind())
                             }
-                            SyntaxKind::STRUCT_KW => vec![
-                                InkArgKind::Anonymous,
-                                InkArgKind::Derive,
-                                InkArgKind::Event,
-                                InkArgKind::Storage,
-                            ],
-                            SyntaxKind::ENUM_KW | SyntaxKind::UNION_KW => vec![InkArgKind::Derive],
-                            SyntaxKind::FN_KW => vec![
-                                InkArgKind::Constructor,
-                                InkArgKind::Default,
-                                InkArgKind::Extension,
-                                InkArgKind::HandleStatus,
-                                InkArgKind::Message,
-                                InkArgKind::Payable,
-                                InkArgKind::Selector,
-                            ],
-                            SyntaxKind::IMPL_KW => vec![InkArgKind::Impl, InkArgKind::Namespace],
-                            _ => Vec::new(),
-                        },
-                        // Handles cases where either the AST item type is unknown or
-                        // the ink! attribute is not applied to an AST item (e.g. ink! topic).
-                        None => {
-                            // Checks whether for the parent is a struct `RecordField`.
-                            // `RecordFieldList` is also matched for cases where the ink! attribute is
-                            // unclosed and so the field is parsed as if it's part of the attribute.
-                            match ink_attr.syntax().parent().and_then(|attr_parent| {
-                                (matches!(
-                                    attr_parent.kind(),
-                                    SyntaxKind::RECORD_FIELD | SyntaxKind::RECORD_FIELD_LIST
-                                ) && matches!(
-                                    ink_analyzer_ir::parent_ast_item(&attr_parent),
-                                    Some(ast::Item::Struct(_))
-                                ))
-                                .then_some(attr_parent)
-                            }) {
-                                // Returns ink! topic suggest for struct fields.
-                                Some(_) => vec![InkArgKind::Topic],
-                                // Returns all attribute argument suggestions if the AST item type is unknown.
-                                None => vec![
-                                    InkArgKind::Anonymous,
-                                    InkArgKind::Constructor,
-                                    InkArgKind::Default,
-                                    InkArgKind::Derive,
-                                    InkArgKind::Env,
-                                    InkArgKind::Event,
-                                    InkArgKind::Extension,
-                                    InkArgKind::HandleStatus,
-                                    InkArgKind::Impl,
-                                    InkArgKind::KeepAttr,
-                                    InkArgKind::Message,
-                                    InkArgKind::Namespace,
-                                    InkArgKind::Payable,
-                                    InkArgKind::Selector,
-                                    InkArgKind::Storage,
-                                    InkArgKind::Topic,
-                                ],
+                            // Handles cases where either the AST item type is unknown or
+                            // the ink! attribute is not applied to an AST item (e.g. ink! topic).
+                            None => {
+                                // Checks whether for the parent is a struct `RecordField`.
+                                // `RecordFieldList` is also matched for cases where the ink! attribute is
+                                // unclosed and so the field is parsed as if it's part of the attribute.
+                                match ink_attr.syntax().parent().and_then(|attr_parent| {
+                                    (matches!(
+                                        attr_parent.kind(),
+                                        SyntaxKind::RECORD_FIELD | SyntaxKind::RECORD_FIELD_LIST
+                                    ) && matches!(
+                                        ink_analyzer_ir::parent_ast_item(&attr_parent),
+                                        Some(ast::Item::Struct(_))
+                                    ))
+                                    .then_some(attr_parent)
+                                }) {
+                                    // Returns ink! topic suggest for struct fields.
+                                    Some(_) => vec![InkArgKind::Topic],
+                                    // Returns all attribute arguments that are capable of being standalone
+                                    // if the AST item type is unknown.
+                                    None => vec![
+                                        InkArgKind::Anonymous,
+                                        InkArgKind::Constructor,
+                                        InkArgKind::Default,
+                                        InkArgKind::Event,
+                                        InkArgKind::Extension,
+                                        InkArgKind::HandleStatus,
+                                        InkArgKind::Impl,
+                                        InkArgKind::Message,
+                                        InkArgKind::Namespace,
+                                        InkArgKind::Payable,
+                                        InkArgKind::Selector,
+                                        InkArgKind::Storage,
+                                        InkArgKind::Topic,
+                                        // See `utils::valid_ink_ink_args_by_syntax_kind` docs for
+                                        // rationale for omitting `derive`, `env`, `keep_attr` from this list.
+                                    ],
+                                }
                             }
                         }
-                    },
+                    }
                     // For known/valid primary ink! attribute kinds, only suggest valid ink! attribute siblings.
                     kind => utils::valid_sibling_ink_args(kind),
                 };
@@ -670,13 +640,10 @@ mod tests {
                         ("anonymous", Some("("), Some("(")),
                         ("constructor", Some("("), Some("(")),
                         ("default", Some("("), Some("(")),
-                        ("derive", Some("("), Some("(")),
-                        ("env", Some("("), Some("(")),
                         ("event", Some("("), Some("(")),
                         ("extension", Some("("), Some("(")),
                         ("handle_status", Some("("), Some("(")),
                         ("impl", Some("("), Some("(")),
-                        ("keep_attr", Some("("), Some("(")),
                         ("message", Some("("), Some("(")),
                         ("namespace", Some("("), Some("(")),
                         ("payable", Some("("), Some("(")),
@@ -691,7 +658,6 @@ mod tests {
                 vec![(
                     None,
                     vec![
-                        ("env", Some("<-e"), Some("e")),
                         ("event", Some("<-e"), Some("e")),
                         ("extension", Some("<-e"), Some("e")),
                     ],
@@ -717,13 +683,10 @@ mod tests {
                         ("anonymous", Some("("), Some("(")),
                         ("constructor", Some("("), Some("(")),
                         ("default", Some("("), Some("(")),
-                        ("derive", Some("("), Some("(")),
-                        ("env", Some("("), Some("(")),
                         ("event", Some("("), Some("(")),
                         ("extension", Some("("), Some("(")),
                         ("handle_status", Some("("), Some("(")),
                         ("impl", Some("("), Some("(")),
-                        ("keep_attr", Some("("), Some("(")),
                         ("message", Some("("), Some("(")),
                         ("namespace", Some("("), Some("(")),
                         ("payable", Some("("), Some("(")),
@@ -745,13 +708,10 @@ mod tests {
                         ("anonymous", Some("("), Some("(")),
                         ("constructor", Some("("), Some("(")),
                         ("default", Some("("), Some("(")),
-                        ("derive", Some("("), Some("(")),
-                        ("env", Some("("), Some("(")),
                         ("event", Some("("), Some("(")),
                         ("extension", Some("("), Some("(")),
                         ("handle_status", Some("("), Some("(")),
                         ("impl", Some("("), Some("(")),
-                        ("keep_attr", Some("("), Some("(")),
                         ("message", Some("("), Some("(")),
                         ("namespace", Some("("), Some("(")),
                         ("payable", Some("("), Some("(")),
@@ -773,13 +733,10 @@ mod tests {
                         ("anonymous", Some("("), Some("(")),
                         ("constructor", Some("("), Some("(")),
                         ("default", Some("("), Some("(")),
-                        ("derive", Some("("), Some("(")),
-                        ("env", Some("("), Some("(")),
                         ("event", Some("("), Some("(")),
                         ("extension", Some("("), Some("(")),
                         ("handle_status", Some("("), Some("(")),
                         ("impl", Some("("), Some("(")),
-                        ("keep_attr", Some("("), Some("(")),
                         ("message", Some("("), Some("(")),
                         ("namespace", Some("("), Some("(")),
                         ("payable", Some("("), Some("(")),
@@ -801,13 +758,10 @@ mod tests {
                         ("anonymous", Some("("), Some("(")),
                         ("constructor", Some("("), Some("(")),
                         ("default", Some("("), Some("(")),
-                        ("derive", Some("("), Some("(")),
-                        ("env", Some("("), Some("(")),
                         ("event", Some("("), Some("(")),
                         ("extension", Some("("), Some("(")),
                         ("handle_status", Some("("), Some("(")),
                         ("impl", Some("("), Some("(")),
-                        ("keep_attr", Some("("), Some("(")),
                         ("message", Some("("), Some("(")),
                         ("namespace", Some("("), Some("(")),
                         ("payable", Some("("), Some("(")),
@@ -899,7 +853,6 @@ mod tests {
                     Some("("),
                     vec![
                         ("anonymous", Some("("), Some("(")),
-                        ("derive", Some("("), Some("(")),
                         ("event", Some("("), Some("(")),
                         ("storage", Some("("), Some("(")),
                     ],
@@ -914,7 +867,6 @@ mod tests {
                     Some("("),
                     vec![
                         ("anonymous", Some("("), Some("(")),
-                        ("derive", Some("("), Some("(")),
                         ("event", Some("("), Some("(")),
                         ("storage", Some("("), Some("(")),
                     ],
@@ -929,7 +881,6 @@ mod tests {
                     Some("("),
                     vec![
                         ("anonymous", Some("("), Some("(")),
-                        ("derive", Some("("), Some("(")),
                         ("event", Some("("), Some("(")),
                         ("storage", Some("("), Some("(")),
                     ],
