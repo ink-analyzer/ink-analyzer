@@ -1,4 +1,4 @@
-//! ink! entity traits for accessing related AST items.
+//! ink! entity traits for callables (i.e ink! constructors and ink! messages).
 
 use super::{FromSyntax, InkFn};
 use crate::{utils, InkArg, InkArgKind, Selector, SelectorArg};

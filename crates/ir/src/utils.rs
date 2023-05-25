@@ -1,12 +1,13 @@
 //! ink! IR utilities.
 
 use itertools::Itertools;
-use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
+use ra_ap_syntax::ast::HasAttrs;
+use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
 
 use crate::iter::IterSuccessors;
 use crate::{
-    Constructor, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute,
-    InkAttributeKind, InkImpl, InkImplItem, Message,
+    Constructor, FromInkAttribute, FromSyntax, HasParent, InkArg, InkArgKind, InkAttrData,
+    InkAttribute, InkAttributeKind, InkImpl, InkImplItem, Message,
 };
 
 /// Casts a syntax node to an ink! attribute (if possible).
@@ -59,38 +60,72 @@ pub fn ink_attrs_in_scope(node: &SyntaxNode) -> impl Iterator<Item = InkAttribut
 /// Returns ink! attributes for all the syntax node's ancestors.
 pub fn ink_attrs_ancestors(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> + '_ {
     node.ancestors()
-        // Ancestors includes the current node, so we filter it out first.
-        // (it's a rowan/ra_ap_syntax quirk https://github.com/rust-analyzer/rowan/blob/v0.15.11/src/cursor.rs#L625).
-        .filter(move |ancestor| ancestor != node)
+        .filter(move |ancestor| {
+            // Ancestors includes the current node, so we filter it out first.
+            // (it's a rowan/ra_ap_syntax quirk https://github.com/rust-analyzer/rowan/blob/v0.15.11/src/cursor.rs#L625).
+            ancestor != node
+                // Additionally, if the current node is an attribute,
+                // we also filter out it's parent so that we get its ancestor attributes not its siblings.
+                && (node.kind() != SyntaxKind::ATTR
+                    || node.parent().map(|attr_parent| attr_parent.text_range())
+                        != Some(ancestor.text_range()))
+        })
         .flat_map(|ancestor| ink_attrs(&ancestor))
 }
 
 /// Returns ink! attributes for all the syntax node's ancestors
 /// that don't have any ink! descendant between them and the current node.
 pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> {
-    IterSuccessors::new(node.parent(), |source| {
-        // Get a reference to the current node or return None to stop the recursion.
-        source.as_ref().map(|current_node| {
-            let has_attrs = ink_attrs(current_node).next().is_some();
-            if has_attrs {
-                // Return the next iter of ink! attributes (if any).
-                (Some(ink_attrs(current_node)), None)
-            } else {
-                // Otherwise the current node's parent becomes next source.
-                (None, current_node.parent())
-            }
-        })
-    })
+    IterSuccessors::new(
+        if node.kind() == SyntaxKind::ATTR {
+            // For attributes, we need to call parent on the parent node so that we get ancestor attributes not siblings.
+            node.parent().and_then(|attr_parent| attr_parent.parent())
+        } else {
+            node.parent()
+        },
+        |source| {
+            // Get a reference to the current node or return None to stop the recursion.
+            source.as_ref().map(|current_node| {
+                let has_attrs = ink_attrs(current_node).next().is_some();
+                if has_attrs {
+                    // Return the next iter of ink! attributes (if any).
+                    (Some(ink_attrs(current_node)), None)
+                } else {
+                    // Otherwise the current node's parent becomes next source.
+                    (None, current_node.parent())
+                }
+            })
+        },
+    )
 }
 
 /// Returns parent [AST Item](https://github.com/rust-lang/rust-analyzer/blob/master/crates/syntax/src/ast/generated/nodes.rs#L1589-L1610)
 /// for the syntax node.
 pub fn parent_ast_item(node: &SyntaxNode) -> Option<ast::Item> {
-    let parent = node.parent()?;
-    if ast::Item::can_cast(parent.kind()) {
-        ast::Item::cast(parent)
+    closest_ancestor_ast_type::<SyntaxNode, ast::Item>(node).and_then(|item| {
+        if node.kind() == SyntaxKind::ATTR {
+            // If the subject is an attribute, we make sure it's actually applied to the AST item.
+            // This handles the case where an attribute is not really applied to any AST item.
+            item.attrs()
+                .any(|attr| attr.syntax() == node)
+                .then_some(item)
+        } else {
+            Some(item)
+        }
+    })
+}
+
+/// Returns the closest AST ancestor is a specific type for the syntax element.
+pub fn closest_ancestor_ast_type<I, T>(item: &I) -> Option<T>
+where
+    I: HasParent,
+    T: AstNode,
+{
+    let parent = item.parent_node()?;
+    if T::can_cast(parent.kind()) {
+        T::cast(parent)
     } else {
-        parent_ast_item(&parent)
+        closest_ancestor_ast_type(&parent)
     }
 }
 
@@ -219,6 +254,42 @@ pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = I
         .filter_map(InkImpl::cast)
         // Deduplicate by wrapped syntax node.
         .unique_by(|item| item.syntax().to_owned())
+}
+
+/// Returns the closest non-trivia token based on the step expression.
+pub fn closest_non_trivia_token<F>(token: &SyntaxToken, step_expr: F) -> Option<SyntaxToken>
+where
+    F: Fn(&SyntaxToken) -> Option<SyntaxToken>,
+{
+    closest_item_which(
+        token,
+        step_expr,
+        |subject| !subject.kind().is_trivia(),
+        |subject| !subject.kind().is_trivia(),
+    )
+}
+
+/// Returns the closest non-trivia token based on the input predicates.
+pub fn closest_item_which<T, S, G, H>(
+    token: &T,
+    step_expr: S,
+    goal_expr: G,
+    halt_expr: H,
+) -> Option<T>
+where
+    S: Fn(&T) -> Option<T>,
+    G: Fn(&T) -> bool,
+    H: Fn(&T) -> bool,
+{
+    (step_expr)(token).and_then(|subject| {
+        if goal_expr(&subject) {
+            Some(subject)
+        } else if halt_expr(&subject) {
+            None
+        } else {
+            closest_item_which(&subject, step_expr, goal_expr, halt_expr)
+        }
+    })
 }
 
 /// Quasi-quotation macro that accepts input like the `quote!` macro

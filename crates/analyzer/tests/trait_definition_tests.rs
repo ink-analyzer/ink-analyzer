@@ -7,14 +7,14 @@ fn get_trait_definition_code(name: &str) -> String {
 
 #[test]
 fn erc20_trait_works() {
-    let diagnostics = Analysis.diagnostics(&get_trait_definition_code("erc20_trait"));
+    let diagnostics = Analysis::new(&get_trait_definition_code("erc20_trait")).diagnostics();
 
     assert_eq!(diagnostics.len(), 0);
 }
 
 #[test]
 fn flipper_trait_works() {
-    let diagnostics = Analysis.diagnostics(&get_trait_definition_code("flipper_trait"));
+    let diagnostics = Analysis::new(&get_trait_definition_code("flipper_trait")).diagnostics();
 
     assert_eq!(diagnostics.len(), 0);
 }

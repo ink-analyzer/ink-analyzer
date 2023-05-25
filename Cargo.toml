@@ -3,5 +3,6 @@
 members = [
     "crates/analyzer",
     "crates/ir",
-    "crates/macro"
+    "crates/macro",
+    "crates/test_utils"
 ]

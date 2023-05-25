@@ -55,15 +55,16 @@ pub use self::{
     topic::Topic,
     trait_definition::TraitDefinition,
     traits::{
-        FromAST, FromInkAttribute, FromSyntax, InkCallable, InkEntity, InkFn, InkImplItem,
-        InkStruct, InkTrait,
+        FromAST, FromInkAttribute, FromSyntax, HasParent, InkCallable, InkEntity, InkFn,
+        InkImplItem, InkStruct, InkTrait,
     },
+    tree::{InkTree, ItemAtOffset},
     utils::{
-        ink_ancestors, ink_arg_by_kind, ink_args, ink_args_by_kind, ink_attrs, ink_attrs_ancestors,
-        ink_attrs_closest_ancestors, ink_attrs_closest_descendants, ink_attrs_descendants,
-        ink_attrs_in_scope, ink_callable_closest_descendants, ink_closest_ancestors,
-        ink_closest_descendants, ink_descendants, ink_impl_closest_descendants, ink_parent,
-        parent_ast_item,
+        closest_ancestor_ast_type, closest_non_trivia_token, ink_ancestors, ink_arg_by_kind,
+        ink_args, ink_args_by_kind, ink_attrs, ink_attrs_ancestors, ink_attrs_closest_ancestors,
+        ink_attrs_closest_descendants, ink_attrs_descendants, ink_attrs_in_scope,
+        ink_callable_closest_descendants, ink_closest_ancestors, ink_closest_descendants,
+        ink_descendants, ink_impl_closest_descendants, ink_parent, parent_ast_item,
     },
 };
 
@@ -94,3 +95,4 @@ mod utils;
 mod iter;
 mod selector;
 mod test_utils;
+mod tree;

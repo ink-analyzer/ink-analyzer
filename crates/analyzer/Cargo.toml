@@ -17,3 +17,4 @@ ink-analyzer-ir = { version = "0.5", path = "../ir" }
 
 [dev-dependencies]
 quote = "1.0.26"
+test_utils = { path = "../test_utils" }

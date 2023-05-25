@@ -47,7 +47,7 @@ fn do_analysis() {
         }
     "#;
 
-    let diagnostics = Analysis.diagnostics(code);
+    let diagnostics = Analysis::new(code).diagnostics();
     dbg!(&diagnostics);
 }
 ```

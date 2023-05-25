@@ -21,11 +21,13 @@
 //!         }
 //!     "#;
 //!
-//!     let diagnostics = Analysis.diagnostics(code);
+//!     let diagnostics = Analysis::new(code).diagnostics();
 //!     dbg!(&diagnostics);
 //! }
 //! ```
 
-pub use self::{analysis::Analysis, analysis::Diagnostic, analysis::Severity};
+pub use self::{
+    analysis::Analysis, analysis::Completion, analysis::Diagnostic, analysis::Severity,
+};
 
 mod analysis;

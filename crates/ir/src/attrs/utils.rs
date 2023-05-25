@@ -8,15 +8,14 @@ use crate::{InkArg, InkArgKind};
 
 /// Parse ink! attribute arguments.
 pub fn parse_ink_args(attr: &ast::Attr) -> Vec<InkArg> {
-    if let Some(meta) = attr.meta() {
-        if let Some(token_tree) = meta.token_tree() {
-            return parse_meta_items(&token_tree)
-                .into_iter()
-                .map(InkArg::from)
-                .collect();
-        }
+    if let Some(token_tree) = attr.token_tree() {
+        parse_meta_items(&token_tree)
+            .into_iter()
+            .map(InkArg::from)
+            .collect()
+    } else {
+        Vec::new()
     }
-    Vec::new()
 }
 
 /// Sort ink! attribute arguments so that we choose the best `InkArgKind` for ink! attributes

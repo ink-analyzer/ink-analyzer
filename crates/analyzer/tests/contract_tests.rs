@@ -7,21 +7,21 @@ fn get_contract_code(name: &str) -> String {
 
 #[test]
 fn erc20_works() {
-    let diagnostics = Analysis.diagnostics(&get_contract_code("erc20"));
+    let diagnostics = Analysis::new(&get_contract_code("erc20")).diagnostics();
 
     assert_eq!(diagnostics.len(), 0);
 }
 
 #[test]
 fn flipper_works() {
-    let diagnostics = Analysis.diagnostics(&get_contract_code("flipper"));
+    let diagnostics = Analysis::new(&get_contract_code("flipper")).diagnostics();
 
     assert_eq!(diagnostics.len(), 0);
 }
 
 #[test]
 fn mother_works() {
-    let diagnostics = Analysis.diagnostics(&get_contract_code("mother"));
+    let diagnostics = Analysis::new(&get_contract_code("mother")).diagnostics();
 
     assert_eq!(diagnostics.len(), 0);
 }

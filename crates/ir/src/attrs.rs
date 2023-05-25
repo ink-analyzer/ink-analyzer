@@ -58,9 +58,14 @@ impl InkAttribute {
                     }
                 }
                 None => {
-                    // No additional path segments means an ink! attribute argument e.g `#[ink(storage)]`.
-                    let ink_arg_kind = if args.is_empty() {
-                        InkArgKind::Unknown
+                    // No additional path segments means either an ink! attribute argument (e.g `#[ink(storage)]`) or an unknown attribute.
+                    if args.is_empty() {
+                        match attr.token_tree() {
+                            // A token tree means an unknown ink! attribute argument.
+                            Some(_) => InkAttributeKind::Arg(InkArgKind::Unknown),
+                            // No token tree means an unknown ink! attribute macro.
+                            None => InkAttributeKind::Macro(InkMacroKind::Unknown),
+                        }
                     } else {
                         // Prioritize arguments so that we choose the best `InkArgKind` for the attribute.
                         // See `utils::sort_ink_args_by_kind` doc.
@@ -68,9 +73,8 @@ impl InkAttribute {
                         let sorted_args = utils::sort_ink_args_by_kind(&args);
                         let primary_arg = &sorted_args[0];
                         possible_ink_arg_name = primary_arg.name().map(|name| name.to_owned());
-                        *primary_arg.kind()
-                    };
-                    InkAttributeKind::Arg(ink_arg_kind)
+                        InkAttributeKind::Arg(*primary_arg.kind())
+                    }
                 }
             };
 
@@ -476,6 +480,18 @@ mod tests {
             // NOTE: Macros always have the highest priority, even the unknown variety.
             (
                 quote_as_str! {
+                    #[ink]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::Unknown), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::Unknown), vec![])),
+            ),
+            (
+                quote_as_str! {
                     #[ink::unknown]
                 },
                 Some((InkAttributeKind::Macro(InkMacroKind::Unknown), vec![])),
@@ -506,6 +522,12 @@ mod tests {
             ),
             // Unknown ink! argument.
             // NOTE: Unknown arguments always have the lowest priority.
+            (
+                quote_as_str! {
+                    #[ink()]
+                },
+                Some((InkAttributeKind::Arg(InkArgKind::Unknown), vec![])),
+            ),
             (
                 quote_as_str! {
                     #[ink(unknown)]
