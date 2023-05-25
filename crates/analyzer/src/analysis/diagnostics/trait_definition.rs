@@ -155,8 +155,9 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkEntity, InkFile, InkMacroKind};
+    use ink_analyzer_ir::{InkEntity, InkFile, InkMacroKind};
     use quote::{format_ident, quote};
+    use test_utils::quote_as_str;
 
     fn parse_first_trait_definition(code: &str) -> TraitDefinition {
         TraitDefinition::cast(

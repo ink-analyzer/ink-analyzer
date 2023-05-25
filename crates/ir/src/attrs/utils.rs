@@ -162,8 +162,9 @@ fn get_arg_value(elems: &[SyntaxElement]) -> MetaOption<MetaValue> {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::{quote_as_str, InkArgKind};
+    use crate::InkArgKind;
     use ra_ap_syntax::SyntaxKind;
+    use test_utils::quote_as_str;
 
     #[test]
     fn parse_ink_args_works() {

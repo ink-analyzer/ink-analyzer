@@ -79,8 +79,8 @@ impl InkImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quote_as_str;
     use ra_ap_syntax::SourceFile;
+    use test_utils::quote_as_str;
 
     pub fn parse_first_impl_item(code: &str) -> ast::Impl {
         SourceFile::parse(code)

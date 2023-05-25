@@ -255,8 +255,9 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, ink_
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkFile};
+    use ink_analyzer_ir::InkFile;
     use quote::quote;
+    use test_utils::quote_as_str;
 
     fn parse_first_ink_impl(code: &str) -> InkImpl {
         InkFile::parse(code)

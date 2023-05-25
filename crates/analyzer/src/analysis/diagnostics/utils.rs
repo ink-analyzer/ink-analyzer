@@ -985,7 +985,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkFile};
+    use ink_analyzer_ir::InkFile;
+    use test_utils::quote_as_str;
 
     fn parse_first_ink_attr(code: &str) -> InkAttribute {
         InkFile::parse(code)

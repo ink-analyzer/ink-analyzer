@@ -199,6 +199,7 @@ mod tests {
     use crate::{Constructor, FromInkAttribute, InkAttribute, Message};
     use ra_ap_syntax::ast;
     use ra_ap_syntax::SourceFile;
+    use test_utils::quote_as_str;
 
     fn first_ink_entity_of_type<T>(code: &str) -> T
     where

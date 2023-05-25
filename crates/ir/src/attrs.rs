@@ -231,9 +231,9 @@ impl<T: AstNode> InkAttrData<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quote_as_str;
     use crate::test_utils::*;
     use ra_ap_syntax::SyntaxKind;
+    use test_utils::quote_as_str;
 
     #[test]
     fn cast_ink_attribute_works() {

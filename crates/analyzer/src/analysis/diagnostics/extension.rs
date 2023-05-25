@@ -43,10 +43,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, extension: &Extension) {
 mod tests {
     use super::*;
     use crate::Severity;
-    use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile,
-    };
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
     use quote::quote;
+    use test_utils::quote_as_str;
 
     fn parse_first_extension(code: &str) -> Extension {
         Extension::cast(

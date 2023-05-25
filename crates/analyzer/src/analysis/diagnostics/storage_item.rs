@@ -50,8 +50,9 @@ fn ensure_adt(storage_item: &StorageItem) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
+    use ink_analyzer_ir::{InkAttributeKind, InkEntity, InkFile, InkMacroKind};
     use quote::quote;
+    use test_utils::quote_as_str;
 
     fn parse_first_storage_item(code: &str) -> StorageItem {
         StorageItem::cast(

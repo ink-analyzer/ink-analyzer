@@ -43,10 +43,9 @@ fn ensure_struct_field(topic: &Topic) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile,
-    };
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
     use quote::quote;
+    use test_utils::quote_as_str;
 
     fn parse_first_topic_field(code: &str) -> Topic {
         Topic::cast(

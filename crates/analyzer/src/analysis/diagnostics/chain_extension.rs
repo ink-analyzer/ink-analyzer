@@ -213,8 +213,9 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkEntity, InkFile, InkMacroKind, InkTrait};
+    use ink_analyzer_ir::{InkEntity, InkFile, InkMacroKind, InkTrait};
     use quote::quote;
+    use test_utils::quote_as_str;
 
     fn parse_first_chain_extension(code: &str) -> ChainExtension {
         ChainExtension::cast(

@@ -69,8 +69,9 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, file
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{quote_as_str, InkFile};
+    use ink_analyzer_ir::InkFile;
     use quote::format_ident;
+    use test_utils::quote_as_str;
 
     #[test]
     fn one_contract_definition_works() {

@@ -5,10 +5,10 @@
 //! Generate an IR of ink! smart contract code.
 //!
 //! ```
-//! use ink_analyzer_ir::{InkFile, quote_as_str};
+//! use ink_analyzer_ir::InkFile;
 //!
 //! fn generate_ir() {
-//!         let file = InkFile::parse(quote_as_str! {
+//!         let file = InkFile::parse(r#"
 //!             #[ink::contract]
 //!             mod my_contract {
 //!
@@ -25,7 +25,7 @@
 //!
 //!                 // --snip--
 //!             }
-//!         });
+//!         "#);
 //!         dbg!(&file);
 //!
 //!         let contracts = file.contracts();
@@ -89,10 +89,9 @@ mod storage_item;
 mod topic;
 mod trait_definition;
 
-mod traits;
-#[macro_use]
-mod utils;
 mod iter;
 mod selector;
 mod test_utils;
+mod traits;
 mod tree;
+mod utils;

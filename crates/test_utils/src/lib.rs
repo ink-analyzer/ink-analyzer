@@ -2,6 +2,15 @@
 
 use std::cmp;
 
+/// Quasi-quotation macro that accepts input like the `quote!` macro
+/// but returns a string slice (`&str`) instead of a `TokenStream`.
+#[macro_export]
+macro_rules! quote_as_str {
+    ($($tt:tt)*) => {
+        quote::quote!($($tt)*).to_string().as_str()
+    };
+}
+
 /// Returns the offset of `pat` in `subject`.
 ///
 /// offset is placed at the end of `pat` in `subject` by default,

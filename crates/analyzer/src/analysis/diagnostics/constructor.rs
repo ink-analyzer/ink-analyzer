@@ -68,10 +68,9 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile,
-    };
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
     use quote::quote;
+    use test_utils::quote_as_str;
 
     fn parse_first_constructor(code: &str) -> Constructor {
         Constructor::cast(

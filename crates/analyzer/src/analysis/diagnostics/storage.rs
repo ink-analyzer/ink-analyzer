@@ -39,10 +39,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, storage: &Storage) {
 mod tests {
     use super::*;
     use crate::Severity;
-    use ink_analyzer_ir::{
-        quote_as_str, FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile,
-    };
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
     use quote::quote;
+    use test_utils::quote_as_str;
 
     fn parse_first_storage_definition(code: &str) -> Storage {
         Storage::cast(

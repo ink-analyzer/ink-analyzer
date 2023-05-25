@@ -41,8 +41,8 @@ impl Extension {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quote_as_str;
     use crate::test_utils::*;
+    use test_utils::quote_as_str;
 
     #[test]
     fn cast_works() {
