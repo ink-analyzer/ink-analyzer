@@ -1,10 +1,10 @@
-//! ink! attribute macro and argument completions.
+//! ink! attribute completions.
 
 use super::utils;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, TextRange, TextSize};
 use ink_analyzer_ir::{FromSyntax, InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
 
-/// An ink! attribute and argument completion item.
+/// An ink! attribute completion item.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Completion {
     /// Label which identifies the completion.
@@ -15,7 +15,7 @@ pub struct Completion {
     pub edit: String,
 }
 
-/// Computes ink! attribute macro and argument completions at the given position.
+/// Computes ink! attribute completions at the given offset.
 pub fn completions(file: &InkFile, offset: TextSize) -> Vec<Completion> {
     let mut results = Vec::new();
 
@@ -28,7 +28,7 @@ pub fn completions(file: &InkFile, offset: TextSize) -> Vec<Completion> {
     results
 }
 
-/// Computes ink! attribute macro completions at the given position.
+/// Computes ink! attribute macro completions at the given offset.
 pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: TextSize) {
     let item_at_offset = file.item_at_offset(offset);
 
@@ -207,7 +207,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
     }
 }
 
-/// Computes ink! attribute argument completions at the given position.
+/// Computes ink! attribute argument completions at the given offset.
 pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offset: TextSize) {
     let item_at_offset = file.item_at_offset(offset);
 
