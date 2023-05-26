@@ -2,7 +2,7 @@
 
 use itertools::Itertools;
 use ra_ap_syntax::ast::HasAttrs;
-use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
+use ra_ap_syntax::{ast, AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken};
 
 use crate::iter::IterSuccessors;
 use crate::{
@@ -289,6 +289,22 @@ where
         } else {
             closest_item_which(&subject, step_expr, goal_expr, halt_expr)
         }
+    })
+}
+
+/// Returns the first syntax token for the syntax node.
+pub fn first_child_token(node: &SyntaxNode) -> Option<SyntaxToken> {
+    node.first_child_or_token().and_then(|child| match child {
+        SyntaxElement::Token(token) => Some(token),
+        SyntaxElement::Node(node) => first_child_token(&node),
+    })
+}
+
+/// Returns the last syntax token for the syntax node.
+pub fn last_child_token(node: &SyntaxNode) -> Option<SyntaxToken> {
+    node.last_child_or_token().and_then(|child| match child {
+        SyntaxElement::Token(token) => Some(token),
+        SyntaxElement::Node(node) => last_child_token(&node),
     })
 }
 

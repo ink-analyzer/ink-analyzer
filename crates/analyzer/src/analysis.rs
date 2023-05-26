@@ -3,9 +3,11 @@
 use ink_analyzer_ir::syntax::TextSize;
 use ink_analyzer_ir::InkFile;
 
+pub use actions::Action;
 pub use completions::Completion;
 pub use diagnostics::{Diagnostic, Severity};
 
+mod actions;
 mod completions;
 mod diagnostics;
 mod utils;
@@ -38,5 +40,10 @@ impl Analysis {
     /// Computes completions at the given position.
     pub fn completions(&self, position: TextSize) -> Vec<Completion> {
         completions::completions(&self.file, position)
+    }
+
+    /// Computes code/intent actions for the given position.
+    pub fn actions(&self, position: TextSize) -> Vec<Action> {
+        actions::actions(&self.file, position)
     }
 }

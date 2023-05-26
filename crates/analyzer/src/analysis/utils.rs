@@ -1,6 +1,6 @@
 //! Utilities for ink! analysis.
 
-use ink_analyzer_ir::syntax::SyntaxKind;
+use ink_analyzer_ir::syntax::{SyntaxKind, SyntaxNode};
 use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkMacroKind};
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
@@ -273,5 +273,73 @@ pub fn valid_ink_macros_by_syntax_kind(syntax_kind: SyntaxKind) -> Vec<InkMacroK
         | SyntaxKind::UNION_KW => vec![InkMacroKind::StorageItem],
         SyntaxKind::FN | SyntaxKind::FN_KW => vec![InkMacroKind::Test],
         _ => Vec::new(),
+    }
+}
+
+/// Filters out duplicate ink! arguments from suggestions
+/// (i.e ink! arguments that are already applied to the attribute's parent node).
+pub fn remove_duplicate_ink_arg_suggestions(
+    suggestions: &mut Vec<InkArgKind>,
+    attr_parent: &SyntaxNode,
+) {
+    let already_annotated_ink_args: Vec<InkArgKind> = ink_analyzer_ir::ink_attrs(attr_parent)
+        .flat_map(|ink_attr| ink_attr.args().to_owned())
+        .map(|ink_arg| ink_arg.kind().to_owned())
+        .collect();
+    // Filters out duplicates.
+    suggestions.retain(|arg_kind| !already_annotated_ink_args.contains(arg_kind));
+}
+
+/// Filters out duplicate ink! macros from suggestions
+/// (i.e ink! macros that are already applied to the attribute's parent node).
+pub fn remove_duplicate_ink_macro_suggestions(
+    suggestions: &mut Vec<InkMacroKind>,
+    attr_parent: &SyntaxNode,
+) {
+    let already_annotated_ink_macros: Vec<InkMacroKind> = ink_analyzer_ir::ink_attrs(attr_parent)
+        .filter_map(|ink_attr| match ink_attr.kind() {
+            InkAttributeKind::Macro(macro_kind) => Some(macro_kind.to_owned()),
+            InkAttributeKind::Arg(_) => None,
+        })
+        .collect();
+    // Filters out duplicates.
+    suggestions.retain(|arg_kind| !already_annotated_ink_macros.contains(arg_kind));
+}
+
+/// Filters out invalid ink! arguments from suggestions based on parent ink! scope.
+pub fn remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
+    suggestions: &mut Vec<InkArgKind>,
+    attr_parent: &SyntaxNode,
+) {
+    let parent_ink_scope_valid_ink_args: Vec<InkArgKind> =
+        ink_analyzer_ir::ink_attrs_closest_ancestors(attr_parent)
+            .flat_map(|attr| valid_quasi_direct_descendant_ink_args(attr.kind()))
+            .collect();
+
+    // Filters out invalid arguments for the parent ink! scope (if any).
+    if !parent_ink_scope_valid_ink_args.is_empty() {
+        suggestions.retain(|arg_kind| {
+            parent_ink_scope_valid_ink_args.is_empty()
+                || parent_ink_scope_valid_ink_args.contains(arg_kind)
+        });
+    }
+}
+
+/// Filters out invalid ink! macros from suggestions based on parent ink! scope.
+pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
+    suggestions: &mut Vec<InkMacroKind>,
+    attr_parent: &SyntaxNode,
+) {
+    let parent_ink_scope_valid_ink_macros: Vec<InkMacroKind> =
+        ink_analyzer_ir::ink_attrs_closest_ancestors(attr_parent)
+            .flat_map(|attr| valid_quasi_direct_descendant_ink_macros(attr.kind()))
+            .collect();
+
+    // Filters out invalid arguments for the parent ink! scope (if any).
+    if !parent_ink_scope_valid_ink_macros.is_empty() {
+        suggestions.retain(|macro_kind| {
+            parent_ink_scope_valid_ink_macros.is_empty()
+                || parent_ink_scope_valid_ink_macros.contains(macro_kind)
+        });
     }
 }

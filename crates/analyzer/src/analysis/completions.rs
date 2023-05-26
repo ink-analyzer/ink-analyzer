@@ -98,7 +98,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                 };
 
                 // Suggests ink! attribute macros based on the context (if any).
-                let mut context_specific_ink_attr_macro_suggestions =
+                let mut ink_macro_suggestions =
                     match item_at_offset.normalized_parent_ast_item_keyword() {
                         // Returns suggestions based on the AST item type keyword.
                         Some((ast_item_keyword, _, _)) => {
@@ -123,16 +123,11 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                     };
 
                 // Filters out invalid ink! attribute macro suggestions based on parent ink! scope (if any).
-                let parent_ink_scope_valid_ink_macros: Vec<InkMacroKind> =
-                    ink_analyzer_ir::ink_attrs_closest_ancestors(attr.syntax())
-                        .flat_map(|attr| {
-                            utils::valid_quasi_direct_descendant_ink_macros(attr.kind())
-                        })
-                        .collect();
-                if !parent_ink_scope_valid_ink_macros.is_empty() {
-                    context_specific_ink_attr_macro_suggestions.retain(|macro_kind| {
-                        parent_ink_scope_valid_ink_macros.contains(macro_kind)
-                    });
+                if let Some(attr_parent) = attr.syntax().parent() {
+                    utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
+                        &mut ink_macro_suggestions,
+                        &attr_parent,
+                    );
                 }
 
                 // Filters suggestions by the focused prefix if the focused token is
@@ -142,45 +137,43 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                     && !focused_token_is_ink_or_colon_prefix
                 {
                     if let Some(prefix) = item_at_offset.focused_token_prefix() {
-                        context_specific_ink_attr_macro_suggestions
+                        ink_macro_suggestions
                             .retain(|macro_kind| format!("{}", macro_kind).starts_with(prefix));
                     }
                 }
 
                 // Add context-specific completions to accumulator (if any).
-                if !context_specific_ink_attr_macro_suggestions.is_empty() {
-                    context_specific_ink_attr_macro_suggestions
-                        .iter()
-                        .for_each(|macro_kind| {
-                            results.push(Completion {
-                                label: format!("ink! {macro_kind} attribute macro."),
-                                range: edit_range,
-                                edit: format!(
-                                    "{}{}{macro_kind}",
-                                    // Only includes `ink` if the focused token is either the `[` delimiter,
-                                    // the next token right after the `[` delimiter, the `ink` path segment.
-                                    if focused_token_is_left_bracket
-                                        || prev_token_is_left_bracket
-                                        || focused_token.text() == "ink"
-                                    {
-                                        "ink"
-                                    } else {
-                                        ""
-                                    },
-                                    // Only includes `ink` if the focused token is either the `[` delimiter,
-                                    // the next token right after the `[` delimiter or
-                                    // anything in the `ink::` path segment position
-                                    if focused_token_is_left_bracket
-                                        || prev_token_is_left_bracket
-                                        || focused_token_is_ink_or_colon_prefix
-                                    {
-                                        "::"
-                                    } else {
-                                        ""
-                                    }
-                                ),
-                            });
+                if !ink_macro_suggestions.is_empty() {
+                    ink_macro_suggestions.iter().for_each(|macro_kind| {
+                        results.push(Completion {
+                            label: format!("ink! {macro_kind} attribute macro."),
+                            range: edit_range,
+                            edit: format!(
+                                "{}{}{macro_kind}",
+                                // Only includes `ink` if the focused token is either the `[` delimiter,
+                                // the next token right after the `[` delimiter, the `ink` path segment.
+                                if focused_token_is_left_bracket
+                                    || prev_token_is_left_bracket
+                                    || focused_token.text() == "ink"
+                                {
+                                    "ink"
+                                } else {
+                                    ""
+                                },
+                                // Only includes `ink` if the focused token is either the `[` delimiter,
+                                // the next token right after the `[` delimiter or
+                                // anything in the `ink::` path segment position
+                                if focused_token_is_left_bracket
+                                    || prev_token_is_left_bracket
+                                    || focused_token_is_ink_or_colon_prefix
+                                {
+                                    "::"
+                                } else {
+                                    ""
+                                }
+                            ),
                         });
+                    });
                 } else if prev_token_is_left_bracket {
                     // Suggests the `ink` path segment itself if
                     // the focused token is an `ink` prefix and is also
@@ -240,7 +233,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                 };
 
                 // Suggests ink! attribute arguments based on the context (if any).
-                let mut context_specific_ink_arg_suggestions = match ink_attr.kind() {
+                let mut ink_arg_suggestions = match ink_attr.kind() {
                     // For unknown ink! attributes, suggestions are based on the AST item (if any).
                     InkAttributeKind::Macro(InkMacroKind::Unknown)
                     | InkAttributeKind::Arg(InkArgKind::Unknown) => {
@@ -295,39 +288,34 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                 };
 
                 // Filters out duplicate and invalid (based on parent ink! scope) ink! attribute argument suggestions.
-                let already_annotated_ink_args: Vec<&InkArgKind> =
-                    ink_attr.args().iter().map(|arg| arg.kind()).collect();
-                let parent_ink_scope_valid_ink_args: Vec<InkArgKind> = ink_attr
-                    .tree()
-                    .ink_attrs_closest_ancestors()
-                    .flat_map(|attr| utils::valid_quasi_direct_descendant_ink_args(attr.kind()))
-                    .collect();
-                context_specific_ink_arg_suggestions.retain(|arg_kind| {
-                    // Filters out duplicates.
-                    !already_annotated_ink_args.contains(&arg_kind)
-                        // Filters out invalid arguments for the parent ink! scope (if any).
-                        && (parent_ink_scope_valid_ink_args.is_empty()
-                        || parent_ink_scope_valid_ink_args.contains(arg_kind))
-                });
+                if let Some(attr_parent) = ink_attr.syntax().parent() {
+                    utils::remove_duplicate_ink_arg_suggestions(
+                        &mut ink_arg_suggestions,
+                        &attr_parent,
+                    );
+
+                    utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
+                        &mut ink_arg_suggestions,
+                        &attr_parent,
+                    );
+                }
 
                 // Filters suggestions by the focused prefix if the focused token is not a delimiter.
                 if !focused_token_is_left_parenthesis && !focused_token_is_comma {
                     if let Some(prefix) = item_at_offset.focused_token_prefix() {
-                        context_specific_ink_arg_suggestions
+                        ink_arg_suggestions
                             .retain(|arg_kind| format!("{}", arg_kind).starts_with(prefix));
                     }
                 }
 
                 // Add completions to accumulator.
-                context_specific_ink_arg_suggestions
-                    .iter()
-                    .for_each(|arg_kind| {
-                        results.push(Completion {
-                            label: format!("ink! {arg_kind} attribute argument."),
-                            range: edit_range,
-                            edit: arg_kind.to_string(),
-                        });
+                ink_arg_suggestions.iter().for_each(|arg_kind| {
+                    results.push(Completion {
+                        label: format!("ink! {arg_kind} attribute argument."),
+                        range: edit_range,
+                        edit: arg_kind.to_string(),
                     });
+                });
             }
         }
     }
@@ -520,7 +508,7 @@ mod tests {
             (
                 r#"
                     #[]
-                    fn my_fn {}
+                    fn my_fn() {}
                 "#,
                 Some("["),
                 vec![("ink::test", Some("["), Some("<-]"))],
@@ -528,7 +516,7 @@ mod tests {
             (
                 r#"
                     #[i]
-                    fn my_fn {}
+                    fn my_fn() {}
                 "#,
                 Some("i"),
                 vec![("ink::test", Some("<-i"), Some("i"))],
@@ -536,7 +524,7 @@ mod tests {
             (
                 r#"
                     #[ink]
-                    fn my_fn {}
+                    fn my_fn() {}
                 "#,
                 Some("i"),
                 vec![("ink::test", Some("<-ink"), Some("ink"))],
@@ -544,7 +532,7 @@ mod tests {
             (
                 r#"
                     #[ink::]
-                    fn my_fn {}
+                    fn my_fn() {}
                 "#,
                 Some("::"),
                 vec![("::test", Some("<-:"), Some("<-]"))],
@@ -552,7 +540,7 @@ mod tests {
             (
                 r#"
                     #[ink::te]
-                    fn my_fn {}
+                    fn my_fn() {}
                 "#,
                 Some(":t"),
                 vec![("test", Some("::"), Some("<-]"))],
@@ -886,7 +874,7 @@ mod tests {
             (
                 r#"
                     #[ink(
-                    pub fn my_fn {}
+                    pub fn my_fn() {}
                 "#,
                 Some("("),
                 vec![

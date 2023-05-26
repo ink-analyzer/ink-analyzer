@@ -5,14 +5,11 @@ A library for semantic analysis of [ink!](https://use.ink/) smart contract code.
 It implements utilities for performing semantic analysis of ink! smart contract code.
 It therefore implements the core functionality of ink! analyzer at a high level.
 
-It currently only implements a public interface that accepts a string representation (`&str`) of ink! smart contract code as input and returns a list of diagnostics (`Vec<Diagnostic>`) as output.
+It currently implements an [Analysis](/crates/analyzer/src/analysis.rs) entry point that accepts a string representation (`&str`) of ink! smart contract code as input and defines associated methods that compute:
 
-The diagnostic model includes:
-- an error/warning message.
-- the text range to which the diagnostic applies
-- the severity (e.g error or warning).
-
-You can find the low-level diagnostic implementations in the [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) module and its ink! entity specific [submodules](/crates/analyzer/src/analysis/diagnostics).
+- [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) - errors and warnings based on ink! semantic rules.
+- [completions](/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros and arguments.
+- [code/intent actions](/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros and arguments.
 
 **NOTE:** This project is still work in progress, check back over the next few weeks for regular updates.
 
