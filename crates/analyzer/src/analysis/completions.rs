@@ -182,12 +182,13 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                             });
                         });
                 } else if prev_token_is_left_bracket {
-                    // Otherwise, suggest the `ink` path segment itself if
+                    // Suggests the `ink` path segment itself if
                     // the focused token is an `ink` prefix and is also
                     // the next token right after the `[` delimiter.
-                    if let Some(true) = item_at_offset
+                    if item_at_offset
                         .focused_token_prefix()
                         .map(|prefix| "ink".starts_with(prefix))
+                        .unwrap_or(false)
                     {
                         results.push(Completion {
                             label: default_label.to_string(),
@@ -320,7 +321,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                 // Add completions to accumulator.
                 context_specific_ink_arg_suggestions
                     .iter()
-                    .for_each(|arg_kind: &InkArgKind| {
+                    .for_each(|arg_kind| {
                         results.push(Completion {
                             label: format!("ink! {arg_kind} attribute argument."),
                             range: edit_range,
@@ -343,7 +344,7 @@ mod tests {
             // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // edit = the substring that will be replaced,
+            // edit = the text that will inserted,
             // pat_start = substring used to find the start of the edit offset (see `test_utils::parse_offset_at` doc),
             // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
 
@@ -605,7 +606,7 @@ mod tests {
             // (code, pat, [(edit, pat_start, pat_end)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // edit = the substring that will be replaced,
+            // edit = the text that will inserted,
             // pat_start = substring used to find the start of the edit offset (see `test_utils::parse_offset_at` doc),
             // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
 
