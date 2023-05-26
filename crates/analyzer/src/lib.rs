@@ -26,8 +26,6 @@
 //! }
 //! ```
 
-pub use self::{
-    analysis::Analysis, analysis::Completion, analysis::Diagnostic, analysis::Severity,
-};
+pub use self::analysis::{Analysis, Completion, Diagnostic, Severity};
 
 mod analysis;
