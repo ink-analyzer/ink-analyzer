@@ -51,7 +51,7 @@ pub fn valid_sibling_ink_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
                     InkArgKind::Default,
                     // NOTE: While ink! docs "claim" that "ink! constructors are always implicitly payable and thus cannot be flagged as such",
                     // Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L316-L317>,
-                    // the `ink_macro` crate currently accepts `payable` annotations for ink! constructors,
+                    // the `ink_ir` crate currently accepts `payable` annotations for ink! constructors,
                     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L143>,
                     // so we follow the implementation (not the documentation) and thus allow `payable` annotations for ink! constructors.
                     InkArgKind::Payable,
