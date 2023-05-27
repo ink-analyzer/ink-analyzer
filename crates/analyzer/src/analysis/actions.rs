@@ -6,7 +6,7 @@ use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkEntity, InkFile};
 
 use super::utils;
 
-/// An ink! attribute completion item.
+/// An ink! attribute code/intent action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Action {
     /// Label which identifies the action.
