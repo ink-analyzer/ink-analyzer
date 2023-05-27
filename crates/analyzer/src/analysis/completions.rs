@@ -313,7 +313,14 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     results.push(Completion {
                         label: format!("ink! {arg_kind} attribute argument."),
                         range: edit_range,
-                        edit: arg_kind.to_string(),
+                        edit: format!(
+                            "{}{}",
+                            arg_kind,
+                            match utils::ink_arg_value_type(arg_kind) {
+                                Some(_) => "=",
+                                None => "",
+                            }
+                        ),
                     });
                 });
             }
@@ -610,13 +617,13 @@ mod tests {
                     ("constructor", Some("("), Some("(")),
                     ("default", Some("("), Some("(")),
                     ("event", Some("("), Some("(")),
-                    ("extension", Some("("), Some("(")),
-                    ("handle_status", Some("("), Some("(")),
+                    ("extension=", Some("("), Some("(")),
+                    ("handle_status=", Some("("), Some("(")),
                     ("impl", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                     ("storage", Some("("), Some("(")),
                     ("topic", Some("("), Some("(")),
                 ],
@@ -626,7 +633,7 @@ mod tests {
                 None,
                 vec![
                     ("event", Some("<-e"), Some("e")),
-                    ("extension", Some("<-e"), Some("e")),
+                    ("extension=", Some("<-e"), Some("e")),
                 ],
             ),
             (
@@ -651,13 +658,13 @@ mod tests {
                     ("constructor", Some("("), Some("(")),
                     ("default", Some("("), Some("(")),
                     ("event", Some("("), Some("(")),
-                    ("extension", Some("("), Some("(")),
-                    ("handle_status", Some("("), Some("(")),
+                    ("extension=", Some("("), Some("(")),
+                    ("handle_status=", Some("("), Some("(")),
                     ("impl", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                     ("storage", Some("("), Some("(")),
                     ("topic", Some("("), Some("(")),
                 ],
@@ -674,13 +681,13 @@ mod tests {
                     ("constructor", Some("("), Some("(")),
                     ("default", Some("("), Some("(")),
                     ("event", Some("("), Some("(")),
-                    ("extension", Some("("), Some("(")),
-                    ("handle_status", Some("("), Some("(")),
+                    ("extension=", Some("("), Some("(")),
+                    ("handle_status=", Some("("), Some("(")),
                     ("impl", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                     ("storage", Some("("), Some("(")),
                     ("topic", Some("("), Some("(")),
                 ],
@@ -697,13 +704,13 @@ mod tests {
                     ("constructor", Some("("), Some("(")),
                     ("default", Some("("), Some("(")),
                     ("event", Some("("), Some("(")),
-                    ("extension", Some("("), Some("(")),
-                    ("handle_status", Some("("), Some("(")),
+                    ("extension=", Some("("), Some("(")),
+                    ("handle_status=", Some("("), Some("(")),
                     ("impl", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                     ("storage", Some("("), Some("(")),
                     ("topic", Some("("), Some("(")),
                 ],
@@ -720,13 +727,13 @@ mod tests {
                     ("constructor", Some("("), Some("(")),
                     ("default", Some("("), Some("(")),
                     ("event", Some("("), Some("(")),
-                    ("extension", Some("("), Some("(")),
-                    ("handle_status", Some("("), Some("(")),
+                    ("extension=", Some("("), Some("(")),
+                    ("handle_status=", Some("("), Some("(")),
                     ("impl", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                     ("storage", Some("("), Some("(")),
                     ("topic", Some("("), Some("(")),
                 ],
@@ -743,7 +750,7 @@ mod tests {
                 vec![
                     ("default", Some(","), Some(",")),
                     ("payable", Some(","), Some(",")),
-                    ("selector", Some(","), Some(",")),
+                    ("selector=", Some(","), Some(",")),
                 ],
             ),
             (
@@ -752,32 +759,32 @@ mod tests {
                 vec![
                     ("default", Some(","), Some(",")),
                     ("payable", Some(","), Some(",")),
-                    ("selector", Some(","), Some(",")),
+                    ("selector=", Some(","), Some(",")),
                 ],
             ),
             (
                 "#[ink(extension = 1,",
                 None,
-                vec![("handle_status", Some(","), Some(","))],
+                vec![("handle_status=", Some(","), Some(","))],
             ),
             (
                 "#[ink(impl,",
                 None,
-                vec![("namespace", Some(","), Some(","))],
+                vec![("namespace=", Some(","), Some(","))],
             ),
             // ink! attribute macro context with no AST item.
             (
                 "#[ink::contract(",
                 None,
                 vec![
-                    ("env", Some("("), Some("(")),
-                    ("keep_attr", Some("("), Some("(")),
+                    ("env=", Some("("), Some("(")),
+                    ("keep_attr=", Some("("), Some("(")),
                 ],
             ),
             (
                 "#[ink::contract(env=my::env::Types,",
                 None,
-                vec![("keep_attr", Some(","), Some(","))],
+                vec![("keep_attr=", Some(","), Some(","))],
             ),
             (
                 r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar","#,
@@ -787,20 +794,20 @@ mod tests {
             (
                 "#[ink::storage_item(",
                 None,
-                vec![("derive", Some("("), Some("("))],
+                vec![("derive=", Some("("), Some("("))],
             ),
             (
                 "#[ink::trait_definition(",
                 None,
                 vec![
-                    ("keep_attr", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("keep_attr=", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                 ],
             ),
             (
                 r#"#[ink::trait_definition(namespace="my_namespace","#,
                 None,
-                vec![("keep_attr", Some(","), Some(","))],
+                vec![("keep_attr=", Some(","), Some(","))],
             ),
             // Struct context.
             (
@@ -880,11 +887,11 @@ mod tests {
                 vec![
                     ("constructor", Some("("), Some("(")),
                     ("default", Some("("), Some("(")),
-                    ("extension", Some("("), Some("(")),
-                    ("handle_status", Some("("), Some("(")),
+                    ("extension=", Some("("), Some("(")),
+                    ("handle_status=", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                 ],
             ),
             // Impl context.
@@ -896,7 +903,7 @@ mod tests {
                 Some("("),
                 vec![
                     ("impl", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                 ],
             ),
             // Contract scope.
@@ -915,9 +922,9 @@ mod tests {
                     ("event", Some("("), Some("(")),
                     ("impl", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                     ("storage", Some("("), Some("(")),
                 ],
             ),
@@ -958,7 +965,7 @@ mod tests {
                 Some("("),
                 vec![
                     ("impl", Some("("), Some("(")),
-                    ("namespace", Some("("), Some("(")),
+                    ("namespace=", Some("("), Some("(")),
                 ],
             ),
             (
@@ -977,7 +984,7 @@ mod tests {
                     ("default", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                 ],
             ),
             // Chain extension scope.
@@ -990,8 +997,8 @@ mod tests {
                 "#,
                 Some("("),
                 vec![
-                    ("extension", Some("("), Some("(")),
-                    ("handle_status", Some("("), Some("(")),
+                    ("extension=", Some("("), Some("(")),
+                    ("handle_status=", Some("("), Some("(")),
                 ],
             ),
             (
@@ -1004,8 +1011,8 @@ mod tests {
                 "#,
                 Some("("),
                 vec![
-                    ("extension", Some("("), Some("(")),
-                    ("handle_status", Some("("), Some("(")),
+                    ("extension=", Some("("), Some("(")),
+                    ("handle_status=", Some("("), Some("(")),
                 ],
             ),
             // Trait definition scope.
@@ -1021,7 +1028,7 @@ mod tests {
                     ("default", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                 ],
             ),
             (
@@ -1037,7 +1044,7 @@ mod tests {
                     ("default", Some("("), Some("(")),
                     ("message", Some("("), Some("(")),
                     ("payable", Some("("), Some("(")),
-                    ("selector", Some("("), Some("(")),
+                    ("selector=", Some("("), Some("(")),
                 ],
             ),
         ] {

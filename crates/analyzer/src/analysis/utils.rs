@@ -348,3 +348,30 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
         });
     }
 }
+
+/// An ink! attribute argument value type.
+pub enum ArgValueType {
+    U32,
+    U32OrWildcard,
+    String,
+    Bool,
+    Path,
+}
+
+/// Returns a representation of the ink! attribute argument value type (if any) for the ink! attribute argument kind.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L879-L1023>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
+pub fn ink_arg_value_type(kind: &InkArgKind) -> Option<ArgValueType> {
+    match kind {
+        InkArgKind::Selector => Some(ArgValueType::U32OrWildcard),
+        InkArgKind::Extension => Some(ArgValueType::U32),
+        InkArgKind::KeepAttr | InkArgKind::Namespace => Some(ArgValueType::String),
+        InkArgKind::HandleStatus | InkArgKind::Derive => Some(ArgValueType::Bool),
+        InkArgKind::Env => Some(ArgValueType::Path),
+        _ => None,
+    }
+}

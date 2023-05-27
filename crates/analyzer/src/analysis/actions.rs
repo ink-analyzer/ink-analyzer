@@ -137,7 +137,13 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                     // Add ink! attribute argument actions to accumulator.
                     ink_arg_suggestions.iter().for_each(|arg_kind| {
                         add_action_to_accumulator(
-                            &format!("#[ink({arg_kind})]"),
+                            &format!(
+                                "#[ink({arg_kind}{})]",
+                                match utils::ink_arg_value_type(arg_kind) {
+                                    Some(_) => "=",
+                                    None => "",
+                                }
+                            ),
                             &arg_kind.to_string(),
                             "argument",
                         );
@@ -235,7 +241,13 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
                 results.push(Action {
                     label: format!("Add ink! {arg_kind} attribute argument."),
                     range: edit_range,
-                    edit: format!("{insert_prefix}{arg_kind}{insert_suffix}"),
+                    edit: format!(
+                        "{insert_prefix}{arg_kind}{}{insert_suffix}",
+                        match utils::ink_arg_value_type(arg_kind) {
+                            Some(_) => "=",
+                            None => "",
+                        }
+                    ),
                 });
             });
         }
@@ -459,11 +471,11 @@ mod tests {
                     ("#[ink::test]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(constructor)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(default)]", Some("<-fn"), Some("<-fn")),
-                    ("#[ink(extension)]", Some("<-fn"), Some("<-fn")),
-                    ("#[ink(handle_status)]", Some("<-fn"), Some("<-fn")),
+                    ("#[ink(extension=)]", Some("<-fn"), Some("<-fn")),
+                    ("#[ink(handle_status=)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(message)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(payable)]", Some("<-fn"), Some("<-fn")),
-                    ("#[ink(selector)]", Some("<-fn"), Some("<-fn")),
+                    ("#[ink(selector=)]", Some("<-fn"), Some("<-fn")),
                 ],
             ),
         ] {
@@ -559,8 +571,8 @@ mod tests {
                 "#,
                 Some("<-#["),
                 vec![
-                    ("(env)", Some("<-]"), Some("<-]")),
-                    ("(keep_attr)", Some("<-]"), Some("<-]")),
+                    ("(env=)", Some("<-]"), Some("<-]")),
+                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
                 ],
             ),
             (
@@ -571,8 +583,8 @@ mod tests {
                 "#,
                 Some("ink::"),
                 vec![
-                    ("(env)", Some("<-]"), Some("<-]")),
-                    ("(keep_attr)", Some("<-]"), Some("<-]")),
+                    ("(env=)", Some("<-]"), Some("<-]")),
+                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
                 ],
             ),
             (
@@ -583,8 +595,8 @@ mod tests {
                 "#,
                 Some("contract]"),
                 vec![
-                    ("(env)", Some("<-]"), Some("<-]")),
-                    ("(keep_attr)", Some("<-]"), Some("<-]")),
+                    ("(env=)", Some("<-]"), Some("<-]")),
+                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
                 ],
             ),
             (
@@ -594,7 +606,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![(", keep_attr", Some("<-)]"), Some("<-)]"))],
+                vec![(", keep_attr=", Some("<-)]"), Some("<-)]"))],
             ),
             (
                 r#"
@@ -603,7 +615,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![("keep_attr", Some("<-)]"), Some("<-)]"))],
+                vec![("keep_attr=", Some("<-)]"), Some("<-)]"))],
             ),
             (
                 r#"
@@ -622,8 +634,8 @@ mod tests {
                 "#,
                 Some("<-#["),
                 vec![
-                    ("(keep_attr)", Some("<-]"), Some("<-]")),
-                    ("(namespace)", Some("<-]"), Some("<-]")),
+                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
+                    ("(namespace=)", Some("<-]"), Some("<-]")),
                 ],
             ),
             (
@@ -633,7 +645,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![(", keep_attr", Some("<-)]"), Some("<-)]"))],
+                vec![(", keep_attr=", Some("<-)]"), Some("<-)]"))],
             ),
             (
                 r#"
@@ -642,7 +654,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![("(derive)", Some("<-]"), Some("<-]"))],
+                vec![("(derive=)", Some("<-]"), Some("<-]"))],
             ),
             (
                 r#"
@@ -651,7 +663,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![("(derive)", Some("<-]"), Some("<-]"))],
+                vec![("(derive=)", Some("<-]"), Some("<-]"))],
             ),
             (
                 r#"
@@ -660,7 +672,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![("(derive)", Some("<-]"), Some("<-]"))],
+                vec![("(derive=)", Some("<-]"), Some("<-]"))],
             ),
             (
                 r#"
@@ -749,7 +761,7 @@ mod tests {
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
                     (", payable", Some("<-)]"), Some("<-)]")),
-                    (", selector", Some("<-)]"), Some("<-)]")),
+                    (", selector=", Some("<-)]"), Some("<-)]")),
                 ],
             ),
             (
@@ -761,7 +773,7 @@ mod tests {
                 Some("<-#["),
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
-                    (", selector", Some("<-)]"), Some("<-)]")),
+                    (", selector=", Some("<-)]"), Some("<-)]")),
                 ],
             ),
             (
@@ -774,7 +786,7 @@ mod tests {
                 Some("<-#["),
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
-                    (", selector", Some("<-)]"), Some("<-)]")),
+                    (", selector=", Some("<-)]"), Some("<-)]")),
                 ],
             ),
             (
@@ -787,7 +799,7 @@ mod tests {
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
                     (", payable", Some("<-)]"), Some("<-)]")),
-                    (", selector", Some("<-)]"), Some("<-)]")),
+                    (", selector=", Some("<-)]"), Some("<-)]")),
                 ],
             ),
             (
@@ -797,7 +809,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![(", handle_status", Some("<-)]"), Some("<-)]"))],
+                vec![(", handle_status=", Some("<-)]"), Some("<-)]"))],
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
