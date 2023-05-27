@@ -26,6 +26,6 @@
 //! }
 //! ```
 
-pub use self::analysis::{Analysis, Completion, Diagnostic, Severity};
+pub use self::analysis::{Action, Analysis, Completion, Diagnostic, Hover, Severity};
 
 mod analysis;

@@ -10,8 +10,9 @@ It currently implements an [Analysis](/crates/analyzer/src/analysis.rs) entry po
 - [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) - errors and warnings based on ink! semantic rules.
 - [completions](/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros and arguments.
 - [code/intent actions](/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros and arguments.
+- [hover content](/crates/analyzer/src/analysis/hover.rs) - descriptive/informational text for ink! attribute macros and arguments.
 
-**NOTE:** This project is still work in progress, check back over the next few weeks for regular updates.
+**NOTE:** 🚧 This project is still work in progress, check back over the next few weeks for regular updates.
 
 ## Installation
 

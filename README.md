@@ -4,7 +4,7 @@ A collection of modular and reusable libraries and tools for semantic analysis o
 
 ink! analyzer aims to improve [ink!](https://use.ink/) language support in [integrated development environments (IDEs)](https://en.wikipedia.org/wiki/Integrated_development_environment), [source code editors](https://en.wikipedia.org/wiki/Source-code_editor) and other development tools by providing modular and reusable building blocks for implementing features like diagnostics, code completion, code/intent actions and hover content for the [ink! programming language](https://use.ink/) which is used for writing smart contracts for blockchains built on [Substrate](https://substrate.io/).
 
-**NOTE:** This project is still work in progress, check back over the next few weeks for regular updates.
+**NOTE:** 🚧 This project is still work in progress, check back over the next few weeks for regular updates.
 
 ## Architecture
 
@@ -19,6 +19,7 @@ It currently implements an [Analysis](/crates/analyzer/src/analysis.rs) entry po
 - [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) - errors and warnings based on ink! semantic rules.
 - [completions](/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros and arguments.
 - [code/intent actions](/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros and arguments.
+- [hover content](/crates/analyzer/src/analysis/hover.rs) - descriptive/informational text for ink! attribute macros and arguments.
 
 ### 2. [IR (ink-analyzer-ir)](/crates/ir)
 This crate implements types, abstractions and utilities for parsing ink! smart contract code into ink! intermediate representations (IRs) and abstractions.

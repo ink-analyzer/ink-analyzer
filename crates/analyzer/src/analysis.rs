@@ -1,18 +1,20 @@
 //! Types and abstractions for performing semantic analysis of ink! smart contract code.
 
-use ink_analyzer_ir::syntax::TextSize;
+use ink_analyzer_ir::syntax::{TextRange, TextSize};
 use ink_analyzer_ir::InkFile;
 
 pub use actions::Action;
 pub use completions::Completion;
 pub use diagnostics::{Diagnostic, Severity};
+pub use hover::Hover;
 
 mod actions;
 mod completions;
 mod diagnostics;
+mod hover;
 mod utils;
 
-/// Analysis is the main entry point for asking for semantic information about ink! smart contract code.
+/// Entry point for asking for semantic information about ink! smart contract code.
 #[derive(Debug)]
 pub struct Analysis {
     /// The ink! smart contract code being analyzed.
@@ -37,13 +39,18 @@ impl Analysis {
         diagnostics::diagnostics(&self.file)
     }
 
-    /// Computes completions at the given position.
+    /// Computes ink! attribute completions at the given position.
     pub fn completions(&self, position: TextSize) -> Vec<Completion> {
         completions::completions(&self.file, position)
     }
 
-    /// Computes code/intent actions for the given position.
+    /// Computes ink! attribute code/intent actions for the given position.
     pub fn actions(&self, position: TextSize) -> Vec<Action> {
         actions::actions(&self.file, position)
+    }
+
+    /// Returns descriptive/informational text for the ink! attribute at the given position (if any).
+    pub fn hover(&self, range: TextRange) -> Option<Hover> {
+        hover::hover(&self.file, range)
     }
 }
