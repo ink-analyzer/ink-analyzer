@@ -183,3 +183,36 @@ impl fmt::Display for InkArgKind {
         )
     }
 }
+
+/// The ink! attribute argument value kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InkArgValueKind {
+    None,
+    U32,
+    U32OrWildcard,
+    String,
+    StringIdentifier,
+    Bool,
+    Path,
+}
+
+/// Converts an ink! attribute argument kind to an ink! attribute argument value kind.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L879-L1023>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
+impl From<InkArgKind> for InkArgValueKind {
+    fn from(arg_kind: InkArgKind) -> Self {
+        match arg_kind {
+            InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
+            InkArgKind::Extension => InkArgValueKind::U32,
+            InkArgKind::KeepAttr => InkArgValueKind::String,
+            InkArgKind::Namespace => InkArgValueKind::StringIdentifier,
+            InkArgKind::HandleStatus | InkArgKind::Derive => InkArgValueKind::Bool,
+            InkArgKind::Env => InkArgValueKind::Path,
+            _ => InkArgValueKind::None,
+        }
+    }
+}

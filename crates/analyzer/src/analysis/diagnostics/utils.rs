@@ -4,13 +4,12 @@ use ink_analyzer_ir::ast::{AstNode, AstToken, HasGenericParams, HasTypeBounds, H
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
-    ast, Contract, FromSyntax, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkEntity,
-    InkFn, InkImplItem, InkMacroKind, InkStruct, InkTrait,
+    ast, Contract, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkAttribute, InkAttributeKind,
+    InkEntity, InkFn, InkImplItem, InkMacroKind, InkStruct, InkTrait,
 };
 use std::collections::HashSet;
 
 use crate::analysis::utils;
-use crate::analysis::utils::ArgValueType;
 use crate::{Diagnostic, Severity};
 
 /// Runs generic diagnostics that apply to all ink! entities.
@@ -140,11 +139,20 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         Severity::Warning
                     },
                 }),
-                arg_kind => match utils::ink_arg_value_type(arg_kind) {
-                    // Arguments that should have an integer (`u32` to be specific) value.
-                    Some(arg_value_type) => match arg_value_type {
-                        ArgValueType::U32 | ArgValueType::U32OrWildcard => {
-                            let can_be_wildcard = arg_value_type == ArgValueType::U32OrWildcard;
+                arg_kind => {
+                    let arg_value_type = InkArgValueKind::from(*arg_kind);
+                    match arg_value_type {
+                        // Arguments that must have no value.
+                        InkArgValueKind::None => if arg.meta().eq().is_some() || arg.meta().value().is_some() {
+                            results.push(Diagnostic {
+                                message: format!("`{}` argument shouldn't have a value.", arg_name_text),
+                                range: text_range,
+                                severity: Severity::Error,
+                            });
+                        }
+                        // Arguments that should have an integer (`u32` to be specific) value.
+                        InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => {
+                            let can_be_wildcard = arg_value_type == InkArgValueKind::U32OrWildcard;
                             if !ensure_valid_attribute_arg_value(
                                 arg,
                                 |meta_value| {
@@ -176,13 +184,13 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                             }
                         }
                         // Arguments that should have a string value.
-                        ArgValueType::String | ArgValueType::StringIdentifier => if !ensure_valid_attribute_arg_value(
+                        InkArgValueKind::String | InkArgValueKind::StringIdentifier => if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| {
                                 meta_value.as_string().is_some()
                                     // For namespace arguments, ensure the meta value is a valid Rust identifier.
                                     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
-                                    && (arg_value_type == ArgValueType::String || meta_value.as_string().and_then(|value| parse_ident(value.as_str())).is_some())
+                                    && (arg_value_type == InkArgValueKind::String || meta_value.as_string().and_then(|value| parse_ident(value.as_str())).is_some())
                             },
                             |_| false,
                             false,
@@ -202,7 +210,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                             });
                         }
                         // Arguments that should have a boolean value.
-                        ArgValueType::Bool => if !ensure_valid_attribute_arg_value(
+                        InkArgValueKind::Bool => if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| meta_value.as_boolean().is_some(),
                             |_| false,
@@ -218,7 +226,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                             });
                         }
                         // Arguments that should have a path value.
-                        ArgValueType::Path => if !ensure_valid_attribute_arg_value(
+                        InkArgValueKind::Path => if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| {
                                 matches!(meta_value.kind(), SyntaxKind::PATH | SyntaxKind::PATH_EXPR)
@@ -235,14 +243,6 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 severity: Severity::Error,
                             });
                         }
-                    }
-                    // Arguments that must have no value.
-                    _ => if arg.meta().eq().is_some() || arg.meta().value().is_some() {
-                        results.push(Diagnostic {
-                            message: format!("`{}` argument shouldn't have a value.", arg_name_text),
-                            range: text_range,
-                            severity: Severity::Error,
-                        });
                     }
                 }
             };

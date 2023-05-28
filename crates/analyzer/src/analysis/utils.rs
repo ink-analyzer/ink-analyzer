@@ -1,7 +1,7 @@
 //! Utilities for ink! analysis.
 
 use ink_analyzer_ir::syntax::{SyntaxKind, SyntaxNode, SyntaxToken, TextSize};
-use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkMacroKind};
+use ink_analyzer_ir::{InkArgKind, InkArgValueKind, InkAttributeKind, InkMacroKind};
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
 ///
@@ -349,36 +349,6 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
     }
 }
 
-/// An ink! attribute argument value type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ArgValueType {
-    U32,
-    U32OrWildcard,
-    String,
-    StringIdentifier,
-    Bool,
-    Path,
-}
-
-/// Returns a representation of the ink! attribute argument value type (if any) for the ink! attribute argument kind.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L879-L1023>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
-pub fn ink_arg_value_type(arg_kind: &InkArgKind) -> Option<ArgValueType> {
-    match arg_kind {
-        InkArgKind::Selector => Some(ArgValueType::U32OrWildcard),
-        InkArgKind::Extension => Some(ArgValueType::U32),
-        InkArgKind::KeepAttr => Some(ArgValueType::String),
-        InkArgKind::Namespace => Some(ArgValueType::StringIdentifier),
-        InkArgKind::HandleStatus | InkArgKind::Derive => Some(ArgValueType::Bool),
-        InkArgKind::Env => Some(ArgValueType::Path),
-        _ => None,
-    }
-}
-
 /// Returns the insertion text for ink! attribute argument including
 /// the `=` symbol after the ink! attribute argument name if necessary.
 ///
@@ -391,10 +361,12 @@ pub fn ink_arg_insertion_text(
     format!(
         "{arg_kind}{}",
         // Determines whether or not to insert the `=` symbol after the ink! attribute argument name.
-        match ink_arg_value_type(arg_kind) {
+        match InkArgValueKind::from(*arg_kind) {
+            // No `=` symbol is inserted after ink! attribute arguments that should not have a value.
+            InkArgValueKind::None => "",
             // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
             // the next closest non-trivia token after the insertion offset.
-            Some(_) => parent_node
+            _ => parent_node
                 .token_at_offset(insert_offset)
                 .right_biased()
                 .and_then(|token| {
@@ -420,8 +392,6 @@ pub fn ink_arg_insertion_text(
                 })
                 // Defaults to adding the `=` symbol if the next closest non-trivia token couldn't be determined.
                 .unwrap_or("="),
-            // No `=` symbol is inserted after ink! attribute arguments that should not have a value.
-            None => "",
         }
     )
 }

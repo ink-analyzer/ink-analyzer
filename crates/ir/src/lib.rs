@@ -39,7 +39,10 @@
 //! ```
 
 pub use self::{
-    attrs::{meta, InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkMacroKind},
+    attrs::{
+        meta, InkArg, InkArgKind, InkArgValueKind, InkAttrData, InkAttribute, InkAttributeKind,
+        InkMacroKind,
+    },
     chain_extension::ChainExtension,
     constructor::Constructor,
     contract::Contract,
