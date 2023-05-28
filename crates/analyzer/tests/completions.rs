@@ -2,12 +2,9 @@
 
 use ink_analyzer::Analysis;
 use ink_analyzer_ir::syntax::{TextRange, TextSize};
-use std::fs;
 use test_utils::parse_offset_at;
 
-fn get_source_code(location: &str) -> String {
-    fs::read_to_string(format!("tests/test_data/{location}.rs")).unwrap()
-}
+mod utils;
 
 #[test]
 fn completions_works() {
@@ -282,7 +279,7 @@ fn completions_works() {
         ),
     ] {
         // Get source code.
-        let original_code = get_source_code(source);
+        let original_code = utils::get_source_code(source);
 
         for ((rep_start_pat, rep_end_pat, replacement), (offset_pat, expected_results)) in scenarios
         {
