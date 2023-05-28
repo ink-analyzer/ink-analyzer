@@ -138,11 +138,12 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                     ink_arg_suggestions.iter().for_each(|arg_kind| {
                         add_action_to_accumulator(
                             &format!(
-                                "#[ink({arg_kind}{})]",
-                                match utils::ink_arg_value_type(arg_kind) {
-                                    Some(_) => "=",
-                                    None => "",
-                                }
+                                "#[ink({})]",
+                                utils::ink_arg_insertion_text(
+                                    arg_kind,
+                                    edit_range.end(),
+                                    ast_item.syntax(),
+                                )
                             ),
                             &arg_kind.to_string(),
                             "argument",
@@ -242,11 +243,12 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
                     label: format!("Add ink! {arg_kind} attribute argument."),
                     range: edit_range,
                     edit: format!(
-                        "{insert_prefix}{arg_kind}{}{insert_suffix}",
-                        match utils::ink_arg_value_type(arg_kind) {
-                            Some(_) => "=",
-                            None => "",
-                        }
+                        "{insert_prefix}{}{insert_suffix}",
+                        utils::ink_arg_insertion_text(
+                            arg_kind,
+                            edit_range.end(),
+                            ink_attr.syntax(),
+                        )
                     ),
                 });
             });

@@ -313,13 +313,10 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     results.push(Completion {
                         label: format!("ink! {arg_kind} attribute argument."),
                         range: edit_range,
-                        edit: format!(
-                            "{}{}",
+                        edit: utils::ink_arg_insertion_text(
                             arg_kind,
-                            match utils::ink_arg_value_type(arg_kind) {
-                                Some(_) => "=",
-                                None => "",
-                            }
+                            edit_range.end(),
+                            ink_attr.syntax(),
                         ),
                     });
                 });
@@ -771,6 +768,16 @@ mod tests {
                 "#[ink(impl,",
                 None,
                 vec![("namespace=", Some(","), Some(","))],
+            ),
+            (
+                "#[ink(impl,=",
+                Some(","),
+                vec![("namespace", Some(","), Some(","))],
+            ),
+            (
+                "#[ink(impl, =",
+                Some(","),
+                vec![("namespace", Some(","), Some(","))],
             ),
             // ink! attribute macro context with no AST item.
             (

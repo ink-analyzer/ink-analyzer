@@ -1,6 +1,6 @@
 //! Utilities for ink! analysis.
 
-use ink_analyzer_ir::syntax::{SyntaxKind, SyntaxNode};
+use ink_analyzer_ir::syntax::{SyntaxKind, SyntaxNode, SyntaxToken, TextSize};
 use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkMacroKind};
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
@@ -367,8 +367,8 @@ pub enum ArgValueType {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
-pub fn ink_arg_value_type(kind: &InkArgKind) -> Option<ArgValueType> {
-    match kind {
+pub fn ink_arg_value_type(arg_kind: &InkArgKind) -> Option<ArgValueType> {
+    match arg_kind {
         InkArgKind::Selector => Some(ArgValueType::U32OrWildcard),
         InkArgKind::Extension => Some(ArgValueType::U32),
         InkArgKind::KeepAttr => Some(ArgValueType::String),
@@ -377,4 +377,51 @@ pub fn ink_arg_value_type(kind: &InkArgKind) -> Option<ArgValueType> {
         InkArgKind::Env => Some(ArgValueType::Path),
         _ => None,
     }
+}
+
+/// Returns the insertion text for ink! attribute argument including
+/// the `=` symbol after the ink! attribute argument name if necessary.
+///
+/// (i.e for `selector`, we return `"selector="` while for `payable`, we simply return `"payable"`)
+pub fn ink_arg_insertion_text(
+    arg_kind: &InkArgKind,
+    insert_offset: TextSize,
+    parent_node: &SyntaxNode,
+) -> String {
+    format!(
+        "{arg_kind}{}",
+        // Determines whether or not to insert the `=` symbol after the ink! attribute argument name.
+        match ink_arg_value_type(arg_kind) {
+            // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
+            // the next closest non-trivia token after the insertion offset.
+            Some(_) => parent_node
+                .token_at_offset(insert_offset)
+                .right_biased()
+                .and_then(|token| {
+                    // Finds the next non-trivia token.
+                    let is_next_non_trivia_token = |subject: &SyntaxToken| {
+                        subject.text_range().start() >= insert_offset && !subject.kind().is_trivia()
+                    };
+                    let next_non_trivia_token = if is_next_non_trivia_token(&token) {
+                        Some(token)
+                    } else {
+                        ink_analyzer_ir::closest_item_which(
+                            &token,
+                            |subject| subject.next_token(),
+                            is_next_non_trivia_token,
+                            is_next_non_trivia_token,
+                        )
+                    };
+                    next_non_trivia_token.map(|next_token| match next_token.kind() {
+                        SyntaxKind::EQ => "",
+                        // Adds an `=` symbol only if the next closest non-trivia token is not an `=` symbol.
+                        _ => "=",
+                    })
+                })
+                // Defaults to adding the `=` symbol if the next closest non-trivia token couldn't be determined.
+                .unwrap_or("="),
+            // No `=` symbol is inserted after ink! attribute arguments that should not have a value.
+            None => "",
+        }
+    )
 }
