@@ -287,17 +287,21 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     kind => utils::valid_sibling_ink_args(kind),
                 };
 
-                // Filters out duplicate and invalid (based on parent ink! scope) ink! attribute argument suggestions.
                 if let Some(attr_parent) = ink_attr.syntax().parent() {
+                    // Filters out duplicate and invalid (based on parent ink! scope) ink! attribute argument suggestions.
                     utils::remove_duplicate_ink_arg_suggestions(
                         &mut ink_arg_suggestions,
                         &attr_parent,
                     );
 
-                    utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
-                        &mut ink_arg_suggestions,
-                        &attr_parent,
-                    );
+                    // Filters out invalid (based on parent ink! scope) ink! attribute argument actions,
+                    // Doesn't apply to ink! attribute macros as their arguments are not influenced by the parent scope.
+                    if let InkAttributeKind::Arg(_) = ink_attr.kind() {
+                        utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
+                            &mut ink_arg_suggestions,
+                            &attr_parent,
+                        );
+                    }
                 }
 
                 // Filters suggestions by the focused prefix if the focused token is not a delimiter.

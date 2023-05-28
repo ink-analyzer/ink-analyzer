@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize};
-use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkEntity, InkFile};
+use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttributeKind, InkEntity, InkFile};
 
 use super::utils;
 
@@ -167,14 +167,18 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
             // Suggests ink! attribute arguments based on the context.
             let mut ink_arg_suggestions = utils::valid_sibling_ink_args(ink_attr.kind());
 
-            // Filters out duplicate and invalid (based on parent ink! scope) ink! attribute argument actions.
             if let Some(attr_parent) = ink_attr.syntax().parent() {
+                // Filters out duplicate ink! attribute argument actions.
                 utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, &attr_parent);
 
-                utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
-                    &mut ink_arg_suggestions,
-                    &attr_parent,
-                );
+                // Filters out invalid (based on parent ink! scope) ink! attribute argument actions,
+                // Doesn't apply to ink! attribute macros as their arguments are not influenced by the parent scope.
+                if let InkAttributeKind::Arg(_) = ink_attr.kind() {
+                    utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
+                        &mut ink_arg_suggestions,
+                        &attr_parent,
+                    );
+                }
             }
 
             // Determines the insertion point for the action as well as the affixes that should
