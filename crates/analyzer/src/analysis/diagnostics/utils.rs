@@ -10,6 +10,7 @@ use ink_analyzer_ir::{
 use std::collections::HashSet;
 
 use crate::analysis::utils;
+use crate::analysis::utils::ArgValueType;
 use crate::{Diagnostic, Severity};
 
 /// Runs generic diagnostics that apply to all ink! entities.
@@ -123,115 +124,6 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
             let text_range = arg.text_range();
             let arg_name_text = arg.meta().name().to_string();
             match arg.kind() {
-                // Arguments that must have no value.
-                InkArgKind::Storage
-                | InkArgKind::Constructor
-                | InkArgKind::Default
-                | InkArgKind::Message
-                | InkArgKind::Event
-                | InkArgKind::Anonymous
-                | InkArgKind::Topic
-                | InkArgKind::Payable
-                | InkArgKind::Impl => if arg.meta().eq().is_some() || arg.meta().value().is_some() {
-                    results.push(Diagnostic {
-                        message: format!("`{}` argument shouldn't have a value.", arg_name_text),
-                        range: text_range,
-                        severity: Severity::Error,
-                    });
-                }
-                // Arguments that should have an integer (`u32` to be specific) value.
-                InkArgKind::Selector | InkArgKind::Extension => {
-                    let is_selector = *arg.kind() == InkArgKind::Selector;
-                    if !ensure_valid_attribute_arg_value(
-                        arg,
-                        |meta_value| {
-                            // Ensures that the meta value is either a decimal or hex encoded `u32`.
-                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
-                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
-                            meta_value.as_u32().is_some()
-                                // A wildcard/underscore (`_`) is also valid value for selectors.
-                                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
-                                || (is_selector
-                                && meta_value.is_wildcard())
-                        },
-                        |_| false,
-                        false,
-                    ) {
-                        results.push(Diagnostic {
-                            message: format!(
-                                "`{}` argument should have an `integer` (`u32`) {} value.",
-                                arg_name_text,
-                                if is_selector {
-                                    "or wildcard/underscore (`_`)"
-                                } else {
-                                    ""
-                                }
-                            ),
-                            range: text_range,
-                            severity: Severity::Error,
-                        });
-                    }
-                }
-                // Arguments that should have a string value.
-                InkArgKind::KeepAttr | InkArgKind::Namespace => if !ensure_valid_attribute_arg_value(
-                    arg,
-                    |meta_value| {
-                        meta_value.as_string().is_some()
-                            // For namespace arguments, ensure the meta value is a valid Rust identifier.
-                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
-                            && (*arg.kind() != InkArgKind::Namespace || meta_value.as_string().and_then(|value| parse_ident(value.as_str())).is_some())
-                    },
-                    |_| false,
-                    false,
-                ) {
-                    results.push(Diagnostic {
-                        message: format!(
-                            "`{}` argument should have a {} `string` (`&str`) value.",
-                            arg_name_text,
-                            if *arg.kind() == InkArgKind::KeepAttr {
-                                "comma separated"
-                            } else {
-                                ""
-                            }
-                        ),
-                        range: text_range,
-                        severity: Severity::Error,
-                    });
-                }
-                // Arguments that should have a boolean value.
-                InkArgKind::HandleStatus | InkArgKind::Derive => if !ensure_valid_attribute_arg_value(
-                    arg,
-                    |meta_value| meta_value.as_boolean().is_some(),
-                    |_| false,
-                    false,
-                ) {
-                    results.push(Diagnostic {
-                        message: format!(
-                            "`{}` argument should have a `boolean` (`bool`) value.",
-                            arg_name_text
-                        ),
-                        range: text_range,
-                        severity: Severity::Error,
-                    });
-                }
-                // Arguments that should have a path value.
-                InkArgKind::Env => if !ensure_valid_attribute_arg_value(
-                    arg,
-                    |meta_value| {
-                        matches!(meta_value.kind(), SyntaxKind::PATH | SyntaxKind::PATH_EXPR)
-                    },
-                    |_| false,
-                    false,
-                ) {
-                    results.push(Diagnostic {
-                        message: format!(
-                            "`{}` argument should have a `path` (e.g `my::env::Types`) value.",
-                            arg_name_text
-                        ),
-                        range: text_range,
-                        severity: Severity::Error,
-                    });
-                },
                 // Handle unknown argument.
                 InkArgKind::Unknown => results.push(Diagnostic {
                     message: if arg_name_text.is_empty() {
@@ -247,7 +139,112 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         // warning because it's possible ink! analyzer is just outdated.
                         Severity::Warning
                     },
-                })
+                }),
+                arg_kind => match utils::ink_arg_value_type(arg_kind) {
+                    // Arguments that should have an integer (`u32` to be specific) value.
+                    Some(arg_value_type) => match arg_value_type {
+                        ArgValueType::U32 | ArgValueType::U32OrWildcard => {
+                            let can_be_wildcard = arg_value_type == ArgValueType::U32OrWildcard;
+                            if !ensure_valid_attribute_arg_value(
+                                arg,
+                                |meta_value| {
+                                    // Ensures that the meta value is either a decimal or hex encoded `u32`.
+                                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
+                                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
+                                    meta_value.as_u32().is_some()
+                                        // A wildcard/underscore (`_`) is also valid value for selectors.
+                                        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
+                                        || (can_be_wildcard
+                                        && meta_value.is_wildcard())
+                                },
+                                |_| false,
+                                false,
+                            ) {
+                                results.push(Diagnostic {
+                                    message: format!(
+                                        "`{}` argument should have an `integer` (`u32`) {} value.",
+                                        arg_name_text,
+                                        if can_be_wildcard {
+                                            "or wildcard/underscore (`_`)"
+                                        } else {
+                                            ""
+                                        }
+                                    ),
+                                    range: text_range,
+                                    severity: Severity::Error,
+                                });
+                            }
+                        }
+                        // Arguments that should have a string value.
+                        ArgValueType::String | ArgValueType::StringIdentifier => if !ensure_valid_attribute_arg_value(
+                            arg,
+                            |meta_value| {
+                                meta_value.as_string().is_some()
+                                    // For namespace arguments, ensure the meta value is a valid Rust identifier.
+                                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
+                                    && (arg_value_type == ArgValueType::String || meta_value.as_string().and_then(|value| parse_ident(value.as_str())).is_some())
+                            },
+                            |_| false,
+                            false,
+                        ) {
+                            results.push(Diagnostic {
+                                message: format!(
+                                    "`{}` argument should have a {} `string` (`&str`) value.",
+                                    arg_name_text,
+                                    if *arg.kind() == InkArgKind::KeepAttr {
+                                        "comma separated"
+                                    } else {
+                                        ""
+                                    }
+                                ),
+                                range: text_range,
+                                severity: Severity::Error,
+                            });
+                        }
+                        // Arguments that should have a boolean value.
+                        ArgValueType::Bool => if !ensure_valid_attribute_arg_value(
+                            arg,
+                            |meta_value| meta_value.as_boolean().is_some(),
+                            |_| false,
+                            false,
+                        ) {
+                            results.push(Diagnostic {
+                                message: format!(
+                                    "`{}` argument should have a `boolean` (`bool`) value.",
+                                    arg_name_text
+                                ),
+                                range: text_range,
+                                severity: Severity::Error,
+                            });
+                        }
+                        // Arguments that should have a path value.
+                        ArgValueType::Path => if !ensure_valid_attribute_arg_value(
+                            arg,
+                            |meta_value| {
+                                matches!(meta_value.kind(), SyntaxKind::PATH | SyntaxKind::PATH_EXPR)
+                            },
+                            |_| false,
+                            false,
+                        ) {
+                            results.push(Diagnostic {
+                                message: format!(
+                                    "`{}` argument should have a `path` (e.g `my::env::Types`) value.",
+                                    arg_name_text
+                                ),
+                                range: text_range,
+                                severity: Severity::Error,
+                            });
+                        }
+                    }
+                    // Arguments that must have no value.
+                    _ => if arg.meta().eq().is_some() || arg.meta().value().is_some() {
+                        results.push(Diagnostic {
+                            message: format!("`{}` argument shouldn't have a value.", arg_name_text),
+                            range: text_range,
+                            severity: Severity::Error,
+                        });
+                    }
+                }
             };
         });
 }

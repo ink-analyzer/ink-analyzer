@@ -350,10 +350,12 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
 }
 
 /// An ink! attribute argument value type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ArgValueType {
     U32,
     U32OrWildcard,
     String,
+    StringIdentifier,
     Bool,
     Path,
 }
@@ -369,7 +371,8 @@ pub fn ink_arg_value_type(kind: &InkArgKind) -> Option<ArgValueType> {
     match kind {
         InkArgKind::Selector => Some(ArgValueType::U32OrWildcard),
         InkArgKind::Extension => Some(ArgValueType::U32),
-        InkArgKind::KeepAttr | InkArgKind::Namespace => Some(ArgValueType::String),
+        InkArgKind::KeepAttr => Some(ArgValueType::String),
+        InkArgKind::Namespace => Some(ArgValueType::StringIdentifier),
         InkArgKind::HandleStatus | InkArgKind::Derive => Some(ArgValueType::Bool),
         InkArgKind::Env => Some(ArgValueType::Path),
         _ => None,
