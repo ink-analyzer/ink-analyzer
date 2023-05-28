@@ -17,30 +17,6 @@ pub struct Hover {
 }
 
 /// Returns descriptive/informational text for the ink! attribute at the given position (if any).
-
-/// Returns documentation for the ink! attribute kind.
-///
-/// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L90-L516>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L848-L1280>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.storage_item.html>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L772-L799>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.test.html>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L805-L846>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.trait_definition.html>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L597-L643>.
 pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
     // Finds the covering ink! attribute for the text range (if any).
     let covering_ink_attr = if range.is_empty() {
