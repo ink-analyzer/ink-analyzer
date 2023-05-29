@@ -13,6 +13,7 @@ keywords = ["ink", "smart-contract", "polkadot", "substrate", "blockchain"]
 categories = ["development-tools"]
 
 [dependencies]
+either = "1.8.1"
 ink-analyzer-ir = { version = "0.5", path = "../ir" }
 
 [dev-dependencies]

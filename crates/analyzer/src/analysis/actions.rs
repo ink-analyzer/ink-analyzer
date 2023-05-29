@@ -1,7 +1,10 @@
 //! ink! attribute code/intent actions.
 
-use ink_analyzer_ir::ast::HasAttrs;
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize};
+use either::Either;
+use ink_analyzer_ir::ast::{HasAttrs, HasDocComments};
+use ink_analyzer_ir::syntax::{
+    AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, TextSize,
+};
 use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttributeKind, InkEntity, InkFile};
 
 use super::utils;
@@ -59,32 +62,48 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                         .map(|field| field.syntax())
                         .unwrap_or(ast_item.syntax());
 
-                    // Gets the last attribute for the target node (if any).
-                    let last_attr = record_field
+                    // Gets the last attribute or doc comment for the target node (if any).
+                    let last_attr_or_doc_comment = record_field
                         .as_ref()
-                        .map(|field| field.attrs())
-                        .unwrap_or(ast_item.attrs())
+                        .map(|field| field.doc_comments_and_attrs())
+                        .unwrap_or(ast_item.doc_comments_and_attrs())
                         .last();
 
-                    // Determines the insertion point for the action, if the target node has attributes,
+                    // Determines the insertion point (and indenting - so that we preserve formatting) for the action,
+                    // if the target node has attributes or doc comments,
                     // then the new ink! attribute is inserted at the end of that list otherwise,
                     // it's inserted at the beginning of the target node.
-                    let (insert_near, insert_offset) = last_attr
-                        .as_ref()
-                        .map(|attr| (attr.syntax(), attr.syntax().text_range().end()))
-                        .unwrap_or((target, target.text_range().start()));
+                    let get_insert_indenting = |prev_sibling_or_token: Option<SyntaxElement>| {
+                        prev_sibling_or_token
+                            .and_then(|prev_elem| {
+                                (prev_elem.kind() == SyntaxKind::WHITESPACE)
+                                    .then_some(prev_elem.to_string())
+                            })
+                            .unwrap_or(String::new())
+                    };
+                    let (insert_offset, insert_indenting, insert_near_start) =
+                        last_attr_or_doc_comment
+                            .as_ref()
+                            .map(|item| match item {
+                                Either::Left(attr) => (
+                                    attr.syntax().text_range().end(),
+                                    get_insert_indenting(attr.syntax().prev_sibling_or_token()),
+                                    attr.syntax().text_range().start(),
+                                ),
+                                Either::Right(comment) => (
+                                    comment.syntax().text_range().end(),
+                                    get_insert_indenting(comment.syntax().prev_sibling_or_token()),
+                                    comment.syntax().text_range().start(),
+                                ),
+                            })
+                            .unwrap_or((
+                                target.text_range().start(),
+                                get_insert_indenting(target.prev_sibling_or_token()),
+                                target.text_range().start(),
+                            ));
 
                     // Computes the text range for the edit.
                     let edit_range = TextRange::new(insert_offset, insert_offset);
-
-                    // Get the indenting whitespace (if any) for the node we're inserting next to so that we preserve formatting after the insert.
-                    let insert_indenting = insert_near
-                        .prev_sibling_or_token()
-                        .and_then(|prev_elem| {
-                            (prev_elem.kind() == SyntaxKind::WHITESPACE)
-                                .then_some(prev_elem.to_string())
-                        })
-                        .unwrap_or(String::new());
 
                     // Convenience closure for adding ink! attribute actions.
                     let mut add_action_to_accumulator =
@@ -92,7 +111,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                             results.push(Action {
                                 label: format!("Add ink! {attr_kind} attribute {label_kind}."),
                                 range: edit_range,
-                                edit: if insert_offset > insert_near.text_range().start() {
+                                edit: if insert_offset > insert_near_start {
                                     format!("{insert_indenting}{attr}")
                                 } else {
                                     format!("{attr}{insert_indenting}")
