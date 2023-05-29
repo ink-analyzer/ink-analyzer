@@ -219,7 +219,7 @@ fn actions_works() {
                         ],
                     ),
                 ),
-                (None, (Some("<-#[ink::test]"), vec![])), /**/
+                (None, (Some("<-#[ink::test]"), vec![])),
             ],
         ),
         (
