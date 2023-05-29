@@ -1,7 +1,6 @@
 //! integration tests for ink! analyzer actions.
 
-use ink_analyzer::Analysis;
-use ink_analyzer_ir::syntax::{TextRange, TextSize};
+use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils::parse_offset_at;
 
 mod utils;
