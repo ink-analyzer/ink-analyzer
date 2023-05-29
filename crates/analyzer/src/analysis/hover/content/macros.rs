@@ -4,6 +4,12 @@
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html>.
 pub const CHAIN_EXTENSION_DOC: &str = r#"
+# Attribute
+
+`#[ink::chain_extension]`
+
+# Description
+
 Defines the interface for a chain extension.
 
 # Structure
@@ -439,6 +445,12 @@ mod read_writer {
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
 pub const CONTRACT_DOC: &str = r#"
+# Attribute
+
+`#[ink::contract]`
+
+# Description
+
 Entry point for writing ink! smart contracts.
 
 If you are a beginner trying to learn ink! we recommend you to check out
@@ -872,6 +884,12 @@ pub mod flipper {
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.storage_item.html>.
 pub const STORAGE_ITEM_DOC: &str = r#"
+# Attribute
+
+`#[ink::storage_item]`
+
+# Description
+
 Prepares the type to be fully compatible and usable with the storage.
 It implements all necessary traits and calculates the storage key for types.
 `Packed` types don't have a storage key, but non-packed types (like `Mapping`, `Lazy`
@@ -1029,6 +1047,12 @@ header argument:
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.test.html>.
 pub const TEST_DOC: &str = r#"
+# Attribute
+
+`#[ink::test]`
+
+# Description
+
 Defines a unit test that makes use of ink!'s off-chain testing capabilities.
 
 If your unit test does not require the existence of an off-chain environment
@@ -1073,6 +1097,12 @@ mod tests {
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.trait_definition.html>.
 pub const TRAIT_DEFINITION_DOC: &str = r#"
+# Attribute
+
+`#[ink::trait_definition]`
+
+# Description
+
 Marks trait definitions to ink! as special ink! trait definitions.
 
 There are some restrictions that apply to ink! trait definitions that

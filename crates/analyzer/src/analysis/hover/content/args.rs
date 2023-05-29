@@ -269,7 +269,7 @@ mod erc20 {
 pub const EXTENSION_DOC: &str = r#"
 # Attribute
 
-`ink(extension = N:u32)`
+`#[ink(extension = N: u32)]`
 
 # Description
 
@@ -301,7 +301,7 @@ pub trait MyChainExtension {
 pub const HANDLE_STATUS_DOC: &str = r#"
 # Attribute
 
-`ink(handle_status = flag:bool)`
+`#[ink(handle_status = flag: bool)]`
 
 # Description
 
@@ -384,7 +384,7 @@ impl MyContract {
 pub const KEEP_ATTR_DOC: &str = r#"
 # Attribute
 
-`#[ink::contract(keep_attr = N:string)]` or `#[ink::trait_definition(keep_attr = N:string)]`
+`#[ink::contract(keep_attr = N: string)]` or `#[ink::trait_definition(keep_attr = N: string)]`
 
 # Description
 
@@ -486,7 +486,7 @@ mod my_contract {
 pub const NAMESPACE_DOC: &str = r#"
 # Attribute
 
-`#[ink(namespace = N:string)]`
+`#[ink(namespace = N: string)]` or `#[ink::trait_definition(namespace = N: string)]`
 
 # Description
 
@@ -571,7 +571,7 @@ mod my_contract {
 pub const SELECTOR_DOC: &str = r#"
 # Attribute
 
-`#[ink(selector = S:u32 | _)]`
+`#[ink(selector = S: u32 | _)]`
 
 # Description
 
