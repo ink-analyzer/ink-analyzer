@@ -1,6 +1,6 @@
 [package]
 name = "ink-analyzer-ir"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "Intermediate representations (IRs) and abstractions of ink! smart contract code for ink! analyzer."
 license = "MIT OR Apache-2.0"
@@ -14,7 +14,7 @@ categories = ["development-tools"]
 
 [dependencies]
 blake2 = "0.10.6"
-ink-analyzer-macro = { version = "0.5", path = "../macro" }
+ink-analyzer-macro = { version = "0.6", path = "../macro" }
 itertools = "0.10.5"
 quote = "1.0.26"
 ra_ap_syntax = "0.0.149"
