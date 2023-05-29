@@ -15,8 +15,8 @@ fn actions_works() {
         // replacement = the replacement snippet that will inserted before tests are run on the modified source code,
         // offset_pat = substring used to find the cursor offset for the completion (see `test_utils::parse_offset_at` doc),
         // action = the action text,
-        // action_pat_start = substring used to find the start of the completion offset (see `test_utils::parse_offset_at` doc),
-        // action_pat_end = substring used to find the end of the completion offset (see `test_utils::parse_offset_at` doc).
+        // action_pat_start = substring used to find the start of the action offset (see `test_utils::parse_offset_at` doc),
+        // action_pat_end = substring used to find the end of the action offset (see `test_utils::parse_offset_at` doc).
         (
             "contracts/erc20",
             vec![
