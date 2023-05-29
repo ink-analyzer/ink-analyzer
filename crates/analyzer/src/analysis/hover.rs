@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn hover_works() {
-        for (code, scenarios) in [
+        for (code, test_cases) in [
             // (code, pat, [(edit, pat_start, pat_end)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
@@ -414,7 +414,7 @@ mod tests {
                 ],
             ),
         ] {
-            for (pat_start, pat_end, expect_result) in scenarios {
+            for (pat_start, pat_end, expect_result) in test_cases {
                 let range = TextRange::new(
                     TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
                     TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32),

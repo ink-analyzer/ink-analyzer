@@ -865,7 +865,7 @@ mod tests {
 
     #[test]
     fn is_focused_on_ast_item_declaration_works() {
-        for (code, scenarios) in [
+        for (code, test_cases) in [
             // (code, [(pat, result)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
@@ -1080,7 +1080,7 @@ mod tests {
                 ],
             ),
         ] {
-            for (pat, expected_result) in scenarios {
+            for (pat, expected_result) in test_cases {
                 let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
 
                 let ast_item = InkFile::parse(code)

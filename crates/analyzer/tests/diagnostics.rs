@@ -25,13 +25,13 @@ fn diagnostics_works() {
         "trait_definitions/erc20_trait",
         "trait_definitions/flipper_trait",
     ] {
-        // Get source code.
+        // Gets the source code.
         let code = utils::get_source_code(location);
 
-        // Run diagnostics.
+        // Runs diagnostics.
         let results = Analysis::new(&code).diagnostics();
 
-        // Verify results.
+        // Verifies results.
         assert!(results.is_empty());
     }
 }

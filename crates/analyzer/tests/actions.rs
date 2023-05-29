@@ -7,7 +7,7 @@ mod utils;
 
 #[test]
 fn actions_works() {
-    for (source, scenarios) in [
+    for (source, test_cases) in [
         // (source, [Option<(rep_start_pat, rep_end_pat, replacement)>, (offset_pat, [action, action_pat_start, action_pat_end])]) where:
         // source = location of the source code,
         // rep_start_pat = substring used to find the start offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
@@ -382,26 +382,27 @@ fn actions_works() {
             ],
         ),
     ] {
-        // Get source code.
+        // Gets the original source code.
         let original_code = utils::get_source_code(source);
 
-        for (modifications, (offset_pat, expected_results)) in scenarios {
+        for (modifications, (offset_pat, expected_results)) in test_cases {
+            // Creates a copy of test code for this test case.
             let mut test_code = original_code.clone();
 
-            // Apply actions target modifications (if any).
+            // Applies test case modifications (if any).
             if let Some((rep_start_pat, rep_end_pat, replacement)) = modifications {
                 let start_offset = parse_offset_at(&original_code, rep_start_pat).unwrap();
                 let end_offset = parse_offset_at(&original_code, rep_end_pat).unwrap();
                 test_code.replace_range(start_offset..end_offset, replacement);
             }
 
-            // Set cursor position.
+            // Sets the cursor position.
             let offset = TextSize::from(parse_offset_at(&test_code, offset_pat).unwrap() as u32);
 
-            // Compute actions.
+            // Computes actions.
             let results = Analysis::new(&test_code).actions(offset);
 
-            // Verify results.
+            // Verifies actions results.
             assert_eq!(
                 results
                     .iter()
