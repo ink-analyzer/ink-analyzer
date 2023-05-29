@@ -7,7 +7,7 @@ use ra_ap_syntax::{ast, AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxTo
 use crate::iter::IterSuccessors;
 use crate::{
     Constructor, FromInkAttribute, FromSyntax, HasParent, InkArg, InkArgKind, InkAttrData,
-    InkAttribute, InkAttributeKind, InkImpl, InkImplItem, Message,
+    InkAttribute, InkAttributeKind, InkImpl, InkImplItem, InkMacroKind, Message,
 };
 
 /// Casts a syntax node to an ink! attribute (if possible).
@@ -204,11 +204,37 @@ pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<I
 where
     T: FromSyntax + FromInkAttribute + InkImplItem,
 {
+    ink_peekable_quasi_closest_descendants(node, is_possible_callable_ancestor)
+}
+
+/// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
+/// ink! ancestor or only have an ink! contract entity between them and the current node.
+pub fn ink_contract_wrappable_quasi_closest_descendants<T>(
+    node: &SyntaxNode,
+) -> impl Iterator<Item = T>
+where
+    T: FromSyntax + FromInkAttribute,
+{
+    ink_peekable_quasi_closest_descendants(node, |attr| {
+        *attr.kind() == InkAttributeKind::Macro(InkMacroKind::Contract)
+    })
+}
+
+/// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
+/// ink! ancestor or only have ink! entities that satisfy a "peekable" predicate between them and the current node.
+pub fn ink_peekable_quasi_closest_descendants<T, F>(
+    node: &SyntaxNode,
+    is_peekable_ancestor: F,
+) -> impl Iterator<Item = T>
+where
+    T: FromSyntax + FromInkAttribute,
+    F: Fn(&InkAttribute) -> bool,
+{
     ink_attrs_closest_descendants(node)
-        .flat_map(|attr| {
+        .flat_map(move |attr| {
             if T::can_cast(&attr) {
                 vec![T::cast(attr).expect("Should be able to cast")]
-            } else if is_possible_callable_ancestor(&attr) {
+            } else if is_peekable_ancestor(&attr) {
                 ink_attrs_closest_descendants(
                     <InkAttrData<ast::Impl> as From<_>>::from(attr).parent_syntax(),
                 )

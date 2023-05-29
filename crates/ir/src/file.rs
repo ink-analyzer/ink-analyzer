@@ -26,9 +26,16 @@ impl From<SourceFile> for InkFile {
     fn from(file: SourceFile) -> Self {
         Self {
             contracts: utils::ink_closest_descendants(file.syntax()).collect(),
-            trait_definitions: utils::ink_closest_descendants(file.syntax()).collect(),
-            chain_extensions: utils::ink_closest_descendants(file.syntax()).collect(),
-            storage_items: utils::ink_closest_descendants(file.syntax()).collect(),
+            trait_definitions: utils::ink_contract_wrappable_quasi_closest_descendants(
+                file.syntax(),
+            )
+            .collect(),
+            chain_extensions: utils::ink_contract_wrappable_quasi_closest_descendants(
+                file.syntax(),
+            )
+            .collect(),
+            storage_items: utils::ink_contract_wrappable_quasi_closest_descendants(file.syntax())
+                .collect(),
             tests: utils::ink_closest_descendants(file.syntax()).collect(),
             ast: file,
         }
