@@ -391,8 +391,8 @@ fn actions_works() {
 
             // Applies test case modifications (if any).
             if let Some((rep_start_pat, rep_end_pat, replacement)) = modifications {
-                let start_offset = parse_offset_at(&original_code, rep_start_pat).unwrap();
-                let end_offset = parse_offset_at(&original_code, rep_end_pat).unwrap();
+                let start_offset = parse_offset_at(&test_code, rep_start_pat).unwrap();
+                let end_offset = parse_offset_at(&test_code, rep_end_pat).unwrap();
                 test_code.replace_range(start_offset..end_offset, replacement);
             }
 

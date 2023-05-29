@@ -287,8 +287,8 @@ fn completions_works() {
             let mut test_code = original_code.clone();
 
             // Applies test case modifications.
-            let start_offset = parse_offset_at(&original_code, rep_start_pat).unwrap();
-            let end_offset = parse_offset_at(&original_code, rep_end_pat).unwrap();
+            let start_offset = parse_offset_at(&test_code, rep_start_pat).unwrap();
+            let end_offset = parse_offset_at(&test_code, rep_end_pat).unwrap();
             test_code.replace_range(start_offset..end_offset, replacement);
 
             // Sets the cursor position.
