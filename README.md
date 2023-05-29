@@ -8,7 +8,7 @@ ink! analyzer aims to improve [ink!](https://use.ink/) language support in [inte
 
 ## Architecture
 
-This repository contains 3 crates:
+This repository contains 3 main crates:
 
 ### 1. [Semantic Analyzer (ink-analyzer)](/crates/analyzer)
 This crate implements utilities for performing semantic analysis of ink! smart contract code.

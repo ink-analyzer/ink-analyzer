@@ -27,7 +27,7 @@ mod my_contract {
         value: bool,
     }
 
-    // -snip-
+    // --snip--
 }
 ```
 
@@ -42,7 +42,7 @@ mod my_contract {
         value: bool,
     }
 
-    // -snip-
+    // --snip--
 }
 ```
 "#;
@@ -70,13 +70,13 @@ Applicable to methods.
 ```
 #[ink::contract]
 mod my_contract {
-    // -snip-
+    // --snip--
     impl MyContract {
         #[ink(constructor)]
         pub fn new(initial_value: bool) -> Self {
             MyContract { value: false }
         }
-        // -snip-
+        // --snip--
     }
 }
 ```
@@ -103,10 +103,10 @@ Applicable to ink! messages and ink! constructors.
 ```
 #[ink::contract]
 mod my_contract {
-    // -snip-
+    // --snip--
 
     impl MyContract {
-        // -snip-
+        // --snip--
 
         /// Update the current value.
         #[ink(message)]
@@ -123,10 +123,10 @@ OR
 ```
 #[ink::contract]
 mod my_contract {
-    // -snip-
+    // --snip--
 
     impl MyContract {
-        // -snip-
+        // --snip--
 
         /// Update the current value.
         #[ink(message, default)] // ...or specify default inline.
@@ -220,7 +220,7 @@ A user might implement their ink! smart contract using the above custom `Environ
 ```
 #[ink::contract(env = MyEnvironment)]
 mod my_contract {
-    // -snip-
+    // --snip--
 }
 ```
 "#;
@@ -258,7 +258,7 @@ mod erc20 {
          value: Balance,
      }
 
-     // -snip-
+     // --snip--
 }
 ```
 "#;
@@ -416,7 +416,7 @@ mod my_contract {
         pub fn message(&self) {}
     }
 
-    // -snip-
+    // --snip--
 }
 ```
 
@@ -459,10 +459,10 @@ Applicable to methods.
 ```
 #[ink::contract]
 mod my_contract {
-    // -snip-
+    // --snip--
 
     impl MyContract {
-        // -snip-
+        // --snip--
 
         /// Updates the current value.
         #[ink(message)]
@@ -541,10 +541,10 @@ Applicable to ink! messages.
 ```
 #[ink::contract]
 mod my_contract {
-    // -snip-
+    // --snip--
 
     impl MyContract {
-        // -snip-
+        // --snip--
 
         /// Update the current value.
         #[ink(message)]
@@ -591,7 +591,7 @@ While the `#[ink(selector = _)]` variant is applicable to ink! messages.
 ```
 #[ink::contract]
 mod my_contract {
-    // -snip-
+    // --snip--
 
     impl MyContract {
         #[ink(constructor)]
@@ -647,7 +647,7 @@ mod my_contract {
         value: bool,
     }
 
-    // -snip-
+    // --snip--
 }
 ```
 "#;
@@ -680,7 +680,7 @@ mod my_contract {
         value: bool,
     }
 
-    // -snip-
+    // --snip--
 }
 ```
 "#;

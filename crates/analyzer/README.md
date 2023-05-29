@@ -25,13 +25,13 @@ cargo add ink-analyzer
 ## Usage
 
 ### Example:
-Run diagnostics for ink! smart contract code.
-
+Analyzing ink! smart contract code.
 
 ```rust
-use ink_analyzer::Analysis;
+use ink_analyzer::{Analysis, TextSize, TextRange};
 
 fn do_analysis() {
+    // Smart contract code.
     let code = r#"
         #[ink::contract]
         mod my_contract {
@@ -45,8 +45,30 @@ fn do_analysis() {
         }
     "#;
 
-    let diagnostics = Analysis::new(code).diagnostics();
+    // Creates analysis snapshot.
+    let analysis = Analysis::new(code);
+
+    // Computes diagnostics.
+    let diagnostics = analysis.diagnostics();
     dbg!(&diagnostics);
+
+    // Sets the cursor position.
+    let position = TextSize::from(9);
+
+    // Computes completions.
+    let completions = analysis.completions(position);
+    dbg!(&completions);
+
+    // Computes code/intent actions.
+    let actions = analysis.actions(position);
+    dbg!(&actions);
+
+    // Sets the focus range.
+    let range = TextRange::new(position, TextSize::from(25));
+
+    // Gets hover content.
+    let hover = analysis.hover(range);
+    dbg!(&hover);
 }
 ```
 
