@@ -5,9 +5,16 @@ use test_utils::parse_offset_at;
 
 mod utils;
 
+// The high-level methodology for hover content test cases is:
+// - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/tests/test_data/contracts/erc20.rs).
+// - (optionally) make some modifications to the source code at a specific offset/text range to create a specific test case.
+// - compute hover content for the modified source code and a specific text range.
+// - verify that the actual results match the expected results.
+// See inline comments for mode details.
 #[test]
 fn hover_works() {
     for (source, test_cases) in [
+        // Each item in this list has the following structure:
         // (source, [Option<(rep_start_pat, rep_end_pat, replacement)>, (range_start_pat, range_end_pat), Option<(match, match_pat_start, match_pat_end)>]) where:
         // source = location of the source code,
         // rep_start_pat = substring used to find the start offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
@@ -15,22 +22,31 @@ fn hover_works() {
         // replacement = the replacement snippet that will inserted before tests are run on the modified source code,
         // range_start_pat = substring used to find the start offset for the focus range (see `test_utils::parse_offset_at` doc),
         // range_end_pat = substring used to find the end offset for the focus range (see `test_utils::parse_offset_at` doc),
-        // match = a substring that should exist in the hover content,
+        // match = a substring that should exist in the expected hover content,
         // match_pat_start = substring used to find the start of the hover match offset (see `test_utils::parse_offset_at` doc),
         // match_pat_end = substring used to find the end of the hover match offset (see `test_utils::parse_offset_at` doc).
         (
+            // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
             "contracts/erc20",
+            // Defines test cases for the ink! entity file.
             vec![
                 (
+                    // Makes no modifications to the source code.
                     None,
+                    // Sets the text range for the hover to span the whole `#[ink::contract]` substring.
                     (Some("<-#[ink::contract]"), Some("#[ink::contract]")),
+                    // Describes the expected hover content.
                     Some((
+                        // Expects the hover content to contain the substring "`#[ink::contract]`" and to highlight the text range whose
+                        // starting offset is the position at the beginning of the `contract]` substring and
+                        // end offset is the position at the end of the `#[ink::contract` substring.
                         "`#[ink::contract]`",
                         Some("<-contract]"),
                         Some("#[ink::contract"),
                     )),
                 ),
                 (
+                    // Replaces `#[ink::contract]` with `#[ink::contract(env=MyEnvironment)]` in the source code.
                     Some((
                         Some("<-#[ink::contract]"),
                         Some("#[ink::contract]"),

@@ -5,30 +5,47 @@ use test_utils::parse_offset_at;
 
 mod utils;
 
+// The high-level methodology for completions test cases is:
+// - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/tests/test_data/contracts/erc20.rs).
+// - (optionally) make some modifications to the source code at a specific offset/text range to create a specific test case.
+// - compute completions for the modified source code and a specific offset position.
+// - verify that the actual results match the expected results.
+// See inline comments for mode details.
 #[test]
 fn completions_works() {
     for (source, test_cases) in [
-        // (source, [(rep_start_pat, rep_end_pat, replacement), (offset_pat, [completion, comp_pat_start, comp_pat_end])]) where:
+        // Each item in this list has the following structure:
+        // (source, [(rep_start_pat, rep_end_pat, replacement), (offset_pat, [(completion, comp_pat_start, comp_pat_end)])]) where:
         // source = location of the source code,
         // rep_start_pat = substring used to find the start offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
         // rep_end_pat = substring used to find the end offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
         // replacement = the replacement snippet that will inserted before tests are run on the modified source code,
         // offset_pat = substring used to find the cursor offset for the completion (see `test_utils::parse_offset_at` doc),
-        // completion = the completion text,
+        // completion = the expected completion text,
         // comp_pat_start = substring used to find the start of the completion offset (see `test_utils::parse_offset_at` doc),
         // comp_pat_end = substring used to find the end of the completion offset (see `test_utils::parse_offset_at` doc).
         (
+            // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
             "contracts/erc20",
+            // Defines test cases for the ink! entity file.
             vec![
                 (
+                    // Replaces `#[ink::contract]` with `#[ink]` in the source code.
                     (
                         Some("<-#[ink::contract]"),
                         Some("#[ink::contract]"),
                         "#[ink]",
                     ),
                     (
+                        // Set the offset position at the end of the `#[ink` substring.
                         Some("#[ink"),
-                        vec![("ink::contract", Some("<-ink]"), Some("#[ink"))],
+                        // Describes the expected completions.
+                        vec![
+                            // Declares expected completion text as `ink::contract`, applied to the text range whose
+                            // starting offset is the position at the beginning of the `ink]` substring and
+                            // end offset is the position at the end of the `ink]` substring.
+                            ("ink::contract", Some("<-ink]"), Some("#[ink")),
+                        ],
                     ),
                 ),
                 (

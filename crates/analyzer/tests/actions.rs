@@ -5,26 +5,43 @@ use test_utils::parse_offset_at;
 
 mod utils;
 
+// The high-level methodology for code/intent actions test cases is:
+// - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/tests/test_data/contracts/erc20.rs).
+// - (optionally) make some modifications to the source code at a specific offset/text range to create a specific test case.
+// - compute code/intent actions for the modified source code and a specific offset position.
+// - verify that the actual results match the expected results.
+// See inline comments for mode details.
 #[test]
 fn actions_works() {
     for (source, test_cases) in [
-        // (source, [Option<(rep_start_pat, rep_end_pat, replacement)>, (offset_pat, [action, action_pat_start, action_pat_end])]) where:
+        // Each item in this list has the following structure:
+        // (source, [Option<(rep_start_pat, rep_end_pat, replacement)>, (offset_pat, [(action, action_pat_start, action_pat_end)])]) where:
         // source = location of the source code,
         // rep_start_pat = substring used to find the start offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
         // rep_end_pat = substring used to find the end offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
         // replacement = the replacement snippet that will inserted before tests are run on the modified source code,
         // offset_pat = substring used to find the cursor offset for the completion (see `test_utils::parse_offset_at` doc),
-        // action = the action text,
+        // action = the expected action text,
         // action_pat_start = substring used to find the start of the action offset (see `test_utils::parse_offset_at` doc),
         // action_pat_end = substring used to find the end of the action offset (see `test_utils::parse_offset_at` doc).
         (
+            // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
             "contracts/erc20",
+            // Defines test cases for the ink! entity file.
             vec![
                 (
+                    // Removes `#[ink::contract]` from the source code.
                     Some((Some("<-#[ink::contract]"), Some("#[ink::contract]"), "")),
                     (
+                        // Set the offset position at the beginning of the `mod erc20` substring.
                         Some("<-mod erc20"),
-                        vec![("#[ink::contract]", Some("<-mod erc20"), Some("<-mod erc20"))],
+                        // Describes the expected code/intent actions.
+                        vec![
+                            // Declares expected code/intent action text as `#[ink::contract]`, applied to the text range whose
+                            // starting offset is the position at the beginning of the `mod erc20` substring and
+                            // end offset is also the position at the beginning of the `mod erc20` substring.
+                            ("#[ink::contract]", Some("<-mod erc20"), Some("<-mod erc20")),
+                        ],
                     ),
                 ),
                 (

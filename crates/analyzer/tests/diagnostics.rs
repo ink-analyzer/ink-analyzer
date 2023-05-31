@@ -5,10 +5,17 @@ use test_utils::parse_offset_at;
 
 mod utils;
 
+// The high-level methodology for diagnostics test cases is:
+// - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/tests/test_data/contracts/erc20.rs).
+// - (optionally) make modifications to the source code at specific offsets/text ranges to create a specific test case.
+// - compute diagnostics for the modified source code.
+// - verify that the actual results match the expected results.
+// See inline comments for mode details.
 #[test]
 fn diagnostics_works() {
     for (source, test_cases) in [
-        // (source, [Option<Vec<(rep_start_pat, rep_end_pat, replacement)>>, expected_results]) where:
+        // Each item in this list has the following structure:
+        // (source, [Option<[(rep_start_pat, rep_end_pat, replacement)]>, n_diagnostics]) where:
         // source = location of the source code,
         // rep_start_pat = substring used to find the start offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
         // rep_end_pat = substring used to find the end offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
@@ -17,16 +24,21 @@ fn diagnostics_works() {
 
         // Contracts.
         (
+            // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
             "contracts/erc20",
+            // Defines test cases for the ink! entity file.
             vec![
+                // Makes no modifications to the source code and expects no diagnostic errors/warnings.
                 (None, 0),
                 (
+                    // Removes `#[ink::contract]` from the source code.
                     Some(vec![(
                         Some("<-#[ink::contract]"),
                         Some("#[ink::contract]"),
                         "",
                     )]),
-                    10, // 1 storage, 2 events, 1 constructor and 6 messages without a contract parent.
+                    // Expects 10 diagnostic errors/warnings (i.e 1 storage, 2 events, 1 constructor and 6 messages without a contract parent.)
+                    10,
                 ),
                 (
                     Some(vec![(
