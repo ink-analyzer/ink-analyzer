@@ -3,7 +3,8 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute};
+use crate::traits::{FromInkAttribute, FromSyntax};
+use crate::{InkAttrData, InkAttribute};
 
 /// An ink! topic.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]

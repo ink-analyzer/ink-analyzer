@@ -5,7 +5,7 @@ use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
     ast, Contract, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkAttribute, InkAttributeKind,
-    InkEntity, InkFn, InkImplItem, InkMacroKind, InkStruct, InkTrait,
+    InkMacroKind, IsInkEntity, IsInkFn, IsInkImplItem, IsInkStruct, IsInkTrait,
 };
 use std::collections::HashSet;
 
@@ -604,7 +604,7 @@ pub fn ensure_at_most_one_item<T: FromSyntax>(
 /// Ensures that ink! entity is a `struct` with `pub` visibility.
 pub fn ensure_pub_struct<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + InkStruct,
+    T: FromSyntax + IsInkStruct,
 {
     let mut marker_token = None;
 
@@ -638,7 +638,7 @@ where
 /// Ensures that ink! entity is an `fn` item.
 pub fn ensure_fn<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + InkFn,
+    T: FromSyntax + IsInkFn,
 {
     item.fn_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be an `fn` item.",),
@@ -650,7 +650,7 @@ where
 /// Ensures that ink! entity is a `trait` item.
 pub fn ensure_trait<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + InkTrait,
+    T: FromSyntax + IsInkTrait,
 {
     item.trait_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be a `trait` item.",),
@@ -923,7 +923,7 @@ where
 /// Ensures that item is defined in the root of an `impl` item.
 pub fn ensure_impl_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + InkImplItem,
+    T: FromSyntax + IsInkImplItem,
 {
     item.impl_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be defined in the root of an `impl` block.",),

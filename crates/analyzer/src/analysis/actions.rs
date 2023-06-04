@@ -5,7 +5,7 @@ use ink_analyzer_ir::ast::{HasAttrs, HasDocComments};
 use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, TextSize,
 };
-use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttributeKind, InkEntity, InkFile};
+use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttributeKind, InkFile, IsInkEntity};
 
 use super::utils;
 

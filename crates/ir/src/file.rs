@@ -3,8 +3,9 @@
 use ink_analyzer_macro::FromAST;
 use ra_ap_syntax::{AstNode, SourceFile};
 
+use crate::traits::FromAST;
 use crate::tree::utils;
-use crate::{ChainExtension, Contract, FromAST, InkTest, StorageItem, TraitDefinition};
+use crate::{ChainExtension, Contract, InkTest, StorageItem, TraitDefinition};
 
 /// An ink! source file.
 #[derive(Debug, Clone, PartialEq, Eq, FromAST)]

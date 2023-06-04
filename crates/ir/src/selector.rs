@@ -6,8 +6,9 @@ use blake2::Blake2b;
 use ra_ap_syntax::ast::HasName;
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, TextRange};
 
+use crate::traits::{IsInkCallable, IsInkImplItem};
 use crate::tree::utils;
-use crate::{InkArg, InkArgKind, InkCallable, InkImplItem};
+use crate::{InkArg, InkArgKind};
 
 /// The selector of an ink! callable entity.
 ///
@@ -25,7 +26,7 @@ impl Selector {
     /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/callable.rs#L203-L371>.
     pub fn compose<T>(callable: &T) -> Option<Self>
     where
-        T: InkCallable,
+        T: IsInkCallable,
     {
         let selector_bytes: Option<[u8; 4]> = match Self::provided_int_selector(callable) {
             // Manually provided integer selector is converted into bytes.
@@ -74,7 +75,7 @@ impl Selector {
     /// Returns the manually provided integer selector (if any).
     fn provided_int_selector<T>(callable: &T) -> Option<u32>
     where
-        T: InkCallable,
+        T: IsInkCallable,
     {
         callable.selector_arg()?.as_u32()
     }
@@ -82,7 +83,7 @@ impl Selector {
     /// Returns the identifier for the callable as a string.
     fn get_ident<T>(callable: &T) -> Option<String>
     where
-        T: InkCallable,
+        T: IsInkCallable,
     {
         callable.fn_item()?.name().map(|name| name.to_string())
     }
@@ -92,7 +93,7 @@ impl Selector {
     /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/callable.rs#L346-L368>.
     fn get_trait_ident<T>(callable: &T) -> Option<String>
     where
-        T: InkCallable,
+        T: IsInkCallable,
     {
         match callable.impl_item()?.trait_()? {
             ast::Type::PathType(trait_path_type) => {
@@ -118,7 +119,7 @@ impl Selector {
     /// Returns the identifier for callable's parent ink! impl namespace argument (if any).
     fn get_namespace<T>(callable: &T) -> Option<String>
     where
-        T: InkCallable,
+        T: IsInkCallable,
     {
         utils::ink_arg_by_kind(callable.impl_item()?.syntax(), InkArgKind::Namespace)?
             .value()?
@@ -197,14 +198,15 @@ pub enum SelectorArgKind {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::{Constructor, FromInkAttribute, InkAttribute, Message};
+    use crate::traits::FromInkAttribute;
+    use crate::{Constructor, InkAttribute, Message};
     use ra_ap_syntax::ast;
     use ra_ap_syntax::SourceFile;
     use test_utils::quote_as_str;
 
     fn first_ink_entity_of_type<T>(code: &str) -> T
     where
-        T: FromInkAttribute + InkCallable,
+        T: FromInkAttribute + IsInkCallable,
     {
         SourceFile::parse(code)
             .tree()

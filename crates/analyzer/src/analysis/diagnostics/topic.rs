@@ -43,7 +43,7 @@ fn ensure_struct_field(topic: &Topic) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
     use test_utils::quote_as_str;
 

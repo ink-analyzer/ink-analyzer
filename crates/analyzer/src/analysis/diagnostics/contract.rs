@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::syntax::SyntaxNode;
 use ink_analyzer_ir::{
-    Contract, FromSyntax, InkArgKind, InkAttributeKind, InkCallable, InkEntity, InkMacroKind,
+    Contract, FromSyntax, InkArgKind, InkAttributeKind, InkMacroKind, IsInkCallable, IsInkEntity,
     Selector, SelectorArg, Storage,
 };
 use std::collections::HashSet;
@@ -171,7 +171,7 @@ fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
 /// Returns composed selectors for a list of ink! callable entities.
 fn get_composed_selectors<T>(items: &[T]) -> Vec<(Selector, SyntaxNode)>
 where
-    T: InkCallable,
+    T: IsInkCallable,
 {
     items
         .iter()
@@ -215,7 +215,7 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
 /// Returns all ink! selector arguments for a list of ink! callable entities.
 fn get_selector_args<T>(items: &[T]) -> Vec<SelectorArg>
 where
-    T: InkEntity,
+    T: IsInkEntity,
 {
     items
         .iter()

@@ -3,10 +3,9 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
+use crate::traits::{FromInkAttribute, FromSyntax, IsInkStruct};
 use crate::tree::utils;
-use crate::{
-    FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute, InkStruct, Topic,
-};
+use crate::{InkArg, InkArgKind, InkAttrData, InkAttribute, Topic};
 
 /// An ink! event.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
@@ -19,7 +18,7 @@ pub struct Event {
     topics: Vec<Topic>,
 }
 
-impl InkStruct for Event {
+impl IsInkStruct for Event {
     fn struct_item(&self) -> Option<&ast::Struct> {
         self.ink_attr.parent_ast()
     }

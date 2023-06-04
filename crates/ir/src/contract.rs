@@ -3,10 +3,11 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
+use crate::traits::{FromInkAttribute, FromSyntax};
 use crate::tree::utils;
 use crate::{
-    Constructor, Event, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData,
-    InkAttribute, InkImpl, InkTest, Message, Storage,
+    Constructor, Event, InkArg, InkArgKind, InkAttrData, InkAttribute, InkImpl, InkTest, Message,
+    Storage,
 };
 
 /// An ink! contract.

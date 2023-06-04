@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::syntax::{AstNode, AstToken, SyntaxElement, TextRange};
 use ink_analyzer_ir::{
-    ast, FromSyntax, InkArgKind, InkAttribute, InkAttributeKind, InkEntity, InkFile, InkMacroKind,
+    ast, FromSyntax, InkArgKind, InkAttribute, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
 };
 
 mod content;

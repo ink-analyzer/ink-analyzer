@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::ast::AstNode;
 use ink_analyzer_ir::{
-    ast, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, InkTrait, Message,
+    ast, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, IsInkTrait, Message,
     TraitDefinition,
 };
 
@@ -155,7 +155,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{InkEntity, InkFile, InkMacroKind};
+    use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity};
     use quote::{format_ident, quote};
     use test_utils::quote_as_str;
 

@@ -39,7 +39,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, storage: &Storage) {
 mod tests {
     use super::*;
     use crate::Severity;
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
     use test_utils::quote_as_str;
 

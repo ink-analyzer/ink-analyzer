@@ -3,8 +3,9 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
+use crate::traits::{FromInkAttribute, FromSyntax};
 use crate::tree::utils;
-use crate::{FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute};
+use crate::{InkArg, InkArgKind, InkAttrData, InkAttribute};
 
 /// An ink! storage item.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]

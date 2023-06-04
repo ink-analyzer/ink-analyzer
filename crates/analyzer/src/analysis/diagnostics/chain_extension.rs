@@ -3,7 +3,7 @@
 use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::{
     ast, ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind,
-    InkTrait,
+    IsInkTrait,
 };
 use std::collections::HashSet;
 
@@ -213,7 +213,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{InkEntity, InkFile, InkMacroKind, InkTrait};
+    use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity, IsInkTrait};
     use quote::quote;
     use test_utils::quote_as_str;
 

@@ -1,7 +1,7 @@
 //! ink! message diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{ast, InkFn, Message};
+use ink_analyzer_ir::{ast, IsInkFn, Message};
 
 use super::utils;
 use crate::{Diagnostic, Severity};
@@ -97,7 +97,7 @@ fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
     use test_utils::quote_as_str;
 

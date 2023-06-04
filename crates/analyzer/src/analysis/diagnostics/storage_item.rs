@@ -50,7 +50,7 @@ fn ensure_adt(storage_item: &StorageItem) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{InkAttributeKind, InkEntity, InkFile, InkMacroKind};
+    use ink_analyzer_ir::{InkAttributeKind, InkFile, InkMacroKind, IsInkEntity};
     use quote::quote;
     use test_utils::quote_as_str;
 

@@ -6,7 +6,7 @@ use crate::tree::{InkTree, ItemAtOffset};
 use crate::FromSyntax;
 
 /// Convenience methods implemented by all ink! entities for traversing the ink! entity's syntax tree.
-pub trait InkEntity {
+pub trait IsInkEntity {
     /// Returns ink! entity tree.
     fn tree(&self) -> InkTree;
 
@@ -15,7 +15,7 @@ pub trait InkEntity {
 }
 
 /// Blanket implementation of the InkItem for syntax node wrappers.
-impl<T> InkEntity for T
+impl<T> IsInkEntity for T
 where
     T: FromSyntax,
 {

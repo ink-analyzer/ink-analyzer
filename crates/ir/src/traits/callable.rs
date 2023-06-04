@@ -1,11 +1,11 @@
 //! ink! entity traits for callables (i.e ink! constructors and ink! messages).
 
-use super::{FromSyntax, InkFn};
+use super::{FromSyntax, IsInkFn};
 use crate::tree::utils;
 use crate::{InkArg, InkArgKind, Selector, SelectorArg};
 
 /// Implemented by ink! entities that represent an ink! callable entity (i.e an ink! constructor or ink! message).
-pub trait InkCallable: FromSyntax + InkFn {
+pub trait IsInkCallable: FromSyntax + IsInkFn {
     /// Returns the ink! payable argument (if any) for the ink! callable entity.
     fn payable_arg(&self) -> Option<InkArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::Payable)

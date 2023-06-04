@@ -1,7 +1,7 @@
 //! ink! constructor diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{ast, Constructor, InkFn};
+use ink_analyzer_ir::{ast, Constructor, IsInkFn};
 
 use super::utils;
 use crate::{Diagnostic, Severity};
@@ -68,7 +68,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
     use test_utils::quote_as_str;
 

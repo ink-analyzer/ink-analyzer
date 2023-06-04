@@ -1,7 +1,9 @@
 //! ink! event diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasAttrs, HasGenericParams};
-use ink_analyzer_ir::{ast, Event, FromSyntax, InkArgKind, InkAttributeKind, InkEntity, InkStruct};
+use ink_analyzer_ir::{
+    ast, Event, FromSyntax, InkArgKind, InkAttributeKind, IsInkEntity, IsInkStruct,
+};
 
 use super::{topic, utils};
 use crate::{Diagnostic, Severity};
@@ -109,7 +111,7 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
 mod tests {
     use super::*;
     use crate::Severity;
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
     use test_utils::quote_as_str;
 

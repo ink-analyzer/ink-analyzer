@@ -1,7 +1,9 @@
 //! ink! impl diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasVisibility};
-use ink_analyzer_ir::{ast, FromSyntax, InkArgKind, InkAttributeKind, InkFn, InkImpl, InkImplItem};
+use ink_analyzer_ir::{
+    ast, FromSyntax, InkArgKind, InkAttributeKind, InkImpl, IsInkFn, IsInkImplItem,
+};
 
 use super::{constructor, message, utils};
 use crate::{Diagnostic, Severity};
@@ -197,7 +199,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
 /// Ensures that item is defined in the root of this specific `impl` item.
 fn ensure_parent_impl<T>(ink_impl: &InkImpl, item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: InkImplItem + FromSyntax,
+    T: IsInkImplItem + FromSyntax,
 {
     let is_parent = match item.impl_item() {
         Some(parent_impl_item) => parent_impl_item.syntax() == ink_impl.syntax(),

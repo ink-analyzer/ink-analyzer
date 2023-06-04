@@ -1,13 +1,13 @@
 //! ink! IR traits.
 
-pub use ast::{InkFn, InkImplItem, InkStruct, InkTrait};
 pub use ast_ext::HasParent;
-pub use callable::InkCallable;
-pub use entity::InkEntity;
+pub use ast_type::{IsInkFn, IsInkImplItem, IsInkStruct, IsInkTrait};
+pub use callable::IsInkCallable;
+pub use entity::IsInkEntity;
 pub use from::{FromAST, FromInkAttribute, FromSyntax};
 
-mod ast;
 mod ast_ext;
+mod ast_type;
 mod callable;
 mod entity;
 mod from;

@@ -58,8 +58,8 @@ pub use self::{
     topic::Topic,
     trait_definition::TraitDefinition,
     traits::{
-        FromAST, FromInkAttribute, FromSyntax, HasParent, InkCallable, InkEntity, InkFn,
-        InkImplItem, InkStruct, InkTrait,
+        FromAST, FromInkAttribute, FromSyntax, HasParent, IsInkCallable, IsInkEntity, IsInkFn,
+        IsInkImplItem, IsInkStruct, IsInkTrait,
     },
     tree::ast_ext::{
         closest_ancestor_ast_type, closest_item_which, closest_non_trivia_token, first_child_token,

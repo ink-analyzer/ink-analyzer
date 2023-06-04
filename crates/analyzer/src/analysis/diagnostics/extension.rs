@@ -1,6 +1,6 @@
 //! ink! extension diagnostics.
 
-use ink_analyzer_ir::{Extension, InkFn};
+use ink_analyzer_ir::{Extension, IsInkFn};
 
 use super::utils;
 use crate::Diagnostic;
@@ -43,7 +43,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, extension: &Extension) {
 mod tests {
     use super::*;
     use crate::Severity;
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkEntity, InkFile};
+    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
     use test_utils::quote_as_str;
 

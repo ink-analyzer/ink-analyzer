@@ -3,7 +3,8 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::{FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, InkCallable, InkFn};
+use crate::traits::{FromInkAttribute, FromSyntax, IsInkCallable, IsInkFn};
+use crate::{InkAttrData, InkAttribute};
 
 /// An ink! message.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
@@ -13,13 +14,13 @@ pub struct Message {
     ink_attr: InkAttrData<ast::Fn>,
 }
 
-impl InkFn for Message {
+impl IsInkFn for Message {
     fn fn_item(&self) -> Option<&ast::Fn> {
         self.ink_attr.parent_ast()
     }
 }
 
-impl InkCallable for Message {}
+impl IsInkCallable for Message {}
 
 #[cfg(test)]
 mod tests {

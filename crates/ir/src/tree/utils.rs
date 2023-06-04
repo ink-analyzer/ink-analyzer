@@ -5,9 +5,10 @@ use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use super::ast_ext;
 use crate::iter::IterSuccessors;
+use crate::traits::{FromInkAttribute, FromSyntax, IsInkImplItem};
 use crate::{
-    Constructor, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute,
-    InkAttributeKind, InkImpl, InkImplItem, InkMacroKind, Message,
+    Constructor, InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkImpl,
+    InkMacroKind, Message,
 };
 
 /// Returns ink! attributes for the syntax node.
@@ -161,7 +162,7 @@ where
 /// ink! ancestor or only have an ink! impl entity between them and the current node.
 pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
-    T: FromSyntax + FromInkAttribute + InkImplItem,
+    T: FromSyntax + FromInkAttribute + IsInkImplItem,
 {
     ink_peekable_quasi_closest_descendants(node, is_possible_callable_ancestor)
 }

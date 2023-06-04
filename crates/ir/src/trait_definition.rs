@@ -3,10 +3,9 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
+use crate::traits::{FromInkAttribute, FromSyntax, IsInkTrait};
 use crate::tree::utils;
-use crate::{
-    FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute, InkTrait, Message,
-};
+use crate::{InkArg, InkArgKind, InkAttrData, InkAttribute, Message};
 
 /// An ink! trait definition.
 #[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
@@ -19,7 +18,7 @@ pub struct TraitDefinition {
     messages: Vec<Message>,
 }
 
-impl InkTrait for TraitDefinition {
+impl IsInkTrait for TraitDefinition {
     fn trait_item(&self) -> Option<&ast::Trait> {
         self.ink_attr.parent_ast()
     }

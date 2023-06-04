@@ -3,10 +3,9 @@
 use ink_analyzer_macro::FromSyntax;
 use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 
+use crate::traits::{FromSyntax, IsInkEntity};
 use crate::tree::utils;
-use crate::{
-    Constructor, FromSyntax, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkEntity, Message,
-};
+use crate::{Constructor, InkArg, InkArgKind, InkAttribute, InkAttributeKind, Message};
 
 /// An ink! impl block.
 #[derive(Debug, Clone, PartialEq, Eq, FromSyntax)]
