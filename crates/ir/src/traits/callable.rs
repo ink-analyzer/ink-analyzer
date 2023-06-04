@@ -1,7 +1,8 @@
 //! ink! entity traits for callables (i.e ink! constructors and ink! messages).
 
 use super::{FromSyntax, InkFn};
-use crate::{utils, InkArg, InkArgKind, Selector, SelectorArg};
+use crate::tree::utils;
+use crate::{InkArg, InkArgKind, Selector, SelectorArg};
 
 /// Implemented by ink! entities that represent an ink! callable entity (i.e an ink! constructor or ink! message).
 pub trait InkCallable: FromSyntax + InkFn {

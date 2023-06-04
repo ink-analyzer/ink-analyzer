@@ -1,8 +1,11 @@
-use crate::utils;
-use crate::InkAttribute;
+//! offset-based ink! entity tree traversal types and abstractions.
+
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextSize, TokenAtOffset};
 
-/// A wrapper for offset-based ink! entity tree navigation methods.
+use super::ast_ext;
+use crate::InkAttribute;
+
+/// A wrapper for offset-based ink! entity tree traversal methods.
 #[derive(Debug, Clone)]
 pub struct ItemAtOffset {
     /// The wrapped representation of a token in the subtree that covers the offset.
@@ -82,21 +85,21 @@ impl ItemAtOffset {
     /// Returns the closest previous token in the tree (i.e not necessary a sibling) that's not trivia.
     pub fn prev_non_trivia_token(&self) -> Option<SyntaxToken> {
         self.focused_token().and_then(|token| {
-            utils::closest_non_trivia_token(token, |subject| subject.prev_token())
+            ast_ext::closest_non_trivia_token(token, |subject| subject.prev_token())
         })
     }
 
     /// Returns the closest next token in the tree (i.e not necessary a sibling) that's not trivia.
     pub fn next_non_trivia_token(&self) -> Option<SyntaxToken> {
         self.focused_token().and_then(|token| {
-            utils::closest_non_trivia_token(token, |subject| subject.next_token())
+            ast_ext::closest_non_trivia_token(token, |subject| subject.next_token())
         })
     }
 
     /// Returns the parent attribute of the focused token (if any).
     pub fn parent_attr(&self) -> Option<ast::Attr> {
         self.focused_token()
-            .and_then(utils::closest_ancestor_ast_type)
+            .and_then(ast_ext::closest_ancestor_ast_type)
     }
 
     /// Returns the parent ink! attribute of the focused token (if any).
@@ -110,7 +113,7 @@ impl ItemAtOffset {
             // Unclosed attributes are tricky and can yield the wrong parent AST item.
             Some(attr) => match attr.r_brack_token() {
                 // So we only return an AST item if the attribute is closed (i.e has a closing right bracket token).
-                Some(_) => utils::parent_ast_item(attr.syntax()),
+                Some(_) => ast_ext::parent_ast_item(attr.syntax()),
                 // And return None otherwise,
                 // see `probable_parent_ast_item_keyword` and `normalized_parent_ast_item_keyword`
                 // for more robust solutions for unclosed attributes.
@@ -118,7 +121,7 @@ impl ItemAtOffset {
             },
             // Non-attributes are straight forward.
             None => self.focused_token().and_then(|focused_token| {
-                utils::closest_ancestor_ast_type::<SyntaxToken, ast::Item>(focused_token)
+                ast_ext::closest_ancestor_ast_type::<SyntaxToken, ast::Item>(focused_token)
             }),
         }
     }
@@ -133,7 +136,7 @@ impl ItemAtOffset {
             None => self
                 .prev_non_trivia_token()
                 .and_then(|prev_token| {
-                    utils::closest_ancestor_ast_type::<SyntaxToken, ast::Attr>(&prev_token)
+                    ast_ext::closest_ancestor_ast_type::<SyntaxToken, ast::Attr>(&prev_token)
                 })
                 .and_then(|prev_attr| {
                     prev_attr
@@ -165,7 +168,7 @@ impl ItemAtOffset {
         self.probable_unclosed_parent_attr()
             .and_then(|(attr, is_covering)| {
                 self.focused_token().and_then(|start_token| {
-                    utils::closest_item_which(
+                    ast_ext::closest_item_which(
                         start_token,
                         |subject| subject.next_token(),
                         |subject| {
@@ -190,8 +193,10 @@ impl ItemAtOffset {
                     )
                     .map(|keyword| {
                         let is_covered = is_covering
-                            && utils::closest_ancestor_ast_type::<SyntaxToken, ast::Attr>(&keyword)
-                                .map(|attr| attr.syntax().text_range())
+                            && ast_ext::closest_ancestor_ast_type::<SyntaxToken, ast::Attr>(
+                                &keyword,
+                            )
+                            .map(|attr| attr.syntax().text_range())
                                 == Some(attr.syntax().text_range());
                         (keyword, is_covered)
                     })

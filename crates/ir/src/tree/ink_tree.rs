@@ -1,6 +1,9 @@
+//! ink! entity tree traversal types and abstractions.
+
 use ra_ap_syntax::SyntaxNode;
 
-use crate::{utils, InkArg, InkArgKind, InkAttribute};
+use super::utils;
+use crate::{InkArg, InkArgKind, InkAttribute};
 
 /// A wrapper for ink! entity tree navigation methods that return opaque iterator types.
 pub struct InkTree<'a> {

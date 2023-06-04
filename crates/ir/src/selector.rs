@@ -6,7 +6,8 @@ use blake2::Blake2b;
 use ra_ap_syntax::ast::HasName;
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, TextRange};
 
-use crate::{utils, InkArg, InkArgKind, InkCallable, InkImplItem};
+use crate::tree::utils;
+use crate::{InkArg, InkArgKind, InkCallable, InkImplItem};
 
 /// The selector of an ink! callable entity.
 ///

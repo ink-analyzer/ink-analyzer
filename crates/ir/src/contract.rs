@@ -3,8 +3,9 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
+use crate::tree::utils;
 use crate::{
-    utils, Constructor, Event, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData,
+    Constructor, Event, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData,
     InkAttribute, InkImpl, InkTest, Message, Storage,
 };
 

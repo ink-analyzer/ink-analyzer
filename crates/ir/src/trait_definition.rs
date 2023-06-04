@@ -3,9 +3,9 @@
 use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
+use crate::tree::utils;
 use crate::{
-    utils, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute, InkTrait,
-    Message,
+    FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute, InkTrait, Message,
 };
 
 /// An ink! trait definition.

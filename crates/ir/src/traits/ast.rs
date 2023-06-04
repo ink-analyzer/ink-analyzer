@@ -2,7 +2,7 @@
 
 use ra_ap_syntax::{ast, AstNode};
 
-use crate::utils;
+use crate::tree::ast_ext;
 
 /// Implemented by ink! entities whose valid AST node is a `struct` item.
 pub trait InkStruct {
@@ -34,7 +34,7 @@ where
     T: InkFn,
 {
     fn impl_item(&self) -> Option<ast::Impl> {
-        match utils::parent_ast_item(self.fn_item()?.syntax())? {
+        match ast_ext::parent_ast_item(self.fn_item()?.syntax())? {
             ast::Item::Impl(item) => Some(item),
             _ => None,
         }

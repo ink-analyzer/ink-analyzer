@@ -1,24 +1,20 @@
-//! ink! IR utilities.
+//! ink! entity tree traversal utilities.
 
 use itertools::Itertools;
-use ra_ap_syntax::ast::HasAttrs;
-use ra_ap_syntax::{ast, AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken};
+use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
+use super::ast_ext;
 use crate::iter::IterSuccessors;
 use crate::{
-    Constructor, FromInkAttribute, FromSyntax, HasParent, InkArg, InkArgKind, InkAttrData,
-    InkAttribute, InkAttributeKind, InkImpl, InkImplItem, InkMacroKind, Message,
+    Constructor, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttrData, InkAttribute,
+    InkAttributeKind, InkImpl, InkImplItem, InkMacroKind, Message,
 };
-
-/// Casts a syntax node to an ink! attribute (if possible).
-fn ink_attribute_from_node(node: SyntaxNode) -> Option<InkAttribute> {
-    ast::Attr::cast(node).and_then(InkAttribute::cast)
-}
 
 /// Returns ink! attributes for the syntax node.
 pub fn ink_attrs(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> {
     // ink! attributes are children of the current syntax node.
-    node.children().filter_map(ink_attribute_from_node)
+    node.children()
+        .filter_map(|node| ast::Attr::cast(node).and_then(InkAttribute::cast))
 }
 
 /// Returns ink! attributes for all the syntax node's descendants.
@@ -27,7 +23,11 @@ pub fn ink_attrs_descendants(node: &SyntaxNode) -> impl Iterator<Item = InkAttri
     // So we get the non-attribute children first and then call descendants on all of them.
     node.children()
         .filter(|child| child.kind() != SyntaxKind::ATTR)
-        .flat_map(|child| child.descendants().filter_map(ink_attribute_from_node))
+        .flat_map(|child| {
+            child
+                .descendants()
+                .filter_map(|node| ast::Attr::cast(node).and_then(InkAttribute::cast))
+        })
 }
 
 /// Returns ink! attributes for all the syntax node's descendants
@@ -67,8 +67,8 @@ pub fn ink_attrs_ancestors(node: &SyntaxNode) -> impl Iterator<Item = InkAttribu
                 // Additionally, if the current node is an attribute,
                 // we also filter out it's parent so that we get its ancestor attributes not its siblings.
                 && (node.kind() != SyntaxKind::ATTR
-                    || node.parent().map(|attr_parent| attr_parent.text_range())
-                        != Some(ancestor.text_range()))
+                || node.parent().map(|attr_parent| attr_parent.text_range())
+                != Some(ancestor.text_range()))
         })
         .flat_map(|ancestor| ink_attrs(&ancestor))
 }
@@ -99,34 +99,20 @@ pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> impl Iterator<Item = In
     )
 }
 
-/// Returns parent [AST Item](https://github.com/rust-lang/rust-analyzer/blob/master/crates/syntax/src/ast/generated/nodes.rs#L1589-L1610)
-/// for the syntax node.
-pub fn parent_ast_item(node: &SyntaxNode) -> Option<ast::Item> {
-    closest_ancestor_ast_type::<SyntaxNode, ast::Item>(node).and_then(|item| {
-        if node.kind() == SyntaxKind::ATTR {
-            // If the subject is an attribute, we make sure it's actually applied to the AST item.
-            // This handles the case where an attribute is not really applied to any AST item.
-            item.attrs()
-                .any(|attr| attr.syntax() == node)
-                .then_some(item)
-        } else {
-            Some(item)
-        }
-    })
+/// Returns ink! arguments of the syntax node.
+pub fn ink_args(node: &SyntaxNode) -> impl Iterator<Item = InkArg> {
+    ink_attrs(node).flat_map(|attr| attr.args().to_owned())
 }
 
-/// Returns the closest AST ancestor is a specific type for the syntax element.
-pub fn closest_ancestor_ast_type<I, T>(item: &I) -> Option<T>
-where
-    I: HasParent,
-    T: AstNode,
-{
-    let parent = item.parent_node()?;
-    if T::can_cast(parent.kind()) {
-        T::cast(parent)
-    } else {
-        closest_ancestor_ast_type(&parent)
-    }
+/// Returns ink! arguments of a specific kind (if any) for the syntax node.
+pub fn ink_args_by_kind(node: &SyntaxNode, kind: InkArgKind) -> impl Iterator<Item = InkArg> {
+    ink_attrs(node)
+        .flat_map(move |attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
+}
+
+/// Returns ink! argument of a specific kind (if any) for the syntax node.
+pub fn ink_arg_by_kind(node: &SyntaxNode, kind: InkArgKind) -> Option<InkArg> {
+    ink_attrs(node).find_map(|attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T`.
@@ -151,7 +137,7 @@ pub fn ink_parent<T>(node: &SyntaxNode) -> Option<T>
 where
     T: FromInkAttribute,
 {
-    parent_ast_item(node).and_then(|parent| ink_attrs(parent.syntax()).find_map(T::cast))
+    ast_ext::parent_ast_item(node).and_then(|parent| ink_attrs(parent.syntax()).find_map(T::cast))
 }
 
 /// Returns the syntax node's ancestor ink! entities of IR type `T`.
@@ -171,33 +157,6 @@ where
     ink_attrs_closest_ancestors(node).filter_map(T::cast)
 }
 
-/// Returns ink! arguments of the syntax node.
-pub fn ink_args(node: &SyntaxNode) -> impl Iterator<Item = InkArg> {
-    ink_attrs(node).flat_map(|attr| attr.args().to_owned())
-}
-
-/// Returns ink! arguments of a specific kind (if any) for the syntax node.
-pub fn ink_args_by_kind(node: &SyntaxNode, kind: InkArgKind) -> impl Iterator<Item = InkArg> {
-    ink_attrs(node)
-        .flat_map(move |attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
-}
-
-/// Returns ink! argument of a specific kind (if any) for the syntax node.
-pub fn ink_arg_by_kind(node: &SyntaxNode, kind: InkArgKind) -> Option<InkArg> {
-    ink_attrs(node).find_map(|attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
-}
-
-/// Returns true if the ink! attribute can be a quasi-direct parent for an ink! callable entity
-/// (i.e ink! constructor or ink! message).
-fn is_possible_callable_ancestor(attr: &InkAttribute) -> bool {
-    // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
-    *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl)
-        || (*attr.kind() == InkAttributeKind::Arg(InkArgKind::Namespace)
-            && parent_ast_item(attr.syntax())
-                .and_then(|item| ast::Impl::cast(item.syntax().to_owned()))
-                .is_some())
-}
-
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
 /// ink! ancestor or only have an ink! impl entity between them and the current node.
 pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
@@ -207,9 +166,43 @@ where
     ink_peekable_quasi_closest_descendants(node, is_possible_callable_ancestor)
 }
 
+/// Returns the syntax node's descendant ink! impl items that don't have any
+/// ink! ancestor between them and the current node.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
+pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = InkImpl> {
+    node.children()
+        .filter_map(ast::Impl::cast)
+        // `impl` children.
+        .map(|item| item.syntax().to_owned())
+        .chain(ink_attrs_closest_descendants(node).filter_map(|attr| {
+            // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
+            if is_possible_callable_ancestor(&attr) {
+                ast_ext::parent_ast_item(attr.syntax()).map(|item| item.syntax().to_owned())
+            } else if Constructor::can_cast(&attr) {
+                // impl parent of ink! constructor closest descendant.
+                Constructor::cast(attr)
+                    .expect("Should be able to cast")
+                    .impl_item()
+                    .map(|item| item.syntax().to_owned())
+            } else if Message::can_cast(&attr) {
+                // impl parent of ink! message closest descendant.
+                Message::cast(attr)
+                    .expect("Should be able to cast")
+                    .impl_item()
+                    .map(|item| item.syntax().to_owned())
+            } else {
+                None
+            }
+        }))
+        .filter_map(InkImpl::cast)
+        // Deduplicate by wrapped syntax node.
+        .unique_by(|item| item.syntax().to_owned())
+}
+
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
 /// ink! ancestor or only have an ink! contract entity between them and the current node.
-pub fn ink_contract_wrappable_quasi_closest_descendants<T>(
+pub fn ink_contract_peekable_quasi_closest_descendants<T>(
     node: &SyntaxNode,
 ) -> impl Iterator<Item = T>
 where
@@ -220,9 +213,20 @@ where
     })
 }
 
+/// Returns true if the ink! attribute can be a quasi-direct parent for an ink! callable entity
+/// (i.e ink! constructor or ink! message).
+fn is_possible_callable_ancestor(attr: &InkAttribute) -> bool {
+    // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
+    *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl)
+        || (*attr.kind() == InkAttributeKind::Arg(InkArgKind::Namespace)
+            && ast_ext::parent_ast_item(attr.syntax())
+                .and_then(|item| ast::Impl::cast(item.syntax().to_owned()))
+                .is_some())
+}
+
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
 /// ink! ancestor or only have ink! entities that satisfy a "peekable" predicate between them and the current node.
-pub fn ink_peekable_quasi_closest_descendants<T, F>(
+fn ink_peekable_quasi_closest_descendants<T, F>(
     node: &SyntaxNode,
     is_peekable_ancestor: F,
 ) -> impl Iterator<Item = T>
@@ -248,97 +252,10 @@ where
         .unique_by(|item| item.syntax().to_owned())
 }
 
-/// Returns the syntax node's descendant ink! impl items that don't have any
-/// ink! ancestor between them and the current node.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
-pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = InkImpl> {
-    node.children()
-        .filter_map(ast::Impl::cast)
-        // `impl` children.
-        .map(|item| item.syntax().to_owned())
-        .chain(ink_attrs_closest_descendants(node).filter_map(|attr| {
-            // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
-            if is_possible_callable_ancestor(&attr) {
-                parent_ast_item(attr.syntax()).map(|item| item.syntax().to_owned())
-            } else if Constructor::can_cast(&attr) {
-                // impl parent of ink! constructor closest descendant.
-                Constructor::cast(attr)
-                    .expect("Should be able to cast")
-                    .impl_item()
-                    .map(|item| item.syntax().to_owned())
-            } else if Message::can_cast(&attr) {
-                // impl parent of ink! message closest descendant.
-                Message::cast(attr)
-                    .expect("Should be able to cast")
-                    .impl_item()
-                    .map(|item| item.syntax().to_owned())
-            } else {
-                None
-            }
-        }))
-        .filter_map(InkImpl::cast)
-        // Deduplicate by wrapped syntax node.
-        .unique_by(|item| item.syntax().to_owned())
-}
-
-/// Returns the closest non-trivia token based on the step expression.
-pub fn closest_non_trivia_token<F>(token: &SyntaxToken, step_expr: F) -> Option<SyntaxToken>
-where
-    F: Fn(&SyntaxToken) -> Option<SyntaxToken>,
-{
-    closest_item_which(
-        token,
-        step_expr,
-        |subject| !subject.kind().is_trivia(),
-        |subject| !subject.kind().is_trivia(),
-    )
-}
-
-/// Returns the closest non-trivia token based on the input predicates.
-pub fn closest_item_which<T, S, G, H>(
-    token: &T,
-    step_expr: S,
-    goal_expr: G,
-    halt_expr: H,
-) -> Option<T>
-where
-    S: Fn(&T) -> Option<T>,
-    G: Fn(&T) -> bool,
-    H: Fn(&T) -> bool,
-{
-    (step_expr)(token).and_then(|subject| {
-        if goal_expr(&subject) {
-            Some(subject)
-        } else if halt_expr(&subject) {
-            None
-        } else {
-            closest_item_which(&subject, step_expr, goal_expr, halt_expr)
-        }
-    })
-}
-
-/// Returns the first syntax token for the syntax node.
-pub fn first_child_token(node: &SyntaxNode) -> Option<SyntaxToken> {
-    node.first_child_or_token().and_then(|child| match child {
-        SyntaxElement::Token(token) => Some(token),
-        SyntaxElement::Node(node) => first_child_token(&node),
-    })
-}
-
-/// Returns the last syntax token for the syntax node.
-pub fn last_child_token(node: &SyntaxNode) -> Option<SyntaxToken> {
-    node.last_child_or_token().and_then(|child| match child {
-        SyntaxElement::Token(token) => Some(token),
-        SyntaxElement::Node(node) => last_child_token(&node),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use quote::quote;
     use test_utils::quote_as_str;
 
     #[test]
@@ -577,43 +494,6 @@ mod tests {
         ] {
             assert_eq!(ink_attrs_closest_ancestors(node).count(), n_attrs);
         }
-    }
-
-    #[test]
-    fn parent_ast_item_works() {
-        let code = quote! {
-            #[ink::contract]
-            mod my_contract {
-                #[ink(event)]
-                pub struct MyEvent {
-                    #[ink(topic)]
-                    field_1: i32,
-                    field_2: bool,
-                }
-            }
-        };
-
-        let module = parse_first_ast_node_of_type::<ast::Module>(quote_as_str! { #code });
-        let struct_item = parse_first_ast_node_of_type::<ast::Struct>(quote_as_str! { #code });
-        let field = parse_first_ast_node_of_type::<ast::RecordField>(quote_as_str! { #code });
-
-        // struct is the AST parent of the field.
-        assert_eq!(
-            parent_ast_item(field.syntax())
-                .unwrap()
-                .syntax()
-                .text_range(),
-            struct_item.syntax().text_range()
-        );
-
-        // module is the AST parent of the struct.
-        assert_eq!(
-            parent_ast_item(struct_item.syntax())
-                .unwrap()
-                .syntax()
-                .text_range(),
-            module.syntax().text_range()
-        );
     }
 
     #[test]
