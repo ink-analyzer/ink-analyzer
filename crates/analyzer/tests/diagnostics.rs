@@ -1,9 +1,7 @@
 //! integration tests for ink! analyzer diagnostics.
 
 use ink_analyzer::Analysis;
-use test_utils::parse_offset_at;
-
-mod utils;
+use test_utils;
 
 // The high-level methodology for diagnostics test cases is:
 // - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/tests/test_data/contracts/erc20.rs).
@@ -258,7 +256,7 @@ fn diagnostics_works() {
         ),
     ] {
         // Gets the original source code.
-        let original_code = utils::get_source_code(source);
+        let original_code = test_utils::get_source_code(source);
 
         for (modifications, expected_results) in test_cases {
             // Creates a copy of test code for this test case.
@@ -267,8 +265,9 @@ fn diagnostics_works() {
             // Applies test case modifications (if any).
             if let Some(modifications) = modifications {
                 for (rep_start_pat, rep_end_pat, replacement) in modifications {
-                    let start_offset = parse_offset_at(&test_code, rep_start_pat).unwrap();
-                    let end_offset = parse_offset_at(&test_code, rep_end_pat).unwrap();
+                    let start_offset =
+                        test_utils::parse_offset_at(&test_code, rep_start_pat).unwrap();
+                    let end_offset = test_utils::parse_offset_at(&test_code, rep_end_pat).unwrap();
                     test_code.replace_range(start_offset..end_offset, replacement);
                 }
             }

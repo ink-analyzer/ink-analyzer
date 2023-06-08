@@ -1,6 +1,7 @@
 //! Test utilities for ink! analyzer.
 
 use std::cmp;
+use std::fs;
 
 /// Quasi-quotation macro that accepts input like the `quote!` macro
 /// but returns a string slice (`&str`) instead of a `TokenStream`.
@@ -9,6 +10,13 @@ macro_rules! quote_as_str {
     ($($tt:tt)*) => {
         quote::quote!($($tt)*).to_string().as_str()
     };
+}
+
+/// Reads source code from a file in the `test_data` directory as a string.
+///
+/// `location` is the relative path of the source file minus the `.rs` extension.
+pub fn get_source_code(location: &str) -> String {
+    fs::read_to_string(format!("../test-utils/test_data/{location}.rs")).unwrap()
 }
 
 /// Returns the offset of `pat` in `subject`.

@@ -1,9 +1,7 @@
 //! integration tests for ink! analyzer actions.
 
 use ink_analyzer::{Analysis, TextRange, TextSize};
-use test_utils::parse_offset_at;
-
-mod utils;
+use test_utils;
 
 // The high-level methodology for hover content test cases is:
 // - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/tests/test_data/contracts/erc20.rs).
@@ -305,7 +303,7 @@ fn hover_works() {
         ),
     ] {
         // Gets the original source code.
-        let original_code = utils::get_source_code(source);
+        let original_code = test_utils::get_source_code(source);
 
         for (modifications, (range_start_pat, range_end_pat), expected_results) in test_cases {
             // Creates a copy of test code for this test case.
@@ -313,15 +311,19 @@ fn hover_works() {
 
             // Applies test case modifications (if any).
             if let Some((rep_start_pat, rep_end_pat, replacement)) = modifications {
-                let start_offset = parse_offset_at(&test_code, rep_start_pat).unwrap();
-                let end_offset = parse_offset_at(&test_code, rep_end_pat).unwrap();
+                let start_offset = test_utils::parse_offset_at(&test_code, rep_start_pat).unwrap();
+                let end_offset = test_utils::parse_offset_at(&test_code, rep_end_pat).unwrap();
                 test_code.replace_range(start_offset..end_offset, replacement);
             }
 
             // Sets the focus range.
             let range = TextRange::new(
-                TextSize::from(parse_offset_at(&test_code, range_start_pat).unwrap() as u32),
-                TextSize::from(parse_offset_at(&test_code, range_end_pat).unwrap() as u32),
+                TextSize::from(
+                    test_utils::parse_offset_at(&test_code, range_start_pat).unwrap() as u32,
+                ),
+                TextSize::from(
+                    test_utils::parse_offset_at(&test_code, range_end_pat).unwrap() as u32,
+                ),
             );
 
             // Get hover content.
@@ -348,8 +350,8 @@ fn hover_works() {
             assert_eq!(
                 results.as_ref().map(|action| action.range),
                 expected_results.map(|(_, pat_start, pat_end)| TextRange::new(
-                    TextSize::from(parse_offset_at(&test_code, pat_start).unwrap() as u32),
-                    TextSize::from(parse_offset_at(&test_code, pat_end).unwrap() as u32),
+                    TextSize::from(test_utils::parse_offset_at(&test_code, pat_start).unwrap() as u32),
+                    TextSize::from(test_utils::parse_offset_at(&test_code, pat_end).unwrap() as u32),
                 )),
                 "source: {}",
                 source

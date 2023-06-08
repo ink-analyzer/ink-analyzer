@@ -1,9 +1,7 @@
 //! integration tests for ink! analyzer completions.
 
 use ink_analyzer::{Analysis, TextRange, TextSize};
-use test_utils::parse_offset_at;
-
-mod utils;
+use test_utils;
 
 // The high-level methodology for completions test cases is:
 // - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/tests/test_data/contracts/erc20.rs).
@@ -295,7 +293,7 @@ fn completions_works() {
         ),
     ] {
         // Gets the original source code.
-        let original_code = utils::get_source_code(source);
+        let original_code = test_utils::get_source_code(source);
 
         for ((rep_start_pat, rep_end_pat, replacement), (offset_pat, expected_results)) in
             test_cases
@@ -304,12 +302,13 @@ fn completions_works() {
             let mut test_code = original_code.clone();
 
             // Applies test case modifications.
-            let start_offset = parse_offset_at(&test_code, rep_start_pat).unwrap();
-            let end_offset = parse_offset_at(&test_code, rep_end_pat).unwrap();
+            let start_offset = test_utils::parse_offset_at(&test_code, rep_start_pat).unwrap();
+            let end_offset = test_utils::parse_offset_at(&test_code, rep_end_pat).unwrap();
             test_code.replace_range(start_offset..end_offset, replacement);
 
             // Sets the cursor position.
-            let offset = TextSize::from(parse_offset_at(&test_code, offset_pat).unwrap() as u32);
+            let offset =
+                TextSize::from(test_utils::parse_offset_at(&test_code, offset_pat).unwrap() as u32);
 
             // Computes completions.
             let results = Analysis::new(&test_code).completions(offset);
@@ -325,8 +324,12 @@ fn completions_works() {
                     .map(|(edit, pat_start, pat_end)| (
                         edit,
                         TextRange::new(
-                            TextSize::from(parse_offset_at(&test_code, pat_start).unwrap() as u32),
-                            TextSize::from(parse_offset_at(&test_code, pat_end).unwrap() as u32)
+                            TextSize::from(
+                                test_utils::parse_offset_at(&test_code, pat_start).unwrap() as u32
+                            ),
+                            TextSize::from(
+                                test_utils::parse_offset_at(&test_code, pat_end).unwrap() as u32
+                            )
                         )
                     ))
                     .collect::<Vec<(&str, TextRange)>>(),
