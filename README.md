@@ -11,6 +11,7 @@ ink! analyzer aims to improve [ink!](https://use.ink/) language support in [inte
 This repository contains 3 main crates:
 
 ### 1. [Semantic Analyzer (ink-analyzer)](/crates/analyzer)
+
 This crate implements utilities for performing semantic analysis of ink! smart contract code.
 It therefore implements the core functionality of ink! analyzer at a high level.
 
@@ -21,7 +22,20 @@ It currently implements an [Analysis](/crates/analyzer/src/analysis.rs) entry po
 - [code/intent actions](/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros and arguments.
 - [hover content](/crates/analyzer/src/analysis/hover.rs) - descriptive/informational text for ink! attribute macros and arguments.
 
-### 2. [IR (ink-analyzer-ir)](/crates/ir)
+### 2. [Language Server (ink-lsp-server)](/crates/lsp-server)
+
+This crate implements the [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) and acts as a backend that provides language support features like diagnostic errors, code completion suggestions, code/intent actions and hover content to IDEs, code editors and other development tools.
+
+It uses the [semantic analyzer](/crates/analyzer) as the engine for providing ink! language support features by:
+- translating LSP requests into semantic analyzer interface calls.
+- translating semantic analysis results into corresponding LSP types.
+
+It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/latest/lsp_server/) crate to handle LSP protocol handshaking and parsing messages and the [lsp-types](https://docs.rs/lsp-types/latest/lsp_types/) crate for LSP type definitions.
+
+It can be reused by multiple IDEs, code editors and other development tools that support LSP servers including [Visual Studio Code, Visual Studio, Vim / Neovim, Emacs, Atom, Sublime Text, Acme, Lapce, Eclipse and many more](https://microsoft.github.io/language-server-protocol/implementors/tools/).
+
+### 3. [IR (ink-analyzer-ir)](/crates/ir)
+
 This crate implements types, abstractions and utilities for parsing ink! smart contract code into ink! intermediate representations (IRs) and abstractions.
 
 It implements types and abstractions for all ink! entities (e.g contracts, storage, events, topics, impls, constructors, messages, selectors, tests, trait definitions, chain extensions, storage items e.t.c).
@@ -36,7 +50,8 @@ The most important being that parsing should be:
 
 It's the main dependency for the [semantic analyzer](/crates/analyzer) crate.
 
-### 3. [Proc-macros (ink-analyzer-macro)](/crates/macro)
+### 4. [Proc-macros (ink-analyzer-macro)](/crates/macro)
+
 This crate implements procedural macros used primarily by the [ink-analyzer-ir](/crates/ir) crate (e.g. custom derive macros for ink! entity traits).
 
 ## Installation and Usage
@@ -44,12 +59,14 @@ This crate implements procedural macros used primarily by the [ink-analyzer-ir](
 Check the readme of each crate for installation and usage instructions and links to documentation.
 
 - Analyzer: [/crates/analyzer](/crates/analyzer)
+- Language Server: [/crates/lsp-server](/crates/lsp-server)
 - IR: [/crates/ir](/crates/ir)
 - Proc-macros: [/crates/macro](/crates/macro)
 
 ## Documentation
 
 - Analyzer: [https://docs.rs/ink-analyzer/latest/ink_analyzer/](https://docs.rs/ink-analyzer/latest/ink_analyzer/)
+- Language Server: [https://docs.rs/ink-lsp-server/latest/ink_lsp_server/](https://docs.rs/ink-lsp-server/latest/ink_lsp_server/)
 - IR: [https://docs.rs/ink-analyzer-ir/latest/ink_analyzer_ir/](https://docs.rs/ink-analyzer-ir/latest/ink_analyzer_ir/)
 - Proc-macros: [https://docs.rs/ink-analyzer-macro/latest/ink_analyzer_macro/](https://docs.rs/ink-analyzer-macro/latest/ink_analyzer_macro/)
 

@@ -3,6 +3,7 @@
 members = [
     "crates/analyzer",
     "crates/ir",
+    "crates/lsp-server",
     "crates/macro",
     "crates/test-utils"
 ]
