@@ -1,7 +1,8 @@
 //! Utilities for translating from LSP to ink! analyzer types.
 
-use crate::translator::PositionTranslationContext;
 use line_index::{LineCol, WideEncoding, WideLineCol};
+
+use crate::translator::PositionTranslationContext;
 
 /// Translates LSP position to ink! analyzer offset.
 pub fn offset(

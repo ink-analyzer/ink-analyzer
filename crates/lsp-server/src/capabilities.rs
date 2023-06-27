@@ -1,11 +1,12 @@
 //! LSP Server capabilities.
 
-use crate::translator;
 use lsp_types::{
     ClientCapabilities, CodeActionOptions, CodeActionProviderCapability, CompletionOptions,
     HoverProviderCapability, SaveOptions, ServerCapabilities, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions,
 };
+
+use crate::translator;
 
 /// Returns the capabilities of the language server based on the given client capabilities.
 ///

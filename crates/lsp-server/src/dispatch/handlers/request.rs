@@ -1,10 +1,11 @@
 //! LSP request handlers.
 
+use ink_analyzer::Analysis;
+use line_index::LineIndex;
+
 use crate::memory::Memory;
 use crate::translator;
 use crate::translator::PositionTranslationContext;
-use ink_analyzer::Analysis;
-use line_index::LineIndex;
 
 /// Handles completion request.
 pub fn handle_completion(

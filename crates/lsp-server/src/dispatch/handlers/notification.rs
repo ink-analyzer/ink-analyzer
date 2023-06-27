@@ -1,9 +1,10 @@
 //! LSP notification handlers.
 
-use crate::memory::Memory;
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
 };
+
+use crate::memory::Memory;
 
 /// Handles `DidOpenTextDocument` notification.
 pub fn handle_did_open_text_document(
