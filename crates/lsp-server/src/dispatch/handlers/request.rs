@@ -127,3 +127,125 @@ pub fn handle_action(
         None => Ok(None),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{document, simple_client_config};
+
+    #[test]
+    fn handle_completion_works() {
+        // Initializes memory.
+        let mut memory = Memory::new();
+
+        // Creates test document.
+        let uri = document("#[ink::co]".to_string(), &mut memory);
+
+        // Calls handler.
+        let result = handle_completion(
+            lsp_types::CompletionParams {
+                text_document_position: lsp_types::TextDocumentPositionParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri },
+                    position: lsp_types::Position {
+                        line: 0,
+                        character: 9,
+                    },
+                },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+                context: None,
+            },
+            &mut memory,
+            &simple_client_config(),
+        );
+
+        // Verifies handler result.
+        assert!(result.is_ok());
+        let completion_items = match result.unwrap().unwrap() {
+            lsp_types::CompletionResponse::List(it) => Some(it),
+            _ => None,
+        }
+        .unwrap()
+        .items;
+        assert!(completion_items[0].label.contains("ink! contract"));
+    }
+
+    #[test]
+    fn handle_hover_works() {
+        // Initializes memory.
+        let mut memory = Memory::new();
+
+        // Creates test document.
+        let uri = document("#[ink::contract]".to_string(), &mut memory);
+
+        // Calls handler.
+        let result = handle_hover(
+            lsp_types::HoverParams {
+                text_document_position_params: lsp_types::TextDocumentPositionParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri },
+                    position: lsp_types::Position {
+                        line: 0,
+                        character: 1,
+                    },
+                },
+                work_done_progress_params: Default::default(),
+            },
+            &mut memory,
+            &simple_client_config(),
+        );
+
+        // Verifies handler result.
+        assert!(result.is_ok());
+        let hover_content = match result.unwrap().unwrap().contents {
+            lsp_types::HoverContents::Scalar(it) => match it {
+                lsp_types::MarkedString::String(it) => Some(it),
+                _ => None,
+            },
+            _ => None,
+        }
+        .unwrap();
+        assert!(hover_content.contains("`#[ink::contract]`"));
+    }
+
+    #[test]
+    fn handle_action_works() {
+        // Initializes memory.
+        let mut memory = Memory::new();
+
+        // Creates test document.
+        let uri = document("mod my_contract {}".to_string(), &mut memory);
+
+        // Calls handler.
+        let result = handle_action(
+            lsp_types::CodeActionParams {
+                text_document: lsp_types::TextDocumentIdentifier { uri },
+                range: lsp_types::Range {
+                    start: lsp_types::Position {
+                        line: 0,
+                        character: 0,
+                    },
+                    end: lsp_types::Position {
+                        line: 0,
+                        character: 15,
+                    },
+                },
+                context: Default::default(),
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            },
+            &mut memory,
+            &simple_client_config(),
+        );
+
+        // Verifies handler result.
+        assert!(result.is_ok());
+        let code_actions = result.unwrap().unwrap();
+        assert!(match &code_actions[0] {
+            lsp_types::CodeActionOrCommand::CodeAction(it) => Some(it),
+            _ => None,
+        }
+        .unwrap()
+        .title
+        .contains("Add ink! contract"));
+    }
+}

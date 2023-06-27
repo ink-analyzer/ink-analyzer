@@ -6,4 +6,5 @@ mod capabilities;
 mod dispatch;
 mod initialize;
 mod memory;
+mod test_utils;
 mod translator;
