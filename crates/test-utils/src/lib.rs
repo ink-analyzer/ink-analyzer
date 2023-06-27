@@ -16,7 +16,7 @@ macro_rules! quote_as_str {
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn get_source_code(location: &str) -> String {
-    fs::read_to_string(format!("../test-utils/test_data/{location}.rs")).unwrap()
+    fs::read_to_string(format!("../../test_data/{location}.rs")).unwrap()
 }
 
 /// Returns the offset of `pat` in `subject`.

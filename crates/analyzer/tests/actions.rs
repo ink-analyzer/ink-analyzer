@@ -4,7 +4,7 @@ use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils;
 
 // The high-level methodology for code/intent actions test cases is:
-// - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/tests/test_data/contracts/erc20.rs).
+// - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test_data/contracts/erc20.rs).
 // - (optionally) make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - compute code/intent actions for the modified source code and a specific offset position.
 // - verify that the actual results match the expected results.

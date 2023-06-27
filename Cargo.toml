@@ -7,3 +7,5 @@ members = [
     "crates/macro",
     "crates/test-utils"
 ]
+
+exclude = ["test_data"]
