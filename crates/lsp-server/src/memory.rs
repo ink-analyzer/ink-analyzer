@@ -48,14 +48,9 @@ impl Memory {
         })
     }
 
-    /// Checks if any documents have unprocessed changes.
-    pub fn has_changes(&self) -> bool {
-        !self.changes.is_empty()
-    }
-
     /// Retrieves the document identifiers for documents with unprocessed changes and clears the change tracker.
-    pub fn take_changes(&mut self) -> HashSet<String> {
-        mem::take(&mut self.changes)
+    pub fn take_changes(&mut self) -> Option<HashSet<String>> {
+        (!self.changes.is_empty()).then_some(mem::take(&mut self.changes))
     }
 }
 
@@ -77,21 +72,21 @@ mod tests {
         // Creates memory instance.
         let mut memory = Memory::new();
 
-        // Verifies has changes.
-        assert!(!memory.has_changes());
-
         // Adds documents.
         memory.insert("1".to_string(), "A".to_string(), 0);
         memory.insert("2".to_string(), "B".to_string(), 0);
         memory.insert("3".to_string(), "C".to_string(), 0);
-
-        // Verifies has and take changes.
-        assert!(memory.has_changes());
+        // Verifies expected changes.
         assert_eq!(
             memory.take_changes(),
-            HashSet::from(["1".to_string(), "2".to_string(), "3".to_string()])
+            Some(HashSet::from([
+                "1".to_string(),
+                "2".to_string(),
+                "3".to_string()
+            ]))
         );
-        assert!(!memory.has_changes());
+        // Verifies that previous call to take changes clears the changes.
+        assert_eq!(memory.take_changes(), None);
 
         // Retrieves document and verifies contents.
         assert_eq!(
@@ -113,24 +108,24 @@ mod tests {
                 version: 1
             })
         );
-        // Tries to update non-existent document and verifies that update doesn't perform an insert.
+        // Verifies changes.
+        assert_eq!(
+            memory.take_changes(),
+            Some(HashSet::from(["1".to_string()]))
+        );
+        // Tries to update non-existent document and verifies that update doesn't perform an insert and sets changes properly.
         assert!(!memory.update("0", "Missing".to_string(), 1));
         assert_eq!(memory.get("0"), None);
 
-        // Verifies has and take changes.
-        assert!(memory.has_changes());
-        assert_eq!(memory.take_changes(), HashSet::from(["1".to_string()]));
-        assert!(!memory.has_changes());
-
-        // Removes document and verifies memory after removal.
+        // Removes document and verifies memory after removal and that changes are properly set.
         assert!(memory.remove("1").is_some());
         assert_eq!(memory.get("1"), None);
+        // Verifies changes.
+        assert_eq!(
+            memory.take_changes(),
+            Some(HashSet::from(["1".to_string()]))
+        );
         // Tries to remove non-existent document.
         assert!(memory.remove("0").is_none());
-
-        // Verifies has and take changes.
-        assert!(memory.has_changes());
-        assert_eq!(memory.take_changes(), HashSet::from(["1".to_string()]));
-        assert!(!memory.has_changes());
     }
 }

@@ -1,14 +1,12 @@
 //! LSP server main loop for dispatching requests, notifications and handling responses.
 
 use crossbeam_channel::Sender;
-use ink_analyzer::Analysis;
-use line_index::LineIndex;
+use std::collections::HashSet;
 
 use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
-use crate::translator;
-use crate::translator::PositionTranslationContext;
 
+mod actions;
 mod handlers;
 mod routers;
 
@@ -116,53 +114,33 @@ impl<'a> Dispatcher<'a> {
 
     /// Processes changes to state and triggers appropriate actions (if any).
     fn process_changes(&mut self) -> anyhow::Result<()> {
-        // Compute and publish diagnostics if memory has been updated.
-        if self.memory.has_changes() {
-            self.publish_diagnostics()?;
+        // Retrieves document changes (if any).
+        if let Some(changes) = self.memory.take_changes() {
+            // Converts doc ids to LSP URIs.
+            let changes = changes
+                .iter()
+                .filter_map(|id| lsp_types::Url::parse(id).ok())
+                .collect();
+
+            // publish diagnostics.
+            self.publish_diagnostics(&changes)?;
         }
 
         Ok(())
     }
 
     /// Sends diagnostics notifications to the client for changed (including new) documents.
-    fn publish_diagnostics(&mut self) -> anyhow::Result<()> {
-        // Iterates over all documents with changes.
-        for id in self.memory.take_changes() {
-            // Only continue if the document id is a valid LSP URI.
-            if let Ok(uri) = lsp_types::Url::parse(&id) {
-                let (diagnostics, version, line_index) = match self.memory.get(&id) {
-                    // Compute diagnostics for document.
-                    Some(doc) => (
-                        Analysis::new(&doc.content).diagnostics(),
-                        Some(doc.version),
-                        Some(LineIndex::new(&doc.content)),
-                    ),
-                    // Clear diagnostics for missing documents.
-                    None => (Vec::new(), None, None),
-                };
-
-                // Composes translation context.
-                let translation_context = line_index.map(|line_index| PositionTranslationContext {
-                    encoding: translator::position_encoding(&self.client_capabilities),
-                    line_index,
-                });
-
-                // Composes and send `PublishDiagnostics` notification.
+    fn publish_diagnostics(&mut self, changes: &HashSet<lsp_types::Url>) -> anyhow::Result<()> {
+        // Composes `PublishDiagnostics` notification parameters for documents with changes.
+        if let Some(params_list) =
+            actions::publish_diagnostics(changes, &mut self.memory, &self.client_capabilities)?
+        {
+            // Composes and sends `PublishDiagnostics` notifications fir all documents with changes.
+            for params in params_list {
                 use lsp_types::notification::Notification;
                 let notification = lsp_server::Notification::new(
                     lsp_types::notification::PublishDiagnostics::METHOD.to_string(),
-                    lsp_types::PublishDiagnosticsParams {
-                        uri,
-                        diagnostics: diagnostics
-                            .into_iter()
-                            .filter_map(|diagnostic| {
-                                translation_context.as_ref().and_then(|context| {
-                                    translator::to_lsp::diagnostic(diagnostic, context)
-                                })
-                            })
-                            .collect(),
-                        version,
-                    },
+                    params,
                 );
                 self.send(notification.into())?;
             }
