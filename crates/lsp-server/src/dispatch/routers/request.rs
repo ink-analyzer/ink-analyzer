@@ -119,7 +119,7 @@ mod tests {
         // Creates test document.
         let uri = document("".to_string(), &mut memory);
 
-        // Creates LSP completion request;
+        // Creates LSP completion request.
         use lsp_types::request::Request;
         let req_id = lsp_server::RequestId::from(1);
         let req = lsp_server::Request {

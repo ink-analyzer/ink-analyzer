@@ -171,8 +171,8 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        // Runs the message dispatch loop on a separate thread (`main_loop` function is blocking).
-        thread::spawn(move || main_loop(server_connection, client_capabilities));
+        // Runs the message dispatch loop on a separate thread (because `main_loop` function is blocking).
+        thread::spawn(|| main_loop(server_connection, client_capabilities));
 
         // Creates test document URI.
         let uri = document_uri();
@@ -210,7 +210,7 @@ mod tests {
         );
 
         // Verifies that LSP requests (from client to server) get appropriate LSP responses (from server to client).
-        // Creates LSP completion request;
+        // Creates LSP completion request.
         use lsp_types::request::Request;
         let completion_request_id = lsp_server::RequestId::from(1);
         let completion_request = lsp_server::Request {
