@@ -156,3 +156,89 @@ impl<'a> Dispatcher<'a> {
             .map_err(|error| anyhow::format_err!("Failed to send message: {error}"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{document_uri, simple_client_config};
+    use std::thread;
+
+    #[test]
+    fn main_loop_and_dispatcher_works() {
+        // Creates pair of in-memory connections to simulate an LSP client and server.
+        let (server_connection, client_connection) = lsp_server::Connection::memory();
+
+        // Creates client capabilities.
+        let client_capabilities = simple_client_config();
+
+        // Runs the message dispatch loop on a separate thread (`main_loop` function is blocking).
+        thread::spawn(move || main_loop(server_connection, client_capabilities));
+
+        // Creates test document URI.
+        let uri = document_uri();
+
+        // Verifies that document synchronization notifications (from client to server) trigger `PublishDiagnostics` notifications (from server to client).
+        // Creates `DidOpenTextDocument` notification.
+        use lsp_types::notification::Notification;
+        let open_document_notification = lsp_server::Notification {
+            method: lsp_types::notification::DidOpenTextDocument::METHOD.to_string(),
+            params: serde_json::to_value(&lsp_types::DidOpenTextDocumentParams {
+                text_document: lsp_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "rust".to_string(),
+                    version: 0,
+                    text: "".to_string(),
+                },
+            })
+            .unwrap(),
+        };
+        // Sends `DidOpenTextDocument` notification from client to server.
+        client_connection
+            .sender
+            .send(open_document_notification.into())
+            .unwrap();
+        // Confirms receipt of `PublishDiagnostics` notification by the client.
+        let message = client_connection.receiver.recv().unwrap();
+        let publish_diagnostics_notification = match message {
+            lsp_server::Message::Notification(it) => Some(it),
+            _ => None,
+        }
+        .unwrap();
+        assert_eq!(
+            &publish_diagnostics_notification.method,
+            lsp_types::notification::PublishDiagnostics::METHOD
+        );
+
+        // Verifies that LSP requests (from client to server) get appropriate LSP responses (from server to client).
+        // Creates LSP completion request;
+        use lsp_types::request::Request;
+        let completion_request_id = lsp_server::RequestId::from(1);
+        let completion_request = lsp_server::Request {
+            id: completion_request_id.clone(),
+            method: lsp_types::request::Completion::METHOD.to_string(),
+            params: serde_json::to_value(&lsp_types::CompletionParams {
+                text_document_position: lsp_types::TextDocumentPositionParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri },
+                    position: Default::default(),
+                },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+                context: None,
+            })
+            .unwrap(),
+        };
+        // Sends LSP completion request from client to server.
+        client_connection
+            .sender
+            .send(completion_request.into())
+            .unwrap();
+        // Confirms receipt of LSP completion response by the client.
+        let message = client_connection.receiver.recv().unwrap();
+        let completion_response = match message {
+            lsp_server::Message::Response(it) => Some(it),
+            _ => None,
+        }
+        .unwrap();
+        assert_eq!(&completion_response.id, &completion_request_id);
+    }
+}
