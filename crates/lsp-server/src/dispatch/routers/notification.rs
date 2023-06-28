@@ -74,7 +74,7 @@ mod tests {
         // Creates test document.
         let uri = document_uri();
 
-        // Creates LSP completion request;
+        // Creates `DidOpenTextDocument` notification.
         use lsp_types::notification::Notification;
         let notification_method = lsp_types::notification::DidOpenTextDocument::METHOD;
         let not = lsp_server::Notification {
@@ -130,9 +130,6 @@ mod tests {
         assert!(result.is_ok());
         // `router.finish` returns false.
         assert!(!result.unwrap());
-
-        // Processes modified completion request with invalid parameters through a request router with a completion handler,
-        // retrieves response and verifies that it's an "invalid request" error response.
 
         // Processes `DidOpenTextDocument` notification through a notification router with a `DidOpenTextDocument` notification handler
         // and verifies that the notification is not processed due to an error
