@@ -141,7 +141,7 @@ mod tests {
         // Creates test document.
         let uri = document("#[ink::co]".to_string(), &mut memory);
 
-        // Calls handler.
+        // Calls handler and verifies that the expected completion items are returned.
         let result = handle_completion(
             lsp_types::CompletionParams {
                 text_document_position: lsp_types::TextDocumentPositionParams {
@@ -158,8 +158,6 @@ mod tests {
             &mut memory,
             &simple_client_config(),
         );
-
-        // Verifies handler result.
         assert!(result.is_ok());
         let completion_items = match result.unwrap().unwrap() {
             lsp_types::CompletionResponse::List(it) => Some(it),
@@ -178,7 +176,7 @@ mod tests {
         // Creates test document.
         let uri = document("#[ink::contract]".to_string(), &mut memory);
 
-        // Calls handler.
+        // Calls handler and verifies that the expected hover content is returned.
         let result = handle_hover(
             lsp_types::HoverParams {
                 text_document_position_params: lsp_types::TextDocumentPositionParams {
@@ -193,8 +191,6 @@ mod tests {
             &mut memory,
             &simple_client_config(),
         );
-
-        // Verifies handler result.
         assert!(result.is_ok());
         let hover_content = match result.unwrap().unwrap().contents {
             lsp_types::HoverContents::Scalar(it) => match it {
@@ -215,7 +211,7 @@ mod tests {
         // Creates test document.
         let uri = document("mod my_contract {}".to_string(), &mut memory);
 
-        // Calls handler.
+        // Calls handler and verifies that the expected code actions are returned.
         let result = handle_code_action(
             lsp_types::CodeActionParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -236,8 +232,6 @@ mod tests {
             &mut memory,
             &simple_client_config(),
         );
-
-        // Verifies handler result.
         assert!(result.is_ok());
         let code_actions = result.unwrap().unwrap();
         assert!(match &code_actions[0] {
