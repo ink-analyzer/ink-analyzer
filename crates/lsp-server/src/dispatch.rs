@@ -78,7 +78,7 @@ impl<'a> Dispatcher<'a> {
         let result = router
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
-            .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_action)
+            .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
             .finish();
 
         // Sends response (if any).

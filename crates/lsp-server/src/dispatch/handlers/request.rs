@@ -91,7 +91,7 @@ pub fn handle_hover(
 }
 
 /// Handles code action request.
-pub fn handle_action(
+pub fn handle_code_action(
     params: lsp_types::CodeActionParams,
     memory: &mut Memory,
     client_capabilities: &lsp_types::ClientCapabilities,
@@ -117,7 +117,7 @@ pub fn handle_action(
                     .actions(text_range.start())
                     .into_iter()
                     .filter_map(|action| {
-                        translator::to_lsp::action(action, uri.clone(), &translation_context)
+                        translator::to_lsp::code_action(action, uri.clone(), &translation_context)
                             .map(|code_action| code_action.into())
                     })
                     .collect(),
@@ -208,7 +208,7 @@ mod tests {
     }
 
     #[test]
-    fn handle_action_works() {
+    fn handle_code_action_works() {
         // Initializes memory.
         let mut memory = Memory::new();
 
@@ -216,7 +216,7 @@ mod tests {
         let uri = document("mod my_contract {}".to_string(), &mut memory);
 
         // Calls handler.
-        let result = handle_action(
+        let result = handle_code_action(
             lsp_types::CodeActionParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri },
                 range: lsp_types::Range {

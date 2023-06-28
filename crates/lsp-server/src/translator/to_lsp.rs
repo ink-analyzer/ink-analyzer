@@ -95,7 +95,7 @@ pub fn hover(
 }
 
 /// Translates ink! analyzer action content to LSP code action.
-pub fn action(
+pub fn code_action(
     action: ink_analyzer::Action,
     uri: lsp_types::Url,
     context: &PositionTranslationContext,

@@ -146,7 +146,7 @@ mod tests {
         let result = router
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
-            .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_action)
+            .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
             .finish();
         assert!(result.is_some());
         let response = result.unwrap();
@@ -159,7 +159,7 @@ mod tests {
         let mut router = RequestRouter::new(req.clone(), &mut memory, &client_capabilities);
         let result = router
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
-            .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_action)
+            .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
             .finish();
         assert!(result.is_some());
         let response = result.unwrap();
