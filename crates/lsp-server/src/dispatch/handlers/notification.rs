@@ -11,12 +11,14 @@ pub fn handle_did_open_text_document(
     params: DidOpenTextDocumentParams,
     memory: &mut Memory,
 ) -> anyhow::Result<()> {
-    // Creates document in memory.
-    memory.insert(
-        params.text_document.uri.to_string(),
-        params.text_document.text,
-        params.text_document.version,
-    );
+    // Creates document in memory but only if it's a rust file.
+    if params.text_document.language_id == "rust" {
+        memory.insert(
+            params.text_document.uri.to_string(),
+            params.text_document.text,
+            params.text_document.version,
+        );
+    }
 
     Ok(())
 }
@@ -70,7 +72,7 @@ mod tests {
         let version = 0;
         let content = "".to_string();
 
-        // Calls handler.
+        // Calls handler with parameters for an open rust file and verifies that the file is added to memory.
         let result = handle_did_open_text_document(
             DidOpenTextDocumentParams {
                 text_document: TextDocumentItem {
@@ -82,13 +84,30 @@ mod tests {
             },
             &mut memory,
         );
-
-        // Verifies handler result and expected actions.
         assert!(result.is_ok());
         assert_eq!(
             memory.get(uri.as_ref()),
-            Some(&Document { content, version })
+            Some(&Document {
+                content: content.clone(),
+                version
+            })
         );
+
+        // Re-initializes memory, calls handler with parameters for an open rust file and verifies that the file is NOT added to memory.
+        memory = Memory::new();
+        let result = handle_did_open_text_document(
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "xyz".to_string(),
+                    version,
+                    text: content,
+                },
+            },
+            &mut memory,
+        );
+        assert!(result.is_ok());
+        assert_eq!(memory.get(uri.as_ref()), None);
     }
 
     #[test]
