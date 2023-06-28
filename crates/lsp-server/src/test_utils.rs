@@ -18,9 +18,14 @@ pub fn simple_client_config() -> lsp_types::ClientCapabilities {
     }
 }
 
-/// Adds a document to memory and returns it's uri.
+/// Returns uri for a test document.
+pub fn document_uri() -> lsp_types::Url {
+    lsp_types::Url::from_file_path("/tmp/file.rs").unwrap()
+}
+
+/// Adds a test document to memory and returns its uri.
 pub fn document(content: String, memory: &mut Memory) -> lsp_types::Url {
-    let uri = lsp_types::Url::from_file_path("/tmp/file.rs").unwrap();
+    let uri = document_uri();
     memory.insert(uri.to_string(), content, 0);
     uri
 }

@@ -59,3 +59,102 @@ impl<'a> NotificationRouter<'a> {
         self.not.is_none()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dispatch::handlers;
+    use crate::test_utils::document_uri;
+
+    #[test]
+    fn request_router_works() {
+        // Initializes memory.
+        let mut memory = Memory::new();
+
+        // Creates test document.
+        let uri = document_uri();
+
+        // Creates LSP completion request;
+        use lsp_types::notification::Notification;
+        let notification_method = lsp_types::notification::DidOpenTextDocument::METHOD;
+        let not = lsp_server::Notification {
+            method: notification_method.to_string(),
+            params: serde_json::to_value(&lsp_types::DidOpenTextDocumentParams {
+                text_document: lsp_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "rust".to_string(),
+                    version: 0,
+                    text: "".to_string(),
+                },
+            })
+            .unwrap(),
+        };
+
+        // Processes `DidOpenTextDocument` notification through a notification router with a `DidOpenTextDocument` notification handler
+        // and verifies that the notification is processed successfully
+        // (i.e all `router.process` calls return `Ok` results and `router.finish` returns true).
+        let mut router = NotificationRouter::new(not.clone(), &mut memory);
+        let result: anyhow::Result<bool> = (|| {
+            Ok(router
+                .process::<lsp_types::notification::DidChangeTextDocument>(
+                    handlers::notification::handle_did_change_text_document,
+                )?
+                .process::<lsp_types::notification::DidOpenTextDocument>(
+                    handlers::notification::handle_did_open_text_document,
+                )?
+                .process::<lsp_types::notification::DidCloseTextDocument>(
+                    handlers::notification::handle_did_close_text_document,
+                )?
+                .finish())
+        })();
+        // No errors (`Ok` results from all `router.process` calls).
+        assert!(result.is_ok());
+        // `router.finish` returns true.
+        assert!(result.unwrap());
+
+        // Processes `DidOpenTextDocument` notification through a notification router with NO `DidOpenTextDocument` notification handler
+        // and verifies that the notification is not processed but is error free
+        // (i.e all `router.process` calls return `Ok` results and `router.finish` returns false).
+        let mut router = NotificationRouter::new(not.clone(), &mut memory);
+        let result: anyhow::Result<bool> = (|| {
+            Ok(router
+                .process::<lsp_types::notification::DidChangeTextDocument>(
+                    handlers::notification::handle_did_change_text_document,
+                )?
+                .process::<lsp_types::notification::DidCloseTextDocument>(
+                    handlers::notification::handle_did_close_text_document,
+                )?
+                .finish())
+        })();
+        // No errors (`Ok` results from all `router.process` calls).
+        assert!(result.is_ok());
+        // `router.finish` returns false.
+        assert!(!result.unwrap());
+
+        // Processes modified completion request with invalid parameters through a request router with a completion handler,
+        // retrieves response and verifies that it's an "invalid request" error response.
+
+        // Processes `DidOpenTextDocument` notification through a notification router with a `DidOpenTextDocument` notification handler
+        // and verifies that the notification is not processed due to an error
+        // (i.e the `DidOpenTextDocument` notification handler returns an `Err` result and `router.finish` is never reached).
+        let mut notification_invalid = not.clone();
+        notification_invalid.params = serde_json::Value::Null;
+        let mut router = NotificationRouter::new(notification_invalid, &mut memory);
+        let result: anyhow::Result<bool> = (|| {
+            Ok(router
+                .process::<lsp_types::notification::DidChangeTextDocument>(
+                    handlers::notification::handle_did_change_text_document,
+                )?
+                .process::<lsp_types::notification::DidOpenTextDocument>(
+                    handlers::notification::handle_did_open_text_document,
+                )?
+                .finish())
+        })();
+        // An error is returned (`Err` result from one of the `router.process` calls).
+        assert!(result.is_err());
+        let error_message = result.unwrap_err().to_string();
+        assert!(error_message.contains("invalid") && error_message.contains("parameters"));
+        // The error is returned by the `DidOpenTextDocument` notification handler.
+        assert!(error_message.contains(notification_method));
+    }
+}
