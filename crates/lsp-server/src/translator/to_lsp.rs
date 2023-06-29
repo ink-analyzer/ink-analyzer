@@ -116,3 +116,46 @@ pub fn code_action(
         ..Default::default()
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::offset_position_encoding_fixture;
+    use line_index::LineIndex;
+
+    #[test]
+    fn position_works() {
+        // Retrieves a fixture with text, and groups of ink! analyzer UTF-8 offsets and their equivalent UTF-8, UTF-16 and UTF-32 LSP positions.
+        let (text, offset_position_groups) = offset_position_encoding_fixture();
+
+        // Iterates over all groups of ink! analyzer UTF-8 offsets and their equivalent UTF-8, UTF-16 and UTF-32 LSP positions.
+        for offset_and_positions in offset_position_groups {
+            // Composes test cases for each position encoding kind.
+            for (encoding, expected_position) in [
+                (
+                    lsp_types::PositionEncodingKind::UTF8,
+                    Some(offset_and_positions.position_utf8),
+                ),
+                (
+                    lsp_types::PositionEncodingKind::UTF16,
+                    Some(offset_and_positions.position_utf16),
+                ),
+                (
+                    lsp_types::PositionEncodingKind::UTF32,
+                    Some(offset_and_positions.position_utf32),
+                ),
+            ] {
+                let context = PositionTranslationContext {
+                    encoding,
+                    line_index: LineIndex::new(text),
+                };
+
+                // Verifies that the computed position matches the expected position for the encoding.
+                assert_eq!(
+                    position(offset_and_positions.offset_utf8, &context),
+                    expected_position
+                );
+            }
+        }
+    }
+}
