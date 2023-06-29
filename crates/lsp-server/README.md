@@ -8,7 +8,7 @@ It uses the [semantic analyzer](/crates/analyzer) as the engine for providing in
 - translating LSP requests into semantic analyzer interface calls.
 - translating semantic analysis results into corresponding LSP types.
 
-It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/latest/lsp_server/) crate to handle LSP protocol handshaking and parsing messages and the [lsp-types](https://docs.rs/lsp-types/latest/lsp_types/) crate for LSP type definitions.
+It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/latest/lsp_server/) crate to handle LSP protocol handshaking and parsing messages, and the [lsp-types](https://docs.rs/lsp-types/latest/lsp_types/) crate for LSP type definitions.
 
 **NOTE:** 🚧 This project is still work in progress, check back over the next few weeks for regular updates.
 
@@ -31,7 +31,7 @@ cd ink-analyzer
 cargo build -p ink-lsp-server --release
 ```
 
-Copy the compiled binary (named `ink-lsp-server`) from the `target/release` directory to your preferred installation location, make sure the binary is executable and make sure the installation location is included in the `PATH` environment variable.
+Copy the compiled binary (named `ink-lsp-server`) from the `target/release` directory to your preferred installation location, make sure the binary is executable and the installation location is included in the `PATH` environment variable.
 
 ## Usage
 

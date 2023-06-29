@@ -2,6 +2,7 @@
 
 use ink_analyzer::Analysis;
 use test_utils;
+use test_utils::{TestCase, TestCaseModification, TestCaseResults, TestGroup};
 
 // The high-level methodology for diagnostics test cases is:
 // - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test_data/contracts/erc20.rs).
@@ -11,271 +12,413 @@ use test_utils;
 // See inline comments for mode details.
 #[test]
 fn diagnostics_works() {
-    for (source, test_cases) in [
-        // Each item in this list has the following structure:
-        // (source, [Option<[(rep_start_pat, rep_end_pat, replacement)]>, n_diagnostics]) where:
-        // source = location of the source code,
-        // rep_start_pat = substring used to find the start offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
-        // rep_end_pat = substring used to find the end offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
-        // replacement = the replacement snippet that will inserted before tests are run on the modified source code,
-        // n_diagnostics = the expected number of diagnostic errors/warnings.
-
+    // Iterates over all test case groups.
+    for test_group in [
         // Contracts.
-        (
+        TestGroup {
             // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
-            "contracts/erc20",
+            source: "contracts/erc20",
             // Defines test cases for the ink! entity file.
-            vec![
-                // Makes no modifications to the source code and expects no diagnostic errors/warnings.
-                (None, 0),
-                (
+            test_cases: vec![
+                TestCase {
+                    // Makes no modifications to the source code.
+                    modifications: None,
+                    // No parameters.
+                    params: None,
+                    // Expects no diagnostic errors/warnings.
+                    results: TestCaseResults::Diagnostic(0),
+                },
+                TestCase {
                     // Removes `#[ink::contract]` from the source code.
-                    Some(vec![(
-                        Some("<-#[ink::contract]"),
-                        Some("#[ink::contract]"),
-                        "",
-                    )]),
-                    // Expects 10 diagnostic errors/warnings (i.e 1 storage, 2 events, 1 constructor and 6 messages without a contract parent.)
-                    10,
-                ),
-                (
-                    Some(vec![(
-                        Some("<-#[ink(storage)]"),
-                        Some("#[ink(storage)]"),
-                        "",
-                    )]),
-                    1, // missing storage.
-                ),
-                (
-                    Some(vec![(
-                        Some("<-#[ink(constructor)]"),
-                        Some("#[ink(constructor)]"),
-                        "",
-                    )]),
-                    1, // no constructor(s).
-                ),
-                (
-                    Some(
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                        replacement: "",
+                    }]),
+                    // No parameters.
+                    params: None,
+                    // Expects 10 diagnostic errors/warnings (i.e 1 storage, 2 events, 1 constructor and 6 messages without a contract parent).
+                    results: TestCaseResults::Diagnostic(10),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("#[ink(storage)]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // missing storage.
+                    results: TestCaseResults::Diagnostic(1),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("#[ink(constructor)]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // no constructor(s).
+                    results: TestCaseResults::Diagnostic(1),
+                },
+                TestCase {
+                    modifications: Some(
                         (1..=6)
-                            .map(|_| (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""))
+                            .map(|_| TestCaseModification {
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("#[ink(message)]"),
+                                replacement: "",
+                            })
                             .collect(),
                     ),
-                    1, // no message(s).
-                ),
+                    params: None,
+                    // no message(s).
+                    results: TestCaseResults::Diagnostic(1),
+                },
             ],
-        ),
-        (
-            "contracts/flipper",
-            vec![
-                (None, 0),
-                (
-                    Some(vec![(
-                        Some("<-#[ink::contract]"),
-                        Some("#[ink::contract]"),
-                        "",
-                    )]),
-                    5, // 1 storage, 2 constructors and 2 messages without a contract parent.
-                ),
-                (
-                    Some(vec![(
-                        Some("<-#[ink(storage)]"),
-                        Some("#[ink(storage)]"),
-                        "",
-                    )]),
-                    1, // missing storage.
-                ),
-                (
-                    Some(vec![
-                        (
-                            Some("<-#[ink(constructor)]"),
-                            Some("#[ink(constructor)]"),
-                            "",
-                        ),
-                        (
-                            Some("<-#[ink(constructor)]"),
-                            Some("#[ink(constructor)]"),
-                            "",
-                        ),
+        },
+        TestGroup {
+            source: "contracts/flipper",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: None,
+                    results: TestCaseResults::Diagnostic(0),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // 1 storage, 2 constructors and 2 messages without a contract parent.
+                    results: TestCaseResults::Diagnostic(5),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("#[ink(storage)]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // missing storage.
+                    results: TestCaseResults::Diagnostic(1),
+                },
+                TestCase {
+                    modifications: Some(vec![
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                            replacement: "",
+                        },
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                            replacement: "",
+                        },
                     ]),
-                    1, // no constructor(s).
-                ),
-                (
-                    Some(vec![
-                        (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""),
-                        (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""),
+                    params: None,
+                    // no constructor(s).
+                    results: TestCaseResults::Diagnostic(1),
+                },
+                TestCase {
+                    modifications: Some(vec![
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                            replacement: "",
+                        },
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                            replacement: "",
+                        },
                     ]),
-                    1, // no message(s).
-                ),
+                    params: None,
+                    // no message(s).
+                    results: TestCaseResults::Diagnostic(1),
+                },
             ],
-        ),
-        (
-            "contracts/mother",
-            vec![
-                (None, 0),
-                (
-                    Some(vec![(
-                        Some("<-#[ink::contract]"),
-                        Some("#[ink::contract]"),
-                        "",
-                    )]),
-                    8, // 1 storage, 1 event, 3 constructors and 3 messages without a contract parent.
-                ),
-                (
-                    Some(vec![(
-                        Some("<-#[ink(storage)]"),
-                        Some("#[ink(storage)]"),
-                        "",
-                    )]),
-                    1, // missing storage.
-                ),
-                (
-                    Some(vec![
-                        (
-                            Some("<-#[ink(constructor)]"),
-                            Some("#[ink(constructor)]"),
-                            "",
-                        ),
-                        (
-                            Some("<-#[ink(constructor)]"),
-                            Some("#[ink(constructor)]"),
-                            "",
-                        ),
-                        (
-                            Some("<-#[ink(constructor)]"),
-                            Some("#[ink(constructor)]"),
-                            "",
-                        ),
+        },
+        TestGroup {
+            source: "contracts/mother",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: None,
+                    results: TestCaseResults::Diagnostic(0),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // 1 storage, 1 event, 3 constructors and 3 messages without a contract parent.
+                    results: TestCaseResults::Diagnostic(8),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("#[ink(storage)]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // missing storage.
+                    results: TestCaseResults::Diagnostic(1),
+                },
+                TestCase {
+                    modifications: Some(vec![
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                            replacement: "",
+                        },
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                            replacement: "",
+                        },
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                            replacement: "",
+                        },
                     ]),
-                    1, // no constructor(s).
-                ),
-                (
-                    Some(vec![
-                        (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""),
-                        (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""),
-                        (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""),
+                    params: None,
+                    // no constructor(s).
+                    results: TestCaseResults::Diagnostic(1),
+                },
+                TestCase {
+                    modifications: Some(vec![
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                            replacement: "",
+                        },
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                            replacement: "",
+                        },
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                            replacement: "",
+                        },
                     ]),
-                    1, // no message(s).
-                ),
+                    params: None,
+                    // no message(s).
+                    results: TestCaseResults::Diagnostic(1),
+                },
             ],
-        ),
+        },
         // Chain extensions.
-        (
-            "chain_extensions/psp22_extension",
-            vec![
-                (None, 0),
-                (
-                    Some(vec![(
-                        Some("<-#[ink::chain_extension]"),
-                        Some("#[ink::chain_extension]"),
-                        "",
-                    )]),
-                    11, // 11 extensions without a chain extension parent.
-                ),
-                (
-                    Some(vec![(
-                        Some("<-type ErrorCode = Psp22Error;"),
-                        Some("type ErrorCode = Psp22Error;"),
-                        "",
-                    )]),
-                    1, // missing `ErrorCode` type.
-                ),
+        TestGroup {
+            source: "chain_extensions/psp22_extension",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: None,
+                    results: TestCaseResults::Diagnostic(0),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::chain_extension]"),
+                        end_pat: Some("#[ink::chain_extension]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // 11 extensions without a chain extension parent.
+                    results: TestCaseResults::Diagnostic(11),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-type ErrorCode = Psp22Error;"),
+                        end_pat: Some("type ErrorCode = Psp22Error;"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // missing `ErrorCode` type.
+                    results: TestCaseResults::Diagnostic(1),
+                },
             ],
-        ),
-        (
-            "chain_extensions/rand_extension",
-            vec![
-                (None, 0),
-                (
-                    Some(vec![(
-                        Some("<-#[ink::chain_extension]"),
-                        Some("#[ink::chain_extension]"),
-                        "",
-                    )]),
-                    1, // 1 extension without a chain extension parent.
-                ),
-                (
-                    Some(vec![(
-                        Some("<-type ErrorCode = RandomReadErr;"),
-                        Some("type ErrorCode = RandomReadErr;"),
-                        "",
-                    )]),
-                    1, // missing `ErrorCode` type.
-                ),
+        },
+        TestGroup {
+            source: "chain_extensions/rand_extension",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: None,
+                    results: TestCaseResults::Diagnostic(0),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::chain_extension]"),
+                        end_pat: Some("#[ink::chain_extension]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // 1 extension without a chain extension parent.
+                    results: TestCaseResults::Diagnostic(1),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-type ErrorCode = RandomReadErr;"),
+                        end_pat: Some("type ErrorCode = RandomReadErr;"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // missing `ErrorCode` type.
+                    results: TestCaseResults::Diagnostic(1),
+                },
             ],
-        ),
+        },
         // Storage items.
-        ("storage_items/default_storage_key_1", vec![(None, 0)]),
-        ("storage_items/non_packed_tuple_struct", vec![(None, 0)]),
-        ("storage_items/complex_non_packed_struct", vec![(None, 0)]),
-        ("storage_items/complex_non_packed_enum", vec![(None, 0)]),
-        ("storage_items/complex_packed_struct", vec![(None, 0)]),
-        ("storage_items/complex_packed_enum", vec![(None, 0)]),
+        TestGroup {
+            source: "storage_items/default_storage_key_1",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: None,
+                results: TestCaseResults::Diagnostic(0),
+            }],
+        },
+        TestGroup {
+            source: "storage_items/non_packed_tuple_struct",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: None,
+                results: TestCaseResults::Diagnostic(0),
+            }],
+        },
+        TestGroup {
+            source: "storage_items/complex_non_packed_struct",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: None,
+                results: TestCaseResults::Diagnostic(0),
+            }],
+        },
+        TestGroup {
+            source: "storage_items/complex_non_packed_enum",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: None,
+                results: TestCaseResults::Diagnostic(0),
+            }],
+        },
+        TestGroup {
+            source: "storage_items/complex_packed_struct",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: None,
+                results: TestCaseResults::Diagnostic(0),
+            }],
+        },
+        TestGroup {
+            source: "storage_items/complex_packed_enum",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: None,
+                results: TestCaseResults::Diagnostic(0),
+            }],
+        },
         // Trait definitions.
-        (
-            "trait_definitions/erc20_trait",
-            vec![
-                (None, 0),
-                (
-                    Some(vec![(
-                        Some("<-#[ink::trait_definition]"),
-                        Some("#[ink::trait_definition]"),
-                        "",
-                    )]),
-                    6, // 6 messages without a trait definition nor impl parent.
-                ),
-                (
-                    Some(
+        TestGroup {
+            source: "trait_definitions/erc20_trait",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: None,
+                    results: TestCaseResults::Diagnostic(0),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // 6 messages without a trait definition nor impl parent.
+                    results: TestCaseResults::Diagnostic(6),
+                },
+                TestCase {
+                    modifications: Some(
                         (1..=6)
-                            .map(|_| (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""))
+                            .map(|_| TestCaseModification {
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("#[ink(message)]"),
+                                replacement: "",
+                            })
                             .collect(),
                     ),
-                    7, // 1 trait level "missing message(s)", 6 method level "not a message" errors.
-                ),
+                    params: None,
+                    // 1 trait level "missing message(s)", 6 method level "not a message" errors.
+                    results: TestCaseResults::Diagnostic(7),
+                },
             ],
-        ),
-        (
-            "trait_definitions/flipper_trait",
-            vec![
-                (None, 0),
-                (
-                    Some(vec![(
-                        Some("<-#[ink::trait_definition]"),
-                        Some("#[ink::trait_definition]"),
-                        "",
-                    )]),
-                    2, // 2 messages without a trait definition nor impl parent.
-                ),
-                (
-                    Some(vec![
-                        (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""),
-                        (Some("<-#[ink(message)]"), Some("#[ink(message)]"), ""),
+        },
+        TestGroup {
+            source: "trait_definitions/flipper_trait",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: None,
+                    results: TestCaseResults::Diagnostic(0),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // 2 messages without a trait definition nor impl parent.
+                    results: TestCaseResults::Diagnostic(2),
+                },
+                TestCase {
+                    modifications: Some(vec![
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                            replacement: "",
+                        },
+                        TestCaseModification {
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                            replacement: "",
+                        },
                     ]),
-                    3, // 1 trait level "missing message(s)", 2 method level "not a message" errors.
-                ),
+                    params: None,
+                    // 1 trait level "missing message(s)", 2 method level "not a message" errors.
+                    results: TestCaseResults::Diagnostic(3),
+                },
             ],
-        ),
+        },
     ] {
         // Gets the original source code.
-        let original_code = test_utils::get_source_code(source);
+        let original_code = test_utils::get_source_code(test_group.source);
 
-        for (modifications, expected_results) in test_cases {
+        // Iterates over all test cases.
+        for test_case in test_group.test_cases {
             // Creates a copy of test code for this test case.
             let mut test_code = original_code.clone();
 
             // Applies test case modifications (if any).
-            if let Some(modifications) = modifications {
-                for (rep_start_pat, rep_end_pat, replacement) in modifications {
-                    let start_offset =
-                        test_utils::parse_offset_at(&test_code, rep_start_pat).unwrap();
-                    let end_offset = test_utils::parse_offset_at(&test_code, rep_end_pat).unwrap();
-                    test_code.replace_range(start_offset..end_offset, replacement);
-                }
+            if let Some(modifications) = test_case.modifications {
+                test_utils::apply_test_modifications(&mut test_code, &modifications);
             }
 
             // Runs diagnostics.
             let results = Analysis::new(&test_code).diagnostics();
 
-            // Verifies results.
+            // Verifies diagnostics results.
+            let expected_results = match test_case.results {
+                TestCaseResults::Diagnostic(it) => Some(it),
+                _ => None,
+            }
+            .unwrap();
             assert_eq!(results.len(), expected_results);
         }
     }

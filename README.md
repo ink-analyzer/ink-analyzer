@@ -30,7 +30,7 @@ It uses the [semantic analyzer](/crates/analyzer) as the engine for providing in
 - translating LSP requests into semantic analyzer interface calls.
 - translating semantic analysis results into corresponding LSP types.
 
-It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/latest/lsp_server/) crate to handle LSP protocol handshaking and parsing messages and the [lsp-types](https://docs.rs/lsp-types/latest/lsp_types/) crate for LSP type definitions.
+It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/latest/lsp_server/) crate to handle LSP protocol handshaking and parsing messages, and the [lsp-types](https://docs.rs/lsp-types/latest/lsp_types/) crate for LSP type definitions.
 
 Its compiled binary can be used with any [LSP client](https://microsoft.github.io/language-server-protocol/implementors/tools/) that can be configured to launch an LSP server using an executable command (i.e. the path to the `ink-lsp-server` binary) and can use stdio (standard in/standard out) as the message transport.
 

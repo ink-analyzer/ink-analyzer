@@ -89,6 +89,83 @@ fn offset_at(
     }
 }
 
+/// Describes a group of tests to run on a smart contract code in from source file.
+pub struct TestGroup {
+    /// Relative location of the source code in the `test_data` directory in the project root.
+    pub source: &'static str,
+    /// List of test cases.
+    pub test_cases: Vec<TestCase>,
+}
+
+/// Describes a single test case in a [`TestGroup`].
+pub struct TestCase {
+    /// List of modifications to perform on the original source before running the test.
+    pub modifications: Option<Vec<TestCaseModification>>,
+    /// Parameters used by the test case.
+    pub params: Option<TestCaseParams>,
+    /// Expected results for the test case.
+    pub results: TestCaseResults,
+}
+
+/// Describes a modification to perform on the original smart contract code.
+pub struct TestCaseModification {
+    /// Substring used to find the start offset for the code snippet to replace (see [`parse_offset_at`] doc).
+    pub start_pat: Option<&'static str>,
+    /// Substring used to find the end offset for the code snippet to replace (see [`parse_offset_at`] doc).
+    pub end_pat: Option<&'static str>,
+    /// Replacement snippet to be inserted in place of the code snippet covering the `start_pat` and `end_pat` offsets defined above.
+    pub replacement: &'static str,
+}
+
+/// Variants for [`TestCase`] parameters.
+pub enum TestCaseParams {
+    Completion(TestParamsOffsetOnly),
+    Action(TestParamsOffsetOnly),
+    Hover(TestParamsRangeOnly),
+}
+
+/// Variants for [`TestCase`] results.
+pub enum TestCaseResults {
+    // Expected number of diagnostic errors/warnings.
+    Diagnostic(usize),
+    Completion(Vec<TestResultTextRange>),
+    Action(Vec<TestResultTextRange>),
+    Hover(Option<TestResultTextRange>),
+}
+
+/// Test parameters for offset-based tests.
+pub struct TestParamsOffsetOnly {
+    /// Substring used to find the cursor offset parameter for the test case (see [`parse_offset_at`] doc).
+    pub offset_pat: Option<&'static str>,
+}
+
+/// Test parameters for text range based tests.
+pub struct TestParamsRangeOnly {
+    /// Substring used to find the start offset for the focus range (see [`parse_offset_at`] doc).
+    pub range_start_pat: Option<&'static str>,
+    /// Substring used to find the end offset for the focus range (see [`parse_offset_at`] doc).
+    pub range_end_pat: Option<&'static str>,
+}
+
+/// Describes the expected code/intent actions.
+pub struct TestResultTextRange {
+    /// Expected text.
+    pub text: &'static str,
+    /// Substring used to find the start of the action offset of the expected text (see [`parse_offset_at`] doc).
+    pub start_pat: Option<&'static str>,
+    /// Substring used to find the end of the action offset of the expected text (see [`parse_offset_at`] doc).
+    pub end_pat: Option<&'static str>,
+}
+
+/// Applies the test case modifications to the source code.
+pub fn apply_test_modifications(source_code: &mut String, modifications: &[TestCaseModification]) {
+    for modification in modifications {
+        let start_offset = parse_offset_at(source_code, modification.start_pat).unwrap();
+        let end_offset = parse_offset_at(source_code, modification.end_pat).unwrap();
+        source_code.replace_range(start_offset..end_offset, modification.replacement);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

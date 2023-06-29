@@ -2,6 +2,10 @@
 
 use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils;
+use test_utils::{
+    TestCase, TestCaseModification, TestCaseParams, TestCaseResults, TestGroup,
+    TestParamsRangeOnly, TestResultTextRange,
+};
 
 // The high-level methodology for hover content test cases is:
 // - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test_data/contracts/erc20.rs).
@@ -11,312 +15,357 @@ use test_utils;
 // See inline comments for mode details.
 #[test]
 fn hover_works() {
-    for (source, test_cases) in [
-        // Each item in this list has the following structure:
-        // (source, [Option<(rep_start_pat, rep_end_pat, replacement)>, (range_start_pat, range_end_pat), Option<(match, match_pat_start, match_pat_end)>]) where:
-        // source = location of the source code,
-        // rep_start_pat = substring used to find the start offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
-        // rep_end_pat = substring used to find the end offset for the replacement snippet (see `test_utils::parse_offset_at` doc),
-        // replacement = the replacement snippet that will inserted before tests are run on the modified source code,
-        // range_start_pat = substring used to find the start offset for the focus range (see `test_utils::parse_offset_at` doc),
-        // range_end_pat = substring used to find the end offset for the focus range (see `test_utils::parse_offset_at` doc),
-        // match = a substring that should exist in the expected hover content,
-        // match_pat_start = substring used to find the start of the hover match offset (see `test_utils::parse_offset_at` doc),
-        // match_pat_end = substring used to find the end of the hover match offset (see `test_utils::parse_offset_at` doc).
-        (
+    // Iterates over all test case groups.
+    for test_group in [
+        // Contracts.
+        TestGroup {
             // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
-            "contracts/erc20",
+            source: "contracts/erc20",
             // Defines test cases for the ink! entity file.
-            vec![
-                (
+            test_cases: vec![
+                TestCase {
                     // Makes no modifications to the source code.
-                    None,
+                    modifications: None,
                     // Sets the text range for the hover to span the whole `#[ink::contract]` substring.
-                    (Some("<-#[ink::contract]"), Some("#[ink::contract]")),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink::contract]"),
+                        range_end_pat: Some("#[ink::contract]"),
+                    })),
                     // Describes the expected hover content.
-                    Some((
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
                         // Expects the hover content to contain the substring "`#[ink::contract]`" and to highlight the text range whose
                         // starting offset is the position at the beginning of the `contract]` substring and
                         // end offset is the position at the end of the `#[ink::contract` substring.
-                        "`#[ink::contract]`",
-                        Some("<-contract]"),
-                        Some("#[ink::contract"),
-                    )),
-                ),
-                (
+                        text: "`#[ink::contract]`",
+                        start_pat: Some("<-contract]"),
+                        end_pat: Some("#[ink::contract"),
+                    })),
+                },
+                TestCase {
                     // Replaces `#[ink::contract]` with `#[ink::contract(env=MyEnvironment)]` in the source code.
-                    Some((
-                        Some("<-#[ink::contract]"),
-                        Some("#[ink::contract]"),
-                        "#[ink::contract(env=MyEnvironment)]",
-                    )),
-                    (Some("#[ink::contract("), Some("#[ink::contract(env")),
-                    Some((
-                        "`#[ink::contract(env = E: impl Environment)]`",
-                        Some("#[ink::contract("),
-                        Some("#[ink::contract(env"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink::contract]"),
-                        Some("#[ink::contract]"),
-                        r#"#[ink::contract(keep_attr="foo,bar")]"#,
-                    )),
-                    (Some("#[ink::contract("), Some("#[ink::contract(keep_attr")),
-                    Some((
-                        "`#[ink::contract(keep_attr = N: string)]`",
-                        Some("#[ink::contract("),
-                        Some("#[ink::contract(keep_attr"),
-                    )),
-                ),
-                (
-                    None,
-                    (Some("<-#[ink(storage)]"), Some("#[ink(storage)]")),
-                    Some((
-                        "`#[ink(storage)]`",
-                        Some("<-storage)]"),
-                        Some("#[ink(storage"),
-                    )),
-                ),
-                (
-                    None,
-                    (Some("<-#[ink(event)]"), Some("#[ink(event)]")),
-                    Some(("`#[ink(event)]`", Some("<-event)]"), Some("#[ink(event"))),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink(event)]"),
-                        Some("#[ink(event)]"),
-                        "#[ink(event, anonymous)]",
-                    )),
-                    (Some("#[ink(event, "), Some("#[ink(event, anonymous")),
-                    Some((
-                        "`#[ink(anonymous)]`",
-                        Some("#[ink(event, "),
-                        Some("#[ink(event, anonymous"),
-                    )),
-                ),
-                (
-                    None,
-                    (Some("<-#[ink(constructor)]"), Some("#[ink(constructor)]")),
-                    Some((
-                        "`#[ink(constructor)]`",
-                        Some("<-constructor)]"),
-                        Some("#[ink(constructor"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink(constructor)]"),
-                        Some("#[ink(constructor)]"),
-                        "#[ink(constructor, default)]",
-                    )),
-                    (
-                        Some("#[ink(constructor, "),
-                        Some("#[ink(constructor, default"),
-                    ),
-                    Some((
-                        "`#[ink(default)]`",
-                        Some("#[ink(constructor, "),
-                        Some("#[ink(constructor, default"),
-                    )),
-                ),
-                (
-                    None,
-                    (Some("<-#[ink(message)]"), Some("#[ink(message)]")),
-                    Some((
-                        "`#[ink(message)]`",
-                        Some("<-message)]"),
-                        Some("#[ink(message"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink(message)]"),
-                        Some("#[ink(message)]"),
-                        "#[ink(message, selector=_)]",
-                    )),
-                    (Some("#[ink(message, "), Some("#[ink(message, selector")),
-                    Some((
-                        "`#[ink(selector = S: u32 | _)]`",
-                        Some("#[ink(message, "),
-                        Some("#[ink(message, selector"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink(message)]"),
-                        Some("#[ink(message)]"),
-                        "#[ink(message, selector=1)]",
-                    )),
-                    (Some("#[ink(message, "), Some("#[ink(message, selector")),
-                    Some((
-                        "`#[ink(selector = S: u32 | _)]`",
-                        Some("#[ink(message, "),
-                        Some("#[ink(message, selector"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink(message)]"),
-                        Some("#[ink(message)]"),
-                        "#[ink(message, selector=0xA)]",
-                    )),
-                    (Some("#[ink(message, "), Some("#[ink(message, selector")),
-                    Some((
-                        "`#[ink(selector = S: u32 | _)]`",
-                        Some("#[ink(message, "),
-                        Some("#[ink(message, selector"),
-                    )),
-                ),
-                (
-                    None,
-                    (Some("<-#[ink::test]"), Some("#[ink::test]")),
-                    Some(("`#[ink::test]`", Some("<-test]"), Some("#[ink::test"))),
-                ),
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                        replacement: "#[ink::contract(env=MyEnvironment)]",
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink::contract("),
+                        range_end_pat: Some("#[ink::contract(env"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::contract(env = E: impl Environment)]`",
+                        start_pat: Some("#[ink::contract("),
+                        end_pat: Some("#[ink::contract(env"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                        replacement: r#"#[ink::contract(keep_attr="foo,bar")]"#,
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink::contract("),
+                        range_end_pat: Some("#[ink::contract(keep_attr"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::contract(keep_attr = N: string)]`",
+                        start_pat: Some("#[ink::contract("),
+                        end_pat: Some("#[ink::contract(keep_attr"),
+                    })),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink(storage)]"),
+                        range_end_pat: Some("#[ink(storage)]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(storage)]`",
+                        start_pat: Some("<-storage)]"),
+                        end_pat: Some("#[ink(storage"),
+                    })),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink(event)]"),
+                        range_end_pat: Some("#[ink(event)]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(event)]`",
+                        start_pat: Some("<-event)]"),
+                        end_pat: Some("#[ink(event"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("#[ink(event)]"),
+                        replacement: "#[ink(event, anonymous)]",
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink(event, "),
+                        range_end_pat: Some("#[ink(event, anonymous"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(anonymous)]`",
+                        start_pat: Some("#[ink(event, "),
+                        end_pat: Some("#[ink(event, anonymous"),
+                    })),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink(constructor)]"),
+                        range_end_pat: Some("#[ink(constructor)]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(constructor)]`",
+                        start_pat: Some("<-constructor)]"),
+                        end_pat: Some("#[ink(constructor"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("#[ink(constructor)]"),
+                        replacement: "#[ink(constructor, default)]",
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink(constructor, "),
+                        range_end_pat: Some("#[ink(constructor, default"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(default)]`",
+                        start_pat: Some("#[ink(constructor, "),
+                        end_pat: Some("#[ink(constructor, default"),
+                    })),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink(message)]"),
+                        range_end_pat: Some("#[ink(message)]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(message)]`",
+                        start_pat: Some("<-message)]"),
+                        end_pat: Some("#[ink(message"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("#[ink(message)]"),
+                        replacement: "#[ink(message, selector=_)]",
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink(message, "),
+                        range_end_pat: Some("#[ink(message, selector"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(selector = S: u32 | _)]`",
+                        start_pat: Some("#[ink(message, "),
+                        end_pat: Some("#[ink(message, selector"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("#[ink(message)]"),
+                        replacement: "#[ink(message, selector=1)]",
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink(message, "),
+                        range_end_pat: Some("#[ink(message, selector"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(selector = S: u32 | _)]`",
+                        start_pat: Some("#[ink(message, "),
+                        end_pat: Some("#[ink(message, selector"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("#[ink(message)]"),
+                        replacement: "#[ink(message, selector=0xA)]",
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink(message, "),
+                        range_end_pat: Some("#[ink(message, selector"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(selector = S: u32 | _)]`",
+                        start_pat: Some("#[ink(message, "),
+                        end_pat: Some("#[ink(message, selector"),
+                    })),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink::test]"),
+                        range_end_pat: Some("#[ink::test]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::test]`",
+                        start_pat: Some("<-test]"),
+                        end_pat: Some("#[ink::test"),
+                    })),
+                },
             ],
-        ),
-        (
-            "trait_definitions/erc20_trait",
-            vec![
-                (
-                    None,
-                    (
-                        Some("<-#[ink::trait_definition]"),
-                        Some("#[ink::trait_definition]"),
-                    ),
-                    Some((
-                        "`#[ink::trait_definition]`",
-                        Some("<-trait_definition]"),
-                        Some("#[ink::trait_definition"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink::trait_definition]"),
-                        Some("#[ink::trait_definition]"),
-                        r#"#[ink::trait_definition(keep_attr="foo,bar")]"#,
-                    )),
-                    (
-                        Some("#[ink::trait_definition("),
-                        Some("#[ink::trait_definition(keep_attr"),
-                    ),
-                    Some((
-                        "`#[ink::trait_definition(keep_attr = N: string)]`",
-                        Some("#[ink::trait_definition("),
-                        Some("#[ink::trait_definition(keep_attr"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink::trait_definition]"),
-                        Some("#[ink::trait_definition]"),
-                        r#"#[ink::trait_definition(namespace="my_namespace")]"#,
-                    )),
-                    (
-                        Some("#[ink::trait_definition("),
-                        Some("#[ink::trait_definition(namespace"),
-                    ),
-                    Some((
-                        "`#[ink::trait_definition(namespace = N: string)]`",
-                        Some("#[ink::trait_definition("),
-                        Some("#[ink::trait_definition(namespace"),
-                    )),
-                ),
+        },
+        // Trait definitions.
+        TestGroup {
+            source: "trait_definitions/erc20_trait",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink::trait_definition]"),
+                        range_end_pat: Some("#[ink::trait_definition]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::trait_definition]`",
+                        start_pat: Some("<-trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition]"),
+                        replacement: r#"#[ink::trait_definition(keep_attr="foo,bar")]"#,
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink::trait_definition("),
+                        range_end_pat: Some("#[ink::trait_definition(keep_attr"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::trait_definition(keep_attr = N: string)]`",
+                        start_pat: Some("#[ink::trait_definition("),
+                        end_pat: Some("#[ink::trait_definition(keep_attr"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition]"),
+                        replacement: r#"#[ink::trait_definition(namespace="my_namespace")]"#,
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink::trait_definition("),
+                        range_end_pat: Some("#[ink::trait_definition(namespace"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::trait_definition(namespace = N: string)]`",
+                        start_pat: Some("#[ink::trait_definition("),
+                        end_pat: Some("#[ink::trait_definition(namespace"),
+                    })),
+                },
             ],
-        ),
-        (
-            "chain_extensions/psp22_extension",
-            vec![
-                (
-                    None,
-                    (
-                        Some("<-#[ink::chain_extension]"),
-                        Some("#[ink::chain_extension]"),
-                    ),
-                    Some((
-                        "`#[ink::chain_extension]`",
-                        Some("<-chain_extension]"),
-                        Some("#[ink::chain_extension"),
-                    )),
-                ),
-                (
-                    None,
-                    (
-                        Some("<-#[ink(extension = 0x3d26)]"),
-                        Some("#[ink(extension = 0x3d26)]"),
-                    ),
-                    Some((
-                        "`#[ink(extension = N: u32)]`",
-                        Some("<-extension = 0x3d26)]"),
-                        Some("#[ink(extension"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink(extension = 0x3d26)]"),
-                        Some("#[ink(extension = 0x3d26)]"),
-                        "#[ink(extension = 0x3d26, handle_status=true)]",
-                    )),
-                    (
-                        Some("#[ink(extension = 0x3d26, "),
-                        Some("#[ink(extension = 0x3d26, handle_status"),
-                    ),
-                    Some((
-                        "`#[ink(handle_status = flag: bool)]`",
-                        Some("#[ink(extension = 0x3d26, "),
-                        Some("#[ink(extension = 0x3d26, handle_status"),
-                    )),
-                ),
+        },
+        // Chain extensions.
+        TestGroup {
+            source: "chain_extensions/psp22_extension",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink::chain_extension]"),
+                        range_end_pat: Some("#[ink::chain_extension]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::chain_extension]`",
+                        start_pat: Some("<-chain_extension]"),
+                        end_pat: Some("#[ink::chain_extension"),
+                    })),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink(extension = 0x3d26)]"),
+                        range_end_pat: Some("#[ink(extension = 0x3d26)]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(extension = N: u32)]`",
+                        start_pat: Some("<-extension = 0x3d26)]"),
+                        end_pat: Some("#[ink(extension"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(extension = 0x3d26)]"),
+                        end_pat: Some("#[ink(extension = 0x3d26)]"),
+                        replacement: "#[ink(extension = 0x3d26, handle_status=true)]",
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink(extension = 0x3d26, "),
+                        range_end_pat: Some("#[ink(extension = 0x3d26, handle_status"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink(handle_status = flag: bool)]`",
+                        start_pat: Some("#[ink(extension = 0x3d26, "),
+                        end_pat: Some("#[ink(extension = 0x3d26, handle_status"),
+                    })),
+                },
             ],
-        ),
-        (
-            "storage_items/non_packed_tuple_struct",
-            vec![
-                (
-                    None,
-                    (Some("<-#[ink::storage_item]"), Some("#[ink::storage_item]")),
-                    Some((
-                        "`#[ink::storage_item]`",
-                        Some("<-storage_item]"),
-                        Some("#[ink::storage_item"),
-                    )),
-                ),
-                (
-                    Some((
-                        Some("<-#[ink::storage_item]"),
-                        Some("#[ink::storage_item]"),
-                        r#"#[ink::storage_item(derive=false)]"#,
-                    )),
-                    (
-                        Some("#[ink::storage_item("),
-                        Some("#[ink::storage_item(derive"),
-                    ),
-                    Some((
-                        "`#[ink::storage_item(derive = flag: bool)]`",
-                        Some("#[ink::storage_item("),
-                        Some("#[ink::storage_item(derive"),
-                    )),
-                ),
+        },
+        // Storage items.
+        TestGroup {
+            source: "storage_items/non_packed_tuple_struct",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink::storage_item]"),
+                        range_end_pat: Some("#[ink::storage_item]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::storage_item]`",
+                        start_pat: Some("<-storage_item]"),
+                        end_pat: Some("#[ink::storage_item"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::storage_item]"),
+                        end_pat: Some("#[ink::storage_item]"),
+                        replacement: r#"#[ink::storage_item(derive=false)]"#,
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink::storage_item("),
+                        range_end_pat: Some("#[ink::storage_item(derive"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink::storage_item(derive = flag: bool)]`",
+                        start_pat: Some("#[ink::storage_item("),
+                        end_pat: Some("#[ink::storage_item(derive"),
+                    })),
+                },
             ],
-        ),
+        },
     ] {
         // Gets the original source code.
-        let original_code = test_utils::get_source_code(source);
+        let original_code = test_utils::get_source_code(test_group.source);
 
-        for (modifications, (range_start_pat, range_end_pat), expected_results) in test_cases {
+        // Iterates over all test cases.
+        for test_case in test_group.test_cases {
             // Creates a copy of test code for this test case.
             let mut test_code = original_code.clone();
 
             // Applies test case modifications (if any).
-            if let Some((rep_start_pat, rep_end_pat, replacement)) = modifications {
-                let start_offset = test_utils::parse_offset_at(&test_code, rep_start_pat).unwrap();
-                let end_offset = test_utils::parse_offset_at(&test_code, rep_end_pat).unwrap();
-                test_code.replace_range(start_offset..end_offset, replacement);
+            if let Some(modifications) = test_case.modifications {
+                test_utils::apply_test_modifications(&mut test_code, &modifications);
             }
 
             // Sets the focus range.
+            let (range_start_pat, range_end_pat) = match test_case.params.unwrap() {
+                TestCaseParams::Hover(it) => Some((it.range_start_pat, it.range_end_pat)),
+                _ => None,
+            }
+            .unwrap();
             let range = TextRange::new(
                 TextSize::from(
                     test_utils::parse_offset_at(&test_code, range_start_pat).unwrap() as u32,
@@ -330,11 +379,16 @@ fn hover_works() {
             let results = Analysis::new(&test_code).hover(range);
 
             // Verifies hover content.
+            let expected_results = match test_case.results {
+                TestCaseResults::Hover(it) => Some(it),
+                _ => None,
+            }
+            .unwrap();
             assert_eq!(
                 results.is_some(),
                 expected_results.is_some(),
                 "source: {}",
-                source
+                test_group.source
             );
             if results.is_some() {
                 assert!(
@@ -342,19 +396,23 @@ fn hover_works() {
                         .as_ref()
                         .unwrap()
                         .content
-                        .contains(expected_results.unwrap().0),
+                        .contains(expected_results.as_ref().unwrap().text),
                     "source: {}",
-                    source
+                    test_group.source
                 );
             }
             assert_eq!(
                 results.as_ref().map(|action| action.range),
-                expected_results.map(|(_, pat_start, pat_end)| TextRange::new(
-                    TextSize::from(test_utils::parse_offset_at(&test_code, pat_start).unwrap() as u32),
-                    TextSize::from(test_utils::parse_offset_at(&test_code, pat_end).unwrap() as u32),
+                expected_results.map(|result| TextRange::new(
+                    TextSize::from(
+                        test_utils::parse_offset_at(&test_code, result.start_pat).unwrap() as u32
+                    ),
+                    TextSize::from(
+                        test_utils::parse_offset_at(&test_code, result.end_pat).unwrap() as u32
+                    ),
                 )),
                 "source: {}",
-                source
+                test_group.source
             );
         }
     }
