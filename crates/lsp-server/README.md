@@ -37,7 +37,7 @@ Copy the compiled binary (named `ink-lsp-server`) from the `target/release` dire
 
 The installed ink! Analyzer binary can be used with any [LSP client](https://microsoft.github.io/language-server-protocol/implementors/tools/) that can be configured to launch an LSP server using an executable command (i.e. the path to the `ink-lsp-server` binary) and can use stdio (standard in/standard out) as the message transport.
 
-While LSP clients can be built into editors/IDEs (e.g. [Neovim](https://neovim.io/doc/user/lsp.html)), they're typically [plugins/extensions for editors/IDEs](https://microsoft.github.io/language-server-protocol/implementors/tools/).
+While a few editors/IDEs have native/built-in LSP clients (e.g. [Neovim](https://neovim.io/doc/user/lsp.html)), [most LSP clients are plugins/extensions for editors/IDEs](https://microsoft.github.io/language-server-protocol/implementors/tools/).
 
 ## Documentation
 
