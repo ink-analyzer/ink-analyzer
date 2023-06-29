@@ -49,7 +49,7 @@ pub fn main_loop(
     Ok(())
 }
 
-/// A stateful type for dispatching LSP requests and notifications
+/// A stateful type for dispatching LSP requests and notifications.
 struct Dispatcher<'a> {
     sender: &'a Sender<lsp_server::Message>,
     client_capabilities: lsp_types::ClientCapabilities,
