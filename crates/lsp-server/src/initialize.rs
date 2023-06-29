@@ -2,7 +2,7 @@
 
 use crate::translator;
 
-/// Initializes the LSP server.
+/// Implements LSP server initialization.
 ///
 /// Ref: <https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initialize>.
 pub fn initialize(

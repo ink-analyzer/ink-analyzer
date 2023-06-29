@@ -10,26 +10,34 @@ It uses the [semantic analyzer](/crates/analyzer) as the engine for providing in
 
 It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/latest/lsp_server/) crate to handle LSP protocol handshaking and parsing messages and the [lsp-types](https://docs.rs/lsp-types/latest/lsp_types/) crate for LSP type definitions.
 
-It can be reused by multiple IDEs, code editors and other development tools that support LSP servers including [Visual Studio Code, Visual Studio, Vim / Neovim, Emacs, Atom, Sublime Text, Acme, Lapce, Eclipse and many more](https://microsoft.github.io/language-server-protocol/implementors/tools/).
-
 **NOTE:** 🚧 This project is still work in progress, check back over the next few weeks for regular updates.
 
 ## Installation
 
-Run the following Cargo command in your project directory
+### Option 1: Cargo (via crates.io)
+
+Run
 
 ```shell
 cargo install ink-lsp-server
 ```
 
+### Option 2: Building from source
+
+Run
+```shell
+git clone https://github.com/ink-analyzer/ink-analyzer.git
+cd ink-analyzer
+cargo build -p ink-lsp-server --release
+```
+
+Copy the compiled binary (named `ink-lsp-server`) from the `target/release` to your preferred installation location, make sure the binary is executable and make sure the installation location is included in the `PATH` environment variable.
+
 ## Usage
 
-### Example:
-Making an LSP request.
+The installed ink! Analyzer binary can be used with any [LSP client](https://microsoft.github.io/language-server-protocol/implementors/tools/) that can be configured to launch an LSP server using an executable command (i.e. the path to the `ink-lsp-server` binary) and can use stdio (standard in/standard out) as the message transport.
 
-```shell
-
-```
+While LSP clients can be built into editors/IDEs (e.g. [Neovim](https://neovim.io/doc/user/lsp.html)), they're typically plugins/extensions for editors/IDEs.
 
 ## Documentation
 
