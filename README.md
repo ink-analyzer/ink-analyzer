@@ -8,7 +8,7 @@ ink! analyzer aims to improve [ink!](https://use.ink/) language support in [inte
 
 ## Architecture
 
-This repository contains 3 main crates:
+This repository contains 4 main crates:
 
 ### 1. [Semantic Analyzer (ink-analyzer)](/crates/analyzer)
 
