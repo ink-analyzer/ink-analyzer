@@ -14,7 +14,7 @@ It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/lat
 
 ## Installation
 
-### Option 1: Cargo (via crates.io)
+### Option 1: Cargo (via [crates.io](https://crates.io/crates/ink-lsp-server))
 
 Run
 
@@ -31,13 +31,13 @@ cd ink-analyzer
 cargo build -p ink-lsp-server --release
 ```
 
-Copy the compiled binary (named `ink-lsp-server`) from the `target/release` to your preferred installation location, make sure the binary is executable and make sure the installation location is included in the `PATH` environment variable.
+Copy the compiled binary (named `ink-lsp-server`) from the `target/release` directory to your preferred installation location, make sure the binary is executable and make sure the installation location is included in the `PATH` environment variable.
 
 ## Usage
 
 The installed ink! Analyzer binary can be used with any [LSP client](https://microsoft.github.io/language-server-protocol/implementors/tools/) that can be configured to launch an LSP server using an executable command (i.e. the path to the `ink-lsp-server` binary) and can use stdio (standard in/standard out) as the message transport.
 
-While LSP clients can be built into editors/IDEs (e.g. [Neovim](https://neovim.io/doc/user/lsp.html)), they're typically plugins/extensions for editors/IDEs.
+While LSP clients can be built into editors/IDEs (e.g. [Neovim](https://neovim.io/doc/user/lsp.html)), they're typically [plugins/extensions for editors/IDEs](https://microsoft.github.io/language-server-protocol/implementors/tools/).
 
 ## Documentation
 
