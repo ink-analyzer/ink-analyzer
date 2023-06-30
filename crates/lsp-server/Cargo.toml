@@ -14,6 +14,7 @@ categories = ["development-tools"]
 
 [dependencies]
 anyhow = "1.0.71"
+clap = { version = "4.3.10", features = ["derive"] }
 crossbeam-channel = "0.5.8"
 ink-analyzer = { version = "0.6", path = "../analyzer" }
 line-index = "0.1.0-pre.1"

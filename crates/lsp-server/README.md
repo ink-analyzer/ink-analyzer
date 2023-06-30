@@ -41,9 +41,24 @@ While a few editors/IDEs have native/built-in LSP clients (e.g. [Neovim](https:/
 
 ## Documentation
 
+### Binary Documentation
+
+`ink-lsp-server` binary help text.
+```console
+Language Server Protocol (LSP) implementation for the ink! smart contract programming language.
+
+Usage: ink-lsp-server
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+### Library Documentation
+
 [https://docs.rs/ink-lsp-server/latest/ink_lsp_server/](https://docs.rs/ink-lsp-server/latest/ink_lsp_server/)
 
-Or you can access documentation locally by running the following command from the project root
+Or you can access the library documentation locally by running the following command from the project root
 
 ```shell
 cargo doc -p ink-lsp-server --open
