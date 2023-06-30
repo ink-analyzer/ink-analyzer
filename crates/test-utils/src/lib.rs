@@ -3,6 +3,8 @@
 use std::cmp;
 use std::fs;
 
+pub mod fixtures;
+
 /// Quasi-quotation macro that accepts input like the `quote!` macro
 /// but returns a string slice (`&str`) instead of a `TokenStream`.
 #[macro_export]
@@ -89,9 +91,9 @@ fn offset_at(
     }
 }
 
-/// Describes a group of tests to run on a smart contract code in from source file.
+/// Describes a group of tests to run on a smart contract code from a source file.
 pub struct TestGroup {
-    /// Relative location of the source code in the `test_data` directory in the project root.
+    /// Location of the smart code (e.g. in the `test_data` directory in the project root).
     pub source: &'static str,
     /// List of test cases.
     pub test_cases: Vec<TestCase>,
