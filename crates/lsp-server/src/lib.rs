@@ -6,4 +6,4 @@ mod dispatch;
 mod initialize;
 mod memory;
 mod test_utils;
-mod translator;
+pub mod translator;
