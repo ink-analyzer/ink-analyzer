@@ -4,8 +4,8 @@ use ink_analyzer::Analysis;
 use line_index::LineIndex;
 
 use crate::memory::Memory;
-use crate::translator;
 use crate::translator::PositionTranslationContext;
+use crate::{translator, utils};
 
 /// Handles completion request.
 pub fn handle_completion(
@@ -19,7 +19,7 @@ pub fn handle_completion(
         Some(doc) => {
             // Composes translation context.
             let translation_context = PositionTranslationContext {
-                encoding: translator::position_encoding(client_capabilities),
+                encoding: utils::position_encoding(client_capabilities),
                 line_index: LineIndex::new(&doc.content),
             };
 
@@ -69,7 +69,7 @@ pub fn handle_hover(
         Some(doc) => {
             // Composes translation context.
             let translation_context = PositionTranslationContext {
-                encoding: translator::position_encoding(client_capabilities),
+                encoding: utils::position_encoding(client_capabilities),
                 line_index: LineIndex::new(&doc.content),
             };
 
@@ -103,7 +103,7 @@ pub fn handle_code_action(
         Some(doc) => {
             // Composes translation context.
             let translation_context = PositionTranslationContext {
-                encoding: translator::position_encoding(client_capabilities),
+                encoding: utils::position_encoding(client_capabilities),
                 line_index: LineIndex::new(&doc.content),
             };
 

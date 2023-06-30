@@ -5,8 +5,8 @@ use line_index::LineIndex;
 use std::collections::HashSet;
 
 use crate::memory::Memory;
-use crate::translator;
 use crate::translator::PositionTranslationContext;
+use crate::{translator, utils};
 
 /// Composes `PublishDiagnostics` notification parameters for a set of documents with changes.
 pub fn publish_diagnostics(
@@ -31,7 +31,7 @@ pub fn publish_diagnostics(
 
             // Composes translation context.
             let translation_context = line_index.map(|line_index| PositionTranslationContext {
-                encoding: translator::position_encoding(client_capabilities),
+                encoding: utils::position_encoding(client_capabilities),
                 line_index,
             });
 

@@ -1,6 +1,6 @@
 //! LSP Server [initialization](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initialize) implementation.
 
-use crate::translator;
+use crate::utils;
 
 /// Implements LSP server initialization.
 ///
@@ -40,7 +40,7 @@ pub fn server_capabilities(
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> lsp_types::ServerCapabilities {
     lsp_types::ServerCapabilities {
-        position_encoding: Some(translator::position_encoding(client_capabilities)),
+        position_encoding: Some(utils::position_encoding(client_capabilities)),
         text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Options(
             lsp_types::TextDocumentSyncOptions {
                 open_close: Some(true),
@@ -66,7 +66,7 @@ pub fn server_capabilities(
             work_done_progress_options: Default::default(),
             completion_item: Default::default(),
         }),
-        code_action_provider: Some(translator::code_actions_kinds(client_capabilities).map_or(
+        code_action_provider: Some(utils::code_actions_kinds(client_capabilities).map_or(
             lsp_types::CodeActionProviderCapability::Simple(true),
             |code_action_kinds| {
                 lsp_types::CodeActionProviderCapability::Options(lsp_types::CodeActionOptions {
