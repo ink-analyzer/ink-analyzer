@@ -9,7 +9,7 @@ authors = ["David Semakula <hello@davidsemakula.com>"]
 readme = "README.md"
 repository = "https://github.com/ink-analyzer/ink-analyzer"
 homepage = "https://github.com/ink-analyzer/ink-analyzer"
-keywords = ["ink", "smart-contract", "polkadot", "substrate", "blockchain", "lsp"]
+keywords = ["ink", "smart-contract", "polkadot", "blockchain", "lsp"]
 categories = ["development-tools"]
 
 [dependencies]
