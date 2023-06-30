@@ -21,6 +21,13 @@ pub fn get_source_code(location: &str) -> String {
     fs::read_to_string(format!("../../test_data/{location}.rs")).unwrap()
 }
 
+/// Creates an LSP URI for a file in the `test_data` directory.
+///
+/// `location` is the relative path of the source file minus the `.rs` extension.
+pub fn get_source_uri(location: &str) -> lsp_types::Url {
+    lsp_types::Url::from_file_path(format!("/test_data/{}.rs", location)).unwrap()
+}
+
 /// Returns the offset of `pat` in `subject`.
 ///
 /// offset is placed at the end of `pat` in `subject` by default,
@@ -91,7 +98,22 @@ fn offset_at(
     }
 }
 
+/// Returns client capabilities with support for UTF-8 position encoding.
+pub fn simple_client_config() -> lsp_types::ClientCapabilities {
+    lsp_types::ClientCapabilities {
+        general: Some(lsp_types::GeneralClientCapabilities {
+            position_encodings: Some(vec![
+                lsp_types::PositionEncodingKind::UTF8,
+                lsp_types::PositionEncodingKind::UTF16,
+            ]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
 /// Describes a group of tests to run on a smart contract code from a source file.
+#[derive(Debug)]
 pub struct TestGroup {
     /// Location of the smart code (e.g. in the `test_data` directory in the project root).
     pub source: &'static str,
@@ -100,6 +122,7 @@ pub struct TestGroup {
 }
 
 /// Describes a single test case in a [`TestGroup`].
+#[derive(Debug)]
 pub struct TestCase {
     /// List of modifications to perform on the original source before running the test.
     pub modifications: Option<Vec<TestCaseModification>>,
@@ -110,6 +133,7 @@ pub struct TestCase {
 }
 
 /// Describes a modification to perform on the original smart contract code.
+#[derive(Debug)]
 pub struct TestCaseModification {
     /// Substring used to find the start offset for the code snippet to replace (see [`parse_offset_at`] doc).
     pub start_pat: Option<&'static str>,
@@ -120,6 +144,7 @@ pub struct TestCaseModification {
 }
 
 /// Variants for [`TestCase`] parameters.
+#[derive(Debug)]
 pub enum TestCaseParams {
     Completion(TestParamsOffsetOnly),
     Action(TestParamsOffsetOnly),
@@ -127,6 +152,7 @@ pub enum TestCaseParams {
 }
 
 /// Variants for [`TestCase`] results.
+#[derive(Debug)]
 pub enum TestCaseResults {
     // Expected number of diagnostic errors/warnings.
     Diagnostic(usize),
@@ -136,12 +162,14 @@ pub enum TestCaseResults {
 }
 
 /// Test parameters for offset-based tests.
+#[derive(Debug)]
 pub struct TestParamsOffsetOnly {
     /// Substring used to find the cursor offset parameter for the test case (see [`parse_offset_at`] doc).
     pub offset_pat: Option<&'static str>,
 }
 
 /// Test parameters for text range based tests.
+#[derive(Debug)]
 pub struct TestParamsRangeOnly {
     /// Substring used to find the start offset for the focus range (see [`parse_offset_at`] doc).
     pub range_start_pat: Option<&'static str>,
@@ -150,6 +178,7 @@ pub struct TestParamsRangeOnly {
 }
 
 /// Describes the expected code/intent actions.
+#[derive(Debug)]
 pub struct TestResultTextRange {
     /// Expected text.
     pub text: &'static str,
@@ -166,6 +195,47 @@ pub fn apply_test_modifications(source_code: &mut String, modifications: &[TestC
         let end_offset = parse_offset_at(source_code, modification.end_pat).unwrap();
         source_code.replace_range(start_offset..end_offset, modification.replacement);
     }
+}
+
+/// Sends an LSP `DidOpenTextDocument` or `DidChangeTextDocument` notification depending on the value of `version`.
+pub fn versioned_document_sync_notification(
+    uri: lsp_types::Url,
+    test_code: String,
+    version: i32,
+    sender: &crossbeam_channel::Sender<lsp_server::Message>,
+) {
+    // Creates `DidOpenTextDocument` or `DidChangeTextDocument` notification depending on the current value of `version`.
+    use lsp_types::notification::Notification;
+    let not = match version {
+        // Creates `DidOpenTextDocument` notification if version is zero.
+        0 => lsp_server::Notification {
+            method: lsp_types::notification::DidOpenTextDocument::METHOD.to_string(),
+            params: serde_json::to_value(lsp_types::DidOpenTextDocumentParams {
+                text_document: lsp_types::TextDocumentItem {
+                    uri,
+                    language_id: "rust".to_string(),
+                    version,
+                    text: test_code,
+                },
+            })
+            .unwrap(),
+        },
+        // Creates `DidChangeTextDocument` notification if version is greater than zero.
+        _ => lsp_server::Notification {
+            method: lsp_types::notification::DidChangeTextDocument::METHOD.to_string(),
+            params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
+                text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
+                content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: test_code,
+                }],
+            })
+            .unwrap(),
+        },
+    };
+    // Sends the `DidOpenTextDocument` or `DidChangeTextDocument` notification.
+    sender.send(not.into()).unwrap();
 }
 
 #[cfg(test)]
@@ -341,3 +411,4 @@ mod tests {
         }
     }
 }
+

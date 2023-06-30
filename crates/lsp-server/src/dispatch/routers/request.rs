@@ -109,7 +109,8 @@ impl<'a> RequestRouter<'a> {
 mod tests {
     use super::*;
     use crate::dispatch::handlers;
-    use crate::test_utils::{document, simple_client_config};
+    use crate::test_utils::document;
+    use test_utils::simple_client_config;
 
     #[test]
     fn request_router_works() {

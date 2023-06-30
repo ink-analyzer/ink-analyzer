@@ -57,7 +57,8 @@ pub fn publish_diagnostics(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{document, simple_client_config};
+    use crate::test_utils::document;
+    use test_utils::simple_client_config;
 
     #[test]
     fn publish_diagnostics_works() {

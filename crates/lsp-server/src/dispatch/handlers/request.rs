@@ -131,7 +131,8 @@ pub fn handle_code_action(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{document, simple_client_config};
+    use crate::test_utils::document;
+    use test_utils::simple_client_config;
 
     #[test]
     fn handle_completion_works() {

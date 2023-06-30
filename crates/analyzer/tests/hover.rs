@@ -69,7 +69,7 @@ fn hover_works() {
                 );
             }
             assert_eq!(
-                results.as_ref().map(|action| action.range),
+                results.as_ref().map(|hover| hover.range),
                 expected_results.map(|result| TextRange::new(
                     TextSize::from(
                         test_utils::parse_offset_at(&test_code, result.start_pat).unwrap() as u32

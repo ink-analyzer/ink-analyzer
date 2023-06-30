@@ -160,8 +160,9 @@ impl<'a> Dispatcher<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{document_uri, simple_client_config};
+    use crate::test_utils::document_uri;
     use std::thread;
+    use test_utils::simple_client_config;
 
     #[test]
     fn main_loop_and_dispatcher_works() {
