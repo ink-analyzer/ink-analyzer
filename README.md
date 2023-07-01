@@ -58,14 +58,14 @@ This crate implements procedural macros used primarily by the [ink-analyzer-ir](
 
 Check the readme of each crate for installation and usage instructions and links to documentation.
 
-- Analyzer: [/crates/analyzer](/crates/analyzer)
+- Semantic Analyzer: [/crates/analyzer](/crates/analyzer)
 - Language Server: [/crates/lsp-server](/crates/lsp-server)
 - IR: [/crates/ir](/crates/ir)
 - Proc-macros: [/crates/macro](/crates/macro)
 
 ## Documentation
 
-- Analyzer: [https://docs.rs/ink-analyzer/latest/ink_analyzer/](https://docs.rs/ink-analyzer/latest/ink_analyzer/)
+- Semantic Analyzer: [https://docs.rs/ink-analyzer/latest/ink_analyzer/](https://docs.rs/ink-analyzer/latest/ink_analyzer/)
 - Language Server: [https://docs.rs/ink-lsp-server/latest/ink_lsp_server/](https://docs.rs/ink-lsp-server/latest/ink_lsp_server/)
 - IR: [https://docs.rs/ink-analyzer-ir/latest/ink_analyzer_ir/](https://docs.rs/ink-analyzer-ir/latest/ink_analyzer_ir/)
 - Proc-macros: [https://docs.rs/ink-analyzer-macro/latest/ink_analyzer_macro/](https://docs.rs/ink-analyzer-macro/latest/ink_analyzer_macro/)
