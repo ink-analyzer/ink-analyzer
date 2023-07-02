@@ -4,14 +4,14 @@ use serde::de::DeserializeOwned;
 
 use crate::memory::Memory;
 
-/// A chainable type for routing LSP notifications to appropriate handlers.
+/// Chainable type for routing LSP notifications to appropriate handlers.
 pub struct NotificationRouter<'a> {
     not: Option<lsp_server::Notification>,
     memory: &'a mut Memory,
 }
 
 impl<'a> NotificationRouter<'a> {
-    /// Creates a router for a notification.
+    /// Creates router for a notification.
     pub fn new(req: lsp_server::Notification, memory: &'a mut Memory) -> Self {
         Self {
             not: Some(req),
@@ -19,7 +19,7 @@ impl<'a> NotificationRouter<'a> {
         }
     }
 
-    /// Routes the notification (if hasn't been consumed yet) through a handler based on the notification method.
+    /// Routes the notification (if it hasn't been consumed yet) through a handler based on the notification method.
     pub fn process<N>(
         &mut self,
         handler: fn(N::Params, &mut Memory) -> anyhow::Result<()>,
@@ -113,7 +113,7 @@ mod tests {
         assert!(result.unwrap());
 
         // Processes `DidOpenTextDocument` notification through a notification router with NO `DidOpenTextDocument` notification handler
-        // and verifies that the notification is not processed but is error free
+        // and verifies that the notification is not processed but the router is error free
         // (i.e all `router.process` calls return `Ok` results and `router.finish` returns false).
         let mut router = NotificationRouter::new(not.clone(), &mut memory);
         let result: anyhow::Result<bool> = (|| {

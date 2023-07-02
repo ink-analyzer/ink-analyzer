@@ -79,7 +79,7 @@ mod tests {
             &mut memory,
         );
 
-        // Retrieves changes and convert ids to LSP urls.
+        // Retrieves changes and convert ids to LSP URIs.
         let changes = memory
             .take_changes()
             .unwrap()
@@ -93,7 +93,7 @@ mod tests {
         assert!(result.as_ref().unwrap().is_some());
         let params = &result.as_ref().unwrap().as_ref().unwrap()[0];
         assert_eq!(&params.uri, &uri);
-        // 3 Expected diagnostics for missing storage, constructor and message respectively.
+        // 3 Expected diagnostics for missing storage, constructor and message.
         assert_eq!(params.diagnostics.len(), 3);
     }
 }

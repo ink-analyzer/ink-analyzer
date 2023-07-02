@@ -124,7 +124,7 @@ mod tests {
         let server_capabilities = server_capabilities(&Default::default());
 
         // Verifies the expected default server capabilities.
-        // NOTE: See `translator` module for unit tests for the `translator::position_encoding` and `translator::code_actions_kinds` utilities
+        // NOTE: See `translator` module for unit tests for the `utils::position_encoding` and `utils::code_actions_kinds` utilities
         // which are used to generate the `position_encoding` and `code_action_provider` server capabilities,
         // and are currently the only server capabilities fields that aren't statically defined (i.e change based on the client capabilities).
         assert_eq!(

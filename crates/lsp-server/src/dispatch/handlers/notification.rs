@@ -67,7 +67,7 @@ mod tests {
         // Initializes memory.
         let mut memory = Memory::new();
 
-        // Creates test parameters.
+        // Creates test document parameters.
         let uri = Url::from_file_path("/tmp/file.rs").unwrap();
         let version = 0;
         let content = "".to_string();
@@ -93,7 +93,7 @@ mod tests {
             })
         );
 
-        // Re-initializes memory, calls handler with parameters for an open rust file and verifies that the file is NOT added to memory.
+        // Re-initializes memory, calls handler with parameters for an open NON-rust file and verifies that the file is NOT added to memory.
         memory = Memory::new();
         let result = handle_did_open_text_document(
             DidOpenTextDocumentParams {
@@ -119,7 +119,7 @@ mod tests {
         let uri = Url::from_file_path("/tmp/file.rs").unwrap();
         memory.insert(uri.to_string(), "".to_string(), 0);
 
-        // Creates update test parameters.
+        // Creates document update test parameters.
         let updated_version = 1;
         let updated_content = "A".to_string();
 

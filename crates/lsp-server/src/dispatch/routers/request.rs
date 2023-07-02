@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::memory::Memory;
 
-/// A chainable type for routing LSP requests to appropriate handlers and composing responses (if appropriate).
+/// Chainable type for routing LSP requests to appropriate handlers and composing responses (if appropriate).
 pub struct RequestRouter<'a> {
     req: Option<lsp_server::Request>,
     resp: Option<lsp_server::Response>,
@@ -13,7 +13,7 @@ pub struct RequestRouter<'a> {
 }
 
 impl<'a> RequestRouter<'a> {
-    /// Creates a router for a request.
+    /// Creates router for a request.
     pub fn new(
         req: lsp_server::Request,
         memory: &'a mut Memory,
@@ -27,7 +27,7 @@ impl<'a> RequestRouter<'a> {
         }
     }
 
-    /// Routes the request (if hasn't been consumed yet) through a handler based on the request method.
+    /// Routes the request (if it hasn't been consumed yet) through a handler based on the request method.
     pub fn process<R>(
         &mut self,
         handler: fn(
@@ -69,7 +69,7 @@ impl<'a> RequestRouter<'a> {
                     ),
                 };
 
-                // Sets LSP response (possibly an error).
+                // Sets LSP response (possibly an error response).
                 self.resp = Some(resp);
             }
             // Re-sets the router/request (so that another handler can be tried) if method is not a match.
@@ -89,7 +89,7 @@ impl<'a> RequestRouter<'a> {
         self
     }
 
-    /// Returns (if possible) the processed response for request (which may be an error response) or
+    /// Returns (if possible) the processed response for the request (which may be an error response) or
     /// an error response for unknown or unsupported requests.
     pub fn finish(&mut self) -> Option<lsp_server::Response> {
         match self.resp.take() {

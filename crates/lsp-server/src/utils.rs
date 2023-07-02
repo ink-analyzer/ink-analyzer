@@ -37,6 +37,8 @@ pub fn code_actions_kinds(client_capabilities: &ClientCapabilities) -> Option<Ve
         .and_then(|it| it.code_action.as_ref())
         .and_then(|it| it.code_action_literal_support.as_ref())
         .and_then(|it| {
+            // If client defines supported code action kinds,
+            // return only code actions supported by both the client and server (if any), otherwise return none.
             let code_actions_kinds: Vec<CodeActionKind> = HashSet::from(SERVER_CODE_ACTION_KINDS)
                 .intersection(
                     &it.code_action_kind
@@ -159,7 +161,8 @@ mod tests {
         for (client_capabilities, expected_results) in [
             // Default is None.
             (ClientCapabilities::default(), None),
-            // If client defines supported code action kinds, return only code actions supported by both the client and server (if any), otherwise return none.
+            // If client defines supported code action kinds,
+            // return only code actions supported by both the client and server (if any), otherwise return none.
             (
                 config_with_code_action_kinds(
                     [
