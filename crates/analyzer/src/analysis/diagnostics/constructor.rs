@@ -10,7 +10,7 @@ const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
 
 /// Runs all ink! constructor diagnostics.
 ///
-/// The entry point for finding ink! constructor semantic rules is the constructor module of the ink_ir crate.
+/// The entry point for finding ink! constructor semantic rules is the constructor module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155-L170>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor) {
@@ -184,7 +184,7 @@ mod tests {
                 constructor.fn_item().unwrap(),
                 CONSTRUCTOR_SCOPE_NAME,
             );
-            assert!(results.is_empty(), "constructor: {}", code);
+            assert!(results.is_empty(), "constructor: {code}");
         }
     }
 
@@ -289,13 +289,8 @@ mod tests {
                 constructor.fn_item().unwrap(),
                 CONSTRUCTOR_SCOPE_NAME,
             );
-            assert_eq!(results.len(), 1, "constructor: {}", code);
-            assert_eq!(
-                results[0].severity,
-                Severity::Error,
-                "constructor: {}",
-                code
-            );
+            assert_eq!(results.len(), 1, "constructor: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "constructor: {code}");
         }
     }
 
@@ -310,7 +305,7 @@ mod tests {
                 constructor.fn_item().unwrap(),
                 CONSTRUCTOR_SCOPE_NAME,
             );
-            assert!(result.is_none(), "constructor: {}", code);
+            assert!(result.is_none(), "constructor: {code}");
         }
     }
 
@@ -352,12 +347,11 @@ mod tests {
                 constructor.fn_item().unwrap(),
                 CONSTRUCTOR_SCOPE_NAME,
             );
-            assert!(result.is_some(), "constructor: {}", code);
+            assert!(result.is_some(), "constructor: {code}");
             assert_eq!(
                 result.unwrap().severity,
                 Severity::Error,
-                "constructor: {}",
-                code
+                "constructor: {code}"
             );
         }
     }
@@ -370,7 +364,7 @@ mod tests {
             });
 
             let result = ensure_return_type(constructor.fn_item().unwrap());
-            assert!(result.is_none(), "constructor: {}", code);
+            assert!(result.is_none(), "constructor: {code}");
         }
     }
 
@@ -397,12 +391,11 @@ mod tests {
             });
 
             let result = ensure_return_type(constructor.fn_item().unwrap());
-            assert!(result.is_some(), "constructor: {}", code);
+            assert!(result.is_some(), "constructor: {code}");
             assert_eq!(
                 result.unwrap().severity,
                 Severity::Error,
-                "constructor: {}",
-                code
+                "constructor: {code}"
             );
         }
     }
@@ -416,7 +409,7 @@ mod tests {
 
             let mut results = Vec::new();
             utils::ensure_no_ink_descendants(&mut results, &constructor, CONSTRUCTOR_SCOPE_NAME);
-            assert!(results.is_empty(), "constructor: {}", code);
+            assert!(results.is_empty(), "constructor: {code}");
         }
     }
 
@@ -459,7 +452,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &constructor);
-            assert!(results.is_empty(), "constructor: {}", code);
+            assert!(results.is_empty(), "constructor: {code}");
         }
     }
 }

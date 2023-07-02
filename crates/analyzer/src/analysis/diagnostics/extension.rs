@@ -9,7 +9,7 @@ const EXTENSION_SCOPE_NAME: &str = "extension";
 
 /// Runs all ink! extension diagnostics.
 ///
-/// The entry point for finding ink! extension semantic rules is the chain_extension module of the ink_ir crate.
+/// The entry point for finding ink! extension semantic rules is the `chain_extension` module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L500>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, extension: &Extension) {
@@ -124,7 +124,7 @@ mod tests {
                 extension.fn_item().unwrap(),
                 EXTENSION_SCOPE_NAME,
             );
-            assert!(results.is_empty(), "extension: {}", code);
+            assert!(results.is_empty(), "extension: {code}");
         }
     }
 
@@ -173,8 +173,8 @@ mod tests {
                 extension.fn_item().unwrap(),
                 EXTENSION_SCOPE_NAME,
             );
-            assert_eq!(results.len(), 1, "extension: {}", code);
-            assert_eq!(results[0].severity, Severity::Error, "extension: {}", code);
+            assert_eq!(results.len(), 1, "extension: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "extension: {code}");
         }
     }
 
@@ -187,7 +187,7 @@ mod tests {
 
             let result =
                 utils::ensure_no_self_receiver(extension.fn_item().unwrap(), EXTENSION_SCOPE_NAME);
-            assert!(result.is_none(), "extension: {}", code);
+            assert!(result.is_none(), "extension: {code}");
         }
     }
 
@@ -215,12 +215,11 @@ mod tests {
 
             let result =
                 utils::ensure_no_self_receiver(extension.fn_item().unwrap(), EXTENSION_SCOPE_NAME);
-            assert!(result.is_some(), "extension: {}", code);
+            assert!(result.is_some(), "extension: {code}");
             assert_eq!(
                 result.unwrap().severity,
                 Severity::Error,
-                "extension: {}",
-                code
+                "extension: {code}"
             );
         }
     }
@@ -234,7 +233,7 @@ mod tests {
 
             let mut results = Vec::new();
             utils::ensure_no_ink_descendants(&mut results, &extension, EXTENSION_SCOPE_NAME);
-            assert!(results.is_empty(), "extension: {}", code);
+            assert!(results.is_empty(), "extension: {code}");
         }
     }
 
@@ -274,7 +273,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &extension);
-            assert!(results.is_empty(), "extension: {}", code);
+            assert!(results.is_empty(), "extension: {code}");
         }
     }
 }

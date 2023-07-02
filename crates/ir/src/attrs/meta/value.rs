@@ -21,7 +21,7 @@ impl MetaValue {
     /// Ref: <https://doc.rust-lang.org/reference/attributes.html#meta-item-attribute-syntax>.
     pub fn parse(elems: &[SyntaxElement]) -> Option<Self> {
         (!elems.is_empty()).then(|| {
-            let arg_text = elems.iter().map(|elem| elem.to_string()).join("");
+            let arg_text = elems.iter().map(ToString::to_string).join("");
 
             // Try to parse as an expression.
             // For ink!, we're only interested in:
@@ -210,8 +210,7 @@ mod tests {
             assert_eq!(
                 MetaValue::parse(&parse_syntax_elements(code)).is_some(),
                 can_cast,
-                "meta value: {}",
-                code
+                "meta value: {code}"
             );
         }
     }

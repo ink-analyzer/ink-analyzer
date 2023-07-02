@@ -22,7 +22,7 @@ pub fn position_encoding(client_capabilities: &ClientCapabilities) -> PositionEn
             // Prefer the first of UTF-8 or UTF-32 if supported by the client
             // because they don't require any re-encoding.
             (encoding == &PositionEncodingKind::UTF8 || encoding == &PositionEncodingKind::UTF32)
-                .then_some(encoding.to_owned())
+                .then_some(encoding.clone())
         })
         // Fallback to UTF-16 if either no encoding where sent by client or
         // if neither UTF-8 nor UTF-32 are supported by the client.
@@ -81,7 +81,6 @@ mod tests {
                                 .map(|code_action| code_action.as_str().to_string())
                                 .collect(),
                         },
-                        ..Default::default()
                     }),
                     ..Default::default()
                 }),

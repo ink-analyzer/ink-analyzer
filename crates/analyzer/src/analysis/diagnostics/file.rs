@@ -54,7 +54,7 @@ fn ensure_contract_quantity(results: &mut Vec<Diagnostic>, file: &InkFile) {
         file.contracts(),
         "Only one ink! contract per file is currently supported.",
         Severity::Error,
-    )
+    );
 }
 
 /// Ensures that only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors).
@@ -110,8 +110,7 @@ mod tests {
                     })
                     .to_string()
                 })
-                .collect::<Vec<String>>()
-                .join("");
+                .collect::<String>();
 
             let file = InkFile::parse(&code);
 

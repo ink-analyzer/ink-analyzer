@@ -1,7 +1,6 @@
 //! integration tests for ink! analyzer diagnostics.
 
 use ink_analyzer::Analysis;
-use test_utils;
 use test_utils::TestCaseResults;
 
 // The high-level methodology for diagnostics test cases is:

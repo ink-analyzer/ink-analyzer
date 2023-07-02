@@ -1,7 +1,6 @@
 //! integration tests for ink! Language Server completions.
 
 use line_index::LineIndex;
-use test_utils;
 use test_utils::{TestCaseParams, TestCaseResults};
 
 mod utils;
@@ -123,7 +122,7 @@ fn completions_works() {
                             .as_ref()
                             .and_then(|edit| match edit {
                                 lsp_types::CompletionTextEdit::Edit(it) => Some(it),
-                                _ => None,
+                                lsp_types::CompletionTextEdit::InsertAndReplace(_) => None,
                             })
                             .map(|edit| (edit.new_text.as_str(), edit.range)))
                         .collect::<Vec<(&str, lsp_types::Range)>>(),

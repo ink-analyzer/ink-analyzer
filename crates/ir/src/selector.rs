@@ -107,8 +107,7 @@ impl Selector {
                     trait_path
                         .segments()
                         .last()
-                        .map(|segment| segment.to_string())
-                        .unwrap_or(String::new())
+                        .map_or(String::new(), |segment| segment.to_string())
                 };
                 (!trait_ident.is_empty()).then_some(trait_ident)
             }
@@ -389,7 +388,7 @@ mod tests {
                     .iter()
                     .find(|arg| *arg.kind() == InkArgKind::Selector)
                     .unwrap()
-                    .to_owned(),
+                    .clone(),
             )
             .unwrap();
 

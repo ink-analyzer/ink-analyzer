@@ -9,7 +9,7 @@ const TEST_SCOPE_NAME: &str = "test";
 
 /// Runs all ink! test diagnostics.
 ///
-/// The entry point for finding ink! test semantic rules is the ink_test module of the ink_ir crate.
+/// The entry point for finding ink! test semantic rules is the `ink_test` module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L34-L44>.
 ///
@@ -84,12 +84,11 @@ mod tests {
             });
 
             let result = utils::ensure_fn(&ink_test, TEST_SCOPE_NAME);
-            assert!(result.is_some(), "ink test: {}", code);
+            assert!(result.is_some(), "ink test: {code}");
             assert_eq!(
                 result.unwrap().severity,
                 Severity::Error,
-                "ink test: {}",
-                code
+                "ink test: {code}"
             );
         }
     }
@@ -158,7 +157,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &ink_test);
-            assert!(results.is_empty(), "ink test: {}", code);
+            assert!(results.is_empty(), "ink test: {code}");
         }
     }
 }

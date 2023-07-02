@@ -10,7 +10,7 @@ const MESSAGE_SCOPE_NAME: &str = "message";
 
 /// Runs all ink! message diagnostics.
 ///
-/// The entry point for finding ink! message semantic rules is the message module of the ink_ir crate.
+/// The entry point for finding ink! message semantic rules is the message module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201-L216>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message) {
@@ -59,13 +59,13 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
             if self_param.amp_token().is_some() {
                 has_self_ref_receiver = true; // Only case that passes.
             } else {
-                marker_token = Some(self_param.syntax().to_owned());
+                marker_token = Some(self_param.syntax().clone());
             }
         } else {
             marker_token = param_list
                 .params()
                 .next()
-                .map(|param| param.syntax().to_owned());
+                .map(|param| param.syntax().clone());
         }
     }
 
@@ -229,7 +229,7 @@ mod tests {
                 message.fn_item().unwrap(),
                 MESSAGE_SCOPE_NAME,
             );
-            assert!(results.is_empty(), "message: {}", code);
+            assert!(results.is_empty(), "message: {code}");
         }
     }
 
@@ -334,8 +334,8 @@ mod tests {
                 message.fn_item().unwrap(),
                 MESSAGE_SCOPE_NAME,
             );
-            assert_eq!(results.len(), 1, "message: {}", code);
-            assert_eq!(results[0].severity, Severity::Error, "message: {}", code);
+            assert_eq!(results.len(), 1, "message: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "message: {code}");
         }
     }
 
@@ -347,7 +347,7 @@ mod tests {
             });
 
             let result = ensure_receiver_is_self_ref(message.fn_item().unwrap());
-            assert!(result.is_none(), "message: {}", code);
+            assert!(result.is_none(), "message: {code}");
         }
     }
 
@@ -377,13 +377,8 @@ mod tests {
             });
 
             let result = ensure_receiver_is_self_ref(message.fn_item().unwrap());
-            assert!(result.is_some(), "message: {}", code);
-            assert_eq!(
-                result.unwrap().severity,
-                Severity::Error,
-                "message: {}",
-                code
-            );
+            assert!(result.is_some(), "message: {code}");
+            assert_eq!(result.unwrap().severity, Severity::Error, "message: {code}");
         }
     }
 
@@ -395,7 +390,7 @@ mod tests {
             });
 
             let result = ensure_not_return_self(message.fn_item().unwrap());
-            assert!(result.is_none(), "message: {}", code);
+            assert!(result.is_none(), "message: {code}");
         }
     }
 
@@ -422,13 +417,8 @@ mod tests {
             });
 
             let result = ensure_not_return_self(message.fn_item().unwrap());
-            assert!(result.is_some(), "message: {}", code);
-            assert_eq!(
-                result.unwrap().severity,
-                Severity::Error,
-                "message: {}",
-                code
-            );
+            assert!(result.is_some(), "message: {code}");
+            assert_eq!(result.unwrap().severity, Severity::Error, "message: {code}");
         }
     }
 
@@ -441,7 +431,7 @@ mod tests {
 
             let mut results = Vec::new();
             utils::ensure_no_ink_descendants(&mut results, &message, MESSAGE_SCOPE_NAME);
-            assert!(results.is_empty(), "message: {}", code);
+            assert!(results.is_empty(), "message: {code}");
         }
     }
 
@@ -484,7 +474,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &message);
-            assert!(results.is_empty(), "message: {}", code);
+            assert!(results.is_empty(), "message: {code}");
         }
     }
 }

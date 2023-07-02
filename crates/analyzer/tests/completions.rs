@@ -1,7 +1,6 @@
 //! integration tests for ink! analyzer completions.
 
 use ink_analyzer::{Analysis, TextRange, TextSize};
-use test_utils;
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for completions test cases is:

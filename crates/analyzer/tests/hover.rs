@@ -1,7 +1,6 @@
 //! integration tests for ink! analyzer hover content.
 
 use ink_analyzer::{Analysis, TextRange, TextSize};
-use test_utils;
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for hover content test cases is:

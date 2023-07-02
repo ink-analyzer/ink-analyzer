@@ -13,7 +13,7 @@ const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
 
 /// Runs all ink! trait definition diagnostics.
 ///
-/// The entry point for finding ink! trait definition semantic rules is the trait_def module of the ink_ir crate.
+/// The entry point for finding ink! trait definition semantic rules is the `trait_def` module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/mod.rs#L42-L49>.
 ///
@@ -83,7 +83,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                     message: "All ink! trait definition methods must be ink! messages.".to_string(),
                     range: fn_item.syntax().text_range(),
                     severity: Severity::Error,
-                })
+                });
             }
 
             // Wildcard selectors are not supported.
@@ -110,7 +110,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                     .to_string(),
                 range: type_alias.syntax().text_range(),
                 severity: Severity::Error,
-            })
+            });
         },
     );
 }
@@ -144,10 +144,12 @@ fn ensure_valid_quasi_direct_ink_descendants(
     utils::ensure_valid_quasi_direct_ink_descendants(results, trait_definition, |attr| {
         matches!(
             attr.kind(),
-            InkAttributeKind::Arg(InkArgKind::Message)
-                | InkAttributeKind::Arg(InkArgKind::Payable)
-                | InkAttributeKind::Arg(InkArgKind::Default)
-                | InkAttributeKind::Arg(InkArgKind::Selector)
+            InkAttributeKind::Arg(
+                InkArgKind::Message
+                    | InkArgKind::Payable
+                    | InkArgKind::Default
+                    | InkArgKind::Selector
+            )
         )
     });
 }
@@ -271,7 +273,7 @@ mod tests {
                 trait_definition.trait_item().unwrap(),
                 TRAIT_DEFINITION_SCOPE_NAME,
             );
-            assert!(results.is_empty(), "trait definition: {}", code);
+            assert!(results.is_empty(), "trait definition: {code}");
         }
     }
 
@@ -330,12 +332,11 @@ mod tests {
                 trait_definition.trait_item().unwrap(),
                 TRAIT_DEFINITION_SCOPE_NAME,
             );
-            assert_eq!(results.len(), 1, "trait definition: {}", code);
+            assert_eq!(results.len(), 1, "trait definition: {code}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
-                "trait definition: {}",
-                code
+                "trait definition: {code}"
             );
         }
     }
@@ -349,7 +350,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_trait_item_invariants(&mut results, trait_definition.trait_item().unwrap());
-            assert!(results.is_empty(), "trait definition: {}", code);
+            assert!(results.is_empty(), "trait definition: {code}");
         }
     }
 
@@ -469,12 +470,11 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_trait_item_invariants(&mut results, trait_definition.trait_item().unwrap());
-            assert_eq!(results.len(), 1, "trait definition: {}", items);
+            assert_eq!(results.len(), 1, "trait definition: {items}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
-                "trait definition: {}",
-                items
+                "trait definition: {items}"
             );
         }
     }
@@ -588,7 +588,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &trait_definition);
-            assert!(results.is_empty(), "trait definition: {}", code);
+            assert!(results.is_empty(), "trait definition: {code}");
         }
     }
 }

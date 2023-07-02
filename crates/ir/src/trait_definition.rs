@@ -30,7 +30,7 @@ impl TraitDefinition {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::Namespace)
     }
 
-    /// Returns the ink! keep_attr argument (if any) for the ink! trait definition.
+    /// Returns the ink! `keep_attr` argument (if any) for the ink! trait definition.
     pub fn keep_attr_arg(&self) -> Option<InkArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::KeepAttr)
     }

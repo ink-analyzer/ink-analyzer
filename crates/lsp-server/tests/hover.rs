@@ -1,7 +1,6 @@
 //! integration tests for ink! Language Server hover content.
 
 use line_index::LineIndex;
-use test_utils;
 use test_utils::{TestCaseParams, TestCaseResults};
 
 mod utils;

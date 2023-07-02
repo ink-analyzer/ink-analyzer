@@ -8,7 +8,7 @@ use ink_analyzer_ir::{InkArgKind, InkArgValueKind, InkAttributeKind, InkMacroKin
 /// (i.e argument kinds that don't conflict with the given ink! attribute kind,
 /// e.g for the `contract` attribute macro kind, this would be `env` and `keep_attr`
 /// while for the `storage` attribute argument kind, this would be `default`, `payable` and `selector`).
-pub fn valid_sibling_ink_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
+pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
     match attr_kind {
         // Returns valid sibling args (if any) for ink! attribute macros.
         InkAttributeKind::Macro(macro_kind) => {
@@ -28,7 +28,7 @@ pub fn valid_sibling_ink_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/config.rs#L60-L85>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L597-L643>.
                 InkMacroKind::TraitDefinition => vec![InkArgKind::KeepAttr, InkArgKind::Namespace],
-                _ => Vec::new(),
+                InkMacroKind::Unknown => Vec::new(),
             }
         }
         // Returns valid sibling args (if any) for ink! attribute arguments.
@@ -102,7 +102,7 @@ pub fn valid_sibling_ink_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
                     InkArgKind::Message,
                     InkArgKind::Payable,
                 ],
-                _ => Vec::new(),
+                InkArgKind::Unknown => Vec::new(),
             }
         }
     }
@@ -113,7 +113,7 @@ pub fn valid_sibling_ink_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
 /// (i.e argument kinds that are allowed in the scope of the given ink! attribute kind,
 /// e.g for the `chain_extension` attribute macro kind, this would be `extension` and `handle_status`
 /// while for the `event` attribute argument kind, this would be `topic`).
-pub fn valid_quasi_direct_descendant_ink_args(attr_kind: &InkAttributeKind) -> Vec<InkArgKind> {
+pub fn valid_quasi_direct_descendant_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
     match attr_kind {
         // Returns valid quasi-direct descendant args (if any) for ink! attribute macros.
         InkAttributeKind::Macro(macro_kind) => {
@@ -200,7 +200,7 @@ pub fn valid_quasi_direct_descendant_ink_args(attr_kind: &InkAttributeKind) -> V
 ///
 /// (i.e macro kinds that are allowed in the scope of the given ink! attribute kind,
 /// e.g for the `contract` attribute macro kind, this would be `chain_extension`, `storage_item`, `test` and `trait_definition`.
-pub fn valid_quasi_direct_descendant_ink_macros(attr_kind: &InkAttributeKind) -> Vec<InkMacroKind> {
+pub fn valid_quasi_direct_descendant_ink_macros(attr_kind: InkAttributeKind) -> Vec<InkMacroKind> {
     match attr_kind {
         // Returns valid quasi-direct descendant macros (if any) for ink! attribute macros.
         InkAttributeKind::Macro(macro_kind) => {
@@ -289,7 +289,7 @@ pub fn remove_duplicate_ink_arg_suggestions(
 ) {
     let already_annotated_ink_args: Vec<InkArgKind> = ink_analyzer_ir::ink_attrs(attr_parent)
         .flat_map(|ink_attr| ink_attr.args().to_owned())
-        .map(|ink_arg| ink_arg.kind().to_owned())
+        .map(|ink_arg| *ink_arg.kind())
         .collect();
     // Filters out duplicates.
     suggestions.retain(|arg_kind| !already_annotated_ink_args.contains(arg_kind));
@@ -303,7 +303,7 @@ pub fn remove_duplicate_ink_macro_suggestions(
 ) {
     let already_annotated_ink_macros: Vec<InkMacroKind> = ink_analyzer_ir::ink_attrs(attr_parent)
         .filter_map(|ink_attr| match ink_attr.kind() {
-            InkAttributeKind::Macro(macro_kind) => Some(macro_kind.to_owned()),
+            InkAttributeKind::Macro(macro_kind) => Some(*macro_kind),
             InkAttributeKind::Arg(_) => None,
         })
         .collect();
@@ -318,7 +318,7 @@ pub fn remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
 ) {
     let parent_ink_scope_valid_ink_args: Vec<InkArgKind> =
         ink_analyzer_ir::ink_attrs_closest_ancestors(attr_parent)
-            .flat_map(|attr| valid_quasi_direct_descendant_ink_args(attr.kind()))
+            .flat_map(|attr| valid_quasi_direct_descendant_ink_args(*attr.kind()))
             .collect();
 
     // Filters out invalid arguments for the parent ink! scope (if any).
@@ -337,7 +337,7 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
 ) {
     let parent_ink_scope_valid_ink_macros: Vec<InkMacroKind> =
         ink_analyzer_ir::ink_attrs_closest_ancestors(attr_parent)
-            .flat_map(|attr| valid_quasi_direct_descendant_ink_macros(attr.kind()))
+            .flat_map(|attr| valid_quasi_direct_descendant_ink_macros(*attr.kind()))
             .collect();
 
     // Filters out invalid arguments for the parent ink! scope (if any).
@@ -354,14 +354,14 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
 ///
 /// (i.e for `selector`, we return `"selector="` while for `payable`, we simply return `"payable"`)
 pub fn ink_arg_insertion_text(
-    arg_kind: &InkArgKind,
+    arg_kind: InkArgKind,
     insert_offset: TextSize,
     parent_node: &SyntaxNode,
 ) -> String {
     format!(
         "{arg_kind}{}",
         // Determines whether or not to insert the `=` symbol after the ink! attribute argument name.
-        match InkArgValueKind::from(*arg_kind) {
+        match InkArgValueKind::from(arg_kind) {
             // No `=` symbol is inserted after ink! attribute arguments that should not have a value.
             InkArgValueKind::None => "",
             // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
@@ -379,7 +379,7 @@ pub fn ink_arg_insertion_text(
                     } else {
                         ink_analyzer_ir::closest_item_which(
                             &token,
-                            |subject| subject.next_token(),
+                            SyntaxToken::next_token,
                             is_next_non_trivia_token,
                             is_next_non_trivia_token,
                         )

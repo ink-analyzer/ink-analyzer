@@ -25,7 +25,7 @@ pub fn get_source_code(location: &str) -> String {
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn get_source_uri(location: &str) -> lsp_types::Url {
-    lsp_types::Url::from_file_path(format!("/test_data/{}.rs", location)).unwrap()
+    lsp_types::Url::from_file_path(format!("/test_data/{location}.rs")).unwrap()
 }
 
 /// Returns the offset of `pat` in `subject`.
@@ -379,10 +379,7 @@ mod tests {
             if pat.is_some() {
                 // Parse start offset from beginning, `<-` prefix only works if `pat` is Some.
                 assert_eq!(
-                    parse_offset_at(
-                        subject,
-                        pat.map(|substr| format!("<-{}", substr)).as_deref()
-                    ),
+                    parse_offset_at(subject, pat.map(|substr| format!("<-{substr}")).as_deref()),
                     start_offset
                 );
             }
@@ -394,17 +391,14 @@ mod tests {
                 assert_eq!(
                     parse_offset_at(
                         subject,
-                        pat.map(|substr| format!("<-{}->", substr)).as_deref()
+                        pat.map(|substr| format!("<-{substr}->")).as_deref()
                     ),
                     r_start_offset
                 );
 
                 // Parse end offset from end, `->` suffix only works if `pat` is Some.
                 assert_eq!(
-                    parse_offset_at(
-                        subject,
-                        pat.map(|substr| format!("{}->", substr)).as_deref()
-                    ),
+                    parse_offset_at(subject, pat.map(|substr| format!("{substr}->")).as_deref()),
                     r_end_offset
                 );
             }

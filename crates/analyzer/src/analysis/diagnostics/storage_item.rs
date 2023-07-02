@@ -9,7 +9,7 @@ const STORAGE_ITEM_SCOPE_NAME: &str = "storage_item";
 
 /// Runs all ink! storage item diagnostics.
 ///
-/// The entry point for finding ink! storage item semantic rules is the storage_item module of the ink_ir crate.
+/// The entry point for finding ink! storage item semantic rules is the `storage_item` module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/mod.rs#L33-L54>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, storage_item: &StorageItem) {
@@ -112,12 +112,11 @@ mod tests {
             });
 
             let result = ensure_adt(&storage_item);
-            assert!(result.is_some(), "storage item: {}", code);
+            assert!(result.is_some(), "storage item: {code}");
             assert_eq!(
                 result.unwrap().severity,
                 Severity::Error,
-                "storage item: {}",
-                code
+                "storage item: {code}"
             );
         }
     }
@@ -229,7 +228,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &storage_item);
-            assert!(results.is_empty(), "storage_item: {}", code);
+            assert!(results.is_empty(), "storage_item: {code}");
         }
     }
 }

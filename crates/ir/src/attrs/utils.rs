@@ -69,7 +69,7 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
         .syntax()
         .children_with_tokens()
         // Skip starting parenthesis if present.
-        .skip(if l_paren.is_some() { 1 } else { 0 })
+        .skip(usize::from(l_paren.is_some()))
         // Ignore closing parenthesis if present.
         .take_while(|it| r_paren.is_none() || it.as_token() != r_paren.as_ref())
         // Comma separated groups.
@@ -131,7 +131,7 @@ fn get_arg_name(elems: &[SyntaxElement]) -> MetaOption<MetaName> {
         1 => {
             let mut name = MetaOption::Err(elems.to_owned());
             if let Some(token) = get_token_at_index(&non_trivia_elems, 0) {
-                if let Some(meta_name) = MetaName::cast(token.to_owned()) {
+                if let Some(meta_name) = MetaName::cast(token.clone()) {
                     name = MetaOption::Ok(meta_name);
                 }
             }
@@ -144,7 +144,7 @@ fn get_arg_name(elems: &[SyntaxElement]) -> MetaOption<MetaName> {
 fn get_arg_eq(elems: &[SyntaxElement]) -> Option<MetaSeparator> {
     let non_trivia_elems = only_non_trivia_elements(elems);
     (non_trivia_elems.len() == 1)
-        .then(|| MetaSeparator::cast(get_token_at_index(&non_trivia_elems, 0)?.to_owned()))?
+        .then(|| MetaSeparator::cast(get_token_at_index(&non_trivia_elems, 0)?.clone()))?
 }
 
 fn get_arg_value(elems: &[SyntaxElement]) -> MetaOption<MetaValue> {
@@ -307,7 +307,7 @@ mod tests {
             // ink! attribute argument kind and meta value syntax kind for easy comparisons.
             let actual_args: Vec<(InkArgKind, Option<SyntaxKind>)> = parse_ink_args(&attr)
                 .iter()
-                .map(|arg| (arg.kind().to_owned(), arg.value().map(|value| value.kind())))
+                .map(|arg| (*arg.kind(), arg.value().map(|value| value.kind())))
                 .collect();
 
             // actual arguments should match expected arguments.
@@ -432,7 +432,7 @@ mod tests {
             // convert to an array of ink! attribute argument kinds for easy comparisons.
             let actual_order: Vec<InkArgKind> = sort_ink_args_by_kind(&args)
                 .iter()
-                .map(|arg| arg.kind().to_owned())
+                .map(|arg| *arg.kind())
                 .collect();
 
             // actual order of argument kinds should match expected order.

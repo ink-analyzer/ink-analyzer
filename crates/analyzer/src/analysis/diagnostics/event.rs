@@ -12,7 +12,7 @@ const EVENT_SCOPE_NAME: &str = "event";
 
 /// Runs all ink! event diagnostics.
 ///
-/// The entry point for finding ink! event semantic rules is the event module of the ink_ir crate.
+/// The entry point for finding ink! event semantic rules is the event module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86-L148>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event) {
@@ -76,7 +76,7 @@ fn ensure_only_ink_topic_descendants(results: &mut Vec<Diagnostic>, item: &Event
                 message: format!("`{}` can't be used inside an ink! event.", attr.syntax()),
                 range: attr.syntax().text_range(),
                 severity: Severity::Error,
-            })
+            });
         });
     });
 }
@@ -93,8 +93,7 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
                         (path.to_string() == "cfg").then(|| {
                             results.push(Diagnostic {
                                 message: format!(
-                                    "`{}` attributes on event fields are not supported.",
-                                    attr
+                                    "`{attr}` attributes on event fields are not supported."
                                 ),
                                 range: attr.syntax().text_range(),
                                 severity: Severity::Error,
@@ -177,7 +176,7 @@ mod tests {
             });
 
             let result = utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME);
-            assert!(result.is_none(), "event: {}", code);
+            assert!(result.is_none(), "event: {code}");
         }
     }
 
@@ -214,7 +213,7 @@ mod tests {
             });
 
             let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
-            assert!(result.is_none(), "event: {}", code);
+            assert!(result.is_none(), "event: {code}");
         }
     }
 
@@ -261,7 +260,7 @@ mod tests {
             });
 
             let result = ensure_no_generics_on_struct(&event);
-            assert!(result.is_none(), "event: {}", code);
+            assert!(result.is_none(), "event: {code}");
         }
     }
 
@@ -290,7 +289,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_only_ink_topic_descendants(&mut results, &event);
-            assert!(results.is_empty(), "event: {}", code);
+            assert!(results.is_empty(), "event: {code}");
         }
     }
 
@@ -320,7 +319,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_no_cfg_event_fields(&mut results, &event);
-            assert!(results.is_empty(), "event: {}", code);
+            assert!(results.is_empty(), "event: {code}");
         }
     }
 
@@ -351,7 +350,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &event);
-            assert!(results.is_empty(), "event: {}", code);
+            assert!(results.is_empty(), "event: {code}");
         }
     }
 }

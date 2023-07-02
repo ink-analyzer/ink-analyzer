@@ -19,7 +19,7 @@ pub trait FromAST {
     fn ast(&self) -> &Self::AST;
 }
 
-/// Blanket implementation of FromSyntax for ASTNode wrappers.
+/// Blanket implementation of `FromSyntax` for `ASTNode` wrappers.
 impl<T: FromAST> FromSyntax for T {
     fn syntax(&self) -> &SyntaxNode {
         self.ast().syntax()

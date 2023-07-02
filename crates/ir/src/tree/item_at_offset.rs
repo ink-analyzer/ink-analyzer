@@ -74,26 +74,24 @@ impl ItemAtOffset {
 
     /// Returns the previous token in the tree (i.e not necessary a sibling).
     pub fn prev_token(&self) -> Option<SyntaxToken> {
-        self.focused_token().and_then(|token| token.prev_token())
+        self.focused_token().and_then(SyntaxToken::prev_token)
     }
 
     /// Returns the next token in the tree (i.e not necessary a sibling).
     pub fn next_token(&self) -> Option<SyntaxToken> {
-        self.focused_token().and_then(|token| token.next_token())
+        self.focused_token().and_then(SyntaxToken::next_token)
     }
 
     /// Returns the closest previous token in the tree (i.e not necessary a sibling) that's not trivia.
     pub fn prev_non_trivia_token(&self) -> Option<SyntaxToken> {
-        self.focused_token().and_then(|token| {
-            ast_ext::closest_non_trivia_token(token, |subject| subject.prev_token())
-        })
+        self.focused_token()
+            .and_then(|token| ast_ext::closest_non_trivia_token(token, SyntaxToken::prev_token))
     }
 
     /// Returns the closest next token in the tree (i.e not necessary a sibling) that's not trivia.
     pub fn next_non_trivia_token(&self) -> Option<SyntaxToken> {
-        self.focused_token().and_then(|token| {
-            ast_ext::closest_non_trivia_token(token, |subject| subject.next_token())
-        })
+        self.focused_token()
+            .and_then(|token| ast_ext::closest_non_trivia_token(token, SyntaxToken::next_token))
     }
 
     /// Returns the parent attribute of the focused token (if any).
@@ -170,7 +168,7 @@ impl ItemAtOffset {
                 self.focused_token().and_then(|start_token| {
                     ast_ext::closest_item_which(
                         start_token,
-                        |subject| subject.next_token(),
+                        SyntaxToken::next_token,
                         |subject| {
                             matches!(
                                 subject.kind(),
@@ -275,7 +273,7 @@ mod tests {
     use test_utils::parse_offset_at;
 
     fn parse_item_at_offset(code: &str, offset: TextSize) -> ItemAtOffset {
-        ItemAtOffset::new(&SourceFile::parse(code).tree().syntax(), offset)
+        ItemAtOffset::new(SourceFile::parse(code).tree().syntax(), offset)
     }
 
     #[test]
@@ -1128,8 +1126,7 @@ mod tests {
 
                 // Parent ink! attribute kind.
                 assert_eq!(
-                    item.parent_ink_attr()
-                        .map(|ink_attr| ink_attr.kind().to_owned()),
+                    item.parent_ink_attr().map(|ink_attr| *ink_attr.kind()),
                     parent_ink_attr
                 );
 
@@ -1322,7 +1319,7 @@ mod tests {
             // Probable parent ink! attribute kind.
             assert_eq!(
                 item.probable_unclosed_parent_ink_attr()
-                    .map(|(ink_attr, is_covering)| (ink_attr.kind().to_owned(), is_covering)),
+                    .map(|(ink_attr, is_covering)| (*ink_attr.kind(), is_covering)),
                 probable_parent_ink_attr
             );
 
@@ -1352,7 +1349,7 @@ mod tests {
             assert_eq!(
                 item.normalized_parent_ink_attr()
                     .map(|(ink_attr, is_certain, is_covering)| (
-                        ink_attr.kind().to_owned(),
+                        *ink_attr.kind(),
                         is_certain,
                         is_covering
                     )),

@@ -2,7 +2,6 @@
 
 use line_index::LineIndex;
 use lsp_types::CodeAction;
-use test_utils;
 use test_utils::{TestCaseParams, TestCaseResults};
 
 mod utils;
@@ -107,7 +106,7 @@ fn actions_works() {
                 .into_iter()
                 .filter_map(|it| match it {
                     lsp_types::CodeActionOrCommand::CodeAction(it) => Some(it),
-                    _ => None,
+                    lsp_types::CodeActionOrCommand::Command(_) => None,
                 })
                 .collect();
             let expected_results = match test_case.results {

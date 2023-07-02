@@ -12,7 +12,7 @@
 //!
 //! Using the [`#[ink::contract]` attribute-macro](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L517-L520) as an example,
 //! from its [implementation in the ink_macro crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/contract.rs#L20-L30),
-//! we can trace it's corresponding ink_ir type as the [Contract struct in the contracts module of the ink_ir crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs).
+//! we can trace it's corresponding `ink_ir` type as the [Contract struct in the contracts module of the ink_ir crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs).
 //!
 //! We can then extract the semantic rules by recursively analyzing the types, utilities and modules
 //! used in the [Contract struct's constructor](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L61-L73) as well as related unit tests.

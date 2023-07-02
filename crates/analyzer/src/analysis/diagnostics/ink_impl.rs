@@ -12,7 +12,7 @@ const IMPL_SCOPE_NAME: &str = "impl";
 
 /// Runs all ink! impl diagnostics.
 ///
-/// The entry point for finding ink! impl semantic rules is the item_impl module of the ink_ir crate.
+/// The entry point for finding ink! impl semantic rules is the `item_impl` module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221-L334>.
 pub fn diagnostics(
@@ -140,15 +140,15 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
         let constructor_fns: Vec<&ast::Fn> = ink_impl
             .constructors()
             .iter()
-            .filter_map(|item| item.fn_item())
+            .filter_map(IsInkFn::fn_item)
             .collect();
         let message_fns: Vec<&ast::Fn> = ink_impl
             .messages()
             .iter()
-            .filter_map(|item| item.fn_item())
+            .filter_map(IsInkFn::fn_item)
             .collect();
-        [(constructor_fns, "constructor"), (message_fns, "message")].iter().for_each(|(fns, name)| {
-            fns.iter().for_each(|fn_item| {
+        for (fns, name) in [(constructor_fns, "constructor"), (message_fns, "message")] {
+            for fn_item in fns {
                 if is_trait_impl {
                     // Callables must have inherent visibility for trait implementation blocks.
                     if let Some(visibility) = fn_item.visibility() {
@@ -162,9 +162,11 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                     // Callables must have `pub` visibility for inherent implementation blocks.
                     let (has_pub_visibility, visibility) = match fn_item.visibility() {
                         // Check `pub` visibility.
-                        Some(visibility) => (visibility.syntax().to_string() == "pub", Some(visibility)),
+                        Some(visibility) => {
+                            (visibility.syntax().to_string() == "pub", Some(visibility))
+                        }
                         // Inherited visibility.
-                        None => (false, None)
+                        None => (false, None),
                     };
 
                     (!has_pub_visibility).then(|| results.push(Diagnostic {
@@ -176,8 +178,8 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                         severity: Severity::Error,
                     }));
                 }
-            })
-        });
+            }
+        }
     }
 }
 
@@ -245,11 +247,13 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, ink_
     utils::ensure_valid_quasi_direct_ink_descendants(results, ink_impl, |attr| {
         matches!(
             attr.kind(),
-            InkAttributeKind::Arg(InkArgKind::Constructor)
-                | InkAttributeKind::Arg(InkArgKind::Message)
-                | InkAttributeKind::Arg(InkArgKind::Payable)
-                | InkAttributeKind::Arg(InkArgKind::Default)
-                | InkAttributeKind::Arg(InkArgKind::Selector)
+            InkAttributeKind::Arg(
+                InkArgKind::Constructor
+                    | InkArgKind::Message
+                    | InkArgKind::Payable
+                    | InkArgKind::Default
+                    | InkArgKind::Selector
+            )
         )
     });
 }
@@ -474,8 +478,8 @@ mod tests {
             });
 
             let result = ensure_impl(&ink_impl);
-            assert!(result.is_some(), "impl: {}", code);
-            assert_eq!(result.unwrap().severity, Severity::Error, "impl: {}", code);
+            assert!(result.is_some(), "impl: {code}");
+            assert_eq!(result.unwrap().severity, Severity::Error, "impl: {code}");
         }
     }
 
@@ -488,7 +492,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_impl_invariants(&mut results, &ink_impl);
-            assert!(results.is_empty(), "impl: {}", code);
+            assert!(results.is_empty(), "impl: {code}");
         }
     }
 
@@ -546,8 +550,8 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_impl_invariants(&mut results, &ink_impl);
-            assert_eq!(results.len(), 1, "impl: {}", code);
-            assert_eq!(results[0].severity, Severity::Error, "impl: {}", code);
+            assert_eq!(results.len(), 1, "impl: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "impl: {code}");
         }
     }
 
@@ -559,7 +563,7 @@ mod tests {
             });
 
             let result = ensure_annotation_or_contains_callable(&ink_impl);
-            assert!(result.is_none(), "impl: {}", code);
+            assert!(result.is_none(), "impl: {code}");
         }
     }
 
@@ -577,7 +581,7 @@ mod tests {
         .contracts()
         .first()
         .unwrap()
-        .to_owned();
+        .clone();
 
         assert!(contract.impls().is_empty());
     }
@@ -591,7 +595,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_callables_in_root(&mut results, &ink_impl);
-            assert!(results.is_empty(), "impl: {}", code);
+            assert!(results.is_empty(), "impl: {code}");
         }
     }
 
@@ -637,7 +641,7 @@ mod tests {
             ensure_callables_in_root(&mut results, &ink_impl);
 
             // There should be 2 errors (i.e for the `constructor` and `message`).
-            assert_eq!(results.len(), 2, "impl: {}", code);
+            assert_eq!(results.len(), 2, "impl: {code}");
             // All diagnostics should be errors.
             assert_eq!(
                 results
@@ -645,8 +649,7 @@ mod tests {
                     .filter(|item| item.severity == Severity::Error)
                     .count(),
                 2,
-                "impl: {}",
-                code
+                "impl: {code}"
             );
         }
     }
@@ -660,7 +663,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl);
-            assert!(results.is_empty(), "impl: {}", code);
+            assert!(results.is_empty(), "impl: {code}");
         }
     }
 
@@ -717,7 +720,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &ink_impl, false);
-            assert!(results.is_empty(), "impl: {}", code);
+            assert!(results.is_empty(), "impl: {code}");
         }
     }
 }

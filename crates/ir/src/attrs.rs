@@ -72,7 +72,7 @@ impl InkAttribute {
                         // Returns a new list so we don't change the original order for later analysis.
                         let sorted_args = utils::sort_ink_args_by_kind(&args);
                         let primary_arg = &sorted_args[0];
-                        possible_ink_arg_name = primary_arg.name().map(|name| name.to_owned());
+                        possible_ink_arg_name = primary_arg.name().cloned();
                         InkAttributeKind::Arg(*primary_arg.kind())
                     }
                 }
@@ -595,14 +595,12 @@ mod tests {
                 possible_ink_attr.map(|ink_attr| {
                     (
                         // ink! attribute kind.
-                        ink_attr.kind().to_owned(),
+                        *ink_attr.kind(),
                         // array tuples of ink! attribute argument kind and meta value syntax kind.
                         ink_attr
                             .args()
                             .iter()
-                            .map(|arg| {
-                                (arg.kind().to_owned(), arg.value().map(|value| value.kind()))
-                            })
+                            .map(|arg| (*arg.kind(), arg.value().map(|value| value.kind())))
                             .collect(),
                     )
                 });

@@ -12,7 +12,7 @@ use crate::{Diagnostic, Severity};
 
 /// Runs all ink! contract diagnostics.
 ///
-/// The entry point for finding ink! contract semantic rules is the contract module of the ink_ir crate.
+/// The entry point for finding ink! contract semantic rules is the contract module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L47-L73>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
@@ -177,7 +177,7 @@ where
         .iter()
         .filter_map(|item| {
             item.composed_selector()
-                .map(|selector| (selector, item.syntax().to_owned()))
+                .map(|selector| (selector, item.syntax().clone()))
         })
         .collect()
 }
@@ -192,12 +192,15 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Contract) {
-    [
-        (get_composed_selectors(contract.constructors()), "constructor"),
-        (get_composed_selectors(contract.messages()), "message")
-    ].iter().for_each(|(selectors, name)| {
+    for (selectors, name) in [
+        (
+            get_composed_selectors(contract.constructors()),
+            "constructor",
+        ),
+        (get_composed_selectors(contract.messages()), "message"),
+    ] {
         let mut seen_selectors: HashSet<u32> = HashSet::new();
-        selectors.iter().for_each(|(selector, node)| {
+        for (selector, node) in selectors {
             let selector_value = selector.into_be_u32();
             let is_seen = seen_selectors.get(&selector_value).is_some();
 
@@ -208,8 +211,8 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                 range: node.text_range(),
                 severity: Severity::Error,
             }));
-        });
-    });
+        }
+    }
 }
 
 /// Returns all ink! selector arguments for a list of ink! callable entities.
@@ -238,25 +241,25 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_at_most_one_wildcard_selector(results: &mut Vec<Diagnostic>, contract: &Contract) {
-    [
+    for (selectors, name) in [
         (get_selector_args(contract.constructors()), "constructor"),
-        (get_selector_args(contract.messages()), "message")
-    ].iter().for_each(|(selectors, name)| {
+        (get_selector_args(contract.messages()), "message"),
+    ] {
         let mut has_seen_wildcard = false;
-        selectors.iter().for_each(|selector| {
+        for selector in selectors {
             selector.is_wildcard().then(|| {
                 if has_seen_wildcard {
                     results.push(Diagnostic {
                         message: format!("At most one wildcard (`_`) selector can be defined across all ink! {name}s in an ink! contract."),
                         range: selector.text_range(),
                         severity: Severity::Error,
-                    })
+                    });
                 } else {
                     has_seen_wildcard = true;
                 }
             });
-        });
-    });
+        }
+    }
 }
 
 /// Ensures that item is defined in the root of this specific ink! contract.
@@ -345,20 +348,23 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, cont
     utils::ensure_valid_quasi_direct_ink_descendants(results, contract, |attr| {
         matches!(
             attr.kind(),
-            InkAttributeKind::Arg(InkArgKind::Storage)
-                | InkAttributeKind::Arg(InkArgKind::Event)
-                | InkAttributeKind::Arg(InkArgKind::Anonymous)
-                | InkAttributeKind::Arg(InkArgKind::Impl)
-                | InkAttributeKind::Arg(InkArgKind::Namespace)
-                | InkAttributeKind::Arg(InkArgKind::Constructor)
-                | InkAttributeKind::Arg(InkArgKind::Message)
-                | InkAttributeKind::Arg(InkArgKind::Payable)
-                | InkAttributeKind::Arg(InkArgKind::Default)
-                | InkAttributeKind::Arg(InkArgKind::Selector)
-                | InkAttributeKind::Macro(InkMacroKind::ChainExtension)
-                | InkAttributeKind::Macro(InkMacroKind::StorageItem)
-                | InkAttributeKind::Macro(InkMacroKind::Test)
-                | InkAttributeKind::Macro(InkMacroKind::TraitDefinition)
+            InkAttributeKind::Arg(
+                InkArgKind::Storage
+                    | InkArgKind::Event
+                    | InkArgKind::Anonymous
+                    | InkArgKind::Impl
+                    | InkArgKind::Namespace
+                    | InkArgKind::Constructor
+                    | InkArgKind::Message
+                    | InkArgKind::Payable
+                    | InkArgKind::Default
+                    | InkArgKind::Selector
+            ) | InkAttributeKind::Macro(
+                InkMacroKind::ChainExtension
+                    | InkMacroKind::StorageItem
+                    | InkMacroKind::Test
+                    | InkMacroKind::TraitDefinition
+            )
         )
     });
 }
@@ -371,7 +377,7 @@ mod tests {
     use test_utils::quote_as_str;
 
     fn parse_first_contract(code: &str) -> Contract {
-        InkFile::parse(code).contracts().to_owned()[0].to_owned()
+        InkFile::parse(code).contracts().to_owned()[0].clone()
     }
 
     // List of valid minimal ink! contracts used for positive(`works`) tests for ink! contract verifying utilities.
@@ -785,7 +791,7 @@ mod tests {
             });
 
             let result = ensure_inline_module(&contract);
-            assert!(result.is_none(), "contract: {}", code);
+            assert!(result.is_none(), "contract: {code}");
         }
     }
 
@@ -827,12 +833,11 @@ mod tests {
             });
 
             let result = ensure_inline_module(&contract);
-            assert!(result.is_some(), "contract: {}", code);
+            assert!(result.is_some(), "contract: {code}");
             assert_eq!(
                 result.unwrap().severity,
                 Severity::Error,
-                "contract: {}",
-                code
+                "contract: {code}"
             );
         }
     }
@@ -859,7 +864,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_storage_quantity(&mut results, &contract);
-            assert!(results.is_empty(), "contract: {}", code);
+            assert!(results.is_empty(), "contract: {code}");
         }
     }
 
@@ -923,7 +928,7 @@ mod tests {
             });
 
             let result = ensure_contains_constructor(&contract);
-            assert!(result.is_none(), "contract: {}", code);
+            assert!(result.is_none(), "contract: {code}");
         }
     }
 
@@ -950,7 +955,7 @@ mod tests {
             });
 
             let result = ensure_contains_message(&contract);
-            assert!(result.is_none(), "contract: {}", code);
+            assert!(result.is_none(), "contract: {code}");
         }
     }
 
@@ -977,7 +982,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_no_overlapping_selectors(&mut results, &contract);
-            assert!(results.is_empty(), "contract: {}", code);
+            assert!(results.is_empty(), "contract: {code}");
         }
     }
 
@@ -1103,7 +1108,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_at_most_one_wildcard_selector(&mut results, &contract);
-            assert!(results.is_empty(), "contract: {}", code);
+            assert!(results.is_empty(), "contract: {code}");
         }
     }
 
@@ -1156,7 +1161,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_impl_parent_for_callables(&mut results, &contract);
-            assert!(results.is_empty(), "contract: {}", code);
+            assert!(results.is_empty(), "contract: {code}");
         }
     }
 
@@ -1199,7 +1204,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_root_items(&mut results, &contract);
-            assert!(results.is_empty(), "contract: {}", code);
+            assert!(results.is_empty(), "contract: {code}");
         }
     }
 
@@ -1258,7 +1263,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &contract);
-            assert!(results.is_empty(), "contract: {}", code);
+            assert!(results.is_empty(), "contract: {code}");
         }
     }
 
@@ -1301,7 +1306,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &contract);
-            assert!(results.is_empty(), "contract: {}", code);
+            assert!(results.is_empty(), "contract: {code}");
         }
     }
 }

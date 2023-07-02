@@ -77,7 +77,7 @@ pub use self::{
 // Re-export ra_ap_syntax as syntax.
 pub use ra_ap_syntax as syntax;
 
-/// Re-export ra_ap_syntax::ast as ast.
+/// Re-export `ra_ap_syntax::ast` as `ast`.
 pub use ra_ap_syntax::ast;
 
 mod attrs;

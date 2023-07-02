@@ -1,6 +1,5 @@
 //! integration tests for ink! Language Server diagnostics.
 
-use test_utils;
 use test_utils::TestCaseResults;
 
 mod utils;

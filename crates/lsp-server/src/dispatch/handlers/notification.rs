@@ -34,7 +34,7 @@ pub fn handle_did_change_text_document(
         // so no incremental processing is necessary.
         memory.update(
             params.text_document.uri.as_ref(),
-            event.text.to_owned(),
+            event.text.clone(),
             params.text_document.version,
         );
     }

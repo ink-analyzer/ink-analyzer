@@ -32,7 +32,7 @@ impl Extension {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::Extension)
     }
 
-    /// Returns the ink! handle_status argument (if any) for the ink! extension.
+    /// Returns the ink! `handle_status` argument (if any) for the ink! extension.
     pub fn handle_status_arg(&self) -> Option<InkArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::HandleStatus)
     }

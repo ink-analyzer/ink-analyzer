@@ -59,14 +59,15 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                     // the parent AST item (for all other cases).
                     let target = record_field
                         .as_ref()
-                        .map(|field| field.syntax())
-                        .unwrap_or(ast_item.syntax());
+                        .map_or(ast_item.syntax(), AstNode::syntax);
 
                     // Gets the last attribute or doc comment for the target node (if any).
                     let last_attr_or_doc_comment = record_field
                         .as_ref()
-                        .map(|field| field.doc_comments_and_attrs())
-                        .unwrap_or(ast_item.doc_comments_and_attrs())
+                        .map_or(
+                            ast_item.doc_comments_and_attrs(),
+                            HasDocComments::doc_comments_and_attrs,
+                        )
                         .last();
 
                     // Determines the insertion point (and indenting - so that we preserve formatting) for the action,
@@ -134,13 +135,13 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                     );
 
                     // Add ink! attribute macro actions to accumulator.
-                    ink_macro_suggestions.iter().for_each(|macro_kind| {
+                    for macro_kind in ink_macro_suggestions {
                         add_action_to_accumulator(
                             &format!("#[ink::{macro_kind}]"),
                             &macro_kind.to_string(),
                             "macro",
                         );
-                    });
+                    }
 
                     // Suggests ink! attribute arguments based on the context.
                     let mut ink_arg_suggestions =
@@ -154,7 +155,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                     );
 
                     // Add ink! attribute argument actions to accumulator.
-                    ink_arg_suggestions.iter().for_each(|arg_kind| {
+                    for arg_kind in ink_arg_suggestions {
                         add_action_to_accumulator(
                             &format!(
                                 "#[ink({})]",
@@ -167,7 +168,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                             &arg_kind.to_string(),
                             "argument",
                         );
-                    });
+                    }
                 }
             }
         }
@@ -184,7 +185,7 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
         // unclosed attributes are too tricky for useful contextual edits.
         if let Some(r_bracket) = ink_attr.ast().r_brack_token() {
             // Suggests ink! attribute arguments based on the context.
-            let mut ink_arg_suggestions = utils::valid_sibling_ink_args(ink_attr.kind());
+            let mut ink_arg_suggestions = utils::valid_sibling_ink_args(*ink_attr.kind());
 
             if let Some(attr_parent) = ink_attr.syntax().parent() {
                 // Filters out duplicate ink! attribute argument actions.
@@ -203,18 +204,17 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
             // Determines the insertion point for the action as well as the affixes that should
             // surround the ink! attribute text (i.e whitespace and delimiters e.g `(`, `,` and `)`).
             let attr = ink_attr.ast();
-            let (insert_offset, insert_prefix, insert_suffix) = attr
-                .token_tree()
-                .as_ref()
-                .map(|token_tree| {
+            let (insert_offset, insert_prefix, insert_suffix) = attr.token_tree().as_ref().map_or(
+                (r_bracket.text_range().start(), "(", ")"),
+                |token_tree| {
                     (
                         // Computes the insertion offset.
                         token_tree
                             .r_paren_token()
                             // Inserts just before right parenthesis if it's exists.
-                            .map(|r_paren| r_paren.text_range().start())
-                            // Inserts at the end of the token tree if no right parenthesis exists.
-                            .unwrap_or(token_tree.syntax().text_range().end()),
+                            .map_or(token_tree.syntax().text_range().end(), |r_paren| {
+                                r_paren.text_range().start()
+                            }),
                         // Determines the prefix to insert before the ink! attribute text.
                         match token_tree.l_paren_token() {
                             Some(_) => token_tree
@@ -254,14 +254,14 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
                             None => ")",
                         },
                     )
-                })
-                .unwrap_or((r_bracket.text_range().start(), "(", ")"));
+                },
+            );
 
             // Computes the text range for the edit.
             let edit_range = TextRange::new(insert_offset, insert_offset);
 
             // Add ink! attribute argument actions to accumulator.
-            ink_arg_suggestions.iter().for_each(|arg_kind| {
+            for arg_kind in ink_arg_suggestions {
                 results.push(Action {
                     label: format!("Add ink! {arg_kind} attribute argument."),
                     range: edit_range,
@@ -274,7 +274,7 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
                         )
                     ),
                 });
-            });
+            }
         }
     }
 }
@@ -284,20 +284,16 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
 fn is_focused_on_ast_item_declaration(item: &ast::Item, offset: TextSize) -> bool {
     // Shared logic that ensures the offset in not inside the AST item's item list or body.
     let is_focused_on_declaration_impl = |item_list: Option<&SyntaxNode>| {
-        item_list
-            .map(|node| {
-                let opening_curly_end =
-                    ink_analyzer_ir::first_child_token(node).and_then(|token| {
-                        (token.kind() == SyntaxKind::L_CURLY).then_some(token.text_range().end())
-                    });
-                let closing_curly_start =
-                    ink_analyzer_ir::last_child_token(node).and_then(|token| {
-                        (token.kind() == SyntaxKind::R_CURLY).then_some(token.text_range().start())
-                    });
-                offset <= opening_curly_end.unwrap_or(node.text_range().start())
-                    || closing_curly_start.unwrap_or(node.text_range().end()) <= offset
-            })
-            .unwrap_or(true)
+        item_list.map_or(true, |node| {
+            let opening_curly_end = ink_analyzer_ir::first_child_token(node).and_then(|token| {
+                (token.kind() == SyntaxKind::L_CURLY).then_some(token.text_range().end())
+            });
+            let closing_curly_start = ink_analyzer_ir::last_child_token(node).and_then(|token| {
+                (token.kind() == SyntaxKind::R_CURLY).then_some(token.text_range().start())
+            });
+            offset <= opening_curly_end.unwrap_or(node.text_range().start())
+                || closing_curly_start.unwrap_or(node.text_range().end()) <= offset
+        })
     };
 
     // Gets the last attribute for the AST item (if any).
@@ -305,8 +301,7 @@ fn is_focused_on_ast_item_declaration(item: &ast::Item, offset: TextSize) -> boo
 
     // Ensures offset is either after the last attribute (if any) or after the beginning of the AST item.
     last_attr
-        .map(|attr| attr.syntax().text_range().end())
-        .unwrap_or(item.syntax().text_range().start())
+        .map_or(item.syntax().text_range().start(), |attr| attr.syntax().text_range().end())
         <= offset
         // Ensures offset is before the end of the AST item.
         && offset <= item.syntax().text_range().end()
@@ -314,25 +309,25 @@ fn is_focused_on_ast_item_declaration(item: &ast::Item, offset: TextSize) -> boo
         && match item {
             // We only care about AST items that can be annotated with ink! attributes.
             ast::Item::Module(item) => {
-                is_focused_on_declaration_impl(item.item_list().as_ref().map(|node| node.syntax()))
+                is_focused_on_declaration_impl(item.item_list().as_ref().map(AstNode::syntax))
             }
             ast::Item::Trait(item) => is_focused_on_declaration_impl(
-                item.assoc_item_list().as_ref().map(|node| node.syntax()),
+                item.assoc_item_list().as_ref().map(AstNode::syntax),
             ),
             ast::Item::Enum(item) => is_focused_on_declaration_impl(
-                item.variant_list().as_ref().map(|node| node.syntax()),
+                item.variant_list().as_ref().map(AstNode::syntax),
             ),
             ast::Item::Struct(item) => {
-                is_focused_on_declaration_impl(item.field_list().as_ref().map(|node| node.syntax()))
+                is_focused_on_declaration_impl(item.field_list().as_ref().map(AstNode::syntax))
             }
             ast::Item::Union(item) => is_focused_on_declaration_impl(
-                item.record_field_list().as_ref().map(|node| node.syntax()),
+                item.record_field_list().as_ref().map(AstNode::syntax),
             ),
             ast::Item::Fn(item) => {
-                is_focused_on_declaration_impl(item.body().as_ref().map(|node| node.syntax()))
+                is_focused_on_declaration_impl(item.body().as_ref().map(AstNode::syntax))
             }
             ast::Item::Impl(item) => is_focused_on_declaration_impl(
-                item.assoc_item_list().as_ref().map(|node| node.syntax()),
+                item.assoc_item_list().as_ref().map(AstNode::syntax),
             ),
             // Everything else is ignored.
             _ => false,
@@ -524,8 +519,7 @@ mod tests {
                         )
                     ))
                     .collect::<Vec<(&str, TextRange)>>(),
-                "code: {}",
-                code
+                "code: {code}"
             );
         }
     }
@@ -857,8 +851,7 @@ mod tests {
                         )
                     ))
                     .collect::<Vec<(&str, TextRange)>>(),
-                "code: {}",
-                code
+                "code: {code}"
             );
         }
     }
@@ -1092,8 +1085,7 @@ mod tests {
                 assert_eq!(
                     is_focused_on_ast_item_declaration(&ast_item, offset),
                     expected_result,
-                    "code: {}",
-                    code
+                    "code: {code}"
                 );
             }
         }

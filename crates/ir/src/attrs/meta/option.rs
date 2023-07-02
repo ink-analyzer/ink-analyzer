@@ -71,11 +71,7 @@ impl<T: fmt::Display> fmt::Display for MetaOption<T> {
             Self::Err(value) => write!(
                 f,
                 "{}",
-                value
-                    .iter()
-                    .map(|elem| elem.to_string())
-                    .collect::<Vec<String>>()
-                    .join("")
+                value.iter().map(ToString::to_string).collect::<String>()
             ),
             Self::None => write!(f, "{}", String::new()),
         }

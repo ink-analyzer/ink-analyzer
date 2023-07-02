@@ -100,7 +100,7 @@ impl MetaNameValue {
                     update_start_and_end(range);
                 }
             }
-            _ => (),
+            MetaOption::None => (),
         }
 
         // Parse start and end from eq token field.
@@ -118,7 +118,7 @@ impl MetaNameValue {
                     update_start_and_end(range);
                 }
             }
-            _ => (),
+            MetaOption::None => (),
         }
 
         // Fallback to using the separator offset if the meta item is empty.

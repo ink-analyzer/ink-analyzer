@@ -32,8 +32,7 @@ impl InkImpl {
                     .any(|attr| {
                         matches!(
                             attr.kind(),
-                            InkAttributeKind::Arg(InkArgKind::Constructor)
-                                | InkAttributeKind::Arg(InkArgKind::Message)
+                            InkAttributeKind::Arg(InkArgKind::Constructor | InkArgKind::Message)
                         )
                     }))
     }
@@ -215,7 +214,7 @@ mod tests {
         ] {
             let impl_item = parse_first_impl_item(code);
 
-            let ink_impl = InkImpl::cast(impl_item.syntax().to_owned()).unwrap();
+            let ink_impl = InkImpl::cast(impl_item.syntax().clone()).unwrap();
 
             // ink! impl attribute exists.
             assert_eq!(ink_impl.impl_attr().is_some(), has_impl_attr);

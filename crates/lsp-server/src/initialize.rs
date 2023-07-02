@@ -8,7 +8,7 @@ use crate::utils;
 pub fn initialize(
     connection: lsp_server::Connection,
 ) -> anyhow::Result<(lsp_server::Connection, lsp_types::InitializeParams)> {
-    // Starts initialization (blocks and waits initialize request from the client).
+    // Starts initialization (blocks and waits for initialize request from the client).
     let (initialize_id, initialize_params_json) = connection.initialize_start()?;
     let initialize_params: lsp_types::InitializeParams =
         serde_json::from_value(initialize_params_json).map_err(|error| {
@@ -100,7 +100,7 @@ mod tests {
         let init_req = lsp_server::Request {
             id: init_req_id.clone(),
             method: lsp_types::request::Initialize::METHOD.to_string(),
-            params: serde_json::to_value(&lsp_types::InitializeParams::default()).unwrap(),
+            params: serde_json::to_value(lsp_types::InitializeParams::default()).unwrap(),
         };
         // Sends initialization request from client to server.
         client_connection.sender.send(init_req.into()).unwrap();

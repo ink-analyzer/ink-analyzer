@@ -28,7 +28,7 @@ pub trait IsInkImplItem {
     fn impl_item(&self) -> Option<ast::Impl>;
 }
 
-/// Blanket implementation of InkImplItem for ink! entities that implement InkFn.
+/// Blanket implementation of `InkImplItem` for ink! entities that implement `InkFn`.
 impl<T> IsInkImplItem for T
 where
     T: IsInkFn,

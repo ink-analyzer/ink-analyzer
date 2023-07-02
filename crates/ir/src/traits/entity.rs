@@ -14,7 +14,7 @@ pub trait IsInkEntity {
     fn item_at_offset(&self, offset: TextSize) -> ItemAtOffset;
 }
 
-/// Blanket implementation of the InkItem for syntax node wrappers.
+/// Blanket implementation of the `IsInkEntity` trait for `SyntaxNode` wrappers.
 impl<T> IsInkEntity for T
 where
     T: FromSyntax,

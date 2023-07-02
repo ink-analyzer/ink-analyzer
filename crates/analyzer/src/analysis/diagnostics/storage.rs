@@ -9,7 +9,7 @@ const STORAGE_SCOPE_NAME: &str = "storage";
 
 /// Runs all ink! storage diagnostics.
 ///
-/// The entry point for finding ink! storage semantic rules is the storage module of the ink_ir crate.
+/// The entry point for finding ink! storage semantic rules is the storage module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81-L101>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, storage: &Storage) {
@@ -85,7 +85,7 @@ mod tests {
             });
 
             let result = utils::ensure_pub_struct(&storage, STORAGE_SCOPE_NAME);
-            assert!(result.is_none(), "storage: {}", code);
+            assert!(result.is_none(), "storage: {code}");
         }
     }
 
@@ -121,7 +121,7 @@ mod tests {
             });
 
             let result = utils::ensure_contract_parent(&storage, STORAGE_SCOPE_NAME);
-            assert!(result.is_none(), "storage: {}", code);
+            assert!(result.is_none(), "storage: {code}");
         }
     }
 
@@ -167,7 +167,7 @@ mod tests {
 
             let mut results = Vec::new();
             utils::ensure_no_ink_descendants(&mut results, &storage, STORAGE_SCOPE_NAME);
-            assert!(results.is_empty(), "storage: {}", code);
+            assert!(results.is_empty(), "storage: {code}");
         }
     }
 
@@ -203,7 +203,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &storage);
-            assert!(results.is_empty(), "storage: {}", code);
+            assert!(results.is_empty(), "storage: {code}");
         }
     }
 }

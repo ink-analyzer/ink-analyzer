@@ -55,8 +55,7 @@ mod tests {
             assert_eq!(
                 MetaName::cast(parse_first_syntax_token(code)).is_some(),
                 can_cast,
-                "meta name: {}",
-                code
+                "meta name: {code}"
             );
         }
     }

@@ -63,7 +63,7 @@ fn ensure_no_ink_identifiers<T: FromSyntax>(results: &mut Vec<Diagnostic>, item:
                         ),
                         range: ident.syntax().text_range(),
                         severity: Severity::Error,
-                    })
+                    });
                 })
             });
     });
@@ -81,7 +81,7 @@ fn ensure_no_ink_identifiers<T: FromSyntax>(results: &mut Vec<Diagnostic>, item:
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L876-L1024>.
 fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkAttribute]) {
-    attrs.iter().for_each(|attr| {
+    for attr in attrs {
         matches!(
             attr.kind(),
             InkAttributeKind::Macro(InkMacroKind::Unknown)
@@ -98,9 +98,9 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
                     attr.syntax().text_range()
                 },
                 severity: Severity::Warning, // warning because it's possible ink! analyzer is just outdated.
-            })
+            });
         });
-    });
+    }
 }
 
 /// Ensures that ink! attribute arguments are of the right format and have values (if any) of the correct type.
@@ -117,74 +117,77 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
 fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAttribute) {
-    attr.args()
-        .iter()
-        .for_each(|arg| {
-            let text_range = arg.text_range();
-            let arg_name_text = arg.meta().name().to_string();
-            match arg.kind() {
-                // Handle unknown argument.
-                InkArgKind::Unknown => results.push(Diagnostic {
-                    message: if arg_name_text.is_empty() {
-                        "Missing ink! attribute argument.".to_string()
-                    } else {
-                        format!("Unknown ink! attribute argument: '{}'.", arg_name_text)
-                    },
-                    range: text_range,
-                    severity: if arg_name_text.is_empty() {
-                        // error for missing.
-                        Severity::Error
-                    } else {
-                        // warning because it's possible ink! analyzer is just outdated.
-                        Severity::Warning
-                    },
-                }),
-                arg_kind => {
-                    let arg_value_type = InkArgValueKind::from(*arg_kind);
-                    match arg_value_type {
-                        // Arguments that must have no value.
-                        InkArgValueKind::None => if arg.meta().eq().is_some() || arg.meta().value().is_some() {
+    for arg in attr.args() {
+        let text_range = arg.text_range();
+        let arg_name_text = arg.meta().name().to_string();
+        match arg.kind() {
+            // Handle unknown argument.
+            InkArgKind::Unknown => results.push(Diagnostic {
+                message: if arg_name_text.is_empty() {
+                    "Missing ink! attribute argument.".to_string()
+                } else {
+                    format!("Unknown ink! attribute argument: '{arg_name_text}'.")
+                },
+                range: text_range,
+                severity: if arg_name_text.is_empty() {
+                    // error for missing.
+                    Severity::Error
+                } else {
+                    // warning because it's possible ink! analyzer is just outdated.
+                    Severity::Warning
+                },
+            }),
+            arg_kind => {
+                let arg_value_type = InkArgValueKind::from(*arg_kind);
+                match arg_value_type {
+                    // Arguments that must have no value.
+                    InkArgValueKind::None => {
+                        if arg.meta().eq().is_some() || arg.meta().value().is_some() {
                             results.push(Diagnostic {
-                                message: format!("`{}` argument shouldn't have a value.", arg_name_text),
+                                message: format!(
+                                    "`{arg_name_text}` argument shouldn't have a value."
+                                ),
                                 range: text_range,
                                 severity: Severity::Error,
                             });
                         }
-                        // Arguments that should have an integer (`u32` to be specific) value.
-                        InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => {
-                            let can_be_wildcard = arg_value_type == InkArgValueKind::U32OrWildcard;
-                            if !ensure_valid_attribute_arg_value(
-                                arg,
-                                |meta_value| {
-                                    // Ensures that the meta value is either a decimal or hex encoded `u32`.
-                                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
-                                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
-                                    meta_value.as_u32().is_some()
+                    }
+                    // Arguments that should have an integer (`u32` to be specific) value.
+                    InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => {
+                        let can_be_wildcard = arg_value_type == InkArgValueKind::U32OrWildcard;
+                        if !ensure_valid_attribute_arg_value(
+                            arg,
+                            |meta_value| {
+                                // Ensures that the meta value is either a decimal or hex encoded `u32`.
+                                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
+                                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
+                                meta_value.as_u32().is_some()
                                         // A wildcard/underscore (`_`) is also valid value for selectors.
                                         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
                                         || (can_be_wildcard
                                         && meta_value.is_wildcard())
-                                },
-                                |_| false,
-                                false,
-                            ) {
-                                results.push(Diagnostic {
-                                    message: format!(
-                                        "`{}` argument should have an `integer` (`u32`) {} value.",
-                                        arg_name_text,
-                                        if can_be_wildcard {
-                                            "or wildcard/underscore (`_`)"
-                                        } else {
-                                            ""
-                                        }
-                                    ),
-                                    range: text_range,
-                                    severity: Severity::Error,
-                                });
-                            }
+                            },
+                            |_| false,
+                            false,
+                        ) {
+                            results.push(Diagnostic {
+                                message: format!(
+                                    "`{}` argument should have an `integer` (`u32`) {} value.",
+                                    arg_name_text,
+                                    if can_be_wildcard {
+                                        "or wildcard/underscore (`_`)"
+                                    } else {
+                                        ""
+                                    }
+                                ),
+                                range: text_range,
+                                severity: Severity::Error,
+                            });
                         }
-                        // Arguments that should have a string value.
-                        InkArgValueKind::String | InkArgValueKind::StringIdentifier => if !ensure_valid_attribute_arg_value(
+                    }
+                    // Arguments that should have a string value.
+                    InkArgValueKind::String | InkArgValueKind::StringIdentifier => {
+                        if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| {
                                 meta_value.as_string().is_some()
@@ -209,8 +212,10 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 severity: Severity::Error,
                             });
                         }
-                        // Arguments that should have a boolean value.
-                        InkArgValueKind::Bool => if !ensure_valid_attribute_arg_value(
+                    }
+                    // Arguments that should have a boolean value.
+                    InkArgValueKind::Bool => {
+                        if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| meta_value.as_boolean().is_some(),
                             |_| false,
@@ -218,26 +223,29 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         ) {
                             results.push(Diagnostic {
                                 message: format!(
-                                    "`{}` argument should have a `boolean` (`bool`) value.",
-                                    arg_name_text
+                                    "`{arg_name_text}` argument should have a `boolean` (`bool`) value."
                                 ),
                                 range: text_range,
                                 severity: Severity::Error,
                             });
                         }
-                        // Arguments that should have a path value.
-                        InkArgValueKind::Path => if !ensure_valid_attribute_arg_value(
+                    }
+                    // Arguments that should have a path value.
+                    InkArgValueKind::Path => {
+                        if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| {
-                                matches!(meta_value.kind(), SyntaxKind::PATH | SyntaxKind::PATH_EXPR)
+                                matches!(
+                                    meta_value.kind(),
+                                    SyntaxKind::PATH | SyntaxKind::PATH_EXPR
+                                )
                             },
                             |_| false,
                             false,
                         ) {
                             results.push(Diagnostic {
                                 message: format!(
-                                    "`{}` argument should have a `path` (e.g `my::env::Types`) value.",
-                                    arg_name_text
+                                    "`{arg_name_text}` argument should have a `path` (e.g `my::env::Types`) value."
                                 ),
                                 range: text_range,
                                 severity: Severity::Error,
@@ -245,8 +253,9 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         }
                     }
                 }
-            };
-        });
+            }
+        };
+    }
 }
 
 /// Casts a string to an Rust identifier (`Ident`) (if possible).
@@ -359,7 +368,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
     }) {
         // sibling arguments are arguments that don't conflict with the primary attribute's kind,
         // see `utils::valid_sibling_ink_args` doc.
-        let valid_sibling_args = utils::valid_sibling_ink_args(first_valid_attribute.kind());
+        let valid_sibling_args = utils::valid_sibling_ink_args(*first_valid_attribute.kind());
 
         // We want to suggest a primary attribute in case the current one is either
         // incomplete (e.g `anonymous` without `event` or `derive` without `storage_item` attribute macro)
@@ -464,10 +473,10 @@ fn ensure_no_conflicting_attributes_and_arguments(
                             .map(|attr_kind| {
                                 match attr_kind {
                                     InkAttributeKind::Arg(arg_kind) => {
-                                        format!("`ink! {}`", arg_kind)
+                                        format!("`ink! {arg_kind}`")
                                     }
                                     InkAttributeKind::Macro(macro_kind) => {
-                                        format!("`ink! {}`", macro_kind)
+                                        format!("`ink! {macro_kind}`")
                                     }
                                 }
                             })
@@ -540,10 +549,10 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                 if attr == first_valid_attribute {
                                     match first_valid_attribute.kind() {
                                         InkAttributeKind::Arg(arg_kind) => {
-                                            format!("argument `{}`", arg_kind,)
+                                            format!("argument `{arg_kind}`",)
                                         }
                                         InkAttributeKind::Macro(macro_kind) => {
-                                            format!("macro `{}`", macro_kind)
+                                            format!("macro `{macro_kind}`")
                                         }
                                     }
                                 } else {
@@ -596,7 +605,7 @@ pub fn ensure_at_most_one_item<T: FromSyntax>(
                 message: message.to_string(),
                 range: item.syntax().text_range(),
                 severity,
-            })
+            });
         });
     }
 }
@@ -898,7 +907,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                         });
                     }
 
-                    assoc_fn_handler(results, &fn_item)
+                    assoc_fn_handler(results, &fn_item);
                 },
             }
         });
@@ -950,10 +959,10 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
                     range: attr
                         .syntax()
                         .parent()
-                        .unwrap_or(attr.syntax().to_owned())
+                        .unwrap_or(attr.syntax().clone())
                         .text_range(),
                     severity: Severity::Error,
-                })
+                });
             });
         });
 }
@@ -972,10 +981,10 @@ where
             range: attr
                 .syntax()
                 .parent()
-                .unwrap_or(attr.syntax().to_owned())
+                .unwrap_or(attr.syntax().clone())
                 .text_range(),
             severity: Severity::Error,
-        })
+        });
     });
 }
 
@@ -1188,7 +1197,7 @@ mod tests {
     #[test]
     fn known_ink_attributes_works() {
         for code in valid_attributes!() {
-            let attrs = parse_all_ink_attrs(&code);
+            let attrs = parse_all_ink_attrs(code);
 
             let mut results = Vec::new();
             ensure_no_unknown_ink_attributes(&mut results, &attrs);
@@ -1227,7 +1236,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_valid_attribute_arguments(&mut results, &attr);
-            assert!(results.is_empty(), "attribute: {}", code);
+            assert!(results.is_empty(), "attribute: {code}");
         }
     }
 
@@ -1338,8 +1347,8 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_valid_attribute_arguments(&mut results, &attr);
-            assert_eq!(results.len(), 1, "attribute: {}", code);
-            assert_eq!(results[0].severity, Severity::Error, "attribute: {}", code);
+            assert_eq!(results.len(), 1, "attribute: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "attribute: {code}");
         }
     }
 
@@ -1352,7 +1361,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_no_duplicate_attributes_and_arguments(&mut results, &attrs);
-            assert!(results.is_empty(), "attributes: {}", code);
+            assert!(results.is_empty(), "attributes: {code}");
         }
     }
 
@@ -1387,8 +1396,8 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_no_duplicate_attributes_and_arguments(&mut results, &attrs);
-            assert_eq!(results.len(), 1, "attributes: {}", code);
-            assert_eq!(results[0].severity, Severity::Error, "attributes: {}", code);
+            assert_eq!(results.len(), 1, "attributes: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "attributes: {code}");
         }
     }
 
@@ -1401,7 +1410,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs);
-            assert!(results.is_empty(), "attributes: {}", code);
+            assert!(results.is_empty(), "attributes: {code}");
         }
     }
 
@@ -1531,8 +1540,8 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs);
-            assert_eq!(results.len(), 1, "attributes: {}", code);
-            assert_eq!(results[0].severity, Severity::Error, "attributes: {}", code);
+            assert_eq!(results.len(), 1, "attributes: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "attributes: {code}");
         }
     }
 }

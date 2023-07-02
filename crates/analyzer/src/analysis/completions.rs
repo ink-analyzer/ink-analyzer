@@ -1,6 +1,6 @@
 //! ink! attribute completions.
 
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, TextRange, TextSize};
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{
     ast, FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
 };
@@ -62,14 +62,14 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         item_at_offset
                             .prev_non_trivia_token()
                             .as_ref()
-                            .map(|prev_token| prev_token.text()),
+                            .map(SyntaxToken::text),
                         Some("ink")
                     ))
                 || (matches!(
                     item_at_offset
                         .prev_non_trivia_token()
                         .as_ref()
-                        .map(|prev_token| prev_token.text()),
+                        .map(SyntaxToken::text),
                     Some("::")
                 ) && matches!(
                     item_at_offset
@@ -77,10 +77,10 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         .as_ref()
                         .and_then(|prev_token| ink_analyzer_ir::closest_non_trivia_token(
                             prev_token,
-                            |token| token.prev_token()
+                            SyntaxToken::prev_token
                         ))
                         .as_ref()
-                        .map(|prev_prev_token| prev_prev_token.text()),
+                        .map(SyntaxToken::text),
                     Some("ink")
                 ));
 
@@ -138,13 +138,13 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                 {
                     if let Some(prefix) = item_at_offset.focused_token_prefix() {
                         ink_macro_suggestions
-                            .retain(|macro_kind| format!("{}", macro_kind).starts_with(prefix));
+                            .retain(|macro_kind| format!("{macro_kind}").starts_with(prefix));
                     }
                 }
 
                 // Add context-specific completions to accumulator (if any).
                 if !ink_macro_suggestions.is_empty() {
-                    ink_macro_suggestions.iter().for_each(|macro_kind| {
+                    for macro_kind in ink_macro_suggestions {
                         results.push(Completion {
                             label: format!("ink! {macro_kind} attribute macro."),
                             range: edit_range,
@@ -173,15 +173,14 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                                 }
                             ),
                         });
-                    });
+                    }
                 } else if prev_token_is_left_bracket {
                     // Suggests the `ink` path segment itself if
                     // the focused token is an `ink` prefix and is also
                     // the next token right after the `[` delimiter.
                     if item_at_offset
                         .focused_token_prefix()
-                        .map(|prefix| "ink".starts_with(prefix))
-                        .unwrap_or(false)
+                        .map_or(false, |prefix| "ink".starts_with(prefix))
                     {
                         results.push(Completion {
                             label: default_label.to_string(),
@@ -284,7 +283,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                         }
                     }
                     // For known/valid primary ink! attribute kinds, only suggest valid ink! attribute siblings.
-                    kind => utils::valid_sibling_ink_args(kind),
+                    kind => utils::valid_sibling_ink_args(*kind),
                 };
 
                 if let Some(attr_parent) = ink_attr.syntax().parent() {
@@ -308,12 +307,12 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                 if !focused_token_is_left_parenthesis && !focused_token_is_comma {
                     if let Some(prefix) = item_at_offset.focused_token_prefix() {
                         ink_arg_suggestions
-                            .retain(|arg_kind| format!("{}", arg_kind).starts_with(prefix));
+                            .retain(|arg_kind| format!("{arg_kind}").starts_with(prefix));
                     }
                 }
 
                 // Add completions to accumulator.
-                ink_arg_suggestions.iter().for_each(|arg_kind| {
+                for arg_kind in ink_arg_suggestions {
                     results.push(Completion {
                         label: format!("ink! {arg_kind} attribute argument."),
                         range: edit_range,
@@ -323,7 +322,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                             ink_attr.syntax(),
                         ),
                     });
-                });
+                }
             }
         }
     }
@@ -590,8 +589,7 @@ mod tests {
                         )
                     ))
                     .collect::<Vec<(&str, TextRange)>>(),
-                "code: {}",
-                code
+                "code: {code}"
             );
         }
     }
@@ -1079,8 +1077,7 @@ mod tests {
                         )
                     ))
                     .collect::<Vec<(&str, TextRange)>>(),
-                "code: {}",
-                code
+                "code: {code}"
             );
         }
     }

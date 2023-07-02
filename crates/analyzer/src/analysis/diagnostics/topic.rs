@@ -9,7 +9,7 @@ const TOPIC_SCOPE_NAME: &str = "topic";
 
 /// Runs all ink! topic diagnostics.
 ///
-/// The entry point for finding ink! topic semantic rules is the event module of the ink_ir crate.
+/// The entry point for finding ink! topic semantic rules is the event module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86-L148>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, topic: &Topic) {

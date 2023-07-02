@@ -118,7 +118,7 @@ pub fn handle_code_action(
                     .into_iter()
                     .filter_map(|action| {
                         translator::to_lsp::code_action(action, uri.clone(), &translation_context)
-                            .map(|code_action| code_action.into())
+                            .map(Into::into)
                     })
                     .collect(),
             ))
@@ -162,7 +162,7 @@ mod tests {
         assert!(result.is_ok());
         let completion_items = match result.unwrap().unwrap() {
             lsp_types::CompletionResponse::List(it) => Some(it),
-            _ => None,
+            lsp_types::CompletionResponse::Array(_) => None,
         }
         .unwrap()
         .items;
@@ -194,10 +194,7 @@ mod tests {
         );
         assert!(result.is_ok());
         let hover_content = match result.unwrap().unwrap().contents {
-            lsp_types::HoverContents::Scalar(it) => match it {
-                lsp_types::MarkedString::String(it) => Some(it),
-                _ => None,
-            },
+            lsp_types::HoverContents::Scalar(lsp_types::MarkedString::String(it)) => Some(it),
             _ => None,
         }
         .unwrap();
@@ -237,7 +234,7 @@ mod tests {
         let code_actions = result.unwrap().unwrap();
         assert!(match &code_actions[0] {
             lsp_types::CodeActionOrCommand::CodeAction(it) => Some(it),
-            _ => None,
+            lsp_types::CodeActionOrCommand::Command(_) => None,
         }
         .unwrap()
         .title

@@ -135,7 +135,7 @@ impl<'a> Dispatcher<'a> {
         if let Some(params_list) =
             actions::publish_diagnostics(changes, &mut self.memory, &self.client_capabilities)?
         {
-            // Composes and sends `PublishDiagnostics` notifications fir all documents with changes.
+            // Composes and sends `PublishDiagnostics` notifications for all documents with changes.
             for params in params_list {
                 use lsp_types::notification::Notification;
                 let notification = lsp_server::Notification::new(
@@ -183,7 +183,7 @@ mod tests {
         use lsp_types::notification::Notification;
         let open_document_notification = lsp_server::Notification {
             method: lsp_types::notification::DidOpenTextDocument::METHOD.to_string(),
-            params: serde_json::to_value(&lsp_types::DidOpenTextDocumentParams {
+            params: serde_json::to_value(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri: uri.clone(),
                     language_id: "rust".to_string(),
@@ -217,7 +217,7 @@ mod tests {
         let completion_request = lsp_server::Request {
             id: completion_request_id.clone(),
             method: lsp_types::request::Completion::METHOD.to_string(),
-            params: serde_json::to_value(&lsp_types::CompletionParams {
+            params: serde_json::to_value(lsp_types::CompletionParams {
                 text_document_position: lsp_types::TextDocumentPositionParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri },
                     position: Default::default(),

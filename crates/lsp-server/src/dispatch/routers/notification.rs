@@ -79,9 +79,9 @@ mod tests {
         let notification_method = lsp_types::notification::DidOpenTextDocument::METHOD;
         let not = lsp_server::Notification {
             method: notification_method.to_string(),
-            params: serde_json::to_value(&lsp_types::DidOpenTextDocumentParams {
+            params: serde_json::to_value(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
-                    uri: uri.clone(),
+                    uri,
                     language_id: "rust".to_string(),
                     version: 0,
                     text: "".to_string(),
@@ -134,7 +134,7 @@ mod tests {
         // Processes `DidOpenTextDocument` notification through a notification router with a `DidOpenTextDocument` notification handler
         // and verifies that the notification is not processed due to an error
         // (i.e the `DidOpenTextDocument` notification handler returns an `Err` result and `router.finish` is never reached).
-        let mut notification_invalid = not.clone();
+        let mut notification_invalid = not;
         notification_invalid.params = serde_json::Value::Null;
         let mut router = NotificationRouter::new(notification_invalid, &mut memory);
         let result: anyhow::Result<bool> = (|| {

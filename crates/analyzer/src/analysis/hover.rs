@@ -55,10 +55,9 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
         match ink_arg {
             // Returns hover content for the covered ink! attribute argument if it's valid.
             Some(ink_arg) => (*ink_arg.kind() != InkArgKind::Unknown).then_some(Hover {
-                range: ink_arg
-                    .name()
-                    .map(|ink_arg_name| ink_arg_name.syntax().text_range())
-                    .unwrap_or(ink_arg.text_range()),
+                range: ink_arg.name().map_or(ink_arg.text_range(), |ink_arg_name| {
+                    ink_arg_name.syntax().text_range()
+                }),
                 content: content::doc(&InkAttributeKind::Arg(*ink_arg.kind())).to_string(),
             }),
             // Returns hover content based on the macro or "primary" argument for the ink! attribute,
@@ -70,8 +69,9 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
                     (*arg_kind != InkArgKind::Unknown).then_some(Hover {
                         range: ink_attr
                             .ink_arg_name()
-                            .map(|ink_arg_name| ink_arg_name.syntax().text_range())
-                            .unwrap_or(ink_attr.syntax().text_range()),
+                            .map_or(ink_attr.syntax().text_range(), |ink_arg_name| {
+                                ink_arg_name.syntax().text_range()
+                            }),
                         content: content::doc(&InkAttributeKind::Arg(*arg_kind)).to_string(),
                     })
                 }
@@ -80,8 +80,9 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
                     .then_some(Hover {
                         range: ink_attr
                             .ink_macro()
-                            .map(|ink_macro_name| ink_macro_name.syntax().text_range())
-                            .unwrap_or(ink_attr.syntax().text_range()),
+                            .map_or(ink_attr.syntax().text_range(), |ink_macro_name| {
+                                ink_macro_name.syntax().text_range()
+                            }),
                         content: content::doc(&InkAttributeKind::Macro(*macro_kind)).to_string(),
                     }),
             },

@@ -126,7 +126,7 @@ mod tests {
         let req = lsp_server::Request {
             id: req_id.clone(),
             method: lsp_types::request::Completion::METHOD.to_string(),
-            params: serde_json::to_value(&lsp_types::CompletionParams {
+            params: serde_json::to_value(lsp_types::CompletionParams {
                 text_document_position: lsp_types::TextDocumentPositionParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri },
                     position: Default::default(),
@@ -172,7 +172,7 @@ mod tests {
 
         // Processes modified completion request with invalid parameters through a request router with a completion handler,
         // retrieves response and verifies that it's an "invalid request" error response.
-        let mut req_invalid = req.clone();
+        let mut req_invalid = req;
         req_invalid.params = serde_json::Value::Null;
         let req_id_invalid = req_invalid.id.clone();
         let mut router = RequestRouter::new(req_invalid, &mut memory, &client_capabilities);

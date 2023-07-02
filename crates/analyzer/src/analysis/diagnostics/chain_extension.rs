@@ -14,7 +14,7 @@ const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 
 /// Runs all ink! chain extension diagnostics.
 ///
-/// The entry point for finding ink! chain extension semantic rules is the chain_extension module of the ink_ir crate.
+/// The entry point for finding ink! chain extension semantic rules is the `chain_extension` module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L201-L211>.
 ///
@@ -168,7 +168,7 @@ fn ensure_error_code_type_quantity(
                             .to_string(),
                         range: item.syntax().text_range(),
                         severity: Severity::Error,
-                    })
+                    });
                 });
             };
         }
@@ -204,8 +204,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
     utils::ensure_valid_quasi_direct_ink_descendants(results, chain_extension, |attr| {
         matches!(
             attr.kind(),
-            InkAttributeKind::Arg(InkArgKind::Extension)
-                | InkAttributeKind::Arg(InkArgKind::HandleStatus)
+            InkAttributeKind::Arg(InkArgKind::Extension | InkArgKind::HandleStatus)
         )
     });
 }
@@ -323,7 +322,7 @@ mod tests {
                 chain_extension.trait_item().unwrap(),
                 "chain extension",
             );
-            assert!(results.is_empty(), "chain extension: {}", code);
+            assert!(results.is_empty(), "chain extension: {code}");
         }
     }
 
@@ -382,12 +381,11 @@ mod tests {
                 chain_extension.trait_item().unwrap(),
                 "chain extension",
             );
-            assert_eq!(results.len(), 1, "chain extension: {}", code);
+            assert_eq!(results.len(), 1, "chain extension: {code}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
-                "chain extension: {}",
-                code
+                "chain extension: {code}"
             );
         }
     }
@@ -401,7 +399,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_trait_item_invariants(&mut results, chain_extension.trait_item().unwrap());
-            assert!(results.is_empty(), "chain extension: {}", code);
+            assert!(results.is_empty(), "chain extension: {code}");
         }
     }
 
@@ -528,12 +526,11 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_trait_item_invariants(&mut results, chain_extension.trait_item().unwrap());
-            assert_eq!(results.len(), 1, "chain extension: {}", items);
+            assert_eq!(results.len(), 1, "chain extension: {items}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
-                "chain extension: {}",
-                items
+                "chain extension: {items}"
             );
         }
     }
@@ -547,7 +544,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_error_code_type_quantity(&mut results, &chain_extension);
-            assert!(results.is_empty(), "chain extension: {}", code);
+            assert!(results.is_empty(), "chain extension: {code}");
         }
     }
 
@@ -608,7 +605,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_no_overlapping_ids(&mut results, &chain_extension);
-            assert!(results.is_empty(), "chain extension: {}", code);
+            assert!(results.is_empty(), "chain extension: {code}");
         }
     }
 
@@ -651,13 +648,12 @@ mod tests {
             let mut results = Vec::new();
             ensure_no_overlapping_ids(&mut results, &chain_extension);
             // 1 error the overlapping extension id.
-            assert_eq!(results.len(), 1, "chain extension: {}", code);
+            assert_eq!(results.len(), 1, "chain extension: {code}");
             // All diagnostics should be errors.
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
-                "chain extension: {}",
-                code
+                "chain extension: {code}"
             );
         }
     }
@@ -671,7 +667,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension);
-            assert!(results.is_empty(), "chain extension: {}", code);
+            assert!(results.is_empty(), "chain extension: {code}");
         }
     }
 
@@ -715,7 +711,7 @@ mod tests {
 
             let mut results = Vec::new();
             diagnostics(&mut results, &chain_extension);
-            assert!(results.is_empty(), "chain extension: {}", code);
+            assert!(results.is_empty(), "chain extension: {code}");
         }
     }
 }

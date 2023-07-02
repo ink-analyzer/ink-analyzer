@@ -108,7 +108,7 @@ pub fn ink_args(node: &SyntaxNode) -> impl Iterator<Item = InkArg> {
 /// Returns ink! arguments of a specific kind (if any) for the syntax node.
 pub fn ink_args_by_kind(node: &SyntaxNode, kind: InkArgKind) -> impl Iterator<Item = InkArg> {
     ink_attrs(node)
-        .flat_map(move |attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
+        .filter_map(move |attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
 }
 
 /// Returns ink! argument of a specific kind (if any) for the syntax node.
@@ -175,30 +175,30 @@ pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = I
     node.children()
         .filter_map(ast::Impl::cast)
         // `impl` children.
-        .map(|item| item.syntax().to_owned())
+        .map(|item| item.syntax().clone())
         .chain(ink_attrs_closest_descendants(node).filter_map(|attr| {
             // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
             if is_possible_callable_ancestor(&attr) {
-                ast_ext::parent_ast_item(attr.syntax()).map(|item| item.syntax().to_owned())
+                ast_ext::parent_ast_item(attr.syntax()).map(|item| item.syntax().clone())
             } else if Constructor::can_cast(&attr) {
                 // impl parent of ink! constructor closest descendant.
                 Constructor::cast(attr)
                     .expect("Should be able to cast")
                     .impl_item()
-                    .map(|item| item.syntax().to_owned())
+                    .map(|item| item.syntax().clone())
             } else if Message::can_cast(&attr) {
                 // impl parent of ink! message closest descendant.
                 Message::cast(attr)
                     .expect("Should be able to cast")
                     .impl_item()
-                    .map(|item| item.syntax().to_owned())
+                    .map(|item| item.syntax().clone())
             } else {
                 None
             }
         }))
         .filter_map(InkImpl::cast)
         // Deduplicate by wrapped syntax node.
-        .unique_by(|item| item.syntax().to_owned())
+        .unique_by(|item| item.syntax().clone())
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
@@ -221,7 +221,7 @@ fn is_possible_callable_ancestor(attr: &InkAttribute) -> bool {
     *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl)
         || (*attr.kind() == InkAttributeKind::Arg(InkArgKind::Namespace)
             && ast_ext::parent_ast_item(attr.syntax())
-                .and_then(|item| ast::Impl::cast(item.syntax().to_owned()))
+                .and_then(|item| ast::Impl::cast(item.syntax().clone()))
                 .is_some())
 }
 
@@ -250,7 +250,7 @@ where
             }
         })
         // Deduplicate by wrapped syntax node.
-        .unique_by(|item| item.syntax().to_owned())
+        .unique_by(|item| item.syntax().clone())
 }
 
 #[cfg(test)]
@@ -751,15 +751,13 @@ mod tests {
             assert_eq!(
                 ink_callable_closest_descendants::<Constructor>(module.syntax()).count(),
                 n_constructors,
-                "constructor: {}",
-                code
+                "constructor: {code}"
             );
             // Check number of messages.
             assert_eq!(
                 ink_callable_closest_descendants::<Message>(module.syntax()).count(),
                 n_messages,
-                "message: {}",
-                code
+                "message: {code}"
             );
         }
     }
@@ -877,8 +875,7 @@ mod tests {
             assert_eq!(
                 ink_impl_closest_descendants(module.syntax()).count(),
                 n_impls,
-                "impls: {}",
-                code
+                "impls: {code}"
             );
         }
     }
