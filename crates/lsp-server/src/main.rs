@@ -10,7 +10,7 @@ use lsp_server::Connection;
 struct Cli;
 
 fn main() -> anyhow::Result<()> {
-    // Processes CLI options, only return an `Err` result for command and option errors and for the default help and version arguments.
+    // Processes CLI options, only returns an `Err` result for command and argument errors, and for the default help and version arguments.
     if let Err(error) = Cli::try_parse() {
         match error.kind() {
             // Exit and show relevant information for help and version.

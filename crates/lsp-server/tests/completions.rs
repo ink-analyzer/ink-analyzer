@@ -12,7 +12,7 @@ mod utils;
 // - Send an LSP completion request from client to server for the test case.
 // - Retrieve the LSP completion response sent from the server to the client.
 // - Verify that the completion response results match the expected results.
-// See inline comments for mode details.
+// See inline comments for more details.
 #[test]
 fn completions_works() {
     // Creates an in-memory connection to an initialized LSP server.

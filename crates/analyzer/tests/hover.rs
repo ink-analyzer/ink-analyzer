@@ -8,7 +8,7 @@ use test_utils::{TestCaseParams, TestCaseResults};
 // - (optionally) make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - compute hover content for the modified source code and a specific text range.
 // - verify that the actual results match the expected results.
-// See inline comments for mode details.
+// See inline comments for more details.
 #[test]
 fn hover_works() {
     // Iterates over all test case groups (see [`test_utils::fixtures::hover_fixtures`] doc and inline comments).

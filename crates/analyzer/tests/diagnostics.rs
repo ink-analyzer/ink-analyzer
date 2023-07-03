@@ -8,7 +8,7 @@ use test_utils::TestCaseResults;
 // - (optionally) make modifications to the source code at specific offsets/text ranges to create a specific test case.
 // - compute diagnostics for the modified source code.
 // - verify that the actual results match the expected results.
-// See inline comments for mode details.
+// See inline comments for more details.
 #[test]
 fn diagnostics_works() {
     // Iterates over all test case groups (see [`test_utils::fixtures::diagnostics_fixtures`] doc and inline comments).

@@ -8,7 +8,7 @@ use test_utils::{TestCaseParams, TestCaseResults};
 // - (optionally) make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - compute code/intent actions for the modified source code and a specific offset position.
 // - verify that the actual results match the expected results.
-// See inline comments for mode details.
+// See inline comments for more details.
 #[test]
 fn actions_works() {
     // Iterates over all test case groups (see [`test_utils::fixtures::actions_fixtures`] doc and inline comments).

@@ -10,7 +10,7 @@ mod utils;
 // - Send the the modified source code from client to server via a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.
 // - Retrieve the `PublishDiagnostics` notification that's sent from the server to the client when the server receives a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.
 // - Verify that the diagnostics in the `PublishDiagnostics` notification match the expected results.
-// See inline comments for mode details.
+// See inline comments for more details.
 #[test]
 fn diagnostics_works() {
     // Creates an in-memory connection to an initialized LSP server.

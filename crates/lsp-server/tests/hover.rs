@@ -12,7 +12,7 @@ mod utils;
 // - Send an LSP hover request from client to server for the test case.
 // - Retrieve the LSP hover response sent from the server to the client.
 // - Verify that the hover response results match the expected results.
-// See inline comments for mode details.
+// See inline comments for more details.
 #[test]
 fn hover_works() {
     // Creates an in-memory connection to an initialized LSP server.

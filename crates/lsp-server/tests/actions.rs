@@ -13,7 +13,7 @@ mod utils;
 // - Send an LSP code action request from client to server for the test case.
 // - Retrieve the LSP code action response sent from the server to the client.
 // - Verify that the code action response results match the expected results.
-// See inline comments for mode details.
+// See inline comments for more details.
 #[test]
 fn actions_works() {
     // Creates an in-memory connection to an initialized LSP server.
