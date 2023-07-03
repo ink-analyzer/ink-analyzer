@@ -10,8 +10,26 @@ use lsp_server::Connection;
 struct Cli;
 
 fn main() -> anyhow::Result<()> {
-    // Processes CLI options (help and version) and returns if either is used.
-    Cli::parse();
+    // Processes CLI options, only return an `Err` result for command and option errors and for the default help and version arguments.
+    if let Err(error) = Cli::try_parse() {
+        match error.kind() {
+            // Exit and show relevant information for help and version.
+            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
+                error.exit();
+            }
+            // Ignore unknown arguments (e.g VSCode's LSP client passes an additional --stdio that can't be disable).
+            clap::error::ErrorKind::UnknownArgument => {
+                // Prints the error message.
+                error.print()?;
+                // Prints the decision to start the server anyway.
+                eprintln!("\nink! Language Server will ignore the argument and start anyway ...");
+            }
+            // Exit and show relevant information for all other cases.
+            _ => {
+                error.exit();
+            }
+        }
+    }
 
     // Runs the LSP server.
     run_server()
