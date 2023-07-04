@@ -311,6 +311,27 @@ pub fn remove_duplicate_ink_macro_suggestions(
     suggestions.retain(|arg_kind| !already_annotated_ink_macros.contains(arg_kind));
 }
 
+/// Filters out conflicting ink! arguments from suggestions
+/// (i.e ink! arguments that aren't valid siblings of the best candidate for primary ink! attribute kind of the parent node).
+pub fn remove_conflicting_ink_arg_suggestions(
+    suggestions: &mut Vec<InkArgKind>,
+    attr_parent: &SyntaxNode,
+) {
+    // Gets the first valid ink! attribute.
+    if let Some(first_valid_attribute) = ink_analyzer_ir::ink_attrs(attr_parent).find(|attr| {
+        // Ignore unknown attributes.
+        !matches!(
+            attr.kind(),
+            InkAttributeKind::Macro(InkMacroKind::Unknown)
+                | InkAttributeKind::Arg(InkArgKind::Unknown)
+        )
+    }) {
+        let valid_siblings = valid_sibling_ink_args(*first_valid_attribute.kind());
+        // Filters out invalid siblings.
+        suggestions.retain(|arg_kind| valid_siblings.contains(arg_kind));
+    }
+}
+
 /// Filters out invalid ink! arguments from suggestions based on parent ink! scope.
 pub fn remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
     suggestions: &mut Vec<InkArgKind>,

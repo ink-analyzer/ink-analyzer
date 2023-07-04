@@ -166,7 +166,7 @@ mod tests {
         }
         .unwrap()
         .items;
-        assert!(completion_items[0].label.contains("ink! contract"));
+        assert!(completion_items[0].label.contains("contract"));
     }
 
     #[test]

@@ -377,8 +377,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
         let primary_attribute_kind_suggestions = match first_valid_attribute.kind() {
             InkAttributeKind::Arg(arg_kind) => {
                 // Only ink! attribute arguments when set as the primary attribute have
-                // the potential to be either be incomplete or ambiguous.
-                // See respective match pattern in the `utils::valid_sibling_ink_args` function for the reasoning and references.
+                // the potential to be either incomplete or ambiguous.
+                // See respective match pattern in the `utils::valid_sibling_ink_args` function for the rationale and references.
                 match arg_kind {
                     InkArgKind::Anonymous => vec![InkAttributeKind::Arg(InkArgKind::Event)],
                     InkArgKind::KeepAttr => vec![
@@ -405,7 +405,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
         // For `namespace`, additional context is required to determine what do with
         // the primary attribute kind suggestions, because while namespace can be ambiguous,
         // it's also valid on its own. See its match pattern in
-        // the `utils::valid_sibling_ink_args` function for the reasoning and references.
+        // the `utils::valid_sibling_ink_args` function for the rationale and references.
         let is_namespace =
             *first_valid_attribute.kind() == InkAttributeKind::Arg(InkArgKind::Namespace);
 
@@ -544,19 +544,22 @@ fn ensure_no_conflicting_attributes_and_arguments(
                     if !is_attribute_kind && !valid_sibling_args.contains(arg.kind()) {
                         results.push(Diagnostic {
                             message: format!(
-                                "ink! attribute argument `{}` conflicts with the ink! attribute {} for this item.",
+                                "ink! attribute argument `{}` conflicts with the {} for this item.",
                                 arg.meta().name(),
                                 if attr == first_valid_attribute {
                                     match first_valid_attribute.kind() {
                                         InkAttributeKind::Arg(arg_kind) => {
-                                            format!("argument `{arg_kind}`",)
+                                            format!("ink! attribute argument `{arg_kind}`",)
                                         }
                                         InkAttributeKind::Macro(macro_kind) => {
-                                            format!("macro `{macro_kind}`")
+                                            format!("ink! attribute macro `{macro_kind}`")
                                         }
                                     }
                                 } else {
-                                    format!("first ink! attribute `{}`", first_valid_attribute.syntax())
+                                    format!(
+                                        "first ink! attribute `{}`",
+                                        first_valid_attribute.syntax()
+                                    )
                                 }
                             ),
                             range: arg.text_range(),

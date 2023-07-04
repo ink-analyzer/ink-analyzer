@@ -48,7 +48,7 @@ fn completions_works() {
             assert_eq!(
                 results
                     .iter()
-                    .map(|completion| (completion.edit.as_str(), completion.range))
+                    .map(|completion| (completion.edit.trim(), completion.range))
                     .collect::<Vec<(&str, TextRange)>>(),
                 expected_results
                     .into_iter()

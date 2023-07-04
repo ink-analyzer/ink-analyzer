@@ -124,7 +124,7 @@ fn completions_works() {
                                 lsp_types::CompletionTextEdit::Edit(it) => Some(it),
                                 lsp_types::CompletionTextEdit::InsertAndReplace(_) => None,
                             })
-                            .map(|edit| (edit.new_text.as_str(), edit.range)))
+                            .map(|edit| (edit.new_text.trim(), edit.range)))
                         .collect::<Vec<(&str, lsp_types::Range)>>(),
                     expected_results
                         .into_iter()

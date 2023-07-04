@@ -120,35 +120,41 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                             });
                         };
 
-                    // Suggests ink! attribute macros based on the context.
-                    let mut ink_macro_suggestions =
-                        utils::valid_ink_macros_by_syntax_kind(target.kind());
+                    // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
+                    if ink_analyzer_ir::ink_attrs(target).next().is_none() {
+                        // Suggests ink! attribute macros based on the context.
+                        let mut ink_macro_suggestions =
+                            utils::valid_ink_macros_by_syntax_kind(target.kind());
 
-                    // Filters out duplicate and invalid ink! attribute macro actions based on parent ink! scope (if any).
-                    utils::remove_duplicate_ink_macro_suggestions(
-                        &mut ink_macro_suggestions,
-                        target,
-                    );
-                    utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
-                        &mut ink_macro_suggestions,
-                        target,
-                    );
-
-                    // Add ink! attribute macro actions to accumulator.
-                    for macro_kind in ink_macro_suggestions {
-                        add_action_to_accumulator(
-                            &format!("#[ink::{macro_kind}]"),
-                            &macro_kind.to_string(),
-                            "macro",
+                        // Filters out duplicate and invalid ink! attribute macro actions based on parent ink! scope (if any).
+                        utils::remove_duplicate_ink_macro_suggestions(
+                            &mut ink_macro_suggestions,
+                            target,
                         );
+                        utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
+                            &mut ink_macro_suggestions,
+                            target,
+                        );
+
+                        // Add ink! attribute macro actions to accumulator.
+                        for macro_kind in ink_macro_suggestions {
+                            add_action_to_accumulator(
+                                &format!("#[ink::{macro_kind}]"),
+                                &macro_kind.to_string(),
+                                "macro",
+                            );
+                        }
                     }
 
                     // Suggests ink! attribute arguments based on the context.
                     let mut ink_arg_suggestions =
                         utils::valid_ink_ink_args_by_syntax_kind(target.kind());
 
-                    // Filters out duplicate and invalid (based on parent ink! scope) ink! attribute argument actions.
+                    // Filters out duplicate ink! attribute argument actions.
                     utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, target);
+                    // Filters out conflicting ink! attribute argument actions.
+                    utils::remove_conflicting_ink_arg_suggestions(&mut ink_arg_suggestions, target);
+                    // Filters out invalid (based on parent ink! scope) ink! attribute argument actions.
                     utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
                         &mut ink_arg_suggestions,
                         target,
@@ -190,6 +196,12 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
             if let Some(attr_parent) = ink_attr.syntax().parent() {
                 // Filters out duplicate ink! attribute argument actions.
                 utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, &attr_parent);
+
+                // Filters out conflicting ink! attribute argument actions.
+                utils::remove_conflicting_ink_arg_suggestions(
+                    &mut ink_arg_suggestions,
+                    &attr_parent,
+                );
 
                 // Filters out invalid (based on parent ink! scope) ink! attribute argument actions,
                 // Doesn't apply to ink! attribute macros as their arguments are not influenced by the parent scope.
@@ -496,6 +508,40 @@ mod tests {
                     ("#[ink(message)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(payable)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(selector=)]", Some("<-fn"), Some("<-fn")),
+                ],
+            ),
+            (
+                r#"
+                    #[ink::test]
+                    fn my_fn() {
+                    }
+                "#,
+                Some("<-fn"),
+                vec![],
+            ),
+            (
+                r#"
+                    #[ink(constructor)]
+                    fn my_fn() {
+                    }
+                "#,
+                Some("<-fn"),
+                vec![
+                    (
+                        "#[ink(default)]",
+                        Some("#[ink(constructor)]"),
+                        Some("#[ink(constructor)]"),
+                    ),
+                    (
+                        "#[ink(payable)]",
+                        Some("#[ink(constructor)]"),
+                        Some("#[ink(constructor)]"),
+                    ),
+                    (
+                        "#[ink(selector=)]",
+                        Some("#[ink(constructor)]"),
+                        Some("#[ink(constructor)]"),
+                    ),
                 ],
             ),
         ] {
@@ -806,6 +852,19 @@ mod tests {
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
                     (", selector=", Some("<-)]"), Some("<-)]")),
+                ],
+            ),
+            (
+                r#"
+                    #[ink(constructor)]
+                    #[ink(payable)]
+                    pub fn my_fn() {
+                    }
+                "#,
+                Some("<-#[->"),
+                vec![
+                    (", default", Some("<-)]->"), Some("<-)]->")),
+                    (", selector=", Some("<-)]->"), Some("<-)]->")),
                 ],
             ),
             (

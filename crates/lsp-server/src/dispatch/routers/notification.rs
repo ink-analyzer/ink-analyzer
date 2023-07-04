@@ -29,10 +29,7 @@ impl<'a> NotificationRouter<'a> {
         N::Params: DeserializeOwned,
     {
         // Unwrap notification if it hasn't been consumed yet, otherwise return immediately.
-        let not = match self.not.take() {
-            Some(it) => it,
-            None => return Ok(self),
-        };
+        let Some(not) = self.not.take() else { return Ok(self) };
 
         // Match notification to method and call handler with extracted params (if possible).
         match not.extract::<N::Params>(N::METHOD) {

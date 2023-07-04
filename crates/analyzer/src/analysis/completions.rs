@@ -12,6 +12,8 @@ use super::utils;
 pub struct Completion {
     /// Label which identifies the completion.
     pub label: String,
+    /// Descriptive information about the completion.
+    pub detail: Option<String>,
     /// Range of identifier that is being completed.
     pub range: TextRange,
     /// Replacement text for the completion.
@@ -145,33 +147,35 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                 // Add context-specific completions to accumulator (if any).
                 if !ink_macro_suggestions.is_empty() {
                     for macro_kind in ink_macro_suggestions {
+                        let edit = format!(
+                            "{}{}{macro_kind}",
+                            // Only includes `ink` if the focused token is either the `[` delimiter,
+                            // the next token right after the `[` delimiter, the `ink` path segment.
+                            if focused_token_is_left_bracket
+                                || prev_token_is_left_bracket
+                                || focused_token.text() == "ink"
+                            {
+                                "ink"
+                            } else {
+                                ""
+                            },
+                            // Only includes `ink` if the focused token is either the `[` delimiter,
+                            // the next token right after the `[` delimiter or
+                            // anything in the `ink::` path segment position
+                            if focused_token_is_left_bracket
+                                || prev_token_is_left_bracket
+                                || focused_token_is_ink_or_colon_prefix
+                            {
+                                "::"
+                            } else {
+                                ""
+                            }
+                        );
                         results.push(Completion {
-                            label: format!("ink! {macro_kind} attribute macro."),
+                            label: edit.clone(),
+                            detail: Some(format!("ink! {macro_kind} attribute macro.")),
                             range: edit_range,
-                            edit: format!(
-                                "{}{}{macro_kind}",
-                                // Only includes `ink` if the focused token is either the `[` delimiter,
-                                // the next token right after the `[` delimiter, the `ink` path segment.
-                                if focused_token_is_left_bracket
-                                    || prev_token_is_left_bracket
-                                    || focused_token.text() == "ink"
-                                {
-                                    "ink"
-                                } else {
-                                    ""
-                                },
-                                // Only includes `ink` if the focused token is either the `[` delimiter,
-                                // the next token right after the `[` delimiter or
-                                // anything in the `ink::` path segment position
-                                if focused_token_is_left_bracket
-                                    || prev_token_is_left_bracket
-                                    || focused_token_is_ink_or_colon_prefix
-                                {
-                                    "::"
-                                } else {
-                                    ""
-                                }
-                            ),
+                            edit,
                         });
                     }
                 } else if prev_token_is_left_bracket {
@@ -182,10 +186,12 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         .focused_token_prefix()
                         .map_or(false, |prefix| "ink".starts_with(prefix))
                     {
+                        let edit = "ink".to_string();
                         results.push(Completion {
-                            label: default_label.to_string(),
+                            label: edit.clone(),
+                            detail: Some(default_label.to_string()),
                             range: edit_range,
-                            edit: "ink".to_string(),
+                            edit,
                         });
                     }
                 }
@@ -203,25 +209,28 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
         // Only computes completions for ink! attributes.
         if let Some((ink_attr, _, _)) = item_at_offset.normalized_parent_ink_attr() {
             let focused_token_is_left_parenthesis = focused_token.kind() == SyntaxKind::L_PAREN;
-            let prev_token_is_left_parenthesis = matches!(
+            let prev_non_trivia_token_is_left_parenthesis = matches!(
                 item_at_offset
                     .prev_non_trivia_token()
                     .map(|prev_token| prev_token.kind()),
                 Some(SyntaxKind::L_PAREN)
             );
             let focused_token_is_comma = focused_token.kind() == SyntaxKind::COMMA;
-            let prev_token_is_comma = matches!(
+            let prev_non_trivia_token_is_comma = matches!(
                 item_at_offset
                     .prev_non_trivia_token()
                     .map(|prev_token| prev_token.kind()),
                 Some(SyntaxKind::COMMA)
             );
+            let prev_token_is_whitespace = focused_token.prev_token().map_or(true, |prev_token| {
+                prev_token.kind() == SyntaxKind::WHITESPACE
+            });
 
             // Only computes completions if the focused token is in an argument context.
             if focused_token_is_left_parenthesis
-                || prev_token_is_left_parenthesis
+                || prev_non_trivia_token_is_left_parenthesis
                 || focused_token_is_comma
-                || prev_token_is_comma
+                || prev_non_trivia_token_is_comma
             {
                 // Removes the delimiter (i.e `(` and `,`) from text range if it's the focused token.
                 let edit_range = if focused_token_is_left_parenthesis || focused_token_is_comma {
@@ -244,7 +253,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                             // Handles cases where either the AST item type is unknown or
                             // the ink! attribute is not applied to an AST item (e.g. ink! topic).
                             None => {
-                                // Checks whether for the parent is a struct `RecordField`.
+                                // Checks whether the parent is a struct `RecordField`.
                                 // `RecordFieldList` is also matched for cases where the ink! attribute is
                                 // unclosed and so the field is parsed as if it's part of the attribute.
                                 match ink_attr.syntax().parent().and_then(|attr_parent| {
@@ -257,7 +266,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                                     ))
                                     .then_some(attr_parent)
                                 }) {
-                                    // Returns ink! topic suggest for struct fields.
+                                    // Returns ink! topic suggestions for struct fields.
                                     Some(_) => vec![InkArgKind::Topic],
                                     // Returns all attribute arguments that are capable of being standalone
                                     // if the AST item type is unknown.
@@ -287,8 +296,14 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                 };
 
                 if let Some(attr_parent) = ink_attr.syntax().parent() {
-                    // Filters out duplicate and invalid (based on parent ink! scope) ink! attribute argument suggestions.
+                    // Filters out duplicate ink! attribute argument suggestions.
                     utils::remove_duplicate_ink_arg_suggestions(
+                        &mut ink_arg_suggestions,
+                        &attr_parent,
+                    );
+
+                    // Filters out conflicting ink! attribute argument actions.
+                    utils::remove_conflicting_ink_arg_suggestions(
                         &mut ink_arg_suggestions,
                         &attr_parent,
                     );
@@ -313,14 +328,24 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
 
                 // Add completions to accumulator.
                 for arg_kind in ink_arg_suggestions {
+                    let prefix = if focused_token_is_comma
+                        || (prev_non_trivia_token_is_comma && !prev_token_is_whitespace)
+                    {
+                        // Inserts some space between the comma and the argument.
+                        " "
+                    } else {
+                        ""
+                    };
+                    let edit = utils::ink_arg_insertion_text(
+                        arg_kind,
+                        edit_range.end(),
+                        ink_attr.syntax(),
+                    );
                     results.push(Completion {
-                        label: format!("ink! {arg_kind} attribute argument."),
+                        label: edit.clone(),
+                        detail: Some(format!("ink! {arg_kind} attribute argument.")),
                         range: edit_range,
-                        edit: utils::ink_arg_insertion_text(
-                            arg_kind,
-                            edit_range.end(),
-                            ink_attr.syntax(),
-                        ),
+                        edit: format!("{prefix}{edit}"),
                     });
                 }
             }
@@ -339,7 +364,7 @@ mod tests {
             // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // edit = the text that will inserted,
+            // edit = the text that will inserted (represented without whitespace for simplicity),
             // pat_start = substring used to find the start of the edit offset (see `test_utils::parse_offset_at` doc),
             // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
 
@@ -577,7 +602,7 @@ mod tests {
             assert_eq!(
                 results
                     .iter()
-                    .map(|completion| (completion.edit.as_str(), completion.range))
+                    .map(|completion| (completion.edit.trim(), completion.range))
                     .collect::<Vec<(&str, TextRange)>>(),
                 expected_results
                     .into_iter()
@@ -600,7 +625,7 @@ mod tests {
             // (code, pat, [(edit, pat_start, pat_end)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // edit = the text that will inserted,
+            // edit = the text that will inserted (represented without whitespace for simplicity),
             // pat_start = substring used to find the start of the edit offset (see `test_utils::parse_offset_at` doc),
             // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
 
@@ -903,6 +928,19 @@ mod tests {
                     ("selector=", Some("("), Some("(")),
                 ],
             ),
+            (
+                r#"
+                    #[ink(constructor)]
+                    #[ink(
+                    pub fn my_fn() {}
+                "#,
+                Some("ink(->"),
+                vec![
+                    ("default", Some("ink(->"), Some("ink(->")),
+                    ("payable", Some("ink(->"), Some("ink(->")),
+                    ("selector=", Some("ink(->"), Some("ink(->")),
+                ],
+            ),
             // Impl context.
             (
                 r#"
@@ -1065,7 +1103,7 @@ mod tests {
             assert_eq!(
                 results
                     .iter()
-                    .map(|completion| (completion.edit.as_str(), completion.range))
+                    .map(|completion| (completion.edit.trim(), completion.range))
                     .collect::<Vec<(&str, TextRange)>>(),
                 expected_results
                     .into_iter()

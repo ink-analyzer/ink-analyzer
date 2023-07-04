@@ -70,6 +70,7 @@ pub fn completion(
     range(completion.range, context).map(|range| lsp_types::CompletionItem {
         label: completion.label,
         kind: Some(lsp_types::CompletionItemKind::FUNCTION),
+        detail: completion.detail,
         text_edit: Some(
             lsp_types::TextEdit {
                 range,
