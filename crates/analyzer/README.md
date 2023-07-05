@@ -90,8 +90,6 @@ You can run unit and integration tests for all the core functionality by running
 cargo test -p ink-analyzer-ir
 ```
 
-Implementations of the unit tests (and hence a good overview of the current functionality) can be found in the [diagnostics submodule](/crates/analyzer/src/analysis/diagnostics.rs) of the [ink-analyzer crate](/crates/analyzer).
-
 ## License
 
 Licensed under either [MIT](/LICENSE-MIT) or [Apache-2.0](/LICENSE-APACHE) license at your option.
