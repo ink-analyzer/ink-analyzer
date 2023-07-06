@@ -122,12 +122,15 @@ fn actions_works() {
                         .as_ref()
                         .and_then(|it| { it.changes.as_ref().and_then(|it| { it.get(&uri) }) }))
                     .flatten()
-                    .map(|edit| (edit.new_text.trim(), edit.range))
-                    .collect::<Vec<(&str, lsp_types::Range)>>(),
+                    .map(|edit| (
+                        test_utils::remove_whitespace(edit.new_text.clone()),
+                        edit.range
+                    ))
+                    .collect::<Vec<(String, lsp_types::Range)>>(),
                 expected_results
                     .into_iter()
                     .map(|result| (
-                        result.text,
+                        test_utils::remove_whitespace(result.text.to_string()),
                         ink_lsp_server::translator::to_lsp::range(
                             ink_analyzer::TextRange::new(
                                 ink_analyzer::TextSize::from(
@@ -143,7 +146,7 @@ fn actions_works() {
                         )
                         .unwrap()
                     ))
-                    .collect::<Vec<(&str, lsp_types::Range)>>(),
+                    .collect::<Vec<(String, lsp_types::Range)>>(),
                 "source: {}",
                 test_group.source
             );

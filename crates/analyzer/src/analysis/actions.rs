@@ -350,7 +350,7 @@ fn is_focused_on_ast_item_declaration(item: &ast::Item, offset: TextSize) -> boo
 mod tests {
     use super::*;
     use ink_analyzer_ir::FromSyntax;
-    use test_utils::parse_offset_at;
+    use test_utils::{parse_offset_at, remove_whitespace};
 
     #[test]
     fn ast_item_actions_works() {
@@ -552,19 +552,19 @@ mod tests {
 
             assert_eq!(
                 results
-                    .iter()
-                    .map(|action| (action.edit.trim(), action.range))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .into_iter()
+                    .map(|action| (remove_whitespace(action.edit), action.range))
+                    .collect::<Vec<(String, TextRange)>>(),
                 expected_results
                     .into_iter()
                     .map(|(edit, pat_start, pat_end)| (
-                        edit,
+                        remove_whitespace(edit.to_string()),
                         TextRange::new(
                             TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
                             TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
                         )
                     ))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .collect::<Vec<(String, TextRange)>>(),
                 "code: {code}"
             );
         }
@@ -897,19 +897,19 @@ mod tests {
 
             assert_eq!(
                 results
-                    .iter()
-                    .map(|action| (action.edit.trim(), action.range))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .into_iter()
+                    .map(|action| (remove_whitespace(action.edit), action.range))
+                    .collect::<Vec<(String, TextRange)>>(),
                 expected_results
                     .into_iter()
                     .map(|(edit, pat_start, pat_end)| (
-                        edit,
+                        remove_whitespace(edit.to_string()),
                         TextRange::new(
                             TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
                             TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
                         )
                     ))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .collect::<Vec<(String, TextRange)>>(),
                 "code: {code}"
             );
         }

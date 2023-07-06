@@ -356,7 +356,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_utils::parse_offset_at;
+    use test_utils::{parse_offset_at, remove_whitespace};
 
     #[test]
     fn macro_completions_works() {
@@ -1102,19 +1102,19 @@ mod tests {
 
             assert_eq!(
                 results
-                    .iter()
-                    .map(|completion| (completion.edit.trim(), completion.range))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .into_iter()
+                    .map(|completion| (remove_whitespace(completion.edit), completion.range))
+                    .collect::<Vec<(String, TextRange)>>(),
                 expected_results
                     .into_iter()
                     .map(|(edit, pat_start, pat_end)| (
-                        edit,
+                        remove_whitespace(edit.to_string()),
                         TextRange::new(
                             TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
                             TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
                         )
                     ))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .collect::<Vec<(String, TextRange)>>(),
                 "code: {code}"
             );
         }

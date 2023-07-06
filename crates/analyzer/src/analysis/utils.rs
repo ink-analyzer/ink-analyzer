@@ -408,11 +408,11 @@ pub fn ink_arg_insertion_text(
                     next_non_trivia_token.map(|next_token| match next_token.kind() {
                         SyntaxKind::EQ => "",
                         // Adds an `=` symbol only if the next closest non-trivia token is not an `=` symbol.
-                        _ => "=",
+                        _ => " = ",
                     })
                 })
                 // Defaults to adding the `=` symbol if the next closest non-trivia token couldn't be determined.
-                .unwrap_or("="),
+                .unwrap_or(" = "),
         }
     )
 }

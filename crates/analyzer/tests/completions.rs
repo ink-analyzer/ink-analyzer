@@ -47,13 +47,16 @@ fn completions_works() {
             .unwrap();
             assert_eq!(
                 results
-                    .iter()
-                    .map(|completion| (completion.edit.trim(), completion.range))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .into_iter()
+                    .map(|completion| (
+                        test_utils::remove_whitespace(completion.edit),
+                        completion.range
+                    ))
+                    .collect::<Vec<(String, TextRange)>>(),
                 expected_results
                     .into_iter()
                     .map(|result| (
-                        result.text,
+                        test_utils::remove_whitespace(result.text.to_string()),
                         TextRange::new(
                             TextSize::from(
                                 test_utils::parse_offset_at(&test_code, result.start_pat).unwrap()
@@ -65,7 +68,7 @@ fn completions_works() {
                             )
                         )
                     ))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .collect::<Vec<(String, TextRange)>>(),
                 "source: {}",
                 test_group.source
             );

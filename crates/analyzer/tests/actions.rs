@@ -47,13 +47,13 @@ fn actions_works() {
             .unwrap();
             assert_eq!(
                 results
-                    .iter()
-                    .map(|action| (action.edit.trim(), action.range))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .into_iter()
+                    .map(|action| (test_utils::remove_whitespace(action.edit), action.range))
+                    .collect::<Vec<(String, TextRange)>>(),
                 expected_results
                     .into_iter()
                     .map(|result| (
-                        result.text,
+                        test_utils::remove_whitespace(result.text.to_string()),
                         TextRange::new(
                             TextSize::from(
                                 test_utils::parse_offset_at(&test_code, result.start_pat).unwrap()
@@ -65,7 +65,7 @@ fn actions_works() {
                             ),
                         )
                     ))
-                    .collect::<Vec<(&str, TextRange)>>(),
+                    .collect::<Vec<(String, TextRange)>>(),
                 "source: {}",
                 test_group.source
             );
