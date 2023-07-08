@@ -65,16 +65,24 @@ pub fn diagnostic(
 /// Translates ink! analyzer completion item to LSP completion item.
 pub fn completion(
     completion: ink_analyzer::Completion,
+    snippet_support: bool,
     context: &PositionTranslationContext,
 ) -> Option<lsp_types::CompletionItem> {
     range(completion.range, context).map(|range| lsp_types::CompletionItem {
         label: completion.label,
         kind: Some(lsp_types::CompletionItemKind::FUNCTION),
         detail: completion.detail,
+        insert_text_format: snippet_support.then_some(match completion.snippet.as_ref() {
+            Some(_) => lsp_types::InsertTextFormat::SNIPPET,
+            None => lsp_types::InsertTextFormat::PLAIN_TEXT,
+        }),
         text_edit: Some(
             lsp_types::TextEdit {
                 range,
-                new_text: completion.edit,
+                new_text: match (snippet_support, completion.snippet) {
+                    (true, Some(snippet)) => snippet,
+                    _ => completion.edit,
+                },
             }
             .into(),
         ),
@@ -103,7 +111,7 @@ pub fn code_action(
 ) -> Option<lsp_types::CodeAction> {
     range(action.range, context).map(|range| lsp_types::CodeAction {
         title: action.label,
-        kind: Some(lsp_types::CodeActionKind::EMPTY),
+        kind: Some(lsp_types::CodeActionKind::REFACTOR_REWRITE),
         edit: Some(lsp_types::WorkspaceEdit {
             changes: Some(HashMap::from([(
                 uri,

@@ -53,6 +53,17 @@ pub fn code_actions_kinds(client_capabilities: &ClientCapabilities) -> Option<Ve
         })
 }
 
+/// Returns true if the LSP client advertises completion snippet support, or false otherwise.
+pub fn snippet_support(client_capabilities: &ClientCapabilities) -> bool {
+    client_capabilities
+        .text_document
+        .as_ref()
+        .and_then(|it| it.completion.as_ref())
+        .and_then(|it| it.completion_item.as_ref())
+        .and_then(|it| it.snippet_support)
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

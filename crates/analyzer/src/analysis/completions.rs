@@ -18,6 +18,8 @@ pub struct Completion {
     pub range: TextRange,
     /// Replacement text for the completion.
     pub edit: String,
+    /// Formatted snippet for the completion.
+    pub snippet: Option<String>,
 }
 
 /// Computes ink! attribute completions at the given offset.
@@ -176,6 +178,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                             detail: Some(format!("ink! {macro_kind} attribute macro.")),
                             range: edit_range,
                             edit,
+                            snippet: None,
                         });
                     }
                 } else if prev_token_is_left_bracket {
@@ -192,6 +195,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                             detail: Some(default_label.to_string()),
                             range: edit_range,
                             edit,
+                            snippet: None,
                         });
                     }
                 }
@@ -336,7 +340,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     } else {
                         ""
                     };
-                    let edit = utils::ink_arg_insertion_text(
+                    let (edit, snippet) = utils::ink_arg_insertion_text(
                         arg_kind,
                         edit_range.end(),
                         ink_attr.syntax(),
@@ -346,6 +350,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                         detail: Some(format!("ink! {arg_kind} attribute argument.")),
                         range: edit_range,
                         edit: format!("{prefix}{edit}"),
+                        snippet: snippet.map(|snippet| format!("{prefix}{snippet}")),
                     });
                 }
             }

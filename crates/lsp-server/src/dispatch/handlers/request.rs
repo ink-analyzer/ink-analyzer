@@ -35,7 +35,11 @@ pub fn handle_completion(
                 .completions(offset)
                 .into_iter()
                 .filter_map(|completion| {
-                    translator::to_lsp::completion(completion, &translation_context)
+                    translator::to_lsp::completion(
+                        completion,
+                        utils::snippet_support(client_capabilities),
+                        &translation_context,
+                    )
                 })
                 .collect();
 

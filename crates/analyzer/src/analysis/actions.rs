@@ -18,6 +18,8 @@ pub struct Action {
     pub range: TextRange,
     /// Replacement text for the action.
     pub edit: String,
+    /// Formatted snippet for the action.
+    pub snippet: Option<String>,
 }
 
 /// Computes ink! attribute actions for the given offset.
@@ -96,6 +98,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                                     edit: format!(
                                         "{insert_prefix}#[ink::{macro_kind}]{insert_suffix}"
                                     ),
+                                    snippet: None,
                                 });
                             }
                         }
@@ -156,7 +159,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
 
                         // Add ink! attribute argument actions to accumulator.
                         for arg_kind in ink_arg_suggestions {
-                            let edit = utils::ink_arg_insertion_text(
+                            let (edit, snippet) = utils::ink_arg_insertion_text(
                                 arg_kind,
                                 edit_range.end(),
                                 ast_item.syntax(),
@@ -167,11 +170,21 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                                 edit: format!(
                                     "{insert_prefix}{}{insert_suffix}",
                                     if is_extending {
-                                        format!("{edit}")
+                                        edit
                                     } else {
                                         format!("#[ink({edit})]")
                                     }
                                 ),
+                                snippet: snippet.map(|snippet| {
+                                    format!(
+                                        "{insert_prefix}{}{insert_suffix}",
+                                        if is_extending {
+                                            snippet
+                                        } else {
+                                            format!("#[ink({snippet})]")
+                                        }
+                                    )
+                                }),
                             });
                         }
                     }
@@ -222,17 +235,17 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
 
                 // Add ink! attribute argument actions to accumulator.
                 for arg_kind in ink_arg_suggestions {
+                    let (edit, snippet) = utils::ink_arg_insertion_text(
+                        arg_kind,
+                        edit_range.end(),
+                        ink_attr.syntax(),
+                    );
                     results.push(Action {
                         label: format!("Add ink! {arg_kind} attribute argument."),
                         range: edit_range,
-                        edit: format!(
-                            "{insert_prefix}{}{insert_suffix}",
-                            utils::ink_arg_insertion_text(
-                                arg_kind,
-                                edit_range.end(),
-                                ink_attr.syntax(),
-                            )
-                        ),
+                        edit: format!("{insert_prefix}{edit}{insert_suffix}"),
+                        snippet: snippet
+                            .map(|snippet| format!("{insert_prefix}{snippet}{insert_suffix}")),
                     });
                 }
             }

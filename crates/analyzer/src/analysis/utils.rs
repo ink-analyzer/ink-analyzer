@@ -376,7 +376,7 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
     }
 }
 
-/// Returns the insertion text for ink! attribute argument including
+/// Returns the insertion text and snippet (if appropriate) for ink! attribute argument including
 /// the `=` symbol after the ink! attribute argument name if necessary.
 ///
 /// (i.e for `selector`, we return `"selector="` while for `payable`, we simply return `"payable"`)
@@ -384,43 +384,56 @@ pub fn ink_arg_insertion_text(
     arg_kind: InkArgKind,
     insert_offset: TextSize,
     parent_node: &SyntaxNode,
-) -> String {
-    format!(
-        "{arg_kind}{}",
-        // Determines whether or not to insert the `=` symbol after the ink! attribute argument name.
-        match InkArgValueKind::from(arg_kind) {
-            // No `=` symbol is inserted after ink! attribute arguments that should not have a value.
-            InkArgValueKind::None => "",
-            // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
-            // the next closest non-trivia token after the insertion offset.
-            _ => parent_node
-                .token_at_offset(insert_offset)
-                .right_biased()
-                .and_then(|token| {
-                    // Finds the next non-trivia token.
-                    let is_next_non_trivia_token = |subject: &SyntaxToken| {
-                        subject.text_range().start() >= insert_offset && !subject.kind().is_trivia()
-                    };
-                    let next_non_trivia_token = if is_next_non_trivia_token(&token) {
-                        Some(token)
-                    } else {
-                        ink_analyzer_ir::closest_item_which(
-                            &token,
-                            SyntaxToken::next_token,
-                            is_next_non_trivia_token,
-                            is_next_non_trivia_token,
-                        )
-                    };
-                    next_non_trivia_token.map(|next_token| match next_token.kind() {
-                        SyntaxKind::EQ => "",
-                        // Adds an `=` symbol only if the next closest non-trivia token is not an `=` symbol.
-                        _ => " = ",
-                    })
+) -> (String, Option<String>) {
+    // Determines whether or not to insert the `=` symbol after the ink! attribute argument name.
+    let insert_equal_token = match InkArgValueKind::from(arg_kind) {
+        // No `=` symbol is inserted after ink! attribute arguments that should not have a value.
+        InkArgValueKind::None => false,
+        // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
+        // the next closest non-trivia token after the insertion offset.
+        _ => parent_node
+            .token_at_offset(insert_offset)
+            .right_biased()
+            .and_then(|token| {
+                // Finds the next non-trivia token.
+                let is_next_non_trivia_token = |subject: &SyntaxToken| {
+                    subject.text_range().start() >= insert_offset && !subject.kind().is_trivia()
+                };
+                let next_non_trivia_token = if is_next_non_trivia_token(&token) {
+                    Some(token)
+                } else {
+                    ink_analyzer_ir::closest_item_which(
+                        &token,
+                        SyntaxToken::next_token,
+                        is_next_non_trivia_token,
+                        is_next_non_trivia_token,
+                    )
+                };
+                next_non_trivia_token.map(|next_token| match next_token.kind() {
+                    SyntaxKind::EQ => false,
+                    // Adds an `=` symbol only if the next closest non-trivia token is not an `=` symbol.
+                    _ => true,
                 })
-                // Defaults to adding the `=` symbol if the next closest non-trivia token couldn't be determined.
-                .unwrap_or(" = "),
+            })
+            // Defaults to adding the `=` symbol if the next closest non-trivia token couldn't be determined.
+            .unwrap_or(true),
+    };
+    let text = format!("{arg_kind}{}", if insert_equal_token { " = " } else { "" });
+    // Creates (if appropriate) a snippet with tab stops and/or placeholders where applicable.
+    let snippet = insert_equal_token.then_some(format!(
+        "{text}{}",
+        match InkArgValueKind::from(arg_kind) {
+            InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => "${1:1}",
+            InkArgValueKind::String => r#""$1""#,
+            InkArgValueKind::StringIdentifier => r#""${1:my_namespace}""#,
+            InkArgValueKind::Bool => "${1:true}",
+            InkArgValueKind::Path => "$1",
+            // Should not be able to get here.
+            InkArgValueKind::None => "",
         }
-    )
+    ));
+
+    (text, snippet)
 }
 
 /// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for an ink! attribute.
