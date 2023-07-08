@@ -238,7 +238,7 @@ pub fn versioned_document_sync_notification(
     sender.send(not.into()).unwrap();
 }
 
-/// Removes whitespace from a string (e.g to simply text comparisons by ignoring whitespace formatting).
+/// Removes whitespace from a string (e.g to simplify text comparisons by ignoring whitespace formatting).
 pub fn remove_whitespace(mut text: String) -> String {
     text.retain(|it| !it.is_whitespace());
     text

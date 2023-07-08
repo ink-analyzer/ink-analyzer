@@ -1,6 +1,6 @@
 # ink! Language Server
 
-A Language Server Protocol (LSP) implementation for the [ink!](https://use.ink/) smart contract programming language.
+A [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) implementation for the [ink!](https://use.ink/) smart contract programming language.
 
 It implements the [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) and acts as a backend that provides language support features like diagnostic errors, code completion suggestions, code/intent actions and hover content to IDEs, code editors and other development tools.
 
