@@ -1,11 +1,11 @@
 //! ink! attribute code/intent actions.
 
 use either::Either;
-use ink_analyzer_ir::ast::{HasAttrs, HasDocComments};
-use ink_analyzer_ir::syntax::{
-    AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, TextSize,
+use ink_analyzer_ir::ast::HasAttrs;
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize};
+use ink_analyzer_ir::{
+    ast, FromAST, FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
 };
-use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttributeKind, InkFile, IsInkEntity};
 
 use super::utils;
 
@@ -55,70 +55,14 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                 // an AST item's declaration (i.e not inside the AST item's item list or body) for
                 // an item that can be annotated with ink! attributes.
                 if record_field.is_some() || is_focused_on_ast_item_declaration(&ast_item, offset) {
-                    // Set the target node as either the covering struct field (if present) or
+                    // Retrieves the target syntax node as either the covering struct field (if present) or
                     // the parent AST item (for all other cases).
                     let target = record_field
                         .as_ref()
                         .map_or(ast_item.syntax(), AstNode::syntax);
-
-                    // Gets the last attribute or doc comment for the target node (if any).
-                    let last_attr_or_doc_comment = record_field
+                    let target_ast_node = record_field
                         .as_ref()
-                        .map_or(
-                            ast_item.doc_comments_and_attrs(),
-                            HasDocComments::doc_comments_and_attrs,
-                        )
-                        .last();
-
-                    // Determines the insertion point (and indenting - so that we preserve formatting) for the action,
-                    // if the target node has attributes or doc comments,
-                    // then the new ink! attribute is inserted at the end of that list otherwise,
-                    // it's inserted at the beginning of the target node.
-                    let get_insert_indenting = |prev_sibling_or_token: Option<SyntaxElement>| {
-                        prev_sibling_or_token
-                            .and_then(|prev_elem| {
-                                (prev_elem.kind() == SyntaxKind::WHITESPACE)
-                                    .then_some(prev_elem.to_string())
-                            })
-                            .unwrap_or(String::new())
-                    };
-                    let (insert_offset, insert_indenting, insert_near_start) =
-                        last_attr_or_doc_comment
-                            .as_ref()
-                            .map(|item| match item {
-                                Either::Left(attr) => (
-                                    attr.syntax().text_range().end(),
-                                    get_insert_indenting(attr.syntax().prev_sibling_or_token()),
-                                    attr.syntax().text_range().start(),
-                                ),
-                                Either::Right(comment) => (
-                                    comment.syntax().text_range().end(),
-                                    get_insert_indenting(comment.syntax().prev_sibling_or_token()),
-                                    comment.syntax().text_range().start(),
-                                ),
-                            })
-                            .unwrap_or((
-                                target.text_range().start(),
-                                get_insert_indenting(target.prev_sibling_or_token()),
-                                target.text_range().start(),
-                            ));
-
-                    // Computes the text range for the edit.
-                    let edit_range = TextRange::new(insert_offset, insert_offset);
-
-                    // Convenience closure for adding ink! attribute actions.
-                    let mut add_action_to_accumulator =
-                        |attr: &str, attr_kind: &str, label_kind: &str| {
-                            results.push(Action {
-                                label: format!("Add ink! {attr_kind} attribute {label_kind}."),
-                                range: edit_range,
-                                edit: if insert_offset > insert_near_start {
-                                    format!("{insert_indenting}{attr}")
-                                } else {
-                                    format!("{attr}{insert_indenting}")
-                                },
-                            });
-                        };
+                        .map_or(Either::Left(&ast_item), Either::Right);
 
                     // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
                     if ink_analyzer_ir::ink_attrs(target).next().is_none() {
@@ -136,13 +80,24 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                             target,
                         );
 
-                        // Add ink! attribute macro actions to accumulator.
-                        for macro_kind in ink_macro_suggestions {
-                            add_action_to_accumulator(
-                                &format!("#[ink::{macro_kind}]"),
-                                &macro_kind.to_string(),
-                                "macro",
-                            );
+                        if !ink_macro_suggestions.is_empty() {
+                            // Determines the insertion offset and affixes for the action.
+                            let (insert_offset, insert_prefix, insert_suffix) =
+                                utils::ink_attribute_insertion_offset_and_affixes(target_ast_node);
+
+                            // Sets the text range for the edit.
+                            let edit_range = TextRange::new(insert_offset, insert_offset);
+
+                            // Add ink! attribute macro actions to accumulator.
+                            for macro_kind in ink_macro_suggestions {
+                                results.push(Action {
+                                    label: format!("Add ink! {macro_kind} attribute macro."),
+                                    range: edit_range,
+                                    edit: format!(
+                                        "{insert_prefix}#[ink::{macro_kind}]{insert_suffix}"
+                                    ),
+                                });
+                            }
                         }
                     }
 
@@ -160,20 +115,65 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
                         target,
                     );
 
-                    // Add ink! attribute argument actions to accumulator.
-                    for arg_kind in ink_arg_suggestions {
-                        add_action_to_accumulator(
-                            &format!(
-                                "#[ink({})]",
-                                utils::ink_arg_insertion_text(
-                                    arg_kind,
-                                    edit_range.end(),
-                                    ast_item.syntax(),
-                                )
-                            ),
-                            &arg_kind.to_string(),
-                            "argument",
-                        );
+                    if !ink_arg_suggestions.is_empty() {
+                        // Determines the insertion offset and affixes for the action and whether or not an existing attribute can be extended.
+                        let ((insert_offset, insert_prefix, insert_suffix), is_extending) =
+                            ink_analyzer_ir::ink_attrs(target)
+                                // Gets the first valid ink! attribute (if any).
+                                .find(|attr| {
+                                    // Ignore unknown attributes.
+                                    !matches!(
+                                        attr.kind(),
+                                        InkAttributeKind::Macro(InkMacroKind::Unknown)
+                                            | InkAttributeKind::Arg(InkArgKind::Unknown)
+                                    )
+                                })
+                                .and_then(|ink_attr| {
+                                    // Try to extend an existing attribute (if possible).
+                                    utils::ink_arg_insertion_offset_and_affixes(&ink_attr).map(
+                                        |(insert_offset, insert_prefix, insert_suffix)| {
+                                            (
+                                                (
+                                                    insert_offset,
+                                                    insert_prefix.to_string(),
+                                                    insert_suffix.to_string(),
+                                                ),
+                                                true,
+                                            )
+                                        },
+                                    )
+                                })
+                                .unwrap_or((
+                                    // Fallback to inserting a new attribute.
+                                    utils::ink_attribute_insertion_offset_and_affixes(
+                                        target_ast_node,
+                                    ),
+                                    false,
+                                ));
+
+                        // Sets the text range for the edit.
+                        let edit_range = TextRange::new(insert_offset, insert_offset);
+
+                        // Add ink! attribute argument actions to accumulator.
+                        for arg_kind in ink_arg_suggestions {
+                            let edit = utils::ink_arg_insertion_text(
+                                arg_kind,
+                                edit_range.end(),
+                                ast_item.syntax(),
+                            );
+                            results.push(Action {
+                                label: format!("Add ink! {arg_kind} attribute argument."),
+                                range: edit_range,
+                                edit: format!(
+                                    "{insert_prefix}{}{insert_suffix}",
+                                    if is_extending {
+                                        format!("{edit}")
+                                    } else {
+                                        format!("#[ink({edit})]")
+                                    }
+                                ),
+                            });
+                        }
                     }
                 }
             }
@@ -189,7 +189,7 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
     if let Some(ink_attr) = item_at_offset.parent_ink_attr() {
         // Only computes actions for closed attributes because
         // unclosed attributes are too tricky for useful contextual edits.
-        if let Some(r_bracket) = ink_attr.ast().r_brack_token() {
+        if ink_attr.ast().r_brack_token().is_some() {
             // Suggests ink! attribute arguments based on the context.
             let mut ink_arg_suggestions = utils::valid_sibling_ink_args(*ink_attr.kind());
 
@@ -213,79 +213,28 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
                 }
             }
 
-            // Determines the insertion point for the action as well as the affixes that should
-            // surround the ink! attribute text (i.e whitespace and delimiters e.g `(`, `,` and `)`).
-            let attr = ink_attr.ast();
-            let (insert_offset, insert_prefix, insert_suffix) = attr.token_tree().as_ref().map_or(
-                (r_bracket.text_range().start(), "(", ")"),
-                |token_tree| {
-                    (
-                        // Computes the insertion offset.
-                        token_tree
-                            .r_paren_token()
-                            // Inserts just before right parenthesis if it's exists.
-                            .map_or(token_tree.syntax().text_range().end(), |r_paren| {
-                                r_paren.text_range().start()
-                            }),
-                        // Determines the prefix to insert before the ink! attribute text.
-                        match token_tree.l_paren_token() {
-                            Some(_) => token_tree
-                                .r_paren_token()
-                                .and_then(|r_paren| {
-                                    r_paren.prev_token().map(|penultimate_token| {
-                                        match penultimate_token.kind() {
-                                            SyntaxKind::COMMA | SyntaxKind::L_PAREN => "",
-                                            // Adds a comma if the token before the right parenthesis is
-                                            // neither a comma nor the left parenthesis.
-                                            _ => ", ",
-                                        }
-                                    })
-                                })
-                                .unwrap_or(
-                                    match ink_analyzer_ir::last_child_token(token_tree.syntax()) {
-                                        Some(last_token) => match last_token.kind() {
-                                            SyntaxKind::COMMA
-                                            | SyntaxKind::L_PAREN
-                                            | SyntaxKind::R_PAREN => "",
-                                            // Adds a comma if there is no right parenthesis and the last token is
-                                            // neither a comma nor the left parenthesis
-                                            // (the right parenthesis in the pattern above will likely never match anything,
-                                            // but parsers is weird :-) so we leave it for robustness? and clarity).
-                                            _ => ", ",
-                                        },
-                                        None => "",
-                                    },
-                                ),
-                            // Adds a left parenthesis if non already exists.
-                            None => "(",
-                        },
-                        // Determines the suffix to insert before the ink! attribute text.
-                        match token_tree.r_paren_token() {
-                            Some(_) => "",
-                            // Adds a right parenthesis if non already exists.
-                            None => ")",
-                        },
-                    )
-                },
-            );
+            // Determines the insertion offset and affixes for the action.
+            if let Some((insert_offset, insert_prefix, insert_suffix)) =
+                utils::ink_arg_insertion_offset_and_affixes(&ink_attr)
+            {
+                // Computes the text range for the edit.
+                let edit_range = TextRange::new(insert_offset, insert_offset);
 
-            // Computes the text range for the edit.
-            let edit_range = TextRange::new(insert_offset, insert_offset);
-
-            // Add ink! attribute argument actions to accumulator.
-            for arg_kind in ink_arg_suggestions {
-                results.push(Action {
-                    label: format!("Add ink! {arg_kind} attribute argument."),
-                    range: edit_range,
-                    edit: format!(
-                        "{insert_prefix}{}{insert_suffix}",
-                        utils::ink_arg_insertion_text(
-                            arg_kind,
-                            edit_range.end(),
-                            ink_attr.syntax(),
-                        )
-                    ),
-                });
+                // Add ink! attribute argument actions to accumulator.
+                for arg_kind in ink_arg_suggestions {
+                    results.push(Action {
+                        label: format!("Add ink! {arg_kind} attribute argument."),
+                        range: edit_range,
+                        edit: format!(
+                            "{insert_prefix}{}{insert_suffix}",
+                            utils::ink_arg_insertion_text(
+                                arg_kind,
+                                edit_range.end(),
+                                ink_attr.syntax(),
+                            )
+                        ),
+                    });
+                }
             }
         }
     }
@@ -528,19 +477,19 @@ mod tests {
                 Some("<-fn"),
                 vec![
                     (
-                        "#[ink(default)]",
-                        Some("#[ink(constructor)]"),
-                        Some("#[ink(constructor)]"),
+                        ", default",
+                        Some("#[ink(constructor"),
+                        Some("#[ink(constructor"),
                     ),
                     (
-                        "#[ink(payable)]",
-                        Some("#[ink(constructor)]"),
-                        Some("#[ink(constructor)]"),
+                        ", payable",
+                        Some("#[ink(constructor"),
+                        Some("#[ink(constructor"),
                     ),
                     (
-                        "#[ink(selector=)]",
-                        Some("#[ink(constructor)]"),
-                        Some("#[ink(constructor)]"),
+                        ", selector=",
+                        Some("#[ink(constructor"),
+                        Some("#[ink(constructor"),
                     ),
                 ],
             ),

@@ -1,7 +1,13 @@
 //! Utilities for ink! analysis.
 
-use ink_analyzer_ir::syntax::{SyntaxKind, SyntaxNode, SyntaxToken, TextSize};
-use ink_analyzer_ir::{InkArgKind, InkArgValueKind, InkAttributeKind, InkMacroKind};
+use either::Either;
+use ink_analyzer_ir::ast::HasDocComments;
+use ink_analyzer_ir::syntax::{
+    AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextSize,
+};
+use ink_analyzer_ir::{
+    ast, FromAST, InkArgKind, InkArgValueKind, InkAttribute, InkAttributeKind, InkMacroKind,
+};
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
 ///
@@ -317,7 +323,7 @@ pub fn remove_conflicting_ink_arg_suggestions(
     suggestions: &mut Vec<InkArgKind>,
     attr_parent: &SyntaxNode,
 ) {
-    // Gets the first valid ink! attribute.
+    // Gets the first valid ink! attribute (if any).
     if let Some(first_valid_attribute) = ink_analyzer_ir::ink_attrs(attr_parent).find(|attr| {
         // Ignore unknown attributes.
         !matches!(
@@ -415,4 +421,115 @@ pub fn ink_arg_insertion_text(
                 .unwrap_or(" = "),
         }
     )
+}
+
+/// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for an ink! attribute.
+pub fn ink_attribute_insertion_offset_and_affixes(
+    parent_ast_node: Either<&ast::Item, &ast::RecordField>,
+) -> (TextSize, String, String) {
+    // Retrieves the parent syntax node and it's the last attribute or doc comment (if any).
+    let (parent_syntax_node, last_attr_or_doc_comment) = match parent_ast_node {
+        Either::Left(ast_item) => (ast_item.syntax(), ast_item.doc_comments_and_attrs().last()),
+        Either::Right(record_field) => (
+            record_field.syntax(),
+            record_field.doc_comments_and_attrs().last(),
+        ),
+    };
+
+    // Determines the insertion offset and affixes (i.e indenting - so that we preserve formatting) for the ink! attribute,
+    // if the target node has attributes or doc comments,
+    // then the new ink! attribute is inserted at the end of that list otherwise,
+    // it's inserted just before the target node.
+    let get_insert_indenting = |prev_sibling_or_token: Option<SyntaxElement>| {
+        prev_sibling_or_token
+            .and_then(|prev_elem| {
+                (prev_elem.kind() == SyntaxKind::WHITESPACE).then_some(prev_elem.to_string())
+            })
+            .unwrap_or(String::new())
+    };
+    last_attr_or_doc_comment.as_ref().map_or(
+        (
+            parent_syntax_node.text_range().start(),
+            String::new(),
+            get_insert_indenting(parent_syntax_node.prev_sibling_or_token()),
+        ),
+        |item| match item {
+            Either::Left(attr) => (
+                attr.syntax().text_range().end(),
+                get_insert_indenting(attr.syntax().prev_sibling_or_token()),
+                String::new(),
+            ),
+            Either::Right(comment) => (
+                comment.syntax().text_range().end(),
+                get_insert_indenting(comment.syntax().prev_sibling_or_token()),
+                String::new(),
+            ),
+        },
+    )
+}
+
+/// Returns the insertion offset and affixes (i.e whitespace and delimiters e.g `(`, `,` and `)`) for an ink! attribute argument .
+///
+/// **NOTE**: For attributes that have values (e.g `selector = 1`), the equal symbol (`=`)
+/// and the value are considered part of the attribute arguments (not suffixes)
+/// and so they're not handled by this functions. See [`ink_arg_insertion_text`] doc instead.
+pub fn ink_arg_insertion_offset_and_affixes(
+    ink_attr: &InkAttribute,
+) -> Option<(TextSize, &str, &str)> {
+    // Only computes insertion context for closed attributes because
+    // unclosed attributes are too tricky for useful contextual edits.
+    ink_attr.ast().r_brack_token().map(|r_bracket| {
+        ink_attr.ast().token_tree().as_ref().map_or(
+            (r_bracket.text_range().start(), "(", ")"),
+            |token_tree| {
+                (
+                    // Computes the insertion offset.
+                    token_tree
+                        .r_paren_token()
+                        // Inserts just before right parenthesis if it's exists.
+                        .map_or(token_tree.syntax().text_range().end(), |r_paren| {
+                            r_paren.text_range().start()
+                        }),
+                    // Determines the prefix to insert before the ink! attribute text.
+                    match token_tree.l_paren_token() {
+                        Some(_) => token_tree
+                            .r_paren_token()
+                            .and_then(|r_paren| {
+                                r_paren.prev_token().map(|penultimate_token| {
+                                    match penultimate_token.kind() {
+                                        SyntaxKind::COMMA | SyntaxKind::L_PAREN => "",
+                                        // Adds a comma if the token before the right parenthesis is
+                                        // neither a comma nor the left parenthesis.
+                                        _ => ", ",
+                                    }
+                                })
+                            })
+                            .unwrap_or(
+                                match ink_analyzer_ir::last_child_token(token_tree.syntax()) {
+                                    Some(last_token) => match last_token.kind() {
+                                        SyntaxKind::COMMA
+                                        | SyntaxKind::L_PAREN
+                                        | SyntaxKind::R_PAREN => "",
+                                        // Adds a comma if there is no right parenthesis and the last token is
+                                        // neither a comma nor the left parenthesis
+                                        // (the right parenthesis in the pattern above will likely never match anything,
+                                        // but parsers is weird :-) so we leave it for robustness? and clarity).
+                                        _ => ", ",
+                                    },
+                                    None => "",
+                                },
+                            ),
+                        // Adds a left parenthesis if non already exists.
+                        None => "(",
+                    },
+                    // Determines the suffix to insert before the ink! attribute text.
+                    match token_tree.r_paren_token() {
+                        Some(_) => "",
+                        // Adds a right parenthesis if non already exists.
+                        None => ")",
+                    },
+                )
+            },
+        )
+    })
 }
