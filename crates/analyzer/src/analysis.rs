@@ -45,8 +45,8 @@ impl Analysis {
     }
 
     /// Computes ink! attribute code/intent actions for the given position.
-    pub fn actions(&self, position: TextSize) -> Vec<Action> {
-        actions::actions(&self.file, position)
+    pub fn actions(&self, range: TextRange) -> Vec<Action> {
+        actions::actions(&self.file, range)
     }
 
     /// Returns descriptive/informational text for the ink! attribute at the given position (if any).

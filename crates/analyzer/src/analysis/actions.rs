@@ -2,9 +2,9 @@
 
 use either::Either;
 use ink_analyzer_ir::ast::HasAttrs;
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize};
+use ink_analyzer_ir::syntax::{AstNode, SyntaxElement, SyntaxKind, SyntaxNode, TextRange};
 use ink_analyzer_ir::{
-    ast, FromAST, FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
+    ast, FromAST, FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind,
 };
 
 use super::utils;
@@ -23,40 +23,39 @@ pub struct Action {
 }
 
 /// Computes ink! attribute actions for the given offset.
-pub fn actions(file: &InkFile, offset: TextSize) -> Vec<Action> {
+pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
     let mut results = Vec::new();
 
     // Compute AST item-based ink! attribute actions.
-    ast_item_actions(&mut results, file, offset);
+    ast_item_actions(&mut results, file, range);
 
     // Compute ink! attribute actions based on focused ink! attribute.
-    ink_attribute_actions(&mut results, file, offset);
+    ink_attribute_actions(&mut results, file, range);
 
     results
 }
 
 /// Computes AST item-based ink! attribute actions at the given offset.
-pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextSize) {
-    let item_at_offset = file.item_at_offset(offset);
-
-    // Only computes actions if a focused token can be determined.
-    if let Some(focused_token) = item_at_offset.focused_token() {
-        // Only computes actions if the focused token isn't part of an attribute.
-        if item_at_offset.parent_attr().is_none() {
+pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
+    // Only computes actions if a focused element can be determined.
+    if let Some(focused_elem) = utils::focused_element(file, range) {
+        // Only computes actions if the focused element isn't part of an attribute.
+        if utils::covering_attribute(file, range).is_none() {
             // Only computes actions if the parent AST item can be determined.
-            if let Some(ast_item) = item_at_offset.parent_ast_item() {
+            if let Some(ast_item) = utils::parent_ast_item(file, range) {
                 // Gets the covering struct record field if the AST item is a struct.
                 let record_field: Option<ast::RecordField> = match &ast_item {
-                    ast::Item::Struct(_) => {
-                        ink_analyzer_ir::closest_ancestor_ast_type(focused_token)
-                    }
+                    ast::Item::Struct(_) => match focused_elem {
+                        SyntaxElement::Node(it) => ink_analyzer_ir::closest_ancestor_ast_type(&it),
+                        SyntaxElement::Token(it) => ink_analyzer_ir::closest_ancestor_ast_type(&it),
+                    },
                     _ => None,
                 };
 
                 // Only computes actions if the focus is on either a struct record field or
                 // an AST item's declaration (i.e not inside the AST item's item list or body) for
                 // an item that can be annotated with ink! attributes.
-                if record_field.is_some() || is_focused_on_ast_item_declaration(&ast_item, offset) {
+                if record_field.is_some() || is_focused_on_ast_item_declaration(&ast_item, range) {
                     // Retrieves the target syntax node as either the covering struct field (if present) or
                     // the parent AST item (for all other cases).
                     let target = record_field
@@ -195,11 +194,9 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextS
 }
 
 /// Computes AST item-based ink! attribute actions at the given offset.
-pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextSize) {
-    let item_at_offset = file.item_at_offset(offset);
-
-    // Only computes actions if the focused token is part of an ink! attribute.
-    if let Some(ink_attr) = item_at_offset.parent_ink_attr() {
+pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
+    // Only computes actions if the focused range is part of/covered by an ink! attribute.
+    if let Some(ink_attr) = utils::covering_ink_attribute(file, range) {
         // Only computes actions for closed attributes because
         // unclosed attributes are too tricky for useful contextual edits.
         if ink_attr.ast().r_brack_token().is_some() {
@@ -255,8 +252,8 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, offset: 
 
 /// Determines if the offset is focused on an AST item's declaration
 /// (i.e not inside the AST item's item list or body) for an item that can be annotated with ink! attributes.
-fn is_focused_on_ast_item_declaration(item: &ast::Item, offset: TextSize) -> bool {
-    // Shared logic that ensures the offset in not inside the AST item's item list or body.
+fn is_focused_on_ast_item_declaration(item: &ast::Item, range: TextRange) -> bool {
+    // Shared logic that ensures the range is not inside the AST item's item list or body.
     let is_focused_on_declaration_impl = |item_list: Option<&SyntaxNode>| {
         item_list.map_or(true, |node| {
             let opening_curly_end = ink_analyzer_ir::first_child_token(node).and_then(|token| {
@@ -265,20 +262,25 @@ fn is_focused_on_ast_item_declaration(item: &ast::Item, offset: TextSize) -> boo
             let closing_curly_start = ink_analyzer_ir::last_child_token(node).and_then(|token| {
                 (token.kind() == SyntaxKind::R_CURLY).then_some(token.text_range().start())
             });
-            offset <= opening_curly_end.unwrap_or(node.text_range().start())
-                || closing_curly_start.unwrap_or(node.text_range().end()) <= offset
+
+            let opening_curly_end_or_node_end =
+                opening_curly_end.unwrap_or(node.text_range().end());
+            let closing_curly_start_or_node_end =
+                closing_curly_start.unwrap_or(node.text_range().end());
+
+            // We already know the range is focused on the AST item,
+            // this makes sure either it's before the body (if any) or after the body (i.e covering the closing curly bracket).
+            range.end() <= opening_curly_end_or_node_end
+                || closing_curly_start_or_node_end <= range.start()
         })
     };
 
     // Gets the last attribute for the AST item (if any).
-    let last_attr = item.attrs().last();
-
-    // Ensures offset is either after the last attribute (if any) or after the beginning of the AST item.
-    last_attr
-        .map_or(item.syntax().text_range().start(), |attr| attr.syntax().text_range().end())
-        <= offset
-        // Ensures offset is before the end of the AST item.
-        && offset <= item.syntax().text_range().end()
+    item.attrs().last()
+        // Ensures start offset is either after the last attribute (if any) or after the beginning of the AST item.
+        .map_or(item.syntax().text_range().start(), |attr| attr.syntax().text_range().end()) <= range.start()
+        // Ensures end offset is before the end of the AST item.
+        && range.end() <= item.syntax().text_range().end()
         // Ensures the offset in not inside the AST item's item list or body.
         && match item {
             // We only care about AST items that can be annotated with ink! attributes.
@@ -311,6 +313,7 @@ fn is_focused_on_ast_item_declaration(item: &ast::Item, offset: TextSize) -> boo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::FromSyntax;
     use test_utils::{parse_offset_at, remove_whitespace};
 
@@ -508,9 +511,10 @@ mod tests {
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
+            let range = TextRange::new(offset, offset);
 
             let mut results = Vec::new();
-            ast_item_actions(&mut results, &InkFile::parse(code), offset);
+            ast_item_actions(&mut results, &InkFile::parse(code), range);
 
             assert_eq!(
                 results
@@ -853,9 +857,10 @@ mod tests {
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
+            let range = TextRange::new(offset, offset);
 
             let mut results = Vec::new();
-            ink_attribute_actions(&mut results, &InkFile::parse(code), offset);
+            ink_attribute_actions(&mut results, &InkFile::parse(code), range);
 
             assert_eq!(
                 results
@@ -883,7 +888,7 @@ mod tests {
             // (code, [(pat, result)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // result = expected result from calling `is_focused_on_ast_item_declaration`,
+            // result = expected result from calling `is_focused_on_ast_item_declaration` (i.e whether or not an AST item's declaration is in focus),
 
             // Module.
             (
@@ -1096,6 +1101,7 @@ mod tests {
         ] {
             for (pat, expected_result) in test_cases {
                 let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
+                let range = TextRange::new(offset, offset);
 
                 let ast_item = InkFile::parse(code)
                     .syntax()
@@ -1104,7 +1110,7 @@ mod tests {
                     .next()
                     .unwrap();
                 assert_eq!(
-                    is_focused_on_ast_item_declaration(&ast_item, offset),
+                    is_focused_on_ast_item_declaration(&ast_item, range),
                     expected_result,
                     "code: {code}"
                 );

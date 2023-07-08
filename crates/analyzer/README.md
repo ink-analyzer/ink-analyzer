@@ -59,12 +59,12 @@ fn do_analysis() {
     let completions = analysis.completions(position);
     dbg!(&completions);
 
-    // Computes code/intent actions.
-    let actions = analysis.actions(position);
-    dbg!(&actions);
-
     // Sets the focus range.
     let range = TextRange::new(position, TextSize::from(25));
+
+    // Computes code/intent actions.
+    let actions = analysis.actions(range);
+    dbg!(&actions);
 
     // Gets hover content.
     let hover = analysis.hover(range);

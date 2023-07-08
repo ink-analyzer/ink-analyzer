@@ -3,10 +3,11 @@
 use either::Either;
 use ink_analyzer_ir::ast::HasDocComments;
 use ink_analyzer_ir::syntax::{
-    AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextSize,
+    AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 use ink_analyzer_ir::{
-    ast, FromAST, InkArgKind, InkArgValueKind, InkAttribute, InkAttributeKind, InkMacroKind,
+    ast, FromAST, FromSyntax, InkArgKind, InkArgValueKind, InkAttribute, InkAttributeKind,
+    InkMacroKind, IsInkEntity,
 };
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
@@ -545,4 +546,75 @@ pub fn ink_arg_insertion_offset_and_affixes(
             },
         )
     })
+}
+
+/// Returns the deepest syntax element that fully covers text range (if any).
+pub fn focused_element<T: FromSyntax>(item: &T, range: TextRange) -> Option<SyntaxElement> {
+    if range.is_empty() {
+        // Uses item at offset utility if the range start and end are equal.
+        item.item_at_offset(range.start())
+            .focused_token()
+            .cloned()
+            .map(SyntaxElement::Token)
+    } else {
+        item.syntax()
+            .text_range()
+            // Ensure the text range is in the bounds of the source code.
+            .contains_range(range)
+            .then(|| {
+                // Retrieves deepest element that fully covers the text range.
+                item.syntax().covering_element(range)
+            })
+    }
+}
+
+/// Returns the covering attribute for the text range (if any).
+pub fn covering_attribute<T: FromSyntax>(item: &T, range: TextRange) -> Option<ast::Attr> {
+    if range.is_empty() {
+        // Uses item at offset utility if the range start and end are equal.
+        // This way we keep some of the guarantees about parent AST items for unclosed attributes that
+        // the item at offset utility enforces.
+        item.item_at_offset(range.start()).parent_attr()
+    } else {
+        // Retrieves deepest element that fully covers the text range.
+        focused_element(item, range).and_then(|covering_element| {
+            if ast::Attr::can_cast(covering_element.kind()) {
+                // Casts covering element to `ast::Attr` node if it's an attribute.
+                covering_element.into_node().and_then(ast::Attr::cast)
+            } else {
+                // Finds the parent attribute (if any) of the covering element.
+                ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxElement, ast::Attr>(
+                    &covering_element,
+                )
+            }
+        })
+    }
+}
+
+/// Returns the covering ink! attribute for the text range (if any).
+pub fn covering_ink_attribute<T: FromSyntax>(item: &T, range: TextRange) -> Option<InkAttribute> {
+    covering_attribute(item, range).and_then(InkAttribute::cast)
+}
+
+/// Returns the parent AST item for the text range (if any).
+pub fn parent_ast_item<T: FromSyntax>(item: &T, range: TextRange) -> Option<ast::Item> {
+    if range.is_empty() {
+        // Uses item at offset utility if the range start and end are equal.
+        // This way we keep some of the guarantees about parent AST items for unclosed attributes that
+        // the item at offset utility enforces.
+        item.item_at_offset(range.start()).parent_ast_item()
+    } else {
+        // Retrieves deepest element that fully covers the text range.
+        focused_element(item, range).and_then(|covering_element| {
+            if ast::Item::can_cast(covering_element.kind()) {
+                // Casts covering element to `ast::Item` node if it's an AST item.
+                covering_element.into_node().and_then(ast::Item::cast)
+            } else {
+                // Finds the parent AST item (if any) of the covering element.
+                ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxElement, ast::Item>(
+                    &covering_element,
+                )
+            }
+        })
+    }
 }

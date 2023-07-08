@@ -35,9 +35,10 @@ fn actions_works() {
             .offset_pat;
             let offset =
                 TextSize::from(test_utils::parse_offset_at(&test_code, offset_pat).unwrap() as u32);
+            let range = TextRange::new(offset, offset);
 
             // Computes actions.
-            let results = Analysis::new(&test_code).actions(offset);
+            let results = Analysis::new(&test_code).actions(range);
 
             // Verifies actions results.
             let expected_results = match test_case.results {

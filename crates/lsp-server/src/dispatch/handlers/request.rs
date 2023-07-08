@@ -118,7 +118,7 @@ pub fn handle_code_action(
             // Computes ink! analyzer actions and translates them to LSP code actions.
             Ok(Some(
                 Analysis::new(&doc.content)
-                    .actions(text_range.start())
+                    .actions(text_range)
                     .into_iter()
                     .filter_map(|action| {
                         translator::to_lsp::code_action(action, uri.clone(), &translation_context)

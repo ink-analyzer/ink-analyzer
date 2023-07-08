@@ -1,9 +1,9 @@
 //! ink! attribute hover content.
 
-use ink_analyzer_ir::syntax::{AstNode, AstToken, SyntaxElement, TextRange};
-use ink_analyzer_ir::{
-    ast, FromSyntax, InkArgKind, InkAttribute, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
-};
+use ink_analyzer_ir::syntax::{AstNode, AstToken, TextRange};
+use ink_analyzer_ir::{FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind};
+
+use crate::analysis::utils;
 
 mod content;
 
@@ -19,31 +19,7 @@ pub struct Hover {
 /// Returns descriptive/informational text for the ink! attribute at the given position (if any).
 pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
     // Finds the covering ink! attribute for the text range (if any).
-    let covering_ink_attr = if range.is_empty() {
-        // Uses item at offset utility if the range start and end are equal.
-        file.item_at_offset(range.start()).parent_ink_attr()
-    } else {
-        file.syntax()
-            .text_range()
-            // Ensure the text range is in the bounds of the source code.
-            .contains_range(range)
-            .then(|| {
-                // Returns deepest ink! attribute that fully covers the text range.
-                let covering_element = file.syntax().covering_element(range);
-                let attr = if ast::Attr::can_cast(covering_element.kind()) {
-                    // Casts cover element to `ast::Attr` node if it's an attribute.
-                    covering_element.into_node().and_then(ast::Attr::cast)
-                } else {
-                    // Finds the parent attribute (if any) of the covering element.
-                    ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxElement, ast::Attr>(
-                        &covering_element,
-                    )
-                };
-                // Converts to ink! attribute (if present).
-                attr.and_then(InkAttribute::cast)
-            })
-            .flatten()
-    };
+    let covering_ink_attr = utils::covering_ink_attribute(file, range);
 
     // Returns hover content only if the text range is covered by an ink! attribute.
     covering_ink_attr.and_then(|ink_attr| {
