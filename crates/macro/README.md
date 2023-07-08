@@ -1,8 +1,8 @@
 # ink! Analyzer Proc-macros
 
-Procedural macros for [ink-analyzer](/crates/analyzer) and [ink-analyzer-ir](/crates/ir).
+Procedural macros for [ink-analyzer](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer) and [ink-analyzer-ir](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/ir).
 
-This library implements procedural macros used primarily by the [ink-analyzer-ir](/crates/ir) crate (e.g. custom derive macros for ink! entity traits).
+This library implements procedural macros used primarily by the [ink-analyzer-ir](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/ir) crate (e.g. custom derive macros for ink! entity traits).
 
 ## Installation
 
@@ -56,7 +56,7 @@ cargo test -p ink-analyzer-macro
 
 ## License
 
-Licensed under either [MIT](/LICENSE-MIT) or [Apache-2.0](/LICENSE-APACHE) license at your option.
+Licensed under either [MIT](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-MIT) or [Apache-2.0](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-APACHE) license at your option.
 
 ## Contribution
 

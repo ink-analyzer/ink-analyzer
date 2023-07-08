@@ -1,6 +1,6 @@
 # ink! Analyzer IR
 
-[ink!](https://use.ink/) intermediate representations (IRs) and abstractions for [ink! analyzer](/crates/analyzer).
+[ink!](https://use.ink/) intermediate representations (IRs) and abstractions for [ink! analyzer](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer).
 
 This library implements types and abstractions for all ink! entities (e.g contracts, storage, events, topics, impls, constructors, messages, selectors, tests, trait definitions, chain extensions, storage items e.t.c).
 
@@ -12,7 +12,7 @@ The most important being that parsing should be:
 - resilient (even if the input is invalid, parser tries to see as much syntax tree fragments in the input as it can).
 - lossless (even if the input is invalid, the tree produced by the parser represents it exactly).
 
-It's the main dependency for the [semantic analyzer](/crates/analyzer) crate.
+It's the main dependency for the [semantic analyzer](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer) crate.
 
 ## Installation
 
@@ -81,7 +81,7 @@ cargo test -p ink-analyzer-ir
 
 ## License
 
-Licensed under either [MIT](/LICENSE-MIT) or [Apache-2.0](/LICENSE-APACHE) license at your option.
+Licensed under either [MIT](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-MIT) or [Apache-2.0](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-APACHE) license at your option.
 
 ## Contribution
 

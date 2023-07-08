@@ -4,7 +4,7 @@ A [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-p
 
 It implements the [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) and acts as a backend that provides language support features like diagnostic errors, code completion suggestions, code/intent actions and hover content to IDEs, code editors and other development tools.
 
-It uses the [semantic analyzer](/crates/analyzer) as the engine for providing ink! language support features by:
+It uses the [semantic analyzer](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer) as the engine for providing ink! language support features by:
 - translating LSP requests into semantic analyzer interface calls.
 - translating semantic analysis results into corresponding LSP types.
 
@@ -74,7 +74,7 @@ cargo test -p ink-lsp-server
 
 ## License
 
-Licensed under either [MIT](/LICENSE-MIT) or [Apache-2.0](/LICENSE-APACHE) license at your option.
+Licensed under either [MIT](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-MIT) or [Apache-2.0](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-APACHE) license at your option.
 
 ## Contribution
 
