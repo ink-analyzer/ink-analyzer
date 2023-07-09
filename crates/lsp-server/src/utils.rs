@@ -70,7 +70,8 @@ mod tests {
     use crate::utils::{code_actions_kinds, position_encoding, SERVER_CODE_ACTION_KINDS};
     use lsp_types::{
         CodeActionClientCapabilities, CodeActionKindLiteralSupport, CodeActionLiteralSupport,
-        GeneralClientCapabilities, TextDocumentClientCapabilities,
+        CompletionClientCapabilities, CompletionItemCapability, GeneralClientCapabilities,
+        TextDocumentClientCapabilities,
     };
 
     fn config_with_encodings(encodings: Option<Vec<PositionEncodingKind>>) -> ClientCapabilities {
@@ -94,6 +95,22 @@ mod tests {
                                 .map(|code_action| code_action.as_str().to_string())
                                 .collect(),
                         },
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn config_with_snippet_support(snippet_support: Option<bool>) -> ClientCapabilities {
+        ClientCapabilities {
+            text_document: Some(TextDocumentClientCapabilities {
+                completion: Some(CompletionClientCapabilities {
+                    completion_item: Some(CompletionItemCapability {
+                        snippet_support,
+                        ..Default::default()
                     }),
                     ..Default::default()
                 }),
@@ -214,6 +231,22 @@ mod tests {
                     .map(|it| it.into_iter().collect::<HashSet<CodeActionKind>>()),
                 expected_results
             );
+        }
+    }
+
+    #[test]
+    fn snippet_support_works() {
+        for (client_capabilities, expected_result) in [
+            // Default is `false`.
+            (ClientCapabilities::default(), false),
+            // None is `false`.
+            (config_with_snippet_support(None), false),
+            // Set flag is properly parsed.
+            (config_with_snippet_support(Some(true)), true),
+            (config_with_snippet_support(Some(false)), false),
+        ] {
+            // Verifies the snippet support is parsed properly based on client capabilities.
+            assert_eq!(snippet_support(&client_capabilities), expected_result);
         }
     }
 }
