@@ -27,13 +27,16 @@ pub fn offset_position_encoding_fixture() -> (&'static str, Vec<OffsetPositionGr
     // Ref: <https://www.compart.com/en/unicode/U+597D>.
     // 𣎴 - Chinese ideograph meaning 'stump of tree'. | 4 (4) | 2 (4) | 1 (4)
     // Ref: <https://www.compart.com/en/unicode/U+233B4>.
+    // 🥺 - Pleading face/bottom emoji. | 4 (4) | 2 (4) | 1 (4)
+    // Ref: <https://www.compart.com/en/unicode/U+1F97A>.
 
     (
-        "A\n好\n𣎴",
+        "A\n好\n𣎴\n🥺",
         vec![
             OffsetPositionGroup::new(1, 0, 1, 1, 1),
             OffsetPositionGroup::new(5, 1, 3, 1, 1),
             OffsetPositionGroup::new(10, 2, 4, 2, 1),
+            OffsetPositionGroup::new(15, 3, 4, 2, 1),
         ],
     )
 }
