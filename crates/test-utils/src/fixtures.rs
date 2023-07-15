@@ -6,12 +6,12 @@ use crate::{
 };
 
 /// Describes a collection of diagnostics tests to run against
-/// optionally modified ink! smart contract code in the `test_data` directory in the project root.
+/// optionally modified ink! smart contract code in the `test-fixtures` directory in the project root.
 pub fn diagnostics_fixtures() -> Vec<TestGroup> {
     vec![
         // Contracts.
         TestGroup {
-            // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
+            // Reads source code from the `erc20.rs` contract in `test-fixtures/contracts` directory.
             source: "contracts/erc20",
             // Defines test cases for the ink! entity file.
             test_cases: vec![
@@ -395,12 +395,12 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
 }
 
 /// Describes a collection of completions tests to run against
-/// optionally modified ink! smart contract code in the `test_data` directory in the project root.
+/// optionally modified ink! smart contract code in the `test-fixtures` directory in the project root.
 pub fn completions_fixtures() -> Vec<TestGroup> {
     vec![
         // Contracts.
         TestGroup {
-            // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
+            // Reads source code from the `erc20.rs` contract in `test-fixtures/contracts` directory.
             source: "contracts/erc20",
             // Defines test cases for the ink! entity file.
             test_cases: vec![
@@ -752,12 +752,12 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
 }
 
 /// Describes a collection of actions tests to run against
-/// optionally modified ink! smart contract code in the `test_data` directory in the project root.
+/// optionally modified ink! smart contract code in the `test-fixtures` directory in the project root.
 pub fn actions_fixtures() -> Vec<TestGroup> {
     vec![
         // Contracts.
         TestGroup {
-            // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
+            // Reads source code from the `erc20.rs` contract in `test-fixtures/contracts` directory.
             source: "contracts/erc20",
             // Defines test cases for the ink! entity file.
             test_cases: vec![
@@ -1225,12 +1225,12 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
 }
 
 /// Describes a collection of hover content tests to run against
-/// optionally modified ink! smart contract code in the `test_data` directory in the project root.
+/// optionally modified ink! smart contract code in the `test-fixtures` directory in the project root.
 pub fn hover_fixtures() -> Vec<TestGroup> {
     vec![
         // Contracts.
         TestGroup {
-            // Reads source code from the `erc20.rs` contract in `test_data/contracts` directory.
+            // Reads source code from the `erc20.rs` contract in `test-fixtures/contracts` directory.
             source: "contracts/erc20",
             // Defines test cases for the ink! entity file.
             test_cases: vec![

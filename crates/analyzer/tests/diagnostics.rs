@@ -4,10 +4,10 @@ use ink_analyzer::Analysis;
 use test_utils::TestCaseResults;
 
 // The high-level methodology for diagnostics test cases is:
-// - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test_data/contracts/erc20.rs).
-// - (optionally) make modifications to the source code at specific offsets/text ranges to create a specific test case.
-// - compute diagnostics for the modified source code.
-// - verify that the actual results match the expected results.
+// - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+// - (Optionally) Make modifications to the source code at specific offsets/text ranges to create a specific test case.
+// - Compute diagnostics for the modified source code.
+// - Verify that the actual results match the expected results.
 // See inline comments for more details.
 #[test]
 fn diagnostics_works() {

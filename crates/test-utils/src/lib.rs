@@ -14,18 +14,18 @@ macro_rules! quote_as_str {
     };
 }
 
-/// Reads source code from a file in the `test_data` directory as a string.
+/// Reads source code from a file in the `test-fixtures` directory as a string.
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn get_source_code(location: &str) -> String {
-    fs::read_to_string(format!("../../test_data/{location}.rs")).unwrap()
+    fs::read_to_string(format!("../../test-fixtures/{location}.rs")).unwrap()
 }
 
-/// Creates an LSP URI for a file in the `test_data` directory.
+/// Creates an LSP URI for a file in the `test-fixtures` directory.
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn get_source_uri(location: &str) -> lsp_types::Url {
-    lsp_types::Url::from_file_path(format!("/test_data/{location}.rs")).unwrap()
+    lsp_types::Url::from_file_path(format!("/test-fixtures/{location}.rs")).unwrap()
 }
 
 /// Returns the offset of `pat` in `subject`.
@@ -115,7 +115,7 @@ pub fn simple_client_config() -> lsp_types::ClientCapabilities {
 /// Describes a group of tests to run on a smart contract code from a source file.
 #[derive(Debug)]
 pub struct TestGroup {
-    /// Location of the smart code (e.g. in the `test_data` directory in the project root).
+    /// Location of the smart code (e.g. in the `test-fixtures` directory in the project root).
     pub source: &'static str,
     /// List of test cases.
     pub test_cases: Vec<TestCase>,

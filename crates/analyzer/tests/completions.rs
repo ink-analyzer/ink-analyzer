@@ -4,10 +4,10 @@ use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for completions test cases is:
-// - read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test_data/contracts/erc20.rs).
-// - (optionally) make some modifications to the source code at a specific offset/text range to create a specific test case.
-// - compute completions for the modified source code and a specific offset position.
-// - verify that the actual results match the expected results.
+// - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+// - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
+// - Compute completions for the modified source code and a specific offset position.
+// - Verify that the actual results match the expected results.
 // See inline comments for more details.
 #[test]
 fn completions_works() {

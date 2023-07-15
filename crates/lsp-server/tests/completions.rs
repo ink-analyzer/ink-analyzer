@@ -6,7 +6,7 @@ use test_utils::{TestCaseParams, TestCaseResults};
 mod utils;
 
 // The high-level methodology for completions test cases is:
-// - Read the source code of an ink! entity file in the `test_data` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test_data/contracts/erc20.rs).
+// - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
 // - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - Send the the modified source code from client to server via a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.
 // - Send an LSP completion request from client to server for the test case.
