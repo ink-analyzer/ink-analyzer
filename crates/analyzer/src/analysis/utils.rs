@@ -457,7 +457,15 @@ pub fn ink_attribute_insertion_offset_and_affixes(
     let get_insert_indenting = |prev_sibling_or_token: Option<SyntaxElement>| {
         prev_sibling_or_token
             .and_then(|prev_elem| {
-                (prev_elem.kind() == SyntaxKind::WHITESPACE).then_some(prev_elem.to_string())
+                (prev_elem.kind() == SyntaxKind::WHITESPACE).then_some(format!(
+                    "\n{}",
+                    prev_elem
+                        .to_string()
+                        .chars()
+                        .rev()
+                        .take_while(|char| *char != '\n')
+                        .collect::<String>()
+                ))
             })
             .unwrap_or(String::new())
     };
