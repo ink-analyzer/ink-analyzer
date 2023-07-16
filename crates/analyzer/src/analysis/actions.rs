@@ -103,9 +103,26 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                         }
                     }
 
+                    // Gets the first valid ink! attribute (if any).
+                    let first_valid_ink_attribute =
+                        ink_analyzer_ir::ink_attrs(target).find(|attr| {
+                            // Ignore unknown attributes.
+                            !matches!(
+                                attr.kind(),
+                                InkAttributeKind::Macro(InkMacroKind::Unknown)
+                                    | InkAttributeKind::Arg(InkArgKind::Unknown)
+                            )
+                        });
+
                     // Suggests ink! attribute arguments based on the context.
                     let mut ink_arg_suggestions =
-                        utils::valid_ink_ink_args_by_syntax_kind(target.kind());
+                        if let Some(ink_attr) = first_valid_ink_attribute.as_ref() {
+                            // Make suggestions based on the first valid ink! attribute (if any).
+                            utils::valid_sibling_ink_args(*ink_attr.kind())
+                        } else {
+                            // Otherwise make suggestions based on the AST item's syntax kind.
+                            utils::valid_ink_ink_args_by_syntax_kind(target.kind())
+                        };
 
                     // Filters out duplicate ink! attribute argument actions.
                     utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, target);
@@ -118,17 +135,6 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                     );
 
                     if !ink_arg_suggestions.is_empty() {
-                        // Gets the first valid ink! attribute (if any).
-                        let first_valid_ink_attribute =
-                            ink_analyzer_ir::ink_attrs(target).find(|attr| {
-                                // Ignore unknown attributes.
-                                !matches!(
-                                    attr.kind(),
-                                    InkAttributeKind::Macro(InkMacroKind::Unknown)
-                                        | InkAttributeKind::Arg(InkArgKind::Unknown)
-                                )
-                            });
-
                         // Add ink! attribute argument actions to accumulator.
                         for arg_kind in ink_arg_suggestions {
                             // Determines the insertion offset and affixes for the action and whether or not an existing attribute can be extended.
@@ -397,21 +403,28 @@ mod tests {
             ),
             (
                 r#"
-                    #[ink::contract]
-                    mod my_contract {
-                    }
-                "#,
-                Some("<-mod"),
-                vec![],
-            ),
-            (
-                r#"
                     #[foo]
                     mod my_contract {
                     }
                 "#,
                 Some("<-mod"),
                 vec![("#[ink::contract]", Some("foo]"), Some("foo]"))],
+            ),
+            (
+                r#"
+                    #[ink::contract]
+                    mod my_contract {
+                    }
+                "#,
+                Some("<-mod"),
+                vec![
+                    ("(env=)", Some("#[ink::contract"), Some("#[ink::contract")),
+                    (
+                        "(keep_attr=)",
+                        Some("#[ink::contract"),
+                        Some("#[ink::contract"),
+                    ),
+                ],
             ),
             // Trait focus.
             (
@@ -423,6 +436,35 @@ mod tests {
                 vec![
                     ("#[ink::chain_extension]", Some("<-pub"), Some("<-pub")),
                     ("#[ink::trait_definition]", Some("<-pub"), Some("<-pub")),
+                ],
+            ),
+            (
+                r#"
+                    #[ink::chain_extension]
+                    pub trait MyTrait {
+                    }
+                "#,
+                Some("<-pub"),
+                vec![],
+            ),
+            (
+                r#"
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                    }
+                "#,
+                Some("<-pub"),
+                vec![
+                    (
+                        "(keep_attr=)",
+                        Some("#[ink::trait_definition"),
+                        Some("#[ink::trait_definition"),
+                    ),
+                    (
+                        "(namespace=)",
+                        Some("#[ink::trait_definition"),
+                        Some("#[ink::trait_definition"),
+                    ),
                 ],
             ),
             // ADT focus.
