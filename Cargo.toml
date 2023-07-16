@@ -8,4 +8,4 @@ members = [
     "crates/test-utils"
 ]
 
-exclude = ["test_data"]
+exclude = ["test-fixtures"]
