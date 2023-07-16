@@ -493,11 +493,24 @@ pub fn ink_attribute_insertion_offset_and_affixes(
 /// Returns the insertion offset and affixes (i.e whitespace and delimiters e.g `(`, `,` and `)`) for an ink! attribute argument .
 ///
 /// **NOTE**: For attributes that have values (e.g `selector = 1`), the equal symbol (`=`)
-/// and the value are considered part of the attribute arguments (not suffixes)
-/// and so they're not handled by this functions. See [`ink_arg_insertion_text`] doc instead.
+/// and the value are considered part of the attribute arguments (not suffixes),
+/// so they're not handled by this function. See [`ink_arg_insertion_text`] doc instead.
 pub fn ink_arg_insertion_offset_and_affixes(
+    arg_kind: InkArgKind,
     ink_attr: &InkAttribute,
 ) -> Option<(TextSize, &str, &str)> {
+    // Determines if its a "primary" attribute argument
+    // as those get inserted at the beginning of the argument list while everything else gets inserted at the end.
+    let is_primary_argument = matches!(
+        arg_kind,
+        InkArgKind::Constructor
+            | InkArgKind::Event
+            | InkArgKind::Extension
+            | InkArgKind::Impl
+            | InkArgKind::Message
+            | InkArgKind::Storage
+    );
+
     // Only computes insertion context for closed attributes because
     // unclosed attributes are too tricky for useful contextual edits.
     ink_attr.ast().r_brack_token().map(|r_bracket| {
@@ -506,48 +519,104 @@ pub fn ink_arg_insertion_offset_and_affixes(
             |token_tree| {
                 (
                     // Computes the insertion offset.
-                    token_tree
-                        .r_paren_token()
-                        // Inserts just before right parenthesis if it's exists.
-                        .map_or(token_tree.syntax().text_range().end(), |r_paren| {
-                            r_paren.text_range().start()
-                        }),
-                    // Determines the prefix to insert before the ink! attribute text.
-                    match token_tree.l_paren_token() {
-                        Some(_) => token_tree
-                            .r_paren_token()
-                            .and_then(|r_paren| {
-                                r_paren.prev_token().map(|penultimate_token| {
-                                    match penultimate_token.kind() {
-                                        SyntaxKind::COMMA | SyntaxKind::L_PAREN => "",
-                                        // Adds a comma if the token before the right parenthesis is
-                                        // neither a comma nor the left parenthesis.
-                                        _ => ", ",
-                                    }
-                                })
+                    if is_primary_argument {
+                        // "Primary" attribute argument get inserted at the beginning of the argument list.
+                        token_tree
+                            .l_paren_token()
+                            // Inserts just after left parenthesis if it exists, otherwise defaults to the end of the attribute.
+                            .map_or(token_tree.syntax().text_range().end(), |r_paren| {
+                                r_paren.text_range().end()
                             })
-                            .unwrap_or(
-                                match ink_analyzer_ir::last_child_token(token_tree.syntax()) {
-                                    Some(last_token) => match last_token.kind() {
-                                        SyntaxKind::COMMA
-                                        | SyntaxKind::L_PAREN
-                                        | SyntaxKind::R_PAREN => "",
-                                        // Adds a comma if there is no right parenthesis and the last token is
-                                        // neither a comma nor the left parenthesis
-                                        // (the right parenthesis in the pattern above will likely never match anything,
-                                        // but parsers is weird :-) so we leave it for robustness? and clarity).
-                                        _ => ", ",
-                                    },
-                                    None => "",
-                                },
-                            ),
-                        // Adds a left parenthesis if non already exists.
+                    } else {
+                        // Other attribute arguments get inserted at the end of the argument list.
+                        token_tree
+                            .r_paren_token()
+                            // Inserts just before right parenthesis if it exists, otherwise defaults to the end of the attribute.
+                            .map_or(token_tree.syntax().text_range().end(), |r_paren| {
+                                r_paren.text_range().start()
+                            })
+                    },
+                    // Determines the prefix to insert before the ink! attribute argument text.
+                    match token_tree.l_paren_token() {
+                        Some(_) => {
+                            if is_primary_argument {
+                                // No prefix for "primary" attribute arguments that already have a left parenthesis before them.
+                                ""
+                            } else {
+                                // Determines prefix for "non-primary" attribute arguments that already have a left parenthesis before them.
+                                token_tree
+                                    .r_paren_token()
+                                    .and_then(|r_paren| {
+                                        r_paren.prev_token().map(|penultimate_token| {
+                                            match penultimate_token.kind() {
+                                                SyntaxKind::COMMA | SyntaxKind::L_PAREN => "",
+                                                // Adds a comma if the token before the right parenthesis is
+                                                // neither a comma nor the left parenthesis.
+                                                _ => ", ",
+                                            }
+                                        })
+                                    })
+                                    .unwrap_or(
+                                        match ink_analyzer_ir::last_child_token(token_tree.syntax())
+                                        {
+                                            Some(last_token) => match last_token.kind() {
+                                                SyntaxKind::COMMA
+                                                | SyntaxKind::L_PAREN
+                                                | SyntaxKind::R_PAREN => "",
+                                                // Adds a comma if there is no right parenthesis and the last token is
+                                                // neither a comma nor the left parenthesis
+                                                // (the right parenthesis in the pattern above will likely never match anything,
+                                                // but parsers are weird :-) so we leave it for robustness? and clarity).
+                                                _ => ", ",
+                                            },
+                                            None => "",
+                                        },
+                                    )
+                            }
+                        }
+                        // Adds a left parenthesis if none already exists.
                         None => "(",
                     },
-                    // Determines the suffix to insert before the ink! attribute text.
+                    // Determines the suffix to insert after the ink! attribute argument text.
                     match token_tree.r_paren_token() {
-                        Some(_) => "",
-                        // Adds a right parenthesis if non already exists.
+                        Some(_) => {
+                            if is_primary_argument {
+                                // Determines suffix for "primary" attribute arguments that already have a right parenthesis after them.
+                                token_tree
+                                    .l_paren_token()
+                                    .and_then(|l_paren| {
+                                        l_paren.next_token().map(|first_token| {
+                                            match first_token.kind() {
+                                                SyntaxKind::COMMA | SyntaxKind::R_PAREN => "",
+                                                // Adds a comma if the token after the left parenthesis is
+                                                // neither a comma nor the right parenthesis.
+                                                _ => ", ",
+                                            }
+                                        })
+                                    })
+                                    .unwrap_or(
+                                        match ink_analyzer_ir::first_child_token(
+                                            token_tree.syntax(),
+                                        ) {
+                                            Some(first_token) => match first_token.kind() {
+                                                SyntaxKind::COMMA
+                                                | SyntaxKind::L_PAREN
+                                                | SyntaxKind::R_PAREN => "",
+                                                // Adds a comma if there is no left parenthesis and the first token is
+                                                // neither a comma nor the right parenthesis
+                                                // (the left parenthesis in the pattern above will likely never match anything,
+                                                // but parsers are weird :-) so we leave it for robustness? and clarity).
+                                                _ => ", ",
+                                            },
+                                            None => "",
+                                        },
+                                    )
+                            } else {
+                                // No suffix for "non-primary" attribute arguments that already have a right parenthesis after them.
+                                ""
+                            }
+                        }
+                        // Adds a right parenthesis if none already exists.
                         None => ")",
                     },
                 )

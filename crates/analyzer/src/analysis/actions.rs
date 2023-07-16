@@ -118,46 +118,53 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                     );
 
                     if !ink_arg_suggestions.is_empty() {
-                        // Determines the insertion offset and affixes for the action and whether or not an existing attribute can be extended.
-                        let ((insert_offset, insert_prefix, insert_suffix), is_extending) =
-                            ink_analyzer_ir::ink_attrs(target)
-                                // Gets the first valid ink! attribute (if any).
-                                .find(|attr| {
-                                    // Ignore unknown attributes.
-                                    !matches!(
-                                        attr.kind(),
-                                        InkAttributeKind::Macro(InkMacroKind::Unknown)
-                                            | InkAttributeKind::Arg(InkArgKind::Unknown)
-                                    )
-                                })
-                                .and_then(|ink_attr| {
-                                    // Try to extend an existing attribute (if possible).
-                                    utils::ink_arg_insertion_offset_and_affixes(&ink_attr).map(
-                                        |(insert_offset, insert_prefix, insert_suffix)| {
-                                            (
-                                                (
-                                                    insert_offset,
-                                                    insert_prefix.to_string(),
-                                                    insert_suffix.to_string(),
-                                                ),
-                                                true,
-                                            )
-                                        },
-                                    )
-                                })
-                                .unwrap_or((
-                                    // Fallback to inserting a new attribute.
-                                    utils::ink_attribute_insertion_offset_and_affixes(
-                                        target_ast_node,
-                                    ),
-                                    false,
-                                ));
-
-                        // Sets the text range for the edit.
-                        let edit_range = TextRange::new(insert_offset, insert_offset);
+                        // Gets the first valid ink! attribute (if any).
+                        let first_valid_ink_attribute =
+                            ink_analyzer_ir::ink_attrs(target).find(|attr| {
+                                // Ignore unknown attributes.
+                                !matches!(
+                                    attr.kind(),
+                                    InkAttributeKind::Macro(InkMacroKind::Unknown)
+                                        | InkAttributeKind::Arg(InkArgKind::Unknown)
+                                )
+                            });
 
                         // Add ink! attribute argument actions to accumulator.
                         for arg_kind in ink_arg_suggestions {
+                            // Determines the insertion offset and affixes for the action and whether or not an existing attribute can be extended.
+                            let ((insert_offset, insert_prefix, insert_suffix), is_extending) =
+                                first_valid_ink_attribute
+                                    .as_ref()
+                                    .and_then(|ink_attr| {
+                                        // Try to extend an existing attribute (if possible).
+                                        utils::ink_arg_insertion_offset_and_affixes(
+                                            arg_kind, ink_attr,
+                                        )
+                                        .map(
+                                            |(insert_offset, insert_prefix, insert_suffix)| {
+                                                (
+                                                    (
+                                                        insert_offset,
+                                                        insert_prefix.to_string(),
+                                                        insert_suffix.to_string(),
+                                                    ),
+                                                    true,
+                                                )
+                                            },
+                                        )
+                                    })
+                                    .unwrap_or((
+                                        // Fallback to inserting a new attribute.
+                                        utils::ink_attribute_insertion_offset_and_affixes(
+                                            target_ast_node,
+                                        ),
+                                        false,
+                                    ));
+
+                            // Sets the text range for the edit.
+                            let edit_range = TextRange::new(insert_offset, insert_offset);
+
+                            // Adds ink! attribute argument action to accumulator.
                             let (edit, snippet) = utils::ink_arg_insertion_text(
                                 arg_kind,
                                 edit_range.end(),
@@ -223,15 +230,16 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: T
                 }
             }
 
-            // Determines the insertion offset and affixes for the action.
-            if let Some((insert_offset, insert_prefix, insert_suffix)) =
-                utils::ink_arg_insertion_offset_and_affixes(&ink_attr)
-            {
-                // Computes the text range for the edit.
-                let edit_range = TextRange::new(insert_offset, insert_offset);
+            // Adds ink! attribute argument actions to accumulator.
+            for arg_kind in ink_arg_suggestions {
+                // Determines the insertion offset and affixes for the action.
+                if let Some((insert_offset, insert_prefix, insert_suffix)) =
+                    utils::ink_arg_insertion_offset_and_affixes(arg_kind, &ink_attr)
+                {
+                    // Computes the text range for the edit.
+                    let edit_range = TextRange::new(insert_offset, insert_offset);
 
-                // Add ink! attribute argument actions to accumulator.
-                for arg_kind in ink_arg_suggestions {
+                    // Adds ink! attribute argument action to accumulator.
                     let (edit, snippet) = utils::ink_arg_insertion_text(
                         arg_kind,
                         edit_range.end(),
@@ -508,6 +516,24 @@ mod tests {
                         Some("#[ink(constructor"),
                     ),
                 ],
+            ),
+            (
+                r#"
+                    #[ink(event)]
+                    struct MyEvent {
+                    }
+                "#,
+                Some("<-struct"),
+                vec![(", anonymous", Some("#[ink(event"), Some("#[ink(event"))],
+            ),
+            (
+                r#"
+                    #[ink(anonymous)]
+                    struct MyEvent {
+                    }
+                "#,
+                Some("<-struct"),
+                vec![("event, ", Some("#[ink("), Some("#[ink("))],
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
