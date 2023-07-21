@@ -1,0 +1,29 @@
+name: Unit and Integration Tests Runner
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+
+env:
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  tests:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Install Rust toolchain
+        run: rustup update
+
+      - name: Run lints
+        run: cargo clippy --verbose
+      - name: Run build
+        run: cargo build --verbose
+
+      - name: Run tests
+        run: cargo test --verbose
