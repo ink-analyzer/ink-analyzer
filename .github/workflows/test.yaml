@@ -11,10 +11,10 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  tests:
+  test:
     runs-on: ${{ inputs.os }}
     steps:
-      - name: Check out repository code
+      - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Install Rust toolchain

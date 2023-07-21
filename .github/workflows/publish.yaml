@@ -1,0 +1,55 @@
+name: Publish Rust crates
+
+on:
+  push:
+    tags:
+      - analyzer-v*
+      - lsp-server-v*
+      - ir-v*
+      - macro-v*
+
+env:
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    uses: ./.github/workflows/test.yaml
+    with:
+      os: ${{ matrix.os }}
+    secrets: inherit
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: test
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install Rust toolchain
+        run: rustup update
+
+      - name: Publish Semantic Analyzer (ink-analyzer) crate
+        if: startsWith(github.ref_name, "analyzer-v")
+        working-directory: crates/analyzer
+        run: cargo publish
+
+      - name: Publish Language Server (ink-lsp-server) crate
+        if: startsWith(github.ref_name, "lsp-server-v")
+        working-directory: crates/lsp-server
+        run: cargo publish
+
+      - name: Publish IR/Intermediate Representation (ink-analyzer-ir) crate
+        if: startsWith(github.ref_name, "ir-v")
+        working-directory: crates/ir
+        run: cargo publish
+
+      - name: Publish Macros (ink-analyzer-macro) crate
+        if: startsWith(github.ref_name, "macro-v")
+        working-directory: crates/macro
+        run: cargo publish

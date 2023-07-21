@@ -3,7 +3,7 @@ name: CI
 on: [ push, pull_request ]
 
 jobs:
-  tests:
+  test:
     strategy:
       fail-fast: false
       matrix:
