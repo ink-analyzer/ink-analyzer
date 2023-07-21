@@ -1,0 +1,141 @@
+name: Release Language Server binaries
+
+on:
+  push:
+    tags:
+      - lsp-server-v*
+
+env:
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    uses: ./.github/workflows/test.yaml
+    with:
+      os: ${{ matrix.os }}
+    secrets: inherit
+
+  build:
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        # https://doc.rust-lang.org/nightly/rustc/platform-support.html
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: arm-unknown-linux-gnueabihf
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install Rust toolchain
+        run: |
+          rustup update
+          rustup target add ${{ matrix.target }}
+          rustup component add rust-src
+
+      - name: Update apt repositories
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update
+
+      - name: Install AArch64 target toolchain
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get install gcc-aarch64-linux-gnu
+
+      - name: Install ARM target toolchain
+        if: matrix.target == 'arm-unknown-linux-gnueabihf'
+        run: sudo apt-get install gcc-arm-linux-gnueabihf
+
+      - name: Build Language Server (ink-lsp-server) binary
+        run: cargo build -p ink-lsp-server --release
+
+      - name: Upload binaries (Linux and macOS)
+        uses: actions/upload-artifact@v3
+        if: matrix.os != 'windows-latest'
+        with:
+          name: ink-lsp-server-${{ matrix.target }}
+          path: target/ink-lsp-server
+
+      - name: Upload binaries (Windows)
+        uses: actions/upload-artifact@v3
+        if: matrix.os == 'windows-latest'
+        with:
+          name: ink-lsp-server-${{ matrix.target }}.exe
+          path: target/ink-lsp-server.exe
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [ test, build ]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # Download Windows binaries.
+      - uses: actions/download-artifact@v3
+        with:
+          name: ink-lsp-server-x86_64-pc-windows-msvc.exe
+          path: dist
+      - uses: actions/download-artifact@v3
+        with:
+          name: ink-lsp-server-i686-pc-windows-msvc.exe
+          path: dist
+      - uses: actions/download-artifact@v3
+        with:
+          name: ink-lsp-server-aarch64-pc-windows-msvc.exe
+          path: dist
+
+      # Download Linux binaries.
+      - uses: actions/download-artifact@v3
+        with:
+          name: ink-lsp-server-x86_64-unknown-linux-gnu
+          path: dist
+      - uses: actions/download-artifact@v3
+        with:
+          name: ink-lsp-server-aarch64-unknown-linux-gnu
+          path: dist
+      - uses: actions/download-artifact@v3
+        with:
+          name: ink-lsp-server-arm-unknown-linux-gnueabihf
+          path: dist
+
+      # Download macOS binaries.
+      - uses: actions/download-artifact@v3
+        with:
+          name: ink-lsp-server-x86_64-apple-darwin
+          path: dist
+      - uses: actions/download-artifact@v3
+        with:
+          name: ink-lsp-server-aarch64-apple-darwin
+          path: dist
+
+      # Prepare the release.
+      - name: List all downloaded binaries
+        run: ls -la dist
+
+      - name: Extract release notes from the changelog
+        id: extract-release-notes
+        uses: ffurrer2/extract-release-notes@v1
+
+      - name: Create a GitHub Release and upload all binaries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create ${{ github.ref_name }} --title ${{ github.ref_name }} --notes '${{ steps.extract-release-notes.outputs.release_notes }}' dist/*
