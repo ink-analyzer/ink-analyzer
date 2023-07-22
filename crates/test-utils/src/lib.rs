@@ -2,6 +2,7 @@
 
 use std::cmp;
 use std::fs;
+use std::path::PathBuf;
 
 pub mod fixtures;
 
@@ -25,7 +26,10 @@ pub fn get_source_code(location: &str) -> String {
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn get_source_uri(location: &str) -> lsp_types::Url {
-    lsp_types::Url::from_file_path(format!("/test-fixtures/{location}.rs")).unwrap()
+    lsp_types::Url::from_file_path(
+        fs::canonicalize(PathBuf::from(&format!("../../test-fixtures/{location}.rs"))).unwrap(),
+    )
+    .unwrap()
 }
 
 /// Returns the offset of `pat` in `subject`.
