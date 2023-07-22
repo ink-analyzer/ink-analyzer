@@ -66,21 +66,25 @@ jobs:
         run: sudo apt-get install gcc-arm-linux-gnueabihf
 
       - name: Build Language Server (ink-lsp-server) binary
-        run: cargo build -p ink-lsp-server --release
+        run: cargo build --bin ink-lsp-server --target ${{ matrix.target }} --release
 
-      - name: Upload binaries (Linux and macOS)
-        uses: actions/upload-artifact@v3
+      - name: Compress binaries (Linux and macOS)
         if: matrix.os != 'windows-latest'
-        with:
-          name: ink-lsp-server-${{ matrix.target }}
-          path: target/release/ink-lsp-server
+        run: |
+          mkdir -p dist
+          gzip -c target/${{ matrix.target }}/release/ink-lsp-server > dist/ink-lsp-server-${{ matrix.target }}.gz
 
-      - name: Upload binaries (Windows)
-        uses: actions/upload-artifact@v3
+      - name: Compress binaries (Windows)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path /dist
+          Compress-Archive target/${{ matrix.target }}/release/ink-lsp-server.exe dist/ink-lsp-server-${{ matrix.target }}.zip
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
         with:
-          name: ink-lsp-server-${{ matrix.target }}.exe
-          path: target/release/ink-lsp-server.exe
+          path: dist/
 
   release:
     runs-on: ubuntu-latest
@@ -92,39 +96,39 @@ jobs:
       # Download Windows binaries.
       - uses: actions/download-artifact@v3
         with:
-          name: ink-lsp-server-x86_64-pc-windows-msvc.exe
+          name: ink-lsp-server-x86_64-pc-windows-msvc.zip
           path: dist
       - uses: actions/download-artifact@v3
         with:
-          name: ink-lsp-server-i686-pc-windows-msvc.exe
+          name: ink-lsp-server-i686-pc-windows-msvc.zip
           path: dist
       - uses: actions/download-artifact@v3
         with:
-          name: ink-lsp-server-aarch64-pc-windows-msvc.exe
+          name: ink-lsp-server-aarch64-pc-windows-msvc.zip
           path: dist
 
       # Download Linux binaries.
       - uses: actions/download-artifact@v3
         with:
-          name: ink-lsp-server-x86_64-unknown-linux-gnu
+          name: ink-lsp-server-x86_64-unknown-linux-gnu.gz
           path: dist
       - uses: actions/download-artifact@v3
         with:
-          name: ink-lsp-server-aarch64-unknown-linux-gnu
+          name: ink-lsp-server-aarch64-unknown-linux-gnu.gz
           path: dist
       - uses: actions/download-artifact@v3
         with:
-          name: ink-lsp-server-arm-unknown-linux-gnueabihf
+          name: ink-lsp-server-arm-unknown-linux-gnueabihf.gz
           path: dist
 
       # Download macOS binaries.
       - uses: actions/download-artifact@v3
         with:
-          name: ink-lsp-server-x86_64-apple-darwin
+          name: ink-lsp-server-x86_64-apple-darwin.gz
           path: dist
       - uses: actions/download-artifact@v3
         with:
-          name: ink-lsp-server-aarch64-apple-darwin
+          name: ink-lsp-server-aarch64-apple-darwin.gz
           path: dist
 
       # Prepare the release.
