@@ -6,8 +6,8 @@ use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 use ink_analyzer_ir::{
-    ast, FromAST, FromSyntax, InkArgKind, InkArgValueKind, InkAttribute, InkAttributeKind,
-    InkMacroKind, IsInkEntity,
+    ast, FromAST, FromSyntax, HasParent, InkArgKind, InkArgValueKind, InkAttribute,
+    InkAttributeKind, InkMacroKind, IsInkEntity,
 };
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
@@ -489,7 +489,11 @@ pub fn ink_attribute_insertion_offset_and_affixes(
                 (
                     first_non_attr_or_doc_token.text_range().start(),
                     String::new(),
-                    get_insert_indenting(first_non_attr_or_doc_token.prev_sibling_or_token()),
+                    get_insert_indenting(
+                        first_non_attr_or_doc_token
+                            .parent_node()
+                            .and_then(|it| it.prev_sibling_or_token()),
+                    ),
                 )
             },
         )
