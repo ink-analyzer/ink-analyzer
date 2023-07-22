@@ -73,14 +73,14 @@ jobs:
         if: matrix.os != 'windows-latest'
         with:
           name: ink-lsp-server-${{ matrix.target }}
-          path: target/ink-lsp-server
+          path: target/release/ink-lsp-server
 
       - name: Upload binaries (Windows)
         uses: actions/upload-artifact@v3
         if: matrix.os == 'windows-latest'
         with:
           name: ink-lsp-server-${{ matrix.target }}.exe
-          path: target/ink-lsp-server.exe
+          path: target/release/ink-lsp-server.exe
 
   release:
     runs-on: ubuntu-latest
