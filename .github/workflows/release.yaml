@@ -125,10 +125,6 @@ jobs:
         with:
           name: ink-lsp-server-aarch64-unknown-linux-gnu.gz
           path: dist
-      - uses: actions/download-artifact@v3
-        with:
-          name: ink-lsp-server-arm-unknown-linux-gnueabihf.gz
-          path: dist
 
       # Download macOS binaries.
       - uses: actions/download-artifact@v3
