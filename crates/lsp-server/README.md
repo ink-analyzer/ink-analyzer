@@ -28,7 +28,7 @@ Run
 ```shell
 git clone https://github.com/ink-analyzer/ink-analyzer.git
 cd ink-analyzer
-cargo build -p ink-lsp-server --release
+cargo build --bin ink-lsp-server --release
 ```
 
 Copy the compiled binary (named `ink-lsp-server`) from the `target/release` directory to your preferred installation location, make sure the binary is executable and the installation location is included in the `PATH` environment variable.
