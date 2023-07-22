@@ -78,8 +78,8 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path /dist
-          Compress-Archive target/${{ matrix.target }}/release/ink-lsp-server.exe dist/ink-lsp-server-${{ matrix.target }}.zip
+          New-Item -ItemType Directory -Force -Path .\dist
+          Compress-Archive .\target\${{ matrix.target }}\release\ink-lsp-server.exe .\dist\ink-lsp-server-${{ matrix.target }}.zip
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
