@@ -6,7 +6,12 @@ use crate::memory::Memory;
 
 /// Returns uri for a test document.
 pub fn document_uri() -> lsp_types::Url {
-    lsp_types::Url::from_file_path("/tmp/file.rs").unwrap()
+    lsp_types::Url::from_file_path(if cfg!(windows) {
+        r#"C:\tmp\file.rs"#
+    } else {
+        "/tmp/file.rs"
+    })
+    .unwrap()
 }
 
 /// Adds a test document to memory and returns its uri.
