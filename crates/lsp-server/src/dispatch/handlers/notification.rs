@@ -57,8 +57,9 @@ pub fn handle_did_close_text_document(
 mod tests {
     use super::*;
     use crate::memory::Document;
+    use crate::test_utils::document_uri;
     use lsp_types::{
-        TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem, Url,
+        TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
         VersionedTextDocumentIdentifier,
     };
 
@@ -68,7 +69,7 @@ mod tests {
         let mut memory = Memory::new();
 
         // Creates test document parameters.
-        let uri = Url::from_file_path("/tmp/file.rs").unwrap();
+        let uri = document_uri();
         let version = 0;
         let content = "".to_string();
 
@@ -116,7 +117,7 @@ mod tests {
         let mut memory = Memory::new();
 
         // Creates test document.
-        let uri = Url::from_file_path("/tmp/file.rs").unwrap();
+        let uri = document_uri();
         memory.insert(uri.to_string(), "".to_string(), 0);
 
         // Creates document update test parameters.
@@ -156,7 +157,7 @@ mod tests {
         let mut memory = Memory::new();
 
         // Creates test document.
-        let uri = Url::from_file_path("/tmp/file.rs").unwrap();
+        let uri = document_uri();
         memory.insert(uri.to_string(), "".to_string(), 0);
 
         // Calls handler.
