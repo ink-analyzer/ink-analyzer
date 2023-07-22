@@ -35,21 +35,21 @@ jobs:
         run: rustup update
 
       - name: Publish Semantic Analyzer (ink-analyzer) crate
-        if: startsWith(github.ref_name, "analyzer-v")
+        if: startsWith(github.ref_name, 'analyzer-v')
         working-directory: crates/analyzer
         run: cargo publish
 
       - name: Publish Language Server (ink-lsp-server) crate
-        if: startsWith(github.ref_name, "lsp-server-v")
+        if: startsWith(github.ref_name, 'lsp-server-v')
         working-directory: crates/lsp-server
         run: cargo publish
 
       - name: Publish IR/Intermediate Representation (ink-analyzer-ir) crate
-        if: startsWith(github.ref_name, "ir-v")
+        if: startsWith(github.ref_name, 'ir-v')
         working-directory: crates/ir
         run: cargo publish
 
       - name: Publish Macros (ink-analyzer-macro) crate
-        if: startsWith(github.ref_name, "macro-v")
+        if: startsWith(github.ref_name, 'macro-v')
         working-directory: crates/macro
         run: cargo publish
