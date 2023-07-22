@@ -408,7 +408,7 @@ mod tests {
                     }
                 "#,
                 Some("<-mod"),
-                vec![("#[ink::contract]", Some("foo]"), Some("foo]"))],
+                vec![("#[ink::contract]", Some("<-mod"), Some("<-mod"))],
             ),
             (
                 r#"

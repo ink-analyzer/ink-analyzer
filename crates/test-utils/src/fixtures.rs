@@ -812,23 +812,23 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
                             text: "#[ink::storage_item]",
-                            start_pat: Some("#[derive(Default)]"),
-                            end_pat: Some("#[derive(Default)]"),
+                            start_pat: Some("<-pub struct Erc20"),
+                            end_pat: Some("<-pub struct Erc20"),
                         },
                         TestResultTextRange {
                             text: "#[ink(anonymous)]",
-                            start_pat: Some("#[derive(Default)]"),
-                            end_pat: Some("#[derive(Default)]"),
+                            start_pat: Some("<-pub struct Erc20"),
+                            end_pat: Some("<-pub struct Erc20"),
                         },
                         TestResultTextRange {
                             text: "#[ink(event)]",
-                            start_pat: Some("#[derive(Default)]"),
-                            end_pat: Some("#[derive(Default)]"),
+                            start_pat: Some("<-pub struct Erc20"),
+                            end_pat: Some("<-pub struct Erc20"),
                         },
                         TestResultTextRange {
                             text: "#[ink(storage)]",
-                            start_pat: Some("#[derive(Default)]"),
-                            end_pat: Some("#[derive(Default)]"),
+                            start_pat: Some("<-pub struct Erc20"),
+                            end_pat: Some("<-pub struct Erc20"),
                         },
                     ]),
                 },
@@ -851,23 +851,23 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
                             text: "#[ink::storage_item]",
-                            start_pat: Some("/// Event emitted when a token transfer occurs."),
-                            end_pat: Some("/// Event emitted when a token transfer occurs."),
+                            start_pat: Some("<-pub struct Transfer"),
+                            end_pat: Some("<-pub struct Transfer"),
                         },
                         TestResultTextRange {
                             text: "#[ink(anonymous)]",
-                            start_pat: Some("/// Event emitted when a token transfer occurs."),
-                            end_pat: Some("/// Event emitted when a token transfer occurs."),
+                            start_pat: Some("<-pub struct Transfer"),
+                            end_pat: Some("<-pub struct Transfer"),
                         },
                         TestResultTextRange {
                             text: "#[ink(event)]",
-                            start_pat: Some("/// Event emitted when a token transfer occurs."),
-                            end_pat: Some("/// Event emitted when a token transfer occurs."),
+                            start_pat: Some("<-pub struct Transfer"),
+                            end_pat: Some("<-pub struct Transfer"),
                         },
                         TestResultTextRange {
                             text: "#[ink(storage)]",
-                            start_pat: Some("/// Event emitted when a token transfer occurs."),
-                            end_pat: Some("/// Event emitted when a token transfer occurs."),
+                            start_pat: Some("<-pub struct Transfer"),
+                            end_pat: Some("<-pub struct Transfer"),
                         },
                     ]),
                 },
@@ -894,57 +894,33 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
                             text: "#[ink::test]",
-                            start_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
-                            end_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
+                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
+                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(constructor)]",
-                            start_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
-                            end_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
+                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
+                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(default)]",
-                            start_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
-                            end_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
+                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
+                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(message)]",
-                            start_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
-                            end_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
+                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
+                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(payable)]",
-                            start_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
-                            end_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
+                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
+                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(selector=)]",
-                            start_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
-                            end_pat: Some(
-                                "a new ERC-20 contract with the specified initial supply.",
-                            ),
+                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
+                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
                         },
                     ]),
                 },
@@ -983,33 +959,33 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
                             text: "#[ink::test]",
-                            start_pat: Some("/// Returns the total token supply."),
-                            end_pat: Some("/// Returns the total token supply."),
+                            start_pat: Some("<-pub fn total_supply(&self)"),
+                            end_pat: Some("<-pub fn total_supply(&self)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(constructor)]",
-                            start_pat: Some("/// Returns the total token supply."),
-                            end_pat: Some("/// Returns the total token supply."),
+                            start_pat: Some("<-pub fn total_supply(&self)"),
+                            end_pat: Some("<-pub fn total_supply(&self)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(default)]",
-                            start_pat: Some("/// Returns the total token supply."),
-                            end_pat: Some("/// Returns the total token supply."),
+                            start_pat: Some("<-pub fn total_supply(&self)"),
+                            end_pat: Some("<-pub fn total_supply(&self)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(message)]",
-                            start_pat: Some("/// Returns the total token supply."),
-                            end_pat: Some("/// Returns the total token supply."),
+                            start_pat: Some("<-pub fn total_supply(&self)"),
+                            end_pat: Some("<-pub fn total_supply(&self)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(payable)]",
-                            start_pat: Some("/// Returns the total token supply."),
-                            end_pat: Some("/// Returns the total token supply."),
+                            start_pat: Some("<-pub fn total_supply(&self)"),
+                            end_pat: Some("<-pub fn total_supply(&self)"),
                         },
                         TestResultTextRange {
                             text: "#[ink(selector=)]",
-                            start_pat: Some("/// Returns the total token supply."),
-                            end_pat: Some("/// Returns the total token supply."),
+                            start_pat: Some("<-pub fn total_supply(&self)"),
+                            end_pat: Some("<-pub fn total_supply(&self)"),
                         },
                     ]),
                 },
@@ -1061,21 +1037,13 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
                             text: "#[ink::chain_extension]",
-                            start_pat: Some(
-                                "Trait implemented by all ERC-20 respecting smart contracts.",
-                            ),
-                            end_pat: Some(
-                                "Trait implemented by all ERC-20 respecting smart contracts.",
-                            ),
+                            start_pat: Some("<-pub trait BaseErc20"),
+                            end_pat: Some("<-pub trait BaseErc20"),
                         },
                         TestResultTextRange {
                             text: "#[ink::trait_definition]",
-                            start_pat: Some(
-                                "Trait implemented by all ERC-20 respecting smart contracts.",
-                            ),
-                            end_pat: Some(
-                                "Trait implemented by all ERC-20 respecting smart contracts.",
-                            ),
+                            start_pat: Some("<-pub trait BaseErc20"),
+                            end_pat: Some("<-pub trait BaseErc20"),
                         },
                     ]),
                 },
@@ -1188,23 +1156,23 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
                             text: "#[ink::storage_item]",
-                            start_pat: Some("#[derive(Default)]"),
-                            end_pat: Some("#[derive(Default)]"),
+                            start_pat: Some("<-struct Contract("),
+                            end_pat: Some("<-struct Contract("),
                         },
                         TestResultTextRange {
                             text: "#[ink(anonymous)]",
-                            start_pat: Some("#[derive(Default)]"),
-                            end_pat: Some("#[derive(Default)]"),
+                            start_pat: Some("<-struct Contract("),
+                            end_pat: Some("<-struct Contract("),
                         },
                         TestResultTextRange {
                             text: "#[ink(event)]",
-                            start_pat: Some("#[derive(Default)]"),
-                            end_pat: Some("#[derive(Default)]"),
+                            start_pat: Some("<-struct Contract("),
+                            end_pat: Some("<-struct Contract("),
                         },
                         TestResultTextRange {
                             text: "#[ink(storage)]",
-                            start_pat: Some("#[derive(Default)]"),
-                            end_pat: Some("#[derive(Default)]"),
+                            start_pat: Some("<-struct Contract("),
+                            end_pat: Some("<-struct Contract("),
                         },
                     ]),
                 },

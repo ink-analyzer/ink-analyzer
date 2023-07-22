@@ -454,8 +454,8 @@ pub fn ink_attribute_insertion_offset_and_affixes(
     // if the target node has attributes or doc comments,
     // then the new ink! attribute is inserted at the end of that list otherwise,
     // it's inserted just before the target node.
-    let get_insert_indenting = |prev_sibling_or_token: Option<SyntaxElement>| {
-        prev_sibling_or_token
+    let get_insert_indenting = |prev_sibling_or_token_option: Option<SyntaxElement>| {
+        prev_sibling_or_token_option
             .and_then(|prev_elem| {
                 (prev_elem.kind() == SyntaxKind::WHITESPACE).then_some(format!(
                     "\n{}",
@@ -469,25 +469,30 @@ pub fn ink_attribute_insertion_offset_and_affixes(
             })
             .unwrap_or(String::new())
     };
-    last_attr_or_doc_comment.as_ref().map_or(
-        (
-            parent_syntax_node.text_range().start(),
-            String::new(),
-            get_insert_indenting(parent_syntax_node.prev_sibling_or_token()),
-        ),
-        |item| match item {
-            Either::Left(attr) => (
-                attr.syntax().text_range().end(),
-                get_insert_indenting(attr.syntax().prev_sibling_or_token()),
+
+    last_attr_or_doc_comment
+        .and_then(|item| match item {
+            Either::Left(attr) => ink_analyzer_ir::last_child_token(attr.syntax()),
+            Either::Right(comment) => Some(comment.syntax().clone()),
+        })
+        .or(ink_analyzer_ir::first_child_token(parent_syntax_node)
+            .and_then(|first_token| first_token.kind().is_trivia().then_some(first_token)))
+        // Finds the first non-(attribute/rustdoc/trivia) token for the AST item.
+        .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
+        .map_or(
+            (
+                parent_syntax_node.text_range().start(),
                 String::new(),
+                get_insert_indenting(parent_syntax_node.prev_sibling_or_token()),
             ),
-            Either::Right(comment) => (
-                comment.syntax().text_range().end(),
-                get_insert_indenting(comment.syntax().prev_sibling_or_token()),
-                String::new(),
-            ),
-        },
-    )
+            |first_non_attr_or_doc_token| {
+                (
+                    first_non_attr_or_doc_token.text_range().start(),
+                    String::new(),
+                    get_insert_indenting(first_non_attr_or_doc_token.prev_sibling_or_token()),
+                )
+            },
+        )
 }
 
 /// Returns the insertion offset and affixes (i.e whitespace and delimiters e.g `(`, `,` and `)`) for an ink! attribute argument .
