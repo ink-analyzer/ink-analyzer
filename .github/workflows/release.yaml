@@ -134,6 +134,8 @@ jobs:
       - name: Extract release notes from the changelog
         id: extract-release-notes
         uses: ffurrer2/extract-release-notes@v1
+        with:
+          changelog_file: crates/lsp-server/CHANGELOG.md
 
       - name: Create a GitHub Release and upload all binaries
         env:
