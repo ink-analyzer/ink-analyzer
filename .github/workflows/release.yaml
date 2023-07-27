@@ -34,13 +34,13 @@ jobs:
             target: i686-pc-windows-msvc
           - os: windows-latest
             target: aarch64-pc-windows-msvc
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             target: aarch64-unknown-linux-gnu
-          - os: macos-latest
+          - os: macos-11
             target: x86_64-apple-darwin
-          - os: macos-latest
+          - os: macos-11
             target: aarch64-apple-darwin
 
     steps:
@@ -54,7 +54,7 @@ jobs:
           rustup component add rust-src
 
       - name: Update apt repositories
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-20.04'
         run: sudo apt-get update
 
       - name: Install AArch64 target toolchain
