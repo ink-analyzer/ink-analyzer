@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
             clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
                 error.exit();
             }
-            // Ignore unknown arguments (e.g VSCode's LSP client passes an additional --stdio that can't be disable).
+            // Ignore unknown arguments (e.g VSCode's LSP client passes an additional --stdio that can't be disabled).
             clap::error::ErrorKind::UnknownArgument => {
                 // Prints the error message.
                 error.print()?;

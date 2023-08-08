@@ -22,6 +22,7 @@ jobs:
 
       - name: Run lints
         run: cargo clippy --verbose
+
       - name: Run build
         run: cargo build --verbose
 

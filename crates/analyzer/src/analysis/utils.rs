@@ -450,10 +450,8 @@ pub fn ink_attribute_insertion_offset_and_affixes(
         ),
     };
 
-    // Determines the insertion offset and affixes (i.e indenting - so that we preserve formatting) for the ink! attribute,
-    // if the target node has attributes or doc comments,
-    // then the new ink! attribute is inserted at the end of that list otherwise,
-    // it's inserted just before the target node.
+    // Determines the insertion suffix (i.e indenting - so that we preserve formatting) for the ink! attribute.
+    // It's always a suffix because we insert at the beginning of the target item's first non-(attribute/rustdoc/trivia) token,
     let get_insert_indenting = |prev_sibling_or_token_option: Option<SyntaxElement>| {
         prev_sibling_or_token_option
             .and_then(|prev_elem| {
