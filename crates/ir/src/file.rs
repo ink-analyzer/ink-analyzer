@@ -5,7 +5,7 @@ use ra_ap_syntax::{AstNode, SourceFile};
 
 use crate::traits::FromAST;
 use crate::tree::utils;
-use crate::{ChainExtension, Contract, InkTest, StorageItem, TraitDefinition};
+use crate::{ChainExtension, Contract, InkE2ETest, InkTest, StorageItem, TraitDefinition};
 
 /// An ink! source file.
 #[derive(Debug, Clone, PartialEq, Eq, FromAST)]
@@ -20,6 +20,8 @@ pub struct InkFile {
     storage_items: Vec<StorageItem>,
     /// ink! tests in source file.
     tests: Vec<InkTest>,
+    /// ink! e2e tests in source file.
+    e2e_tests: Vec<InkE2ETest>,
     /// AST Node for ink! source file.
     ast: SourceFile,
 }
@@ -37,6 +39,7 @@ impl From<SourceFile> for InkFile {
             storage_items: utils::ink_contract_peekable_quasi_closest_descendants(file.syntax())
                 .collect(),
             tests: utils::ink_closest_descendants(file.syntax()).collect(),
+            e2e_tests: utils::ink_closest_descendants(file.syntax()).collect(),
             ast: file,
         }
     }
@@ -71,6 +74,11 @@ impl InkFile {
     /// Returns ink! tests in source file.
     pub fn tests(&self) -> &[InkTest] {
         &self.tests
+    }
+
+    /// Returns ink! e2e tests in source file.
+    pub fn e2e_tests(&self) -> &[InkE2ETest] {
+        &self.e2e_tests
     }
 }
 

@@ -95,7 +95,8 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                     label: format!("Add ink! {macro_kind} attribute macro."),
                                     range: edit_range,
                                     edit: format!(
-                                        "{insert_prefix}#[ink::{macro_kind}]{insert_suffix}"
+                                        "{insert_prefix}#[{}]{insert_suffix}",
+                                        macro_kind.path_as_str()
                                     ),
                                     snippet: None,
                                 });
@@ -121,18 +122,27 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                             utils::valid_sibling_ink_args(*ink_attr.kind())
                         } else {
                             // Otherwise make suggestions based on the AST item's syntax kind.
-                            utils::valid_ink_ink_args_by_syntax_kind(target.kind())
+                            utils::valid_ink_args_by_syntax_kind(target.kind())
                         };
 
                     // Filters out duplicate ink! attribute argument actions.
                     utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, target);
                     // Filters out conflicting ink! attribute argument actions.
                     utils::remove_conflicting_ink_arg_suggestions(&mut ink_arg_suggestions, target);
-                    // Filters out invalid (based on parent ink! scope) ink! attribute argument actions.
-                    utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
-                        &mut ink_arg_suggestions,
-                        target,
-                    );
+                    // Filters out invalid ink! attribute argument actions based on parent ink! scope
+                    // if there's either no valid ink! attribute macro (not argument) applied to the item
+                    // (i.e either no valid ink! attribute macro or only ink! attribute arguments).
+                    if first_valid_ink_attribute.is_none()
+                        || !matches!(
+                            first_valid_ink_attribute.as_ref().map(|attr| attr.kind()),
+                            Some(InkAttributeKind::Macro(_))
+                        )
+                    {
+                        utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
+                            &mut ink_arg_suggestions,
+                            target,
+                        );
+                    }
 
                     if !ink_arg_suggestions.is_empty() {
                         // Add ink! attribute argument actions to accumulator.
@@ -516,6 +526,7 @@ mod tests {
                 Some("<-fn"),
                 vec![
                     ("#[ink::test]", Some("<-fn"), Some("<-fn")),
+                    ("#[ink_e2e::test]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(constructor)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(default)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(extension=)]", Some("<-fn"), Some("<-fn")),
@@ -533,6 +544,31 @@ mod tests {
                 "#,
                 Some("<-fn"),
                 vec![],
+            ),
+            (
+                r#"
+                    #[ink_e2e::test]
+                    fn my_fn() {
+                    }
+                "#,
+                Some("<-fn"),
+                vec![
+                    (
+                        "(additional_contracts=)",
+                        Some("#[ink_e2e::test"),
+                        Some("#[ink_e2e::test"),
+                    ),
+                    (
+                        "(environment=)",
+                        Some("#[ink_e2e::test"),
+                        Some("#[ink_e2e::test"),
+                    ),
+                    (
+                        "(keep_attr=)",
+                        Some("#[ink_e2e::test"),
+                        Some("#[ink_e2e::test"),
+                    ),
+                ],
             ),
             (
                 r#"
@@ -781,6 +817,19 @@ mod tests {
                 "#,
                 Some("<-#["),
                 vec![],
+            ),
+            (
+                r#"
+                    #[ink_e2e::test]
+                    fn it_works() {
+                    }
+                "#,
+                Some("<-#["),
+                vec![
+                    ("(additional_contracts=)", Some("<-]"), Some("<-]")),
+                    ("(environment=)", Some("<-]"), Some("<-]")),
+                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
+                ],
             ),
             // ink! attribute arguments.
             (

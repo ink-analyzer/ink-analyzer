@@ -2,7 +2,9 @@
 
 use ink_analyzer_ir::{InkAttributeKind, InkFile};
 
-use super::{chain_extension, contract, ink_test, storage_item, trait_definition, utils};
+use super::{
+    chain_extension, contract, ink_e2e_test, ink_test, storage_item, trait_definition, utils,
+};
 use crate::{Diagnostic, Severity};
 
 /// Runs ink! file level diagnostics.
@@ -37,6 +39,11 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile) {
     file.tests()
         .iter()
         .for_each(|item| ink_test::diagnostics(results, item));
+
+    // Runs ink! e2e test diagnostics, see `ink_e2e_test::diagnostics` doc.
+    file.e2e_tests()
+        .iter()
+        .for_each(|item| ink_e2e_test::diagnostics(results, item));
 
     // Ensures that only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.

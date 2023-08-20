@@ -1,7 +1,7 @@
 //! ink! attribute hover content.
 
 use ink_analyzer_ir::syntax::{AstNode, AstToken, TextRange};
-use ink_analyzer_ir::{FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind};
+use ink_analyzer_ir::{FromSyntax, InkAttributeKind, InkFile};
 
 use crate::analysis::utils;
 
@@ -12,7 +12,7 @@ mod content;
 pub struct Hover {
     /// Range the hover content applies to.
     pub range: TextRange,
-    /// Replacement text for the action.
+    /// Hover text.
     pub content: String,
 }
 
@@ -30,38 +30,37 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
             .find(|arg| arg.text_range().contains_range(range));
         match ink_arg {
             // Returns hover content for the covered ink! attribute argument if it's valid.
-            Some(ink_arg) => (*ink_arg.kind() != InkArgKind::Unknown).then_some(Hover {
-                range: ink_arg.name().map_or(ink_arg.text_range(), |ink_arg_name| {
-                    ink_arg_name.syntax().text_range()
-                }),
-                content: content::doc(&InkAttributeKind::Arg(*ink_arg.kind())).to_string(),
-            }),
-            // Returns hover content based on the macro or "primary" argument for the ink! attribute,
-            // See `ink_analyzer_ir::attrs::utils::sort_ink_args_by_kind` doc.
-            None => match ink_attr.kind() {
-                // Returns hover content based on the "primary" ink! attribute argument if it's valid,
-                // See `ink_analyzer_ir::attrs::utils::sort_ink_args_by_kind` doc.
-                InkAttributeKind::Arg(arg_kind) => {
-                    (*arg_kind != InkArgKind::Unknown).then_some(Hover {
-                        range: ink_attr
+            Some(ink_arg) => {
+                let attr_kind = InkAttributeKind::Arg(*ink_arg.kind());
+                let doc = content::doc(&attr_kind);
+                (!doc.is_empty()).then_some(Hover {
+                    range: ink_arg.name().map_or(ink_arg.text_range(), |ink_arg_name| {
+                        ink_arg_name.syntax().text_range()
+                    }),
+                    content: doc.to_string(),
+                })
+            }
+            // Returns hover content based on the ink! attribute macro, ink! e2e attribute macro
+            // or "primary" ink! attribute argument for the ink! attribute,
+            // See [`ink_analyzer_ir::attrs::utils::sort_ink_args_by_kind`] doc.
+            None => {
+                let doc = content::doc(ink_attr.kind());
+                (!doc.is_empty()).then_some(Hover {
+                    range: match ink_attr.kind() {
+                        InkAttributeKind::Arg(_) => ink_attr
                             .ink_arg_name()
                             .map_or(ink_attr.syntax().text_range(), |ink_arg_name| {
                                 ink_arg_name.syntax().text_range()
                             }),
-                        content: content::doc(&InkAttributeKind::Arg(*arg_kind)).to_string(),
-                    })
-                }
-                // Returns hover content based on the ink! attribute macro if it's valid.
-                InkAttributeKind::Macro(macro_kind) => (*macro_kind != InkMacroKind::Unknown)
-                    .then_some(Hover {
-                        range: ink_attr
+                        _ => ink_attr
                             .ink_macro()
-                            .map_or(ink_attr.syntax().text_range(), |ink_macro_name| {
-                                ink_macro_name.syntax().text_range()
+                            .map_or(ink_attr.syntax().text_range(), |path_segment| {
+                                path_segment.syntax().text_range()
                             }),
-                        content: content::doc(&InkAttributeKind::Macro(*macro_kind)).to_string(),
-                    }),
-            },
+                    },
+                    content: doc.to_string(),
+                })
+            }
         }
     })
 }
@@ -70,6 +69,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
 mod tests {
     use super::*;
     use ink_analyzer_ir::syntax::TextSize;
+    use ink_analyzer_ir::{InkArgKind, InkMacroKind};
     use test_utils::parse_offset_at;
 
     #[test]
@@ -208,6 +208,47 @@ mod tests {
                             content::doc(&InkAttributeKind::Arg(InkArgKind::KeepAttr)),
                             Some("<-keep_attr"),
                             Some("keep_attr"),
+                        )),
+                    ),
+                ],
+            ),
+            (
+                "#[ink_e2e::test]",
+                vec![
+                    (
+                        Some("<-#"),
+                        Some("<-#"),
+                        Some((
+                            content::doc(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            Some("<-test"),
+                            Some("test"),
+                        )),
+                    ),
+                    (
+                        Some("<-#"),
+                        Some("ink"),
+                        Some((
+                            content::doc(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            Some("<-test"),
+                            Some("test"),
+                        )),
+                    ),
+                    (
+                        Some("<-test"),
+                        Some("test"),
+                        Some((
+                            content::doc(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            Some("<-test"),
+                            Some("test"),
+                        )),
+                    ),
+                    (
+                        Some("<-#"),
+                        Some("]"),
+                        Some((
+                            content::doc(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            Some("<-test"),
+                            Some("test"),
                         )),
                     ),
                 ],

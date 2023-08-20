@@ -6,8 +6,8 @@ use ra_ap_syntax::ast;
 use crate::traits::{FromInkAttribute, FromSyntax};
 use crate::tree::utils;
 use crate::{
-    Constructor, Event, InkArg, InkArgKind, InkAttrData, InkAttribute, InkImpl, InkTest, Message,
-    Storage,
+    Constructor, Event, InkArg, InkArgKind, InkAttrData, InkAttribute, InkE2ETest, InkImpl,
+    InkTest, Message, Storage,
 };
 
 /// An ink! contract.
@@ -34,6 +34,9 @@ pub struct Contract {
     /// ink! tests.
     #[macro_kind(Test)]
     tests: Vec<InkTest>,
+    /// ink! e2e tests.
+    #[macro_kind(E2ETest)]
+    e2e_tests: Vec<InkE2ETest>,
 }
 
 impl Contract {
@@ -80,6 +83,11 @@ impl Contract {
     /// Returns the ink! tests for the ink! contract.
     pub fn tests(&self) -> &[InkTest] {
         &self.tests
+    }
+
+    /// Returns the ink! e2e tests for the ink! contract.
+    pub fn e2e_tests(&self) -> &[InkE2ETest] {
+        &self.e2e_tests
     }
 }
 

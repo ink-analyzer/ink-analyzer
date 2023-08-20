@@ -1051,6 +1051,9 @@ mod tests {
                 quote_as_str! {
                     #[ink::trait_definition]
                 },
+                quote_as_str! {
+                    #[ink_e2e::test]
+                },
                 // Arguments that should have no value.
                 quote_as_str! {
                     #[ink(constructor)]
@@ -1098,6 +1101,12 @@ mod tests {
                 quote_as_str! {
                     #[ink::trait_definition(keep_attr="foo,bar")]
                 },
+                quote_as_str! {
+                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]
+                },
+                quote_as_str! {
+                    #[ink_e2e::test(keep_attr="foo,bar")]
+                },
                 // Arguments that should have a boolean value.
                 quote_as_str! {
                     #[ink(extension=1, handle_status=true)] // `handle_status` is incomplete without `extension`.
@@ -1108,6 +1117,9 @@ mod tests {
                 // Arguments that should have a path value.
                 quote_as_str! {
                     #[ink::contract(env=my::env::Types)]
+                },
+                quote_as_str! {
+                    #[ink_e2e::test(environment=my::env::Types)]
                 },
                 // Compound arguments.
                 quote_as_str! {
@@ -1124,6 +1136,9 @@ mod tests {
                 },
                 quote_as_str! {
                     #[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]
+                },
+                quote_as_str! {
+                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=my::env::Types, keep_attr="foo,bar")]
                 },
                 quote_as_str! {
                     #[ink(impl, namespace="my_namespace")]
@@ -1327,6 +1342,9 @@ mod tests {
                 #[ink::contract(env="my::env::Types")]
             },
             quote_as_str! {
+                #[ink_e2e::test(environment="my::env::Types")]
+            },
+            quote_as_str! {
                 #[ink::contract(env=2.4)]
             },
             // Compound arguments.
@@ -1344,6 +1362,9 @@ mod tests {
             },
             quote_as_str! {
                 #[ink(extension, handle_status=true)] // bad extension.
+            },
+            quote_as_str! {
+                #[ink_e2e::contract(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment)] // Bad environment.
             },
         ] {
             let attr = parse_first_ink_attr(code);
@@ -1462,6 +1483,10 @@ mod tests {
                 #[ink::trait_definition(namespace="my_namespace")] // conflicts with `contract`.
             },
             quote_as_str! {
+                #[ink::contract(env=my::env::Types)]
+                #[ink_e2e::test(environment=my::env::Types)] // conflicts with `contract`.
+            },
+            quote_as_str! {
                 #[ink::contract]
                 #[ink(message)] // conflicts with `contract`.
             },
@@ -1507,6 +1532,10 @@ mod tests {
             quote_as_str! {
                 #[ink::storage_item]
                 #[ink(derive=false)] // conflicts with `storage_item`, should be an argument.
+            },
+            quote_as_str! {
+                #[ink_e2e::test]
+                #[ink(environment=my::env::Types)] // conflicts with `e2e test`, should be an argument.
             },
             // Incomplete and/or ambiguous.
             quote_as_str! {

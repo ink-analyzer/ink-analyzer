@@ -7,7 +7,7 @@ use ink_analyzer_ir::{
 };
 use std::collections::HashSet;
 
-use super::{constructor, event, ink_impl, ink_test, message, storage, utils};
+use super::{constructor, event, ink_e2e_test, ink_impl, ink_test, message, storage, utils};
 use crate::{Diagnostic, Severity};
 
 /// Runs all ink! contract diagnostics.
@@ -86,6 +86,12 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
         .tests()
         .iter()
         .for_each(|item| ink_test::diagnostics(results, item));
+
+    // Runs ink! e2e test diagnostics, see `ink_e2e_test::diagnostics` doc.
+    contract
+        .e2e_tests()
+        .iter()
+        .for_each(|item| ink_e2e_test::diagnostics(results, item));
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
@@ -364,6 +370,7 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, cont
                     | InkMacroKind::StorageItem
                     | InkMacroKind::Test
                     | InkMacroKind::TraitDefinition
+                    | InkMacroKind::E2ETest
             )
         )
     });

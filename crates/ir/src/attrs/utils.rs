@@ -38,10 +38,12 @@ pub fn sort_ink_args_by_kind(args: &[InkArg]) -> Vec<InkArg> {
             // and/or ambiguous (e.g `namespace`) and/or macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c).
             // This group is explicitly enumerated to force explicit decisions about
             // the priority level of new `InkArgKind` additions.
-            InkArgKind::Anonymous
+            InkArgKind::AdditionalContracts
+            | InkArgKind::Anonymous
             | InkArgKind::Default
             | InkArgKind::Derive
             | InkArgKind::Env
+            | InkArgKind::Environment
             | InkArgKind::HandleStatus
             | InkArgKind::KeepAttr
             | InkArgKind::Namespace
@@ -176,6 +178,12 @@ mod tests {
                 },
                 vec![],
             ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test]
+                },
+                vec![],
+            ),
             // Macro with arguments.
             (
                 quote_as_str! {
@@ -183,6 +191,16 @@ mod tests {
                 },
                 vec![
                     (InkArgKind::Env, Some(SyntaxKind::PATH)),
+                    (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
+                ],
+            ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=my::env::Types, keep_attr="foo,bar")]
+                },
+                vec![
+                    (InkArgKind::AdditionalContracts, Some(SyntaxKind::STRING)),
+                    (InkArgKind::Environment, Some(SyntaxKind::PATH)),
                     (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
                 ],
             ),

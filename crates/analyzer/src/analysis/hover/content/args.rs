@@ -1,5 +1,33 @@
 //! Hover content for ink! attribute arguments.
 
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L29-L30>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
+pub const ADDITIONAL_CONTRACTS_DOC: &str = r#"
+# Attribute
+
+`#[ink_e2e::test(additional_contracts = S: string)]`
+
+# Description
+
+Tells the ink! e2e test runner which additional contracts to build before executing the test.
+
+# Usage
+
+Additional contracts that have to be built before executing the test.
+
+# Example
+
+```
+#[ink_e2e::test(additional_contracts = "adder/Cargo.toml flipper/Cargo.toml")]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
@@ -178,10 +206,16 @@ struct NonPackedGeneric<T: ink::storage::traits::Packed> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L143-L199>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L31-L37>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
 pub const ENV_DOC: &str = r#"
 # Attribute
 
-`#[ink::contract(env = E: impl Environment)]`
+`#[ink::contract(env = E: impl Environment)]` or `#[ink_e2e::test(environment = E: impl Environment)]`
 
 # Description
 
@@ -220,6 +254,17 @@ A user might implement their ink! smart contract using the above custom `Environ
 ```
 #[ink::contract(env = MyEnvironment)]
 mod my_contract {
+    // --snip--
+}
+```
+
+OR
+
+A user might write an end-to-end test using the above custom `Environment` implementation as demonstrated below:
+
+```
+#[ink_e2e::test(environment = MyEnvironment)]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
     // --snip--
 }
 ```

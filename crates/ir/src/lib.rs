@@ -49,6 +49,7 @@ pub use self::{
     event::Event,
     extension::Extension,
     file::InkFile,
+    ink_e2e_test::InkE2ETest,
     ink_impl::InkImpl,
     ink_test::InkTest,
     message::Message,
@@ -87,6 +88,7 @@ mod contract;
 mod event;
 mod extension;
 mod file;
+mod ink_e2e_test;
 mod ink_impl;
 mod ink_test;
 mod message;

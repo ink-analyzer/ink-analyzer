@@ -60,7 +60,10 @@ impl InkArg {
 
 /// The ink! attribute argument kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum InkArgKind {
+    /// `#[ink(additional_contracts)]`
+    AdditionalContracts,
     /// `#[ink(anonymous)]`
     Anonymous,
     /// `#[ink(constructor)]`
@@ -71,6 +74,8 @@ pub enum InkArgKind {
     Derive,
     /// `#[ink(env)]`
     Env,
+    /// `#[ink(environment)]`
+    Environment,
     /// `#[ink(event)]`
     Event,
     /// `#[ink(extension)]`
@@ -101,6 +106,8 @@ impl From<&str> for InkArgKind {
     /// Converts a string slice representing a meta item name into an ink! attribute argument kind.
     fn from(arg_name: &str) -> Self {
         match arg_name {
+            // `#[ink(additional_contracts)]`
+            "additional_contracts" => InkArgKind::AdditionalContracts,
             // `#[ink(anonymous)]`
             "anonymous" => InkArgKind::Anonymous,
             // `#[ink(constructor)]`
@@ -111,6 +118,8 @@ impl From<&str> for InkArgKind {
             "derive" => InkArgKind::Derive,
             // `#[ink(env)]`
             "env" => InkArgKind::Env,
+            // `#[ink(environment)]`
+            "environment" => InkArgKind::Environment,
             // `#[ink(event)]`
             "event" => InkArgKind::Event,
             // `#[ink(extension)]`
@@ -145,6 +154,8 @@ impl fmt::Display for InkArgKind {
             f,
             "{}",
             match self {
+                // `#[ink(additional_contracts)]`
+                InkArgKind::AdditionalContracts => "additional_contracts",
                 // `#[ink(anonymous)]`
                 InkArgKind::Anonymous => "anonymous",
                 // `#[ink(constructor)]`
@@ -155,6 +166,8 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::Derive => "derive",
                 // `#[ink(env)]`
                 InkArgKind::Env => "env",
+                // `#[ink(environment)]`
+                InkArgKind::Environment => "environment",
                 // `#[ink(event)]`
                 InkArgKind::Event => "event",
                 // `#[ink(extension)]`
@@ -208,10 +221,10 @@ impl From<InkArgKind> for InkArgValueKind {
         match arg_kind {
             InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
             InkArgKind::Extension => InkArgValueKind::U32,
-            InkArgKind::KeepAttr => InkArgValueKind::String,
+            InkArgKind::AdditionalContracts | InkArgKind::KeepAttr => InkArgValueKind::String,
             InkArgKind::Namespace => InkArgValueKind::StringIdentifier,
             InkArgKind::HandleStatus | InkArgKind::Derive => InkArgValueKind::Bool,
-            InkArgKind::Env => InkArgValueKind::Path,
+            InkArgKind::Env | InkArgKind::Environment => InkArgValueKind::Path,
             _ => InkArgValueKind::None,
         }
     }

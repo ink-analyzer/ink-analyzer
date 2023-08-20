@@ -28,6 +28,7 @@ mod constructor;
 mod contract;
 mod event;
 mod extension;
+mod ink_e2e_test;
 mod ink_impl;
 mod ink_test;
 mod message;

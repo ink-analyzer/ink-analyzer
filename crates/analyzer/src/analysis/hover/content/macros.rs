@@ -1226,3 +1226,82 @@ comma-separated header arguments:
      **Allowed attributes by default:** `cfg`, `cfg_attr`, `allow`, `warn`, `deny`,
 `forbid`,         `deprecated`, `must_use`, `doc`, `rustfmt`.
 "#;
+
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/e2e/macro/src/lib.rs#L28-L94>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink_e2e/attr.test.html>.
+pub const E2E_TEST_DOC: &str = r#"
+# Attribute
+
+`#[ink_e2e::test]`
+
+# Description
+
+Defines an End-to-End test.
+
+The system requirements are:
+
+- A Substrate node with `pallet-contracts` installed on the local system. You can e.g.
+  use [`substrate-contracts-node`](https://github.com/paritytech/substrate-contracts-node)
+  and install it on your PATH, or provide a path to an executable using the
+  `CONTRACTS_NODE` environment variable.
+
+Before the test function is invoked the contract will have been build. Any errors
+that occur during the contract build will prevent the test function from being
+invoked.
+
+## Header Arguments
+
+The `#[ink::e2e_test]` macro can be provided with some additional comma-separated
+header arguments:
+
+# Example
+
+```no_compile
+# // TODO(#xxx) Remove the `no_compile`.
+#[cfg(test)]
+mod tests {
+    use ::ink_e2e::*;
+    type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+    #[ink::e2e_test]
+    async fn e2e_test_2(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+        // given
+        let constructor = contract_transfer::constructors::new();
+        let contract_acc_id = client.instantiate(
+            &mut ::ink_e2e::alice(),
+            constructor,
+            1337,
+            None,
+        )
+        .await
+        .expect("instantiating contract failed")
+        .account_id;
+
+        // when
+        let transfer = contract_transfer::messages::give_me(120);
+        let call_res = client.call(
+            &mut ::ink_e2e::bob(),
+            contract_acc_id.clone(),
+            transfer.into(),
+            10,
+            None,
+        )
+        .await;
+
+        // then
+        assert!(call_res.is_ok());
+        Ok(())
+    }
+}
+```
+
+You can also use build the `Signer` type yourself, without going through
+the pre-defined functions:
+
+```no_compile
+let mut bob = ::ink_e2e::PairSigner::new(
+    ::ink_e2e::AccountKeyring::Bob.pair()
+);
+```
+"#;

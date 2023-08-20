@@ -38,23 +38,25 @@ impl InkAttribute {
         // Get attribute path segments.
         let mut path_segments = attr.path()?.segments();
 
-        let ink_segment = path_segments.next()?;
+        let ink_crate_segment = path_segments.next()?;
+        let ink_crate_name = ink_crate_segment.to_string();
 
-        (ink_segment.to_string() == "ink").then(|| {
+        (matches!(ink_crate_name.as_str(), "ink" | "ink_e2e")).then(|| {
             let args = utils::parse_ink_args(&attr);
             let possible_ink_macro_segment = path_segments.next();
             let mut possible_ink_arg_name: Option<MetaName> = None;
 
             let ink_attr_kind = match &possible_ink_macro_segment {
                 Some(ink_macro_segment) => {
-                    // More than one path segment means an ink! attribute macro e.g `#[ink::contract]`.
-                    if path_segments.next().is_some() {
-                        // Any more path segments means an unknown attribute macro e.g `#[ink::abc::xyz]`.
-                        InkAttributeKind::Macro(InkMacroKind::Unknown)
-                    } else {
-                        InkAttributeKind::Macro(InkMacroKind::from(
+                    // More than one path segment means an ink! attribute macro e.g `#[ink::contract]` or `#[ink_e2e::test]`.
+                    match path_segments.next() {
+                        // Any more path segments means an unknown attribute macro e.g `#[ink::abc::xyz]` or `#[ink_e2e::abc::xyz]`.
+                        Some(_) => InkAttributeKind::Macro(InkMacroKind::Unknown),
+                        // Otherwise we parse the ink! macro kind from the macro path segment.
+                        None => InkAttributeKind::Macro(InkMacroKind::from((
+                            ink_crate_name.as_str(),
                             ink_macro_segment.to_string().as_str(),
-                        ))
+                        ))),
                     }
                 }
                 None => {
@@ -82,7 +84,7 @@ impl InkAttribute {
                 ast: attr,
                 kind: ink_attr_kind,
                 args,
-                ink: ink_segment,
+                ink: ink_crate_segment,
                 ink_macro: possible_ink_macro_segment,
                 ink_arg_name: possible_ink_arg_name,
             }
@@ -129,6 +131,7 @@ pub enum InkAttributeKind {
 
 /// The ink! attribute macro kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum InkMacroKind {
     /// `#[ink::chain_extension]`
     ChainExtension,
@@ -140,24 +143,32 @@ pub enum InkMacroKind {
     Test,
     /// `#[ink::trait_definition]`
     TraitDefinition,
+    /// `#[ink_e2e::test]`
+    E2ETest,
     /// Unknown ink! attribute macro.
     Unknown,
 }
 
-impl From<&str> for InkMacroKind {
-    /// Converts a string slice representing an attribute path segment into an ink! attribute macro kind.
-    fn from(path_segment: &str) -> Self {
-        match path_segment {
-            // `#[ink::chain_extension]`
-            "chain_extension" => InkMacroKind::ChainExtension,
-            // `#[ink::contract]`
-            "contract" => InkMacroKind::Contract,
-            // `#[ink::storage_item]`
-            "storage_item" => InkMacroKind::StorageItem,
-            // `#[ink::test]`
-            "test" => InkMacroKind::Test,
-            // `#[ink::trait_definition]`
-            "trait_definition" => InkMacroKind::TraitDefinition,
+impl From<(&str, &str)> for InkMacroKind {
+    /// Converts a string slice tuple representing an ink! attribute macro into an ink! attribute macro kind.
+    fn from(path_segments: (&str, &str)) -> Self {
+        match path_segments {
+            ("ink", ink_macro) => match ink_macro {
+                // `#[ink::chain_extension]`
+                "chain_extension" => InkMacroKind::ChainExtension,
+                // `#[ink::contract]`
+                "contract" => InkMacroKind::Contract,
+                // `#[ink::storage_item]`
+                "storage_item" => InkMacroKind::StorageItem,
+                // `#[ink::test]`
+                "test" => InkMacroKind::Test,
+                // `#[ink::trait_definition]`
+                "trait_definition" => InkMacroKind::TraitDefinition,
+                // unknown ink! attribute path (i.e unknown ink! attribute macro).
+                _ => InkMacroKind::Unknown,
+            },
+            // `#[ink_e2e::test]`
+            ("ink_e2e", "test") => InkMacroKind::E2ETest,
             // unknown ink! attribute path (i.e unknown ink! attribute macro).
             _ => InkMacroKind::Unknown,
         }
@@ -180,10 +191,80 @@ impl fmt::Display for InkMacroKind {
                 InkMacroKind::Test => "test",
                 // `#[ink::trait_definition]`
                 InkMacroKind::TraitDefinition => "trait_definition",
+                // `#[ink_e2e::test]`
+                InkMacroKind::E2ETest => "e2e test",
                 // unknown ink! attribute path (i.e unknown ink! attribute macro).
                 InkMacroKind::Unknown => "unknown",
             }
         )
+    }
+}
+
+impl InkMacroKind {
+    /// Returns the full path of the ink! attribute macro as a string slice (`&str`)
+    ///
+    /// (e.g `ink::contract` for `#[ink::contract]`).
+    pub fn path_as_str(&self) -> &str {
+        match self {
+            // `#[ink::chain_extension]`
+            InkMacroKind::ChainExtension => "ink::chain_extension",
+            // `#[ink::contract]`
+            InkMacroKind::Contract => "ink::contract",
+            // `#[ink::storage_item]`
+            InkMacroKind::StorageItem => "ink::storage_item",
+            // `#[ink::test]`
+            InkMacroKind::Test => "ink::test",
+            // `#[ink::trait_definition]`
+            InkMacroKind::TraitDefinition => "ink::trait_definition",
+            // `#[ink_e2e::test]`
+            InkMacroKind::E2ETest => "ink_e2e::test",
+            // unknown ink! attribute path (i.e unknown ink! attribute macro).
+            _ => "",
+        }
+    }
+
+    /// Returns the name of the ink! attribute macro as a string slice (`&str`)
+    ///
+    /// (e.g `contract` for `#[ink::contract]`).
+    pub fn macro_name(&self) -> &str {
+        match self {
+            // `#[ink::chain_extension]`
+            InkMacroKind::ChainExtension => "chain_extension",
+            // `#[ink::contract]`
+            InkMacroKind::Contract => "contract",
+            // `#[ink::storage_item]`
+            InkMacroKind::StorageItem => "storage_item",
+            // `#[ink::test]`
+            InkMacroKind::Test => "test",
+            // `#[ink::trait_definition]`
+            InkMacroKind::TraitDefinition => "trait_definition",
+            // `#[ink_e2e::test]`
+            InkMacroKind::E2ETest => "test",
+            // unknown ink! attribute path (i.e unknown ink! attribute macro).
+            _ => "",
+        }
+    }
+
+    /// Returns the name of the source crate of the ink! attribute macro as a string slice (`&str`)
+    ///
+    /// (e.g `ink` for `#[ink::contract]` or `ink_e2e` for `#[ink_e2e::test]`).
+    pub fn crate_name(&self) -> &str {
+        match self {
+            // `#[ink::chain_extension]`
+            // `#[ink::contract]`
+            // `#[ink::storage_item]`
+            // `#[ink::test]`
+            // `#[ink::trait_definition]`
+            InkMacroKind::ChainExtension
+            | InkMacroKind::Contract
+            | InkMacroKind::StorageItem
+            | InkMacroKind::Test
+            | InkMacroKind::TraitDefinition => "ink",
+            // `#[ink_e2e::test]`
+            InkMacroKind::E2ETest => "ink_e2e",
+            // unknown ink! attribute path (i.e unknown ink! attribute macro).
+            _ => "",
+        }
     }
 }
 
@@ -275,6 +356,12 @@ mod tests {
                     vec![],
                 )),
             ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::E2ETest), vec![])),
+            ),
             // Macro with arguments.
             (
                 quote_as_str! {
@@ -305,6 +392,19 @@ mod tests {
                     InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
                     vec![
                         (InkArgKind::Namespace, Some(SyntaxKind::STRING)),
+                        (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
+                    ],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=my::env::Types, keep_attr="foo,bar")]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::E2ETest),
+                    vec![
+                        (InkArgKind::AdditionalContracts, Some(SyntaxKind::STRING)),
+                        (InkArgKind::Environment, Some(SyntaxKind::PATH)),
                         (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
                     ],
                 )),

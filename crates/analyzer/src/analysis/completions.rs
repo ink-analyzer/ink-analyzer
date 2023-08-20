@@ -43,8 +43,6 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
     if let Some(focused_token) = item_at_offset.focused_token() {
         // Only computes completions for ink! attributes.
         if let Some((attr, _, _)) = item_at_offset.normalized_parent_attr() {
-            let default_label = "ink! attribute macro";
-
             let focused_token_is_left_bracket = focused_token.kind() == SyntaxKind::L_BRACK;
             let prev_token_is_left_bracket = matches!(
                 item_at_offset
@@ -52,46 +50,48 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                     .map(|prev_token| prev_token.kind()),
                 Some(SyntaxKind::L_BRACK)
             );
-            let focused_token_is_ink_or_colon_prefix =
-                matches!(focused_token.text(), "ink" | "::" | ":");
-            let focused_token_is_ink_path_segment = (focused_token.text() == "ink"
-                && matches!(
-                    item_at_offset
-                        .prev_non_trivia_token()
-                        .map(|prev_token| prev_token.kind()),
-                    Some(SyntaxKind::L_BRACK)
-                ))
-                || (matches!(focused_token.text(), "::" | ":")
+            let focused_token_is_ink_crate_name = matches!(focused_token.text(), "ink" | "ink_e2e");
+            let focused_token_is_ink_crate_name_or_colon_prefix =
+                focused_token_is_ink_crate_name || matches!(focused_token.text(), "::" | ":");
+            let focused_token_is_in_ink_crate_path_segment =
+                (matches!(focused_token.text(), "ink" | "ink_e2e")
                     && matches!(
+                        item_at_offset
+                            .prev_non_trivia_token()
+                            .map(|prev_token| prev_token.kind()),
+                        Some(SyntaxKind::L_BRACK)
+                    ))
+                    || (matches!(focused_token.text(), "::" | ":")
+                        && matches!(
+                            item_at_offset
+                                .prev_non_trivia_token()
+                                .as_ref()
+                                .map(SyntaxToken::text),
+                            Some("ink" | "ink_e2e")
+                        ))
+                    || (matches!(
                         item_at_offset
                             .prev_non_trivia_token()
                             .as_ref()
                             .map(SyntaxToken::text),
-                        Some("ink")
-                    ))
-                || (matches!(
-                    item_at_offset
-                        .prev_non_trivia_token()
-                        .as_ref()
-                        .map(SyntaxToken::text),
-                    Some("::")
-                ) && matches!(
-                    item_at_offset
-                        .prev_non_trivia_token()
-                        .as_ref()
-                        .and_then(|prev_token| ink_analyzer_ir::closest_non_trivia_token(
-                            prev_token,
-                            SyntaxToken::prev_token
-                        ))
-                        .as_ref()
-                        .map(SyntaxToken::text),
-                    Some("ink")
-                ));
+                        Some("::")
+                    ) && matches!(
+                        item_at_offset
+                            .prev_non_trivia_token()
+                            .as_ref()
+                            .and_then(|prev_token| ink_analyzer_ir::closest_non_trivia_token(
+                                prev_token,
+                                SyntaxToken::prev_token
+                            ))
+                            .as_ref()
+                            .map(SyntaxToken::text),
+                        Some("ink" | "ink_e2e")
+                    ));
 
             // Only computes completions if the focused token is in an attribute macro path context.
             if focused_token_is_left_bracket
                 || prev_token_is_left_bracket
-                || focused_token_is_ink_path_segment
+                || focused_token_is_in_ink_crate_path_segment
             {
                 // Removes the delimiter (i.e `[`) from text range if it's the focused token.
                 let edit_range = if focused_token_is_left_bracket {
@@ -110,14 +110,15 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         }
                         // Handles the case where the AST item type is unknown.
                         None => {
-                            // Returns all attribute argument suggestions if focused token is part of an ink! path segment.
-                            if focused_token_is_ink_path_segment {
+                            // Returns all valid ink! attribute macro suggestions if focused token is part of an ink! path segment.
+                            if focused_token_is_in_ink_crate_path_segment {
                                 vec![
                                     InkMacroKind::ChainExtension,
                                     InkMacroKind::Contract,
                                     InkMacroKind::StorageItem,
                                     InkMacroKind::Test,
                                     InkMacroKind::TraitDefinition,
+                                    InkMacroKind::E2ETest,
                                 ]
                             } else {
                                 // Returns nothing if the ink! context can't be determined.
@@ -125,6 +126,31 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                             }
                         }
                     };
+
+                // Filters suggestions by the matching ink! macro crate
+                // if a complete `ink` or `ink_e2e` path segment is already present before the focused token.
+                if focused_token_is_in_ink_crate_path_segment && !focused_token_is_ink_crate_name {
+                    if let Some(ink_crate_name) = attr
+                        .path()
+                        .and_then(|it| it.first_segment())
+                        .map(|it| it.to_string())
+                    {
+                        ink_macro_suggestions
+                            .retain(|macro_kind| macro_kind.crate_name() == ink_crate_name);
+                    }
+                }
+
+                // Filters suggestions by the focused prefix if the focused token is
+                // not a delimiter nor in the `ink::` or `ink_e2e::` path segment position.
+                if !focused_token_is_left_bracket
+                    && !prev_token_is_left_bracket
+                    && !focused_token_is_ink_crate_name_or_colon_prefix
+                {
+                    if let Some(prefix) = item_at_offset.focused_token_prefix() {
+                        ink_macro_suggestions
+                            .retain(|macro_kind| macro_kind.macro_name().starts_with(prefix));
+                    }
+                }
 
                 // Filters out invalid ink! attribute macro suggestions based on parent ink! scope (if any).
                 if let Some(attr_parent) = attr.syntax().parent() {
@@ -134,30 +160,18 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                     );
                 }
 
-                // Filters suggestions by the focused prefix if the focused token is
-                // not a delimiter nor in the `ink::` path segment position.
-                if !focused_token_is_left_bracket
-                    && !prev_token_is_left_bracket
-                    && !focused_token_is_ink_or_colon_prefix
-                {
-                    if let Some(prefix) = item_at_offset.focused_token_prefix() {
-                        ink_macro_suggestions
-                            .retain(|macro_kind| format!("{macro_kind}").starts_with(prefix));
-                    }
-                }
-
                 // Add context-specific completions to accumulator (if any).
                 if !ink_macro_suggestions.is_empty() {
                     for macro_kind in ink_macro_suggestions {
                         let edit = format!(
-                            "{}{}{macro_kind}",
+                            "{}{}{}",
                             // Only includes `ink` if the focused token is either the `[` delimiter,
                             // the next token right after the `[` delimiter, the `ink` path segment.
                             if focused_token_is_left_bracket
                                 || prev_token_is_left_bracket
-                                || focused_token.text() == "ink"
+                                || matches!(focused_token.text(), "ink" | "ink_e2e")
                             {
-                                "ink"
+                                macro_kind.crate_name()
                             } else {
                                 ""
                             },
@@ -166,12 +180,13 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                             // anything in the `ink::` path segment position
                             if focused_token_is_left_bracket
                                 || prev_token_is_left_bracket
-                                || focused_token_is_ink_or_colon_prefix
+                                || focused_token_is_ink_crate_name_or_colon_prefix
                             {
                                 "::"
                             } else {
                                 ""
-                            }
+                            },
+                            macro_kind.macro_name()
                         );
                         results.push(Completion {
                             label: edit.clone(),
@@ -182,21 +197,25 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         });
                     }
                 } else if prev_token_is_left_bracket {
-                    // Suggests the `ink` path segment itself if
-                    // the focused token is an `ink` prefix and is also
+                    // Suggests the `ink` and `ink_e2e` path segments if
+                    // the focused token is an `ink` or `ink_e2e` prefix and is also
                     // the next token right after the `[` delimiter.
-                    if item_at_offset
-                        .focused_token_prefix()
-                        .map_or(false, |prefix| "ink".starts_with(prefix))
-                    {
-                        let edit = "ink".to_string();
-                        results.push(Completion {
-                            label: edit.clone(),
-                            detail: Some(default_label.to_string()),
-                            range: edit_range,
-                            edit,
-                            snippet: None,
-                        });
+                    let focused_token_prefix = item_at_offset.focused_token_prefix();
+                    for (ink_macro_crate_name, detail) in [
+                        ("ink", "ink! attribute macro"),
+                        ("ink_e2e", "ink! e2e attribute macro"),
+                    ] {
+                        if focused_token_prefix
+                            .map_or(false, |prefix| ink_macro_crate_name.starts_with(prefix))
+                        {
+                            results.push(Completion {
+                                label: ink_macro_crate_name.to_string(),
+                                detail: Some(detail.to_string()),
+                                range: edit_range,
+                                edit: ink_macro_crate_name.to_string(),
+                                snippet: None,
+                            });
+                        }
                     }
                 }
             }
@@ -252,7 +271,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                         match item_at_offset.normalized_parent_ast_item_keyword() {
                             // Returns suggestions based on the AST item type keyword.
                             Some((ast_item_keyword, _, _)) => {
-                                utils::valid_ink_ink_args_by_syntax_kind(ast_item_keyword.kind())
+                                utils::valid_ink_args_by_syntax_kind(ast_item_keyword.kind())
                             }
                             // Handles cases where either the AST item type is unknown or
                             // the ink! attribute is not applied to an AST item (e.g. ink! topic).
@@ -375,7 +394,15 @@ mod tests {
 
             // No AST item context.
             ("#[", None, vec![]),
-            ("#[i", None, vec![("ink", Some("<-i"), Some("i"))]),
+            (
+                "#[i",
+                None,
+                vec![
+                    ("ink", Some("<-i"), Some("i")),
+                    ("ink_e2e", Some("<-i"), Some("i")),
+                ],
+            ),
+            ("#[ink_", None, vec![("ink_e2e", Some("<-i"), Some("ink_"))]),
             (
                 "#[ink:",
                 Some(":"),
@@ -397,6 +424,16 @@ mod tests {
                     ("::test", Some("<-::"), Some("::")),
                     ("::trait_definition", Some("<-::"), Some("::")),
                 ],
+            ),
+            (
+                "#[ink_e2e:",
+                Some(":"),
+                vec![("::test", Some("<-:"), Some(":"))],
+            ),
+            (
+                "#[ink_e2e::",
+                Some("::"),
+                vec![("::test", Some("<-::"), Some("::"))],
             ),
             // Module context.
             (
@@ -548,7 +585,10 @@ mod tests {
                     fn my_fn() {}
                 "#,
                 Some("["),
-                vec![("ink::test", Some("["), Some("<-]"))],
+                vec![
+                    ("ink::test", Some("["), Some("<-]")),
+                    ("ink_e2e::test", Some("["), Some("<-]")),
+                ],
             ),
             (
                 r#"
@@ -556,7 +596,10 @@ mod tests {
                     fn my_fn() {}
                 "#,
                 Some("i"),
-                vec![("ink::test", Some("<-i"), Some("i"))],
+                vec![
+                    ("ink::test", Some("<-i"), Some("i")),
+                    ("ink_e2e::test", Some("<-i"), Some("i")),
+                ],
             ),
             (
                 r#"
@@ -564,7 +607,10 @@ mod tests {
                     fn my_fn() {}
                 "#,
                 Some("i"),
-                vec![("ink::test", Some("<-ink"), Some("ink"))],
+                vec![
+                    ("ink::test", Some("<-ink"), Some("ink")),
+                    ("ink_e2e::test", Some("<-ink"), Some("ink")),
+                ],
             ),
             (
                 r#"

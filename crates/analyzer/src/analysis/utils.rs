@@ -35,7 +35,14 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/config.rs#L60-L85>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L597-L643>.
                 InkMacroKind::TraitDefinition => vec![InkArgKind::KeepAttr, InkArgKind::Namespace],
-                InkMacroKind::Unknown => Vec::new(),
+                // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L85>.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
+                InkMacroKind::E2ETest => vec![
+                    InkArgKind::AdditionalContracts,
+                    InkArgKind::Environment,
+                    InkArgKind::KeepAttr,
+                ],
+                _ => Vec::new(),
             }
         }
         // Returns valid sibling args (if any) for ink! attribute arguments.
@@ -109,7 +116,7 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
                     InkArgKind::Message,
                     InkArgKind::Payable,
                 ],
-                InkArgKind::Unknown => Vec::new(),
+                _ => Vec::new(),
             }
         }
     }
@@ -154,9 +161,10 @@ pub fn valid_quasi_direct_descendant_ink_args(attr_kind: InkAttributeKind) -> Ve
                     InkArgKind::Payable,
                     InkArgKind::Selector,
                 ],
-                // ink! storage items and ink! tests can't have ink! descendants.
+                // ink! storage items, ink! tests and ink! e2e tests can't have ink! descendants.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L772-L799>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L805-L846>.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/ir.rs#L37-L48>.
                 _ => Vec::new(),
             }
         }
@@ -218,12 +226,14 @@ pub fn valid_quasi_direct_descendant_ink_macros(attr_kind: InkAttributeKind) -> 
                     InkMacroKind::StorageItem,
                     InkMacroKind::Test,
                     InkMacroKind::TraitDefinition,
+                    InkMacroKind::E2ETest,
                 ],
                 // All other ink! attribute macros can't have ink! macro descendants.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L848-L1280>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L772-L799>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L805-L846>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L597-L643>.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/ir.rs#L37-L48>.
                 _ => Vec::new(),
             }
         }
@@ -237,7 +247,7 @@ pub fn valid_quasi_direct_descendant_ink_macros(attr_kind: InkAttributeKind) -> 
 ///
 /// (i.e argument kinds that can be applied to the given syntax kind,
 /// e.g for the `impl` syntax kind, this would be `impl` and `namespace`.
-pub fn valid_ink_ink_args_by_syntax_kind(syntax_kind: SyntaxKind) -> Vec<InkArgKind> {
+pub fn valid_ink_args_by_syntax_kind(syntax_kind: SyntaxKind) -> Vec<InkArgKind> {
     match syntax_kind {
         // `env` and `keep_attr` can only be applied to a `mod` as siblings of an `ink::contract` macro.
         SyntaxKind::MODULE | SyntaxKind::MOD_KW => Vec::new(),
@@ -283,7 +293,7 @@ pub fn valid_ink_macros_by_syntax_kind(syntax_kind: SyntaxKind) -> Vec<InkMacroK
         | SyntaxKind::STRUCT_KW
         | SyntaxKind::UNION
         | SyntaxKind::UNION_KW => vec![InkMacroKind::StorageItem],
-        SyntaxKind::FN | SyntaxKind::FN_KW => vec![InkMacroKind::Test],
+        SyntaxKind::FN | SyntaxKind::FN_KW => vec![InkMacroKind::Test, InkMacroKind::E2ETest],
         _ => Vec::new(),
     }
 }

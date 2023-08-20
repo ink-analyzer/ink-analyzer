@@ -591,6 +591,48 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         end_pat: Some("#[ink::te"),
                     }]),
                 },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink_e2e::test]"),
+                        end_pat: Some("#[ink_e2e::test]"),
+                        replacement: "#[ink_e2e::te]",
+                    }]),
+                    params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
+                        offset_pat: Some("#[ink_e2e::te"),
+                    })),
+                    results: TestCaseResults::Completion(vec![TestResultTextRange {
+                        text: "test",
+                        start_pat: Some("<-te]"),
+                        end_pat: Some("#[ink_e2e::te"),
+                    }]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink_e2e::test]"),
+                        end_pat: Some("#[ink_e2e::test]"),
+                        replacement: "#[ink_e2e::test()]",
+                    }]),
+                    params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
+                        offset_pat: Some("#[ink_e2e::test("),
+                    })),
+                    results: TestCaseResults::Completion(vec![
+                        TestResultTextRange {
+                            text: "additional_contracts=",
+                            start_pat: Some("#[ink_e2e::test("),
+                            end_pat: Some("#[ink_e2e::test("),
+                        },
+                        TestResultTextRange {
+                            text: "environment=",
+                            start_pat: Some("#[ink_e2e::test("),
+                            end_pat: Some("#[ink_e2e::test("),
+                        },
+                        TestResultTextRange {
+                            text: "keep_attr=",
+                            start_pat: Some("#[ink_e2e::test("),
+                            end_pat: Some("#[ink_e2e::test("),
+                        },
+                    ]),
+                },
             ],
         },
         // Trait definitions.
@@ -898,6 +940,11 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
                         },
                         TestResultTextRange {
+                            text: "#[ink_e2e::test]",
+                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
+                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
+                        },
+                        TestResultTextRange {
                             text: "#[ink(constructor)]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
@@ -963,6 +1010,11 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                             end_pat: Some("<-pub fn total_supply(&self)"),
                         },
                         TestResultTextRange {
+                            text: "#[ink_e2e::test]",
+                            start_pat: Some("<-pub fn total_supply(&self)"),
+                            end_pat: Some("<-pub fn total_supply(&self)"),
+                        },
+                        TestResultTextRange {
                             text: "#[ink(constructor)]",
                             start_pat: Some("<-pub fn total_supply(&self)"),
                             end_pat: Some("<-pub fn total_supply(&self)"),
@@ -1018,6 +1070,52 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         offset_pat: Some("<-#[ink::test]"),
                     })),
                     results: TestCaseResults::Action(vec![]),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                        offset_pat: Some("<-#[ink_e2e::test]"),
+                    })),
+                    results: TestCaseResults::Action(vec![
+                        TestResultTextRange {
+                            text: "(additional_contracts=)",
+                            start_pat: Some("#[ink_e2e::test"),
+                            end_pat: Some("#[ink_e2e::test"),
+                        },
+                        TestResultTextRange {
+                            text: "(environment=)",
+                            start_pat: Some("#[ink_e2e::test"),
+                            end_pat: Some("#[ink_e2e::test"),
+                        },
+                        TestResultTextRange {
+                            text: "(keep_attr=)",
+                            start_pat: Some("#[ink_e2e::test"),
+                            end_pat: Some("#[ink_e2e::test"),
+                        },
+                    ]),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                        offset_pat: Some("<-async fn e2e_transfer"),
+                    })),
+                    results: TestCaseResults::Action(vec![
+                        TestResultTextRange {
+                            text: "(additional_contracts=)",
+                            start_pat: Some("#[ink_e2e::test"),
+                            end_pat: Some("#[ink_e2e::test"),
+                        },
+                        TestResultTextRange {
+                            text: "(environment=)",
+                            start_pat: Some("#[ink_e2e::test"),
+                            end_pat: Some("#[ink_e2e::test"),
+                        },
+                        TestResultTextRange {
+                            text: "(keep_attr=)",
+                            start_pat: Some("#[ink_e2e::test"),
+                            end_pat: Some("#[ink_e2e::test"),
+                        },
+                    ]),
                 },
             ],
         },
@@ -1112,6 +1210,11 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
                             text: "#[ink::test]",
+                            start_pat: Some("<-fn token_name(asset_id: u32)"),
+                            end_pat: Some("<-fn token_name(asset_id: u32)"),
+                        },
+                        TestResultTextRange {
+                            text: "#[ink_e2e::test]",
                             start_pat: Some("<-fn token_name(asset_id: u32)"),
                             end_pat: Some("<-fn token_name(asset_id: u32)"),
                         },
@@ -1391,6 +1494,50 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         text: "`#[ink::test]`",
                         start_pat: Some("<-test]"),
                         end_pat: Some("#[ink::test"),
+                    })),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("<-#[ink_e2e::test]"),
+                        range_end_pat: Some("#[ink_e2e::test]"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink_e2e::test]`",
+                        start_pat: Some("#[ink_e2e::"),
+                        end_pat: Some("#[ink_e2e::test"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink_e2e::test]"),
+                        end_pat: Some("#[ink_e2e::test]"),
+                        replacement: r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#,
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink_e2e::test("),
+                        range_end_pat: Some("#[ink_e2e::test(additional_contracts"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink_e2e::test(additional_contracts = S: string)]`",
+                        start_pat: Some("#[ink_e2e::test("),
+                        end_pat: Some("#[ink_e2e::test(additional_contracts"),
+                    })),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink_e2e::test]"),
+                        end_pat: Some("#[ink_e2e::test]"),
+                        replacement: "#[ink_e2e::test(environment=MyEnvironment)]",
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        range_start_pat: Some("#[ink_e2e::test("),
+                        range_end_pat: Some("#[ink_e2e::test(environment"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink_e2e::test(environment = E: impl Environment)]`",
+                        start_pat: Some("#[ink_e2e::test("),
+                        end_pat: Some("#[ink_e2e::test(environment"),
                     })),
                 },
             ],
