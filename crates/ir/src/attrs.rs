@@ -11,7 +11,7 @@ pub use arg::{InkArg, InkArgKind, InkArgValueKind};
 
 mod arg;
 pub mod meta;
-mod utils;
+pub mod utils;
 
 /// An ink! specific attribute.
 #[derive(Debug, Clone, PartialEq, Eq, FromAST)]
@@ -70,7 +70,7 @@ impl InkAttribute {
                         }
                     } else {
                         // Prioritize arguments so that we choose the best `InkArgKind` for the attribute.
-                        // See `utils::sort_ink_args_by_kind` doc.
+                        // See [`utils::ink_arg_kind_sort_order`] doc.
                         // Returns a new list so we don't change the original order for later analysis.
                         let sorted_args = utils::sort_ink_args_by_kind(&args);
                         let primary_arg = &sorted_args[0];

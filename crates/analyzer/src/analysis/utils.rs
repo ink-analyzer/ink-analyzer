@@ -47,7 +47,7 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
         }
         // Returns valid sibling args (if any) for ink! attribute arguments.
         // IR crate already makes sure `arg_kind` is the best match regardless of source code order,
-        // See `ink_analyzer_ir::attrs::utils::sort_ink_args_by_kind` doc.
+        // See [`ink_analyzer_ir::ink_arg_kind_sort_order`] doc.
         InkAttributeKind::Arg(arg_kind) => {
             match arg_kind {
                 // Unambiguous `arg_kind`.
@@ -170,7 +170,7 @@ pub fn valid_quasi_direct_descendant_ink_args(attr_kind: InkAttributeKind) -> Ve
         }
         // Returns valid quasi-direct descendant args (if any) for ink! attribute arguments.
         // IR crate already makes sure `arg_kind` is the best match regardless of source code order,
-        // See `ink_analyzer_ir::attrs::utils::sort_ink_args_by_kind` doc.
+        // See [`ink_analyzer_ir::ink_arg_kind_sort_order`] doc.
         InkAttributeKind::Arg(arg_kind) => {
             match arg_kind {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L132-L139>.
@@ -298,6 +298,83 @@ pub fn valid_ink_macros_by_syntax_kind(syntax_kind: SyntaxKind) -> Vec<InkMacroK
     }
 }
 
+/// Returns the primary ink! attribute candidate for the syntax node (if any),
+/// a boolean flag indicating whether its the first ink! attribute.
+///
+/// (i.e returns either the first valid ink! attribute macro or the highest ranked ink! attribute argument,
+/// see [`ink_analyzer_ir::ink_arg_kind_sort_order`] doc for attribute argument ranking criteria).
+pub fn primary_ink_attribute_candidate(
+    attrs: impl Iterator<Item = InkAttribute>,
+) -> Option<(InkAttribute, bool)> {
+    let mut candidates: Vec<(u8, InkAttribute, bool)> = attrs
+        .enumerate()
+        .filter_map(|(idx, attr)| {
+            // Ignore unknown attributes.
+            (!matches!(
+                attr.kind(),
+                InkAttributeKind::Macro(InkMacroKind::Unknown)
+                    | InkAttributeKind::Arg(InkArgKind::Unknown)
+            ))
+            .then_some((
+                // Assigns the order of the attribute.
+                match attr.kind() {
+                    // ink! attribute macros get the highest priority.
+                    InkAttributeKind::Macro(_) => 0,
+                    // ink! attribute arguments get their priority lowered by 1 to keep macros the highest.
+                    InkAttributeKind::Arg(arg_kind) => {
+                        ink_analyzer_ir::ink_arg_kind_sort_order(*arg_kind) + 1
+                    }
+                },
+                attr,
+                // Tracks whether attribute is the first.
+                idx == 0,
+            ))
+        })
+        .collect();
+    candidates.sort_by_key(|(order, ..)| *order);
+    // Returns the best ranked ink! attribute.
+    candidates
+        .first()
+        .cloned()
+        .map(|(_, attr, is_first)| (attr, is_first))
+}
+
+/// Suggest primary attribute kinds in case the current one is either incomplete
+/// (e.g `anonymous` without `event` or `derive` without `storage_item` attribute macro)
+/// or ambiguous (e.g `selector` with neither `constructor` nor `message` or
+/// `keep_attr` with neither `contract` nor `trait_definition` attribute macros).
+pub fn primary_ink_attribute_kind_suggestions(
+    attr_kind: InkAttributeKind,
+) -> Vec<InkAttributeKind> {
+    match attr_kind {
+        InkAttributeKind::Arg(arg_kind) => {
+            // Only ink! attribute arguments when set as the primary attribute have
+            // the potential to be either incomplete or ambiguous.
+            // See respective match pattern in the [`utils::valid_sibling_ink_args`] function for the rationale and references.
+            match arg_kind {
+                InkArgKind::Anonymous => vec![InkAttributeKind::Arg(InkArgKind::Event)],
+                InkArgKind::KeepAttr => vec![
+                    InkAttributeKind::Macro(InkMacroKind::Contract),
+                    InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
+                ],
+                InkArgKind::HandleStatus => vec![InkAttributeKind::Arg(InkArgKind::Extension)],
+                InkArgKind::Namespace => vec![
+                    InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
+                    InkAttributeKind::Arg(InkArgKind::Impl),
+                ],
+                InkArgKind::Payable | InkArgKind::Default | InkArgKind::Selector => vec![
+                    InkAttributeKind::Arg(InkArgKind::Constructor),
+                    InkAttributeKind::Arg(InkArgKind::Message),
+                ],
+                // Default
+                _ => Vec::new(),
+            }
+        }
+        // ink! attribute macros are always complete and unambiguous on their own.
+        InkAttributeKind::Macro(_) => Vec::new(),
+    }
+}
+
 /// Filters out duplicate ink! arguments from suggestions
 /// (i.e ink! arguments that are already applied to the attribute's parent node).
 pub fn remove_duplicate_ink_arg_suggestions(
@@ -334,16 +411,11 @@ pub fn remove_conflicting_ink_arg_suggestions(
     suggestions: &mut Vec<InkArgKind>,
     attr_parent: &SyntaxNode,
 ) {
-    // Gets the first valid ink! attribute (if any).
-    if let Some(first_valid_attribute) = ink_analyzer_ir::ink_attrs(attr_parent).find(|attr| {
-        // Ignore unknown attributes.
-        !matches!(
-            attr.kind(),
-            InkAttributeKind::Macro(InkMacroKind::Unknown)
-                | InkAttributeKind::Arg(InkArgKind::Unknown)
-        )
-    }) {
-        let valid_siblings = valid_sibling_ink_args(*first_valid_attribute.kind());
+    // Gets the primary ink! attribute candidate (if any).
+    if let Some((primary_ink_attr, ..)) =
+        primary_ink_attribute_candidate(ink_analyzer_ir::ink_attrs(attr_parent))
+    {
+        let valid_siblings = valid_sibling_ink_args(*primary_ink_attr.kind());
         // Filters out invalid siblings.
         suggestions.retain(|arg_kind| valid_siblings.contains(arg_kind));
     }

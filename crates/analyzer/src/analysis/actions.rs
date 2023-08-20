@@ -3,9 +3,7 @@
 use either::Either;
 use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxElement, SyntaxKind, SyntaxNode, TextRange};
-use ink_analyzer_ir::{
-    ast, FromAST, FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind,
-};
+use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttributeKind, InkFile};
 
 use super::utils;
 
@@ -104,20 +102,14 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                         }
                     }
 
-                    // Gets the first valid ink! attribute (if any).
-                    let first_valid_ink_attribute =
-                        ink_analyzer_ir::ink_attrs(target).find(|attr| {
-                            // Ignore unknown attributes.
-                            !matches!(
-                                attr.kind(),
-                                InkAttributeKind::Macro(InkMacroKind::Unknown)
-                                    | InkAttributeKind::Arg(InkArgKind::Unknown)
-                            )
-                        });
+                    // Gets the primary ink! attribute candidate (if any).
+                    let primary_ink_attr_candidate =
+                        utils::primary_ink_attribute_candidate(ink_analyzer_ir::ink_attrs(target))
+                            .map(|(attr, ..)| attr);
 
                     // Suggests ink! attribute arguments based on the context.
                     let mut ink_arg_suggestions =
-                        if let Some(ink_attr) = first_valid_ink_attribute.as_ref() {
+                        if let Some(ink_attr) = primary_ink_attr_candidate.as_ref() {
                             // Make suggestions based on the first valid ink! attribute (if any).
                             utils::valid_sibling_ink_args(*ink_attr.kind())
                         } else {
@@ -132,9 +124,9 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                     // Filters out invalid ink! attribute argument actions based on parent ink! scope
                     // if there's either no valid ink! attribute macro (not argument) applied to the item
                     // (i.e either no valid ink! attribute macro or only ink! attribute arguments).
-                    if first_valid_ink_attribute.is_none()
+                    if primary_ink_attr_candidate.is_none()
                         || !matches!(
-                            first_valid_ink_attribute.as_ref().map(|attr| attr.kind()),
+                            primary_ink_attr_candidate.as_ref().map(|attr| attr.kind()),
                             Some(InkAttributeKind::Macro(_))
                         )
                     {
@@ -149,7 +141,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                         for arg_kind in ink_arg_suggestions {
                             // Determines the insertion offset and affixes for the action and whether or not an existing attribute can be extended.
                             let ((insert_offset, insert_prefix, insert_suffix), is_extending) =
-                                first_valid_ink_attribute
+                                primary_ink_attr_candidate
                                     .as_ref()
                                     .and_then(|ink_attr| {
                                         // Try to extend an existing attribute (if possible).

@@ -357,73 +357,53 @@ fn ensure_no_conflicting_attributes_and_arguments(
     attrs: &[InkAttribute],
 ) {
     // We can only move forward if there is at least one "valid" attribute.
-    // We treat the first "valid" attribute like the "primary" attribute that other attributes and arguments shouldn't conflict with.
-    if let Some(first_valid_attribute) = attrs.iter().find(|attr| {
-        // Ignore unknown attributes.
-        !matches!(
-            attr.kind(),
-            InkAttributeKind::Macro(InkMacroKind::Unknown)
-                | InkAttributeKind::Arg(InkArgKind::Unknown)
-        )
-    }) {
+    // We get the primary ink! attribute candidate (if any) that other attributes and arguments shouldn't conflict with.
+    if let Some((primary_ink_attr_candidate, primary_candidate_first)) =
+        utils::primary_ink_attribute_candidate(attrs.iter().cloned())
+    {
         // sibling arguments are arguments that don't conflict with the primary attribute's kind,
         // see `utils::valid_sibling_ink_args` doc.
-        let valid_sibling_args = utils::valid_sibling_ink_args(*first_valid_attribute.kind());
+        let valid_sibling_args = utils::valid_sibling_ink_args(*primary_ink_attr_candidate.kind());
 
-        // We want to suggest a primary attribute in case the current one is either
-        // incomplete (e.g `anonymous` without `event` or `derive` without `storage_item` attribute macro)
-        // or ambiguous (e.g `payable` with neither `constructor` nor `message` or
-        // `keep_attr` with neither `contract` nor `trait_definition` attribute macros).
-        let primary_attribute_kind_suggestions = match first_valid_attribute.kind() {
-            InkAttributeKind::Arg(arg_kind) => {
-                // Only ink! attribute arguments when set as the primary attribute have
-                // the potential to be either incomplete or ambiguous.
-                // See respective match pattern in the `utils::valid_sibling_ink_args` function for the rationale and references.
-                match arg_kind {
-                    InkArgKind::Anonymous => vec![InkAttributeKind::Arg(InkArgKind::Event)],
-                    InkArgKind::KeepAttr => vec![
-                        InkAttributeKind::Macro(InkMacroKind::Contract),
-                        InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
-                    ],
-                    InkArgKind::HandleStatus => vec![InkAttributeKind::Arg(InkArgKind::Extension)],
-                    InkArgKind::Namespace => vec![
-                        InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
-                        InkAttributeKind::Arg(InkArgKind::Impl),
-                    ],
-                    InkArgKind::Payable | InkArgKind::Default | InkArgKind::Selector => vec![
-                        InkAttributeKind::Arg(InkArgKind::Constructor),
-                        InkAttributeKind::Arg(InkArgKind::Message),
-                    ],
-                    // Default
-                    _ => Vec::new(),
-                }
-            }
-            // ink! attribute macros are always complete and unambiguous on their own.
-            InkAttributeKind::Macro(_) => Vec::new(),
-        };
+        // We want to suggest a primary attribute in case the current one is either incomplete or ambiguous
+        // (See [`utils::primary_ink_attribute_kind_suggestions`] doc).
+        let primary_attribute_kind_suggestions =
+            utils::primary_ink_attribute_kind_suggestions(*primary_ink_attr_candidate.kind());
+
+        // If the primary ink! attribute candidate is complete and unambiguous,
+        // but isn't the first attribute, then that it be made the first attribute.
+        if !primary_candidate_first && primary_attribute_kind_suggestions.is_empty() {
+            results.push(Diagnostic {
+                message: format!(
+                    "`{}` should be the first ink! attribute for this item.",
+                    primary_ink_attr_candidate.syntax(),
+                ),
+                range: primary_ink_attr_candidate.syntax().text_range(),
+                severity: Severity::Error,
+            });
+        }
 
         // For `namespace`, additional context is required to determine what do with
         // the primary attribute kind suggestions, because while namespace can be ambiguous,
         // it's also valid on its own. See its match pattern in
-        // the `utils::valid_sibling_ink_args` function for the rationale and references.
+        // the [`utils::valid_sibling_ink_args`] function for the rationale and references.
         let is_namespace =
-            *first_valid_attribute.kind() == InkAttributeKind::Arg(InkArgKind::Namespace);
+            *primary_ink_attr_candidate.kind() == InkAttributeKind::Arg(InkArgKind::Namespace);
 
-        // If the first valid ink! attribute is complete and unambiguous (or it's `namespace` :-)),
-        // and it's ink! attribute kind is a ink! attribute argument kind,
+        // If the primary ink! attribute candidate is complete and unambiguous (or it's `namespace` :-)),
+        // and it's ink! attribute kind is an ink! attribute argument kind,
         // make sure that ink! attribute argument is also the first in the argument list.
         if primary_attribute_kind_suggestions.is_empty() || is_namespace {
-            if let InkAttributeKind::Arg(arg_kind) = first_valid_attribute.kind() {
+            if let InkAttributeKind::Arg(arg_kind) = primary_ink_attr_candidate.kind() {
                 let is_primary_arg_first =
-                    if let Some(first_arg) = first_valid_attribute.args().first() {
+                    if let Some(first_arg) = primary_ink_attr_candidate.args().first() {
                         first_arg.kind() == arg_kind
                     } else {
-                        // This case shouldn't really ever happen.
                         false
                     };
                 if !is_primary_arg_first {
                     // Find the primary arg.
-                    let primary_arg = first_valid_attribute
+                    let primary_arg = primary_ink_attr_candidate
                         .args()
                         .iter()
                         .find(|arg| arg.kind() == arg_kind);
@@ -432,12 +412,12 @@ fn ensure_no_conflicting_attributes_and_arguments(
                         message: format!(
                             "`{}` should be the first argument for this ink! attribute: {}.",
                             arg_kind,
-                            first_valid_attribute.syntax()
+                            primary_ink_attr_candidate.syntax()
                         ),
                         range: if let Some(arg) = primary_arg {
                             arg.text_range()
                         } else {
-                            first_valid_attribute.syntax().text_range()
+                            primary_ink_attr_candidate.syntax().text_range()
                         },
                         severity: Severity::Error,
                     });
@@ -445,85 +425,75 @@ fn ensure_no_conflicting_attributes_and_arguments(
             }
         }
 
-        // If the first valid ink! attribute is either incomplete or ambiguous or both,
-        // then suggest possible primary attributes.
-        if !primary_attribute_kind_suggestions.is_empty() {
-            // Find the first potential primary attribute (if any).
-            let potential_primary = attrs
-                .iter()
-                .find(|attr| primary_attribute_kind_suggestions.contains(attr.kind()));
-            if let Some(attr) = potential_primary {
-                // If there's already a potential primary attribute in the list, suggest it.
-                results.push(Diagnostic {
-                    message: format!(
-                        "`{}` should be the first ink! attribute for this item.",
-                        attr.syntax(),
-                    ),
-                    range: first_valid_attribute.syntax().text_range(),
-                    severity: Severity::Error,
-                });
-            } else if !is_namespace {
-                // Otherwise make a generic suggestion about adding the suggested ink! attribute kinds,
-                // unless the first valid ink! attribute is a `namespace` which is valid on it's own.
-                results.push(Diagnostic {
-                    message: format!(
-                        "An {} attribute should be the first ink! attribute for this item.",
-                        primary_attribute_kind_suggestions
-                            .iter()
-                            .map(|attr_kind| {
-                                match attr_kind {
-                                    InkAttributeKind::Arg(arg_kind) => {
-                                        format!("`ink! {arg_kind}`")
-                                    }
-                                    InkAttributeKind::Macro(macro_kind) => {
-                                        format!("`ink! {macro_kind}`")
-                                    }
+        // Suggests possible primary ink! attributes if the primary candidate is either incomplete or ambiguous or both
+        // and it's also not `namespace` (which is valid on it's own).
+        if !primary_attribute_kind_suggestions.is_empty() && !is_namespace {
+            results.push(Diagnostic {
+                message: format!(
+                    "An {} attribute should be the first ink! attribute for this item.",
+                    primary_attribute_kind_suggestions
+                        .iter()
+                        .map(|attr_kind| {
+                            match attr_kind {
+                                InkAttributeKind::Arg(arg_kind) => {
+                                    format!("`ink! {arg_kind}`")
                                 }
-                            })
-                            .collect::<Vec<String>>()
-                            .join(" or "), // It's never more than suggestions at the moment.
-                    ),
-                    range: first_valid_attribute.syntax().text_range(),
-                    severity: Severity::Error,
-                });
-            }
+                                InkAttributeKind::Macro(macro_kind) => {
+                                    format!("`ink! {macro_kind}`")
+                                }
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                        .join(" or "), // It's never more than 2 suggestions at the moment.
+                ),
+                range: primary_ink_attr_candidate.syntax().text_range(),
+                severity: Severity::Error,
+            });
         }
 
-        for attr in attrs {
+        for (idx, attr) in attrs.iter().enumerate() {
             // Check for attribute kind level conflict.
-            let is_conflicting_attribute = if attr == first_valid_attribute {
-                // Primary attribute can't conflict with itself.
-                false
-            } else {
-                match first_valid_attribute.kind() {
-                    // ink! attribute macros are never mixed with other ink! attributes.
-                    // So any additional ink! attribute macro is always a conflict.
-                    InkAttributeKind::Macro(_) => true,
-                    // ink! attribute arguments can be mixed with other ink! attributes.
-                    InkAttributeKind::Arg(_) => {
-                        match attr.kind() {
-                            // Additional ink! attribute macros have to be
-                            // potential primary attributes inorder not to conflict,
-                            // in which case our we let incompleteness and ambiguity above checks take care of that case.
-                            InkAttributeKind::Macro(_) => {
-                                !primary_attribute_kind_suggestions.contains(attr.kind())
-                            }
-                            // Additional ink! attribute arguments have to be valid siblings.
-                            InkAttributeKind::Arg(arg_kind) => {
-                                !valid_sibling_args.contains(arg_kind)
+            let is_conflicting_attribute =
+                if *attr == primary_ink_attr_candidate || (idx == 0 && !primary_candidate_first) {
+                    // Primary attribute can't conflict with itself
+                    // and we ignore any conflict errors with the first attribute if it's not the primary attribute
+                    // in favor of placing the error on the primary attribute candidate which was already done earlier.
+                    false
+                } else {
+                    match primary_ink_attr_candidate.kind() {
+                        // ink! attribute macros are never mixed with other ink! attributes.
+                        // So any additional ink! attribute macro is always a conflict.
+                        InkAttributeKind::Macro(_) => true,
+                        // ink! attribute arguments can be mixed with other ink! attributes.
+                        InkAttributeKind::Arg(_) => {
+                            match attr.kind() {
+                                // Additional ink! attribute macros have to be
+                                // potential primary attributes inorder not to conflict,
+                                // in which case our we let incompleteness and ambiguity above checks take care of that case.
+                                InkAttributeKind::Macro(_) => {
+                                    !primary_attribute_kind_suggestions.contains(attr.kind())
+                                }
+                                // Additional ink! attribute arguments have to be valid siblings.
+                                InkAttributeKind::Arg(arg_kind) => {
+                                    !valid_sibling_args.contains(arg_kind)
+                                }
                             }
                         }
                     }
-                }
-            };
+                };
 
             // Handle attribute kind level conflict.
             if is_conflicting_attribute {
                 results.push(Diagnostic {
                     message: format!(
-                        "ink! attribute `{}` conflicts with the first ink! attribute `{}` for this item.",
+                        "ink! attribute `{}` conflicts with the {} ink! attribute `{}` for this item.",
                         attr.syntax(),
-                        first_valid_attribute.syntax()
+                        if primary_candidate_first {
+                            "first"
+                        } else {
+                            "primary"
+                        },
+                        primary_ink_attr_candidate.syntax()
                     ),
                     range: attr.syntax().text_range(),
                     severity: Severity::Error,
@@ -546,8 +516,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
                             message: format!(
                                 "ink! attribute argument `{}` conflicts with the {} for this item.",
                                 arg.meta().name(),
-                                if attr == first_valid_attribute {
-                                    match first_valid_attribute.kind() {
+                                if *attr == primary_ink_attr_candidate {
+                                    match primary_ink_attr_candidate.kind() {
                                         InkAttributeKind::Arg(arg_kind) => {
                                             format!("ink! attribute argument `{arg_kind}`",)
                                         }
@@ -558,7 +528,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                 } else {
                                     format!(
                                         "first ink! attribute `{}`",
-                                        first_valid_attribute.syntax()
+                                        primary_ink_attr_candidate.syntax()
                                     )
                                 }
                             ),

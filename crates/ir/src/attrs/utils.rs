@@ -19,42 +19,47 @@ pub fn parse_ink_args(attr: &ast::Attr) -> Vec<InkArg> {
 }
 
 /// Sort ink! attribute arguments so that we choose the best `InkArgKind` for ink! attributes
-/// regardless of their actual ordering in source code.
-/// e.g the kind for `#[ink(selector=1, payable, message)]` should still be `InkArgKind::Message`.
+/// regardless of their actual ordering in source code (See [`ink_arg_kind_sort_order`] doc).
 pub fn sort_ink_args_by_kind(args: &[InkArg]) -> Vec<InkArg> {
     let mut sorted_args = args.to_owned();
-    sorted_args.sort_by_key(|arg| {
-        match arg.kind() {
-            // Required (e.g `storage`) and/or root-level/unambiguous (e.g `event`)
-            // arguments get highest priority.
-            InkArgKind::Constructor
-            | InkArgKind::Event
-            | InkArgKind::Extension
-            | InkArgKind::Impl
-            | InkArgKind::Message
-            | InkArgKind::Storage => 0,
-            // Everything else apart from "unknown" gets the next priority level.
-            // This includes optional (e.g `anonymous`, `payable`, `selector` e.t.c) and/or non root-level (e.g `topic`)
-            // and/or ambiguous (e.g `namespace`) and/or macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c).
-            // This group is explicitly enumerated to force explicit decisions about
-            // the priority level of new `InkArgKind` additions.
-            InkArgKind::AdditionalContracts
-            | InkArgKind::Anonymous
-            | InkArgKind::Default
-            | InkArgKind::Derive
-            | InkArgKind::Env
-            | InkArgKind::Environment
-            | InkArgKind::HandleStatus
-            | InkArgKind::KeepAttr
-            | InkArgKind::Namespace
-            | InkArgKind::Payable
-            | InkArgKind::Selector
-            | InkArgKind::Topic => 1,
-            // "Unknown" gets a special priority level.
-            InkArgKind::Unknown => 10,
-        }
-    });
+    sorted_args.sort_by_key(|arg| ink_arg_kind_sort_order(*arg.kind()));
     sorted_args
+}
+
+/// Assigns a sort ascending rank (i.e 0 is highest rank) to ink! attribute argument kinds
+/// so that we choose the best `InkArgKind` for ink! attributes regardless of their actual ordering in source code.
+///
+/// (e.g the kind for `#[ink(selector=1, payable, message)]` should still be `InkArgKind::Message`).
+pub fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
+    match arg_kind {
+        // Required (e.g `storage`) and/or root-level/unambiguous (e.g `event`)
+        // arguments get highest priority.
+        InkArgKind::Constructor
+        | InkArgKind::Event
+        | InkArgKind::Extension
+        | InkArgKind::Impl
+        | InkArgKind::Message
+        | InkArgKind::Storage => 0,
+        // Everything else apart from "unknown" gets the next priority level.
+        // This includes optional (e.g `anonymous`, `payable`, `selector` e.t.c) and/or non root-level (e.g `topic`)
+        // and/or ambiguous (e.g `namespace`) and/or macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c).
+        // This group is explicitly enumerated to force explicit decisions about
+        // the priority level of new `InkArgKind` additions.
+        InkArgKind::AdditionalContracts
+        | InkArgKind::Anonymous
+        | InkArgKind::Default
+        | InkArgKind::Derive
+        | InkArgKind::Env
+        | InkArgKind::Environment
+        | InkArgKind::HandleStatus
+        | InkArgKind::KeepAttr
+        | InkArgKind::Namespace
+        | InkArgKind::Payable
+        | InkArgKind::Selector
+        | InkArgKind::Topic => 1,
+        // "Unknown" gets a special priority level.
+        InkArgKind::Unknown => 10,
+    }
 }
 
 /// Parse meta items.
