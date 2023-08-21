@@ -7,11 +7,13 @@ pub use actions::Action;
 pub use completions::Completion;
 pub use diagnostics::{Diagnostic, Severity};
 pub use hover::Hover;
+pub use inlay_hints::InlayHint;
 
 mod actions;
 mod completions;
 mod diagnostics;
 mod hover;
+mod inlay_hints;
 mod utils;
 
 /// Entry point for asking for semantic information about ink! smart contract code.
@@ -52,5 +54,10 @@ impl Analysis {
     /// Returns descriptive/informational text for the ink! attribute at the given position (if any).
     pub fn hover(&self, range: TextRange) -> Option<Hover> {
         hover::hover(&self.file, range)
+    }
+
+    /// Computes ink! attribute argument inlay hints for the given text range (if any).
+    pub fn inlay_hints(&self, range: Option<TextRange>) -> Vec<InlayHint> {
+        inlay_hints::inlay_hints(&self.file, range)
     }
 }

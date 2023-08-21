@@ -76,6 +76,12 @@ pub fn server_capabilities(
                 })
             },
         )),
+        inlay_hint_provider: Some(lsp_types::OneOf::Right(
+            lsp_types::InlayHintServerCapabilities::Options(lsp_types::InlayHintOptions {
+                work_done_progress_options: Default::default(),
+                resolve_provider: None,
+            }),
+        )),
         ..Default::default()
     }
 }

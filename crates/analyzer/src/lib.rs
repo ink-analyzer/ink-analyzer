@@ -49,7 +49,7 @@
 //! }
 //! ```
 
-pub use self::analysis::{Action, Analysis, Completion, Diagnostic, Hover, Severity};
+pub use self::analysis::{Action, Analysis, Completion, Diagnostic, Hover, InlayHint, Severity};
 pub use ink_analyzer_ir::syntax::{TextRange, TextSize};
 
 mod analysis;

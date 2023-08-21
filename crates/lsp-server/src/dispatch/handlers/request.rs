@@ -132,6 +132,43 @@ pub fn handle_code_action(
     }
 }
 
+/// Handles inlay hint request.
+pub fn handle_inlay_hint(
+    params: lsp_types::InlayHintParams,
+    memory: &mut Memory,
+    client_capabilities: &lsp_types::ClientCapabilities,
+) -> anyhow::Result<Option<Vec<lsp_types::InlayHint>>> {
+    // Gets document uri and retrieves document from memory.
+    let uri = params.text_document.uri;
+    let id = uri.to_string();
+    match memory.get(&id) {
+        Some(doc) => {
+            // Composes translation context.
+            let translation_context = PositionTranslationContext {
+                encoding: utils::position_encoding(client_capabilities),
+                line_index: LineIndex::new(&doc.content),
+            };
+
+            // Converts LSP range to ink! analyzer text range.
+            let text_range = translator::from_lsp::text_range(params.range, &translation_context)
+                .ok_or(anyhow::format_err!("Invalid range."))?;
+
+            // Computes ink! analyzer inlay hints and translates them to LSP inlay hints.
+            Ok(Some(
+                Analysis::new(&doc.content)
+                    .inlay_hints(Some(text_range))
+                    .into_iter()
+                    .filter_map(|hint| {
+                        translator::to_lsp::inlay_hint(hint, &translation_context).map(Into::into)
+                    })
+                    .collect(),
+            ))
+        }
+        // Empty response for missing documents.
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,5 +280,61 @@ mod tests {
         .unwrap()
         .title
         .contains("Add ink! contract"));
+    }
+
+    #[test]
+    fn handle_inlay_hint_works() {
+        // Initializes memory.
+        let mut memory = Memory::new();
+
+        // Creates test document.
+        let uri = document(
+            r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar")]"#.to_string(),
+            &mut memory,
+        );
+
+        // Calls handler and verifies that the expected inlay hints are returned.
+        let result = handle_inlay_hint(
+            lsp_types::InlayHintParams {
+                text_document: lsp_types::TextDocumentIdentifier { uri },
+                range: lsp_types::Range {
+                    start: lsp_types::Position {
+                        line: 0,
+                        character: 0,
+                    },
+                    end: lsp_types::Position {
+                        line: 0,
+                        character: 57,
+                    },
+                },
+                work_done_progress_params: Default::default(),
+            },
+            &mut memory,
+            &simple_client_config(),
+        );
+        assert!(result.is_ok());
+        let inlay_hints = result.unwrap().unwrap();
+        assert_eq!(
+            match &inlay_hints[0].label {
+                lsp_types::InlayHintLabel::String(value) => Some(value.as_str()),
+                _ => None,
+            }
+            .unwrap(),
+            ": impl Environment"
+        );
+        assert_eq!(
+            match &inlay_hints[1].label {
+                lsp_types::InlayHintLabel::String(value) => Some(value.as_str()),
+                _ => None,
+            }
+            .unwrap(),
+            ": &str"
+        );
+        assert!(match &inlay_hints[1].tooltip.as_ref().unwrap() {
+            lsp_types::InlayHintTooltip::String(value) => Some(value.as_str()),
+            _ => None,
+        }
+        .unwrap()
+        .contains("comma separated"));
     }
 }

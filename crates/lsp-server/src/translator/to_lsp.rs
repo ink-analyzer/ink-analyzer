@@ -103,7 +103,7 @@ pub fn hover(
     })
 }
 
-/// Translates ink! analyzer action content to LSP code action.
+/// Translates ink! analyzer action to LSP code action.
 pub fn code_action(
     action: ink_analyzer::Action,
     uri: lsp_types::Url,
@@ -129,6 +129,23 @@ pub fn code_action(
             serde_json::Value::Object(data)
         }),
         ..Default::default()
+    })
+}
+
+/// Translates ink! analyzer inlay hint to LSP inlay hint.
+pub fn inlay_hint(
+    hint: ink_analyzer::InlayHint,
+    context: &PositionTranslationContext,
+) -> Option<lsp_types::InlayHint> {
+    position(hint.position, context).map(|position| lsp_types::InlayHint {
+        position,
+        label: lsp_types::InlayHintLabel::String(format!(": {}", hint.label)),
+        kind: Some(lsp_types::InlayHintKind::TYPE),
+        text_edits: None,
+        tooltip: hint.detail.map(lsp_types::InlayHintTooltip::String),
+        padding_left: Some(true),
+        padding_right: None,
+        data: None,
     })
 }
 
