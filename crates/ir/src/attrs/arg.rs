@@ -203,10 +203,27 @@ pub enum InkArgValueKind {
     None,
     U32,
     U32OrWildcard,
-    String,
-    StringIdentifier,
+    String(InkArgValueStringKind),
     Bool,
-    Path,
+    Path(InkArgValuePathKind),
+}
+
+/// The ink! attribute argument value string kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum InkArgValueStringKind {
+    CommaList,
+    Default,
+    Identifier,
+    SpaceList,
+}
+
+/// The ink! attribute argument value path kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum InkArgValuePathKind {
+    Default,
+    Environment,
 }
 
 /// Converts an ink! attribute argument kind to an ink! attribute argument value kind.
@@ -216,15 +233,22 @@ pub enum InkArgValueKind {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L85>.
 impl From<InkArgKind> for InkArgValueKind {
     fn from(arg_kind: InkArgKind) -> Self {
         match arg_kind {
-            InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
+            InkArgKind::AdditionalContracts => {
+                InkArgValueKind::String(InkArgValueStringKind::SpaceList)
+            }
+            InkArgKind::Env | InkArgKind::Environment => {
+                InkArgValueKind::Path(InkArgValuePathKind::Environment)
+            }
             InkArgKind::Extension => InkArgValueKind::U32,
-            InkArgKind::AdditionalContracts | InkArgKind::KeepAttr => InkArgValueKind::String,
-            InkArgKind::Namespace => InkArgValueKind::StringIdentifier,
             InkArgKind::HandleStatus | InkArgKind::Derive => InkArgValueKind::Bool,
-            InkArgKind::Env | InkArgKind::Environment => InkArgValueKind::Path,
+            InkArgKind::KeepAttr => InkArgValueKind::String(InkArgValueStringKind::CommaList),
+            InkArgKind::Namespace => InkArgValueKind::String(InkArgValueStringKind::Identifier),
+            InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
             _ => InkArgValueKind::None,
         }
     }

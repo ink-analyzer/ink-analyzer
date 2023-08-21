@@ -40,8 +40,9 @@
 
 pub use self::{
     attrs::{
-        meta, utils::ink_arg_kind_sort_order, InkArg, InkArgKind, InkArgValueKind, InkAttrData,
-        InkAttribute, InkAttributeKind, InkMacroKind,
+        meta, utils::ink_arg_kind_sort_order, InkArg, InkArgKind, InkArgValueKind,
+        InkArgValuePathKind, InkArgValueStringKind, InkAttrData, InkAttribute, InkAttributeKind,
+        InkMacroKind,
     },
     chain_extension::ChainExtension,
     constructor::Constructor,

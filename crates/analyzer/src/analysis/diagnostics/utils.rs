@@ -4,8 +4,9 @@ use ink_analyzer_ir::ast::{AstNode, AstToken, HasGenericParams, HasTypeBounds, H
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
-    ast, Contract, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkAttribute, InkAttributeKind,
-    InkMacroKind, IsInkEntity, IsInkFn, IsInkImplItem, IsInkStruct, IsInkTrait,
+    ast, Contract, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
+    InkAttribute, InkAttributeKind, InkMacroKind, IsInkEntity, IsInkFn, IsInkImplItem, IsInkStruct,
+    IsInkTrait,
 };
 use std::collections::HashSet;
 
@@ -186,14 +187,14 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         }
                     }
                     // Arguments that should have a string value.
-                    InkArgValueKind::String | InkArgValueKind::StringIdentifier => {
+                    InkArgValueKind::String(str_kind) => {
                         if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| {
                                 meta_value.as_string().is_some()
                                     // For namespace arguments, ensure the meta value is a valid Rust identifier.
                                     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
-                                    && (arg_value_type == InkArgValueKind::String || meta_value.as_string().and_then(|value| parse_ident(value.as_str())).is_some())
+                                    && (str_kind != InkArgValueStringKind::Identifier || meta_value.as_string().and_then(|value| parse_ident(value.as_str())).is_some())
                             },
                             |_| false,
                             false,
@@ -231,7 +232,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         }
                     }
                     // Arguments that should have a path value.
-                    InkArgValueKind::Path => {
+                    InkArgValueKind::Path(_) => {
                         if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| {

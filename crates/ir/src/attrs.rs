@@ -7,7 +7,7 @@ use std::fmt;
 use crate::traits::{FromAST, FromSyntax};
 
 use crate::meta::MetaName;
-pub use arg::{InkArg, InkArgKind, InkArgValueKind};
+pub use arg::{InkArg, InkArgKind, InkArgValueKind, InkArgValuePathKind, InkArgValueStringKind};
 
 mod arg;
 pub mod meta;

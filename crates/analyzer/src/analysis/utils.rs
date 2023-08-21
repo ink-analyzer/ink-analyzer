@@ -6,8 +6,8 @@ use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 use ink_analyzer_ir::{
-    ast, FromAST, FromSyntax, HasParent, InkArgKind, InkArgValueKind, InkAttribute,
-    InkAttributeKind, InkMacroKind, IsInkEntity,
+    ast, FromAST, FromSyntax, HasParent, InkArgKind, InkArgValueKind, InkArgValueStringKind,
+    InkAttribute, InkAttributeKind, InkMacroKind, IsInkEntity,
 };
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
@@ -507,10 +507,12 @@ pub fn ink_arg_insertion_text(
         "{text}{}",
         match InkArgValueKind::from(arg_kind) {
             InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => "${1:1}",
-            InkArgValueKind::String => r#""$1""#,
-            InkArgValueKind::StringIdentifier => r#""${1:my_namespace}""#,
+            InkArgValueKind::String(str_kind) => match str_kind {
+                InkArgValueStringKind::Identifier => r#""${1:my_namespace}""#,
+                _ => r#""$1""#,
+            },
             InkArgValueKind::Bool => "${1:true}",
-            InkArgValueKind::Path => "$1",
+            InkArgValueKind::Path(_) => "$1",
             // Should not be able to get here.
             InkArgValueKind::None => "",
         }
