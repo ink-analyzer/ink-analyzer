@@ -429,7 +429,7 @@ impl MyContract {
 pub const KEEP_ATTR_DOC: &str = r#"
 # Attribute
 
-`#[ink::contract(keep_attr = N: string)]` or `#[ink::trait_definition(keep_attr = N: string)]`
+`#[ink::contract(keep_attr = N: string)]` or `#[ink::trait_definition(keep_attr = N: string)]` or `#[ink_e2e::test(keep_attr = N: string)]`
 
 # Description
 
@@ -439,7 +439,7 @@ Call builders are used to doing cross-contract calls and are automatically gener
 
 # Usage
 
-Additional argument for ink! contract and ink! trait definition attribute macros.
+Additional argument for ink! contract, ink! trait definition and ink! e2e test attribute macros.
 
 **Allowed attributes by default:** `cfg`, `cfg_attr`, `allow`, `warn`, `deny`, `forbid`, `deprecated`, `must_use`, `doc`, `rustfmt`.
 

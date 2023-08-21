@@ -75,12 +75,12 @@ mod tests {
     #[test]
     fn hover_works() {
         for (code, test_cases) in [
-            // (code, pat, [(edit, pat_start, pat_end)]) where:
+            // (code, pat, [(text, pat_start, pat_end)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // edit = the text that will inserted (represented without whitespace for simplicity),
-            // pat_start = substring used to find the start of the edit offset (see `test_utils::parse_offset_at` doc),
-            // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
+            // text = text expected to be present in the hover content (represented without whitespace for simplicity),
+            // pat_start = substring used to find the start of the hover offset (see `test_utils::parse_offset_at` doc),
+            // pat_end = substring used to find the end of the hover offset (see `test_utils::parse_offset_at` doc).
 
             // ink! attribute macros.
             (
