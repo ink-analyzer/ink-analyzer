@@ -150,19 +150,21 @@ pub struct TestCaseModification {
 /// Variants for [`TestCase`] parameters.
 #[derive(Debug)]
 pub enum TestCaseParams {
-    Completion(TestParamsOffsetOnly),
     Action(TestParamsOffsetOnly),
+    Completion(TestParamsOffsetOnly),
     Hover(TestParamsRangeOnly),
+    InlayHints(Option<TestParamsRangeOnly>),
 }
 
 /// Variants for [`TestCase`] results.
 #[derive(Debug)]
 pub enum TestCaseResults {
+    Action(Vec<TestResultTextRange>),
+    Completion(Vec<TestResultTextRange>),
     // Expected number of diagnostic errors/warnings.
     Diagnostic(usize),
-    Completion(Vec<TestResultTextRange>),
-    Action(Vec<TestResultTextRange>),
     Hover(Option<TestResultTextRange>),
+    InlayHints(Vec<TestResultTextOffsetRange>),
 }
 
 /// Test parameters for offset-based tests.
@@ -181,15 +183,28 @@ pub struct TestParamsRangeOnly {
     pub range_end_pat: Option<&'static str>,
 }
 
-/// Describes the expected code/intent actions.
+/// Describes the expected text and range result.
 #[derive(Debug)]
 pub struct TestResultTextRange {
     /// Expected text.
     pub text: &'static str,
-    /// Substring used to find the start of the action offset of the expected text (see [`parse_offset_at`] doc).
+    /// Substring used to find the start of the offset of the expected result (see [`parse_offset_at`] doc).
     pub start_pat: Option<&'static str>,
-    /// Substring used to find the end of the action offset of the expected text (see [`parse_offset_at`] doc).
+    /// Substring used to find the end of the offset of the expected result (see [`parse_offset_at`] doc).
     pub end_pat: Option<&'static str>,
+}
+
+/// Describes the expected text, offset and range result.
+#[derive(Debug)]
+pub struct TestResultTextOffsetRange {
+    /// Expected text.
+    pub text: &'static str,
+    /// Substring used to find the offset of the expected result (see [`parse_offset_at`] doc).
+    pub pos_pat: Option<&'static str>,
+    /// Substring used to find the start of the offset of the expected result (see [`parse_offset_at`] doc).
+    pub range_start_pat: Option<&'static str>,
+    /// Substring used to find the end of the offset of the expected result (see [`parse_offset_at`] doc).
+    pub range_end_pat: Option<&'static str>,
 }
 
 /// Applies the test case modifications to the source code.

@@ -5,21 +5,21 @@ use test_utils::{TestCaseParams, TestCaseResults};
 
 mod utils;
 
-// The high-level methodology for code/intent actions test cases is:
+// The high-level methodology for inlay hints test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
 // - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - Send the the modified source code from client to server via a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.
-// - Send an LSP code action request from client to server for the test case.
-// - Retrieve the LSP code action response sent from the server to the client.
-// - Verify that the code action response results match the expected results.
+// - Send an LSP inlay hints request from client to server for the test case.
+// - Retrieve the LSP inlay hints response sent from the server to the client.
+// - Verify that the inlay hints response results match the expected results.
 // See inline comments for more details.
 #[test]
-fn actions_works() {
+fn inlay_hints_works() {
     // Creates an in-memory connection to an initialized LSP server.
     let client_connection = utils::create_initialized_lsp_server();
 
-    // Iterates over all test case groups (see [`test_utils::fixtures::actions_fixtures`] doc and inline comments).
-    for test_group in test_utils::fixtures::actions_fixtures() {
+    // Iterates over all test case groups (see [`test_utils::fixtures::inlay_hints_fixtures`] doc and inline comments).
+    for test_group in test_utils::fixtures::inlay_hints_fixtures() {
         // Gets the original source code.
         let original_code = test_utils::get_source_code(test_group.source);
 
@@ -39,23 +39,26 @@ fn actions_works() {
             // Sets the LSP document version as the index of the test case.
             let version = idx as i32;
 
-            // Sets the cursor position.
-            let offset_pat = match test_case.params.unwrap() {
-                TestCaseParams::Action(it) => Some(it),
-                _ => None,
-            }
-            .unwrap()
-            .offset_pat;
-            let offset = ink_analyzer::TextSize::from(
-                test_utils::parse_offset_at(&test_code, offset_pat).unwrap() as u32,
+            // Sets the visible range.
+            let (range_start_pat, range_end_pat) = match test_case.params.unwrap() {
+                TestCaseParams::InlayHints(Some(it)) => (it.range_start_pat, it.range_end_pat),
+                _ => (Some("<-"), Some("->")),
+            };
+            let text_range = ink_analyzer::TextRange::new(
+                ink_analyzer::TextSize::from(
+                    test_utils::parse_offset_at(&test_code, range_start_pat).unwrap() as u32,
+                ),
+                ink_analyzer::TextSize::from(
+                    test_utils::parse_offset_at(&test_code, range_end_pat).unwrap() as u32,
+                ),
             );
-            // Translates the offset to an LSP position.
+            // Translates the text range to an LSP range.
             let translation_context = ink_lsp_server::translator::PositionTranslationContext {
                 encoding: lsp_types::PositionEncodingKind::UTF8,
                 line_index: LineIndex::new(&test_code),
             };
-            let position =
-                ink_lsp_server::translator::to_lsp::position(offset, &translation_context).unwrap();
+            let range = ink_lsp_server::translator::to_lsp::range(text_range, &translation_context)
+                .unwrap();
 
             // Sends a `DidOpenTextDocument` or `DidChangeTextDocument` notification (depending on the current value of `version`) from client to server .
             test_utils::versioned_document_sync_notification(
@@ -65,28 +68,23 @@ fn actions_works() {
                 &client_connection.sender,
             );
 
-            // Creates LSP code action request.
+            // Creates LSP inlay hints request.
             use lsp_types::request::Request;
             let req_id = lsp_server::RequestId::from(idx as i32);
             let req = lsp_server::Request {
                 id: req_id.clone(),
-                method: lsp_types::request::CodeActionRequest::METHOD.to_string(),
-                params: serde_json::to_value(&lsp_types::CodeActionParams {
+                method: lsp_types::request::InlayHintRequest::METHOD.to_string(),
+                params: serde_json::to_value(&lsp_types::InlayHintParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                    range: lsp_types::Range {
-                        start: position,
-                        end: position,
-                    },
-                    context: Default::default(),
+                    range,
                     work_done_progress_params: Default::default(),
-                    partial_result_params: Default::default(),
                 })
                 .unwrap(),
             };
-            // Sends LSP code action request from client to server.
+            // Sends LSP inlay hints request from client to server.
             client_connection.sender.send(req.into()).unwrap();
 
-            // Retrieves the LSP code action response (from the server) on the client.
+            // Retrieves the LSP inlay hints response (from the server) on the client.
             let resp = client_connection
                 .receiver
                 .iter()
@@ -95,57 +93,43 @@ fn actions_works() {
                     _ => None,
                 })
                 .unwrap();
-            // Verifies that the code action response is for the current request.
+            // Verifies that the inlay hints response is for the current request.
             assert_eq!(&resp.id, &req_id);
 
-            // Verifies expected code actions results.
-            let code_action_response: lsp_types::CodeActionResponse =
+            // Verifies expected inlay hints results.
+            let results: Vec<lsp_types::InlayHint> =
                 serde_json::from_value(resp.result.unwrap()).unwrap();
-            let results: Vec<lsp_types::CodeAction> = code_action_response
-                .into_iter()
-                .filter_map(|it| match it {
-                    lsp_types::CodeActionOrCommand::CodeAction(it) => Some(it),
-                    lsp_types::CodeActionOrCommand::Command(_) => None,
-                })
-                .collect();
             let expected_results = match test_case.results {
-                TestCaseResults::Action(it) => Some(it),
+                TestCaseResults::InlayHints(it) => Some(it),
                 _ => None,
             }
             .unwrap();
             assert_eq!(
                 results
                     .iter()
-                    .filter_map(|code_action| code_action
-                        .edit
-                        .as_ref()
-                        .and_then(|it| { it.changes.as_ref().and_then(|it| { it.get(&uri) }) }))
-                    .flatten()
-                    .map(|edit| (
-                        test_utils::remove_whitespace(edit.new_text.clone()),
-                        edit.range
+                    .map(|item| (
+                        match &item.label {
+                            lsp_types::InlayHintLabel::String(it) => Some(it.clone()),
+                            _ => None,
+                        }
+                        .unwrap(),
+                        item.position
                     ))
-                    .collect::<Vec<(String, lsp_types::Range)>>(),
+                    .collect::<Vec<(String, lsp_types::Position)>>(),
                 expected_results
                     .into_iter()
                     .map(|result| (
-                        test_utils::remove_whitespace(result.text.to_string()),
-                        ink_lsp_server::translator::to_lsp::range(
-                            ink_analyzer::TextRange::new(
-                                ink_analyzer::TextSize::from(
-                                    test_utils::parse_offset_at(&test_code, result.start_pat)
-                                        .unwrap() as u32
-                                ),
-                                ink_analyzer::TextSize::from(
-                                    test_utils::parse_offset_at(&test_code, result.end_pat).unwrap()
-                                        as u32
-                                ),
+                        format!(": {}", result.text),
+                        ink_lsp_server::translator::to_lsp::position(
+                            ink_analyzer::TextSize::from(
+                                test_utils::parse_offset_at(&test_code, result.pos_pat).unwrap()
+                                    as u32
                             ),
                             &translation_context
                         )
                         .unwrap()
                     ))
-                    .collect::<Vec<(String, lsp_types::Range)>>(),
+                    .collect::<Vec<(String, lsp_types::Position)>>(),
                 "source: {}",
                 test_group.source
             );

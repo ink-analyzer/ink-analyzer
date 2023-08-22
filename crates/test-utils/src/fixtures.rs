@@ -2,7 +2,7 @@
 
 use crate::{
     TestCase, TestCaseModification, TestCaseParams, TestCaseResults, TestGroup,
-    TestParamsOffsetOnly, TestParamsRangeOnly, TestResultTextRange,
+    TestParamsOffsetOnly, TestParamsRangeOnly, TestResultTextOffsetRange, TestResultTextRange,
 };
 
 /// Describes a collection of diagnostics tests to run against
@@ -1669,6 +1669,364 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         start_pat: Some("#[ink::storage_item("),
                         end_pat: Some("#[ink::storage_item(derive"),
                     })),
+                },
+            ],
+        },
+    ]
+}
+
+/// Describes a collection of inlay hints tests to run against
+/// optionally modified ink! smart contract code in the `test-fixtures` directory in the project root.
+pub fn inlay_hints_fixtures() -> Vec<TestGroup> {
+    vec![
+        // Contracts.
+        TestGroup {
+            // Reads source code from the `erc20.rs` contract in `test-fixtures/contracts` directory.
+            source: "contracts/erc20",
+            // Defines test cases for the ink! entity file.
+            test_cases: vec![
+                TestCase {
+                    // Makes no modifications to the source code.
+                    modifications: None,
+                    // Sets the visible range for span the contents of the whole file.
+                    // NOTE: `Some(TestCaseParams::InlayHints(None))` would also work in this case.
+                    params: Some(TestCaseParams::InlayHints(Some(TestParamsRangeOnly {
+                        range_start_pat: Some("<-"),
+                        range_end_pat: Some("->"),
+                    }))),
+                    // Describes the expected results.
+                    results: TestCaseResults::InlayHints(vec![]),
+                },
+                TestCase {
+                    // Replaces `#[ink::contract]` with `#[ink::contract(env=MyEnvironment, keep_attr="foo,bar")]` in the source code.
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                        replacement: r#"#[ink::contract(env=MyEnvironment, keep_attr="foo,bar")]"#,
+                    }]),
+                    params: Some(TestCaseParams::InlayHints(None)),
+                    // Expects the inlay hints for the `env` and `keep_attr` ink! attribute arguments
+                    // positioned at the end of each of argument's name,
+                    // with the argument's name being the text range the inlay hint applies to.
+                    results: TestCaseResults::InlayHints(vec![
+                        // env.
+                        TestResultTextOffsetRange {
+                            text: "impl Environment",
+                            pos_pat: Some("#[ink::contract(env"),
+                            range_start_pat: Some("#[ink::contract("),
+                            range_end_pat: Some("#[ink::contract(env"),
+                        },
+                        // keep_attr.
+                        TestResultTextOffsetRange {
+                            text: "&str",
+                            pos_pat: Some(r#"#[ink::contract(env=MyEnvironment, keep_attr"#),
+                            range_start_pat: Some(r#"#[ink::contract(env=MyEnvironment, "#),
+                            range_end_pat: Some(r#"#[ink::contract(env=MyEnvironment, keep_attr"#),
+                        },
+                    ]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("#[ink(message)]"),
+                        replacement: "#[ink(message, selector=_)]",
+                    }]),
+                    params: Some(TestCaseParams::InlayHints(None)),
+                    results: TestCaseResults::InlayHints(vec![
+                        // selector.
+                        TestResultTextOffsetRange {
+                            text: "u32 | _",
+                            pos_pat: Some("<-=_"),
+                            range_start_pat: Some("<-selector=_"),
+                            range_end_pat: Some("<-=_"),
+                        },
+                    ]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink_e2e::test]"),
+                        end_pat: Some("#[ink_e2e::test]"),
+                        replacement: r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=MyEnvironment, keep_attr="foo,bar")]"#,
+                    }]),
+                    params: Some(TestCaseParams::InlayHints(None)),
+                    results: TestCaseResults::InlayHints(vec![
+                        // additional_contracts.
+                        TestResultTextOffsetRange {
+                            text: "&str",
+                            pos_pat: Some("#[ink_e2e::test(additional_contracts"),
+                            range_start_pat: Some("#[ink_e2e::test("),
+                            range_end_pat: Some("#[ink_e2e::test(additional_contracts"),
+                        },
+                        // environment.
+                        TestResultTextOffsetRange {
+                            text: "impl Environment",
+                            pos_pat: Some(
+                                r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment"#,
+                            ),
+                            range_start_pat: Some(
+                                r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", "#,
+                            ),
+                            range_end_pat: Some(
+                                r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment"#,
+                            ),
+                        },
+                        // keep_attr.
+                        TestResultTextOffsetRange {
+                            text: "&str",
+                            pos_pat: Some(
+                                r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=MyEnvironment, keep_attr"#,
+                            ),
+                            range_start_pat: Some(
+                                r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=MyEnvironment, "#,
+                            ),
+                            range_end_pat: Some(
+                                r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=MyEnvironment, keep_attr"#,
+                            ),
+                        },
+                    ]),
+                },
+            ],
+        },
+        // Trait definitions.
+        TestGroup {
+            source: "trait_definitions/erc20_trait",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::InlayHints(None)),
+                    results: TestCaseResults::InlayHints(vec![]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition]"),
+                        replacement: r#"#[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]"#,
+                    }]),
+                    params: Some(TestCaseParams::InlayHints(None)),
+                    results: TestCaseResults::InlayHints(vec![
+                        // namespace.
+                        TestResultTextOffsetRange {
+                            text: "&str",
+                            pos_pat: Some("#[ink::trait_definition(namespace"),
+                            range_start_pat: Some("#[ink::trait_definition("),
+                            range_end_pat: Some("#[ink::trait_definition(namespace"),
+                        },
+                        // keep_attr.
+                        TestResultTextOffsetRange {
+                            text: "&str",
+                            pos_pat: Some(
+                                r#"#[ink::trait_definition(namespace="my_namespace", keep_attr"#,
+                            ),
+                            range_start_pat: Some(
+                                r#"#[ink::trait_definition(namespace="my_namespace", "#,
+                            ),
+                            range_end_pat: Some(
+                                r#"#[ink::trait_definition(namespace="my_namespace", keep_attr"#,
+                            ),
+                        },
+                    ]),
+                },
+            ],
+        },
+        // Chain extensions.
+        TestGroup {
+            source: "chain_extensions/psp22_extension",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: Some(TestCaseParams::InlayHints(None)),
+                results: TestCaseResults::InlayHints(vec![
+                    // extensions.
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0x3d26"),
+                        range_start_pat: Some("<-extension = 0x3d26"),
+                        range_end_pat: Some("<- = 0x3d26"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0x3420"),
+                        range_start_pat: Some("<-extension = 0x3420"),
+                        range_end_pat: Some("<- = 0x3420"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0x7271"),
+                        range_start_pat: Some("<-extension = 0x7271"),
+                        range_end_pat: Some("<- = 0x7271"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0x162d"),
+                        range_start_pat: Some("<-extension = 0x162d"),
+                        range_end_pat: Some("<- = 0x162d"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0x6568"),
+                        range_start_pat: Some("<-extension = 0x6568"),
+                        range_end_pat: Some("<- = 0x6568"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0x4d47"),
+                        range_start_pat: Some("<-extension = 0x4d47"),
+                        range_end_pat: Some("<- = 0x4d47"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0xdb20"),
+                        range_start_pat: Some("<-extension = 0xdb20"),
+                        range_end_pat: Some("<- = 0xdb20"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0x54b3"),
+                        range_start_pat: Some("<-extension = 0x54b3"),
+                        range_end_pat: Some("<- = 0x54b3"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0xb20f"),
+                        range_start_pat: Some("<-extension = 0xb20f"),
+                        range_end_pat: Some("<- = 0xb20f"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0x96d6"),
+                        range_start_pat: Some("<-extension = 0x96d6"),
+                        range_end_pat: Some("<- = 0x96d6"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 0xfecb"),
+                        range_start_pat: Some("<-extension = 0xfecb"),
+                        range_end_pat: Some("<- = 0xfecb"),
+                    },
+                    // contract `env`.
+                    TestResultTextOffsetRange {
+                        text: "impl Environment",
+                        pos_pat: Some("#[ink::contract(env"),
+                        range_start_pat: Some("#[ink::contract("),
+                        range_end_pat: Some("#[ink::contract(env"),
+                    },
+                    // selectors.
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0x3d261bd4"),
+                        range_start_pat: Some("<-selector = 0x3d261bd4"),
+                        range_end_pat: Some("<- = 0x3d261bd4"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0x34205be5"),
+                        range_start_pat: Some("<-selector = 0x34205be5"),
+                        range_end_pat: Some("<- = 0x34205be5"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0x7271b782"),
+                        range_start_pat: Some("<-selector = 0x7271b782"),
+                        range_end_pat: Some("<- = 0x7271b782"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0x162df8c2"),
+                        range_start_pat: Some("<-selector = 0x162df8c2"),
+                        range_end_pat: Some("<- = 0x162df8c2"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0x6568382f"),
+                        range_start_pat: Some("<-selector = 0x6568382f"),
+                        range_end_pat: Some("<- = 0x6568382f"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0x4d47d921"),
+                        range_start_pat: Some("<-selector = 0x4d47d921"),
+                        range_end_pat: Some("<- = 0x4d47d921"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0xdb20f9f5"),
+                        range_start_pat: Some("<-selector = 0xdb20f9f5"),
+                        range_end_pat: Some("<- = 0xdb20f9f5"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0x54b3c76e"),
+                        range_start_pat: Some("<-selector = 0x54b3c76e"),
+                        range_end_pat: Some("<- = 0x54b3c76e"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0xb20f1bbd"),
+                        range_start_pat: Some("<-selector = 0xb20f1bbd"),
+                        range_end_pat: Some("<- = 0xb20f1bbd"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0x96d6b57a"),
+                        range_start_pat: Some("<-selector = 0x96d6b57a"),
+                        range_end_pat: Some("<- = 0x96d6b57a"),
+                    },
+                    TestResultTextOffsetRange {
+                        text: "u32 | _",
+                        pos_pat: Some("<- = 0xfecb57d5"),
+                        range_start_pat: Some("<-selector = 0xfecb57d5"),
+                        range_end_pat: Some("<- = 0xfecb57d5"),
+                    },
+                ]),
+            }],
+        },
+        TestGroup {
+            source: "chain_extensions/rand_extension",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: Some(TestCaseParams::InlayHints(None)),
+                results: TestCaseResults::InlayHints(vec![
+                    // extension.
+                    TestResultTextOffsetRange {
+                        text: "u32",
+                        pos_pat: Some("<- = 1101"),
+                        range_start_pat: Some("<-extension = 1101"),
+                        range_end_pat: Some("<- = 1101"),
+                    },
+                    // env.
+                    TestResultTextOffsetRange {
+                        text: "impl Environment",
+                        pos_pat: Some("#[ink::contract(env"),
+                        range_start_pat: Some("#[ink::contract("),
+                        range_end_pat: Some("#[ink::contract(env"),
+                    },
+                ]),
+            }],
+        },
+        // Storage items.
+        TestGroup {
+            source: "storage_items/non_packed_tuple_struct",
+            test_cases: vec![
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::InlayHints(None)),
+                    results: TestCaseResults::InlayHints(vec![]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::storage_item]"),
+                        end_pat: Some("#[ink::storage_item]"),
+                        replacement: r#"#[ink::storage_item(derive=false)]"#,
+                    }]),
+                    params: Some(TestCaseParams::InlayHints(None)),
+                    results: TestCaseResults::InlayHints(vec![
+                        // derive.
+                        TestResultTextOffsetRange {
+                            text: "bool",
+                            pos_pat: Some("#[ink::storage_item(derive"),
+                            range_start_pat: Some("#[ink::storage_item("),
+                            range_end_pat: Some("#[ink::storage_item(derive"),
+                        },
+                    ]),
                 },
             ],
         },
