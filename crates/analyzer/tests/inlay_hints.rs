@@ -28,9 +28,7 @@ fn inlay_hints_works() {
 
             // Sets the range.
             let range_pats = match test_case.params.unwrap() {
-                TestCaseParams::InlayHints(Some(it)) => {
-                    Some((it.range_start_pat, it.range_end_pat))
-                }
+                TestCaseParams::InlayHints(Some(it)) => Some((it.start_pat, it.end_pat)),
                 _ => None,
             };
             let range = range_pats.map(|(range_start_pat, range_end_pat)| {

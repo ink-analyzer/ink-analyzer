@@ -1,4 +1,4 @@
-//! integration tests for ink! Language Server actions.
+//! integration tests for ink! Language Server inlay hints.
 
 use line_index::LineIndex;
 use test_utils::{TestCaseParams, TestCaseResults};
@@ -41,7 +41,7 @@ fn inlay_hints_works() {
 
             // Sets the visible range.
             let (range_start_pat, range_end_pat) = match test_case.params.unwrap() {
-                TestCaseParams::InlayHints(Some(it)) => (it.range_start_pat, it.range_end_pat),
+                TestCaseParams::InlayHints(Some(it)) => (it.start_pat, it.end_pat),
                 _ => (Some("<-"), Some("->")),
             };
             let text_range = ink_analyzer::TextRange::new(

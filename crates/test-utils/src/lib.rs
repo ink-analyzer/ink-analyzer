@@ -171,16 +171,16 @@ pub enum TestCaseResults {
 #[derive(Debug)]
 pub struct TestParamsOffsetOnly {
     /// Substring used to find the cursor offset parameter for the test case (see [`parse_offset_at`] doc).
-    pub offset_pat: Option<&'static str>,
+    pub pat: Option<&'static str>,
 }
 
 /// Test parameters for text range based tests.
 #[derive(Debug)]
 pub struct TestParamsRangeOnly {
     /// Substring used to find the start offset for the focus range (see [`parse_offset_at`] doc).
-    pub range_start_pat: Option<&'static str>,
+    pub start_pat: Option<&'static str>,
     /// Substring used to find the end offset for the focus range (see [`parse_offset_at`] doc).
-    pub range_end_pat: Option<&'static str>,
+    pub end_pat: Option<&'static str>,
 }
 
 /// Describes the expected text and range result.

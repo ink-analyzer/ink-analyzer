@@ -413,7 +413,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                     }]),
                     // Set the offset position at the end of the `#[ink` substring.
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink"),
+                        pat: Some("#[ink"),
                     })),
                     // Describes the expected completions.
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
@@ -432,7 +432,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink::contract()]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink::contract("),
+                        pat: Some("#[ink::contract("),
                     })),
                     results: TestCaseResults::Completion(vec![
                         TestResultTextRange {
@@ -454,7 +454,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(s)]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink(s"),
+                        pat: Some("#[ink(s"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "storage",
@@ -469,7 +469,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(ev)]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink(ev"),
+                        pat: Some("#[ink(ev"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "event",
@@ -484,7 +484,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(event,)]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink(event,"),
+                        pat: Some("#[ink(event,"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "anonymous",
@@ -499,7 +499,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(con)]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink(con"),
+                        pat: Some("#[ink(con"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "constructor",
@@ -514,7 +514,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(constructor,)]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink(constructor,"),
+                        pat: Some("#[ink(constructor,"),
                     })),
                     results: TestCaseResults::Completion(vec![
                         TestResultTextRange {
@@ -541,7 +541,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(me)]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink(me"),
+                        pat: Some("#[ink(me"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "message",
@@ -556,7 +556,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(message,)]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink(message,"),
+                        pat: Some("#[ink(message,"),
                     })),
                     results: TestCaseResults::Completion(vec![
                         TestResultTextRange {
@@ -583,7 +583,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink::te]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink::te"),
+                        pat: Some("#[ink::te"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "test",
@@ -598,7 +598,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink_e2e::te]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink_e2e::te"),
+                        pat: Some("#[ink_e2e::te"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "test",
@@ -613,7 +613,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink_e2e::test()]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink_e2e::test("),
+                        pat: Some("#[ink_e2e::test("),
                     })),
                     results: TestCaseResults::Completion(vec![
                         TestResultTextRange {
@@ -646,7 +646,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink::tr]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink::tr"),
+                        pat: Some("#[ink::tr"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "trait_definition",
@@ -661,7 +661,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink::trait_definition()]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink::trait_definition("),
+                        pat: Some("#[ink::trait_definition("),
                     })),
                     results: TestCaseResults::Completion(vec![
                         TestResultTextRange {
@@ -689,7 +689,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink"),
+                        pat: Some("#[ink"),
                     })),
                     results: TestCaseResults::Completion(vec![
                         TestResultTextRange {
@@ -711,7 +711,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink::chain_extension()]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink::chain_extension("),
+                        pat: Some("#[ink::chain_extension("),
                     })),
                     results: TestCaseResults::Completion(vec![]),
                 },
@@ -722,7 +722,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink()]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink("),
+                        pat: Some("#[ink("),
                     })),
                     results: TestCaseResults::Completion(vec![
                         TestResultTextRange {
@@ -744,7 +744,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(extension = 0x3d26,)]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink(extension = 0x3d26,"),
+                        pat: Some("#[ink(extension = 0x3d26,"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "handle_status=",
@@ -765,7 +765,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink"),
+                        pat: Some("#[ink"),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "ink::storage_item",
@@ -780,7 +780,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink::storage_item()]",
                     }]),
                     params: Some(TestCaseParams::Completion(TestParamsOffsetOnly {
-                        offset_pat: Some("#[ink::storage_item("),
+                        pat: Some("#[ink::storage_item("),
                     })),
                     results: TestCaseResults::Completion(vec![TestResultTextRange {
                         text: "derive=",
@@ -812,7 +812,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     }]),
                     // Sets the offset position at the beginning of the `mod erc20` substring.
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-mod erc20"),
+                        pat: Some("<-mod erc20"),
                     })),
                     // Describes the expected code/intent actions.
                     results: TestCaseResults::Action(vec![TestResultTextRange {
@@ -827,7 +827,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink::contract]"),
+                        pat: Some("<-#[ink::contract]"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -849,7 +849,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         replacement: "",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("pub struct Erc20"),
+                        pat: Some("pub struct Erc20"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -877,7 +877,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink(storage)]"),
+                        pat: Some("<-#[ink(storage)]"),
                     })),
                     results: TestCaseResults::Action(vec![]),
                 },
@@ -888,7 +888,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         replacement: "",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-pub struct Transfer"),
+                        pat: Some("<-pub struct Transfer"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -916,7 +916,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink(event)]"),
+                        pat: Some("<-#[ink(event)]"),
                     })),
                     results: TestCaseResults::Action(vec![TestResultTextRange {
                         text: ", anonymous",
@@ -931,7 +931,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         replacement: "",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-pub fn new(total_supply: Balance)"),
+                        pat: Some("<-pub fn new(total_supply: Balance)"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -974,7 +974,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink(constructor)]"),
+                        pat: Some("<-#[ink(constructor)]"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1001,7 +1001,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         replacement: "",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-pub fn total_supply(&self)"),
+                        pat: Some("<-pub fn total_supply(&self)"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1044,7 +1044,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink(message)]"),
+                        pat: Some("<-#[ink(message)]"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1067,14 +1067,14 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink::test]"),
+                        pat: Some("<-#[ink::test]"),
                     })),
                     results: TestCaseResults::Action(vec![]),
                 },
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink_e2e::test]"),
+                        pat: Some("<-#[ink_e2e::test]"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1097,7 +1097,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-async fn e2e_transfer"),
+                        pat: Some("<-async fn e2e_transfer"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1130,7 +1130,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         replacement: "",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-pub trait BaseErc20"),
+                        pat: Some("<-pub trait BaseErc20"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1148,7 +1148,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink::trait_definition]"),
+                        pat: Some("<-#[ink::trait_definition]"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1176,7 +1176,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         replacement: "",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-pub trait Psp22Extension"),
+                        pat: Some("<-pub trait Psp22Extension"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1194,7 +1194,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink::chain_extension]"),
+                        pat: Some("<-#[ink::chain_extension]"),
                     })),
                     results: TestCaseResults::Action(vec![]),
                 },
@@ -1205,7 +1205,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         replacement: "",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-fn token_name(asset_id: u32)"),
+                        pat: Some("<-fn token_name(asset_id: u32)"),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1233,7 +1233,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink(extension = 0x3d26)]"),
+                        pat: Some("<-#[ink(extension = 0x3d26)]"),
                     })),
                     results: TestCaseResults::Action(vec![TestResultTextRange {
                         text: ", handle_status=",
@@ -1254,7 +1254,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         replacement: "",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-struct Contract("),
+                        pat: Some("<-struct Contract("),
                     })),
                     results: TestCaseResults::Action(vec![
                         TestResultTextRange {
@@ -1282,7 +1282,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                        offset_pat: Some("<-#[ink::storage_item]"),
+                        pat: Some("<-#[ink::storage_item]"),
                     })),
                     results: TestCaseResults::Action(vec![TestResultTextRange {
                         text: "(derive=)",
@@ -1310,8 +1310,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                     modifications: None,
                     // Sets the text range for the hover to span the whole `#[ink::contract]` substring.
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink::contract]"),
-                        range_end_pat: Some("#[ink::contract]"),
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
                     })),
                     // Describes the expected hover content.
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
@@ -1331,8 +1331,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink::contract(env=MyEnvironment)]",
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink::contract("),
-                        range_end_pat: Some("#[ink::contract(env"),
+                        start_pat: Some("#[ink::contract("),
+                        end_pat: Some("#[ink::contract(env"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::contract(env = E: impl Environment)]`",
@@ -1347,8 +1347,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: r#"#[ink::contract(keep_attr="foo,bar")]"#,
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink::contract("),
-                        range_end_pat: Some("#[ink::contract(keep_attr"),
+                        start_pat: Some("#[ink::contract("),
+                        end_pat: Some("#[ink::contract(keep_attr"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::contract(keep_attr = N: string)]`",
@@ -1359,8 +1359,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink(storage)]"),
-                        range_end_pat: Some("#[ink(storage)]"),
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("#[ink(storage)]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(storage)]`",
@@ -1371,8 +1371,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink(event)]"),
-                        range_end_pat: Some("#[ink(event)]"),
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("#[ink(event)]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(event)]`",
@@ -1387,8 +1387,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(event, anonymous)]",
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink(event, "),
-                        range_end_pat: Some("#[ink(event, anonymous"),
+                        start_pat: Some("#[ink(event, "),
+                        end_pat: Some("#[ink(event, anonymous"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(anonymous)]`",
@@ -1399,8 +1399,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink(constructor)]"),
-                        range_end_pat: Some("#[ink(constructor)]"),
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("#[ink(constructor)]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(constructor)]`",
@@ -1415,8 +1415,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(constructor, default)]",
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink(constructor, "),
-                        range_end_pat: Some("#[ink(constructor, default"),
+                        start_pat: Some("#[ink(constructor, "),
+                        end_pat: Some("#[ink(constructor, default"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(default)]`",
@@ -1427,8 +1427,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink(message)]"),
-                        range_end_pat: Some("#[ink(message)]"),
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("#[ink(message)]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(message)]`",
@@ -1443,8 +1443,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(message, selector=_)]",
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink(message, "),
-                        range_end_pat: Some("#[ink(message, selector"),
+                        start_pat: Some("#[ink(message, "),
+                        end_pat: Some("#[ink(message, selector"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(selector = S: u32 | _)]`",
@@ -1459,8 +1459,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(message, selector=1)]",
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink(message, "),
-                        range_end_pat: Some("#[ink(message, selector"),
+                        start_pat: Some("#[ink(message, "),
+                        end_pat: Some("#[ink(message, selector"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(selector = S: u32 | _)]`",
@@ -1475,8 +1475,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(message, selector=0xA)]",
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink(message, "),
-                        range_end_pat: Some("#[ink(message, selector"),
+                        start_pat: Some("#[ink(message, "),
+                        end_pat: Some("#[ink(message, selector"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(selector = S: u32 | _)]`",
@@ -1487,8 +1487,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink::test]"),
-                        range_end_pat: Some("#[ink::test]"),
+                        start_pat: Some("<-#[ink::test]"),
+                        end_pat: Some("#[ink::test]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::test]`",
@@ -1499,8 +1499,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink_e2e::test]"),
-                        range_end_pat: Some("#[ink_e2e::test]"),
+                        start_pat: Some("<-#[ink_e2e::test]"),
+                        end_pat: Some("#[ink_e2e::test]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink_e2e::test]`",
@@ -1515,8 +1515,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#,
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink_e2e::test("),
-                        range_end_pat: Some("#[ink_e2e::test(additional_contracts"),
+                        start_pat: Some("#[ink_e2e::test("),
+                        end_pat: Some("#[ink_e2e::test(additional_contracts"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink_e2e::test(additional_contracts = S: string)]`",
@@ -1531,8 +1531,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink_e2e::test(environment=MyEnvironment)]",
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink_e2e::test("),
-                        range_end_pat: Some("#[ink_e2e::test(environment"),
+                        start_pat: Some("#[ink_e2e::test("),
+                        end_pat: Some("#[ink_e2e::test(environment"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink_e2e::test(environment = E: impl Environment)]`",
@@ -1549,8 +1549,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink::trait_definition]"),
-                        range_end_pat: Some("#[ink::trait_definition]"),
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::trait_definition]`",
@@ -1565,8 +1565,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: r#"#[ink::trait_definition(keep_attr="foo,bar")]"#,
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink::trait_definition("),
-                        range_end_pat: Some("#[ink::trait_definition(keep_attr"),
+                        start_pat: Some("#[ink::trait_definition("),
+                        end_pat: Some("#[ink::trait_definition(keep_attr"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::trait_definition(keep_attr = N: string)]`",
@@ -1581,8 +1581,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: r#"#[ink::trait_definition(namespace="my_namespace")]"#,
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink::trait_definition("),
-                        range_end_pat: Some("#[ink::trait_definition(namespace"),
+                        start_pat: Some("#[ink::trait_definition("),
+                        end_pat: Some("#[ink::trait_definition(namespace"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::trait_definition(namespace = N: string)]`",
@@ -1599,8 +1599,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink::chain_extension]"),
-                        range_end_pat: Some("#[ink::chain_extension]"),
+                        start_pat: Some("<-#[ink::chain_extension]"),
+                        end_pat: Some("#[ink::chain_extension]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::chain_extension]`",
@@ -1611,8 +1611,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink(extension = 0x3d26)]"),
-                        range_end_pat: Some("#[ink(extension = 0x3d26)]"),
+                        start_pat: Some("<-#[ink(extension = 0x3d26)]"),
+                        end_pat: Some("#[ink(extension = 0x3d26)]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(extension = N: u32)]`",
@@ -1627,8 +1627,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: "#[ink(extension = 0x3d26, handle_status=true)]",
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink(extension = 0x3d26, "),
-                        range_end_pat: Some("#[ink(extension = 0x3d26, handle_status"),
+                        start_pat: Some("#[ink(extension = 0x3d26, "),
+                        end_pat: Some("#[ink(extension = 0x3d26, handle_status"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink(handle_status = flag: bool)]`",
@@ -1645,8 +1645,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("<-#[ink::storage_item]"),
-                        range_end_pat: Some("#[ink::storage_item]"),
+                        start_pat: Some("<-#[ink::storage_item]"),
+                        end_pat: Some("#[ink::storage_item]"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::storage_item]`",
@@ -1661,8 +1661,8 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         replacement: r#"#[ink::storage_item(derive=false)]"#,
                     }]),
                     params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
-                        range_start_pat: Some("#[ink::storage_item("),
-                        range_end_pat: Some("#[ink::storage_item(derive"),
+                        start_pat: Some("#[ink::storage_item("),
+                        end_pat: Some("#[ink::storage_item(derive"),
                     })),
                     results: TestCaseResults::Hover(Some(TestResultTextRange {
                         text: "`#[ink::storage_item(derive = flag: bool)]`",
@@ -1691,8 +1691,8 @@ pub fn inlay_hints_fixtures() -> Vec<TestGroup> {
                     // Sets the visible range for span the contents of the whole file.
                     // NOTE: `Some(TestCaseParams::InlayHints(None))` would also work in this case.
                     params: Some(TestCaseParams::InlayHints(Some(TestParamsRangeOnly {
-                        range_start_pat: Some("<-"),
-                        range_end_pat: Some("->"),
+                        start_pat: Some("<-"),
+                        end_pat: Some("->"),
                     }))),
                     // Describes the expected results.
                     results: TestCaseResults::InlayHints(vec![]),

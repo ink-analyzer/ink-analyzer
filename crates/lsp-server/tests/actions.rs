@@ -45,7 +45,7 @@ fn actions_works() {
                 _ => None,
             }
             .unwrap()
-            .offset_pat;
+            .pat;
             let offset = ink_analyzer::TextSize::from(
                 test_utils::parse_offset_at(&test_code, offset_pat).unwrap() as u32,
             );

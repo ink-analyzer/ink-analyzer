@@ -32,7 +32,7 @@ fn actions_works() {
                 _ => None,
             }
             .unwrap()
-            .offset_pat;
+            .pat;
             let offset =
                 TextSize::from(test_utils::parse_offset_at(&test_code, offset_pat).unwrap() as u32);
             let range = TextRange::new(offset, offset);

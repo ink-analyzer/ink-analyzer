@@ -41,7 +41,7 @@ fn hover_works() {
 
             // Sets the focus range.
             let (range_start_pat, range_end_pat) = match test_case.params.unwrap() {
-                TestCaseParams::Hover(it) => Some((it.range_start_pat, it.range_end_pat)),
+                TestCaseParams::Hover(it) => Some((it.start_pat, it.end_pat)),
                 _ => None,
             }
             .unwrap();
