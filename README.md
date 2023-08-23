@@ -23,6 +23,7 @@ It currently implements an [Analysis](/crates/analyzer/src/analysis.rs) entry po
 - [completions](/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros and arguments.
 - [code/intent actions](/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros and arguments.
 - [hover content](/crates/analyzer/src/analysis/hover.rs) - descriptive/informational text for ink! attribute macros and arguments.
+- [inlay hints](/crates/analyzer/src/analysis/inlay_hints.rs) - inline type and format information for ink! attribute arguments values (e.g. `u32 | _` for ink! selector).
 
 ### 2. [Language Server (ink-lsp-server)](/crates/lsp-server)
 
