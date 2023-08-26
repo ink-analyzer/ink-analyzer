@@ -2,7 +2,9 @@
 
 use ink_analyzer_ir::ast::{AstNode, AstToken, HasGenericParams, HasTypeBounds, HasVisibility};
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
-use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
+use ink_analyzer_ir::syntax::{
+    SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
+};
 use ink_analyzer_ir::{
     ast, Contract, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkArgValueKind,
     InkArgValueStringKind, InkAttribute, InkAttributeKind, InkMacroKind, IsInkEntity, IsInkFn,
@@ -10,8 +12,9 @@ use ink_analyzer_ir::{
 };
 use std::collections::HashSet;
 
+use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils;
-use crate::{Diagnostic, Severity};
+use crate::{Action, Diagnostic, Severity};
 
 /// Runs generic diagnostics that apply to all ink! entities.
 /// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
@@ -56,10 +59,21 @@ fn ensure_no_ink_identifiers<T: FromSyntax>(results: &mut Vec<Diagnostic>, item:
         if let Some(ident) = elem.into_token().and_then(ast::Ident::cast) {
             let name = ident.to_string();
             if name.starts_with("__ink_") {
+                // Suggested name for quickfix.
+                let suggested_name = name.replace("__ink_", "");
                 results.push(Diagnostic {
                     message: format!("Invalid identifier starting with __ink_: {}", ident.text()),
                     range: ident.syntax().text_range(),
                     severity: Severity::Error,
+                    quickfixes: (!suggested_name.is_empty()).then_some(vec![Action {
+                        label: format!("Rename identifier to `{suggested_name}`"),
+                        range: ident.syntax().text_range(),
+                        edits: vec![TextEdit::replace_with_snippet(
+                            suggested_name.clone(),
+                            ident.syntax().text_range(),
+                            Some(format!("${{1:{suggested_name}}}")),
+                        )],
+                    }]),
                 });
             }
         }
@@ -95,6 +109,7 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
                     .unwrap_or(attr.syntax().text_range()),
                 // warning because it's possible ink! analyzer is just outdated.
                 severity: Severity::Warning,
+                quickfixes: Some(vec![Action::remove_attribute(attr)]),
             });
         }
     }
@@ -118,21 +133,32 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
         let arg_name_text = arg.meta().name().to_string();
         match arg.kind() {
             // Handle unknown argument.
-            InkArgKind::Unknown => results.push(Diagnostic {
-                message: if arg_name_text.is_empty() {
-                    "Missing ink! attribute argument.".to_string()
-                } else {
-                    format!("Unknown ink! attribute argument: '{arg_name_text}'.")
-                },
-                range: arg.text_range(),
-                severity: if arg_name_text.is_empty() {
-                    // error for missing.
-                    Severity::Error
-                } else {
-                    // warning because it's possible ink! analyzer is just outdated.
-                    Severity::Warning
-                },
-            }),
+            InkArgKind::Unknown => {
+                // Edit range for quickfix.
+                let range = utils::ink_arg_and_delimiter_removal_range(arg, Some(attr));
+                results.push(Diagnostic {
+                    message: if arg_name_text.is_empty() {
+                        "Missing ink! attribute argument.".to_string()
+                    } else {
+                        format!("Unknown ink! attribute argument: '{arg_name_text}'.")
+                    },
+                    range: arg.text_range(),
+                    severity: if arg_name_text.is_empty() {
+                        // error for missing.
+                        Severity::Error
+                    } else {
+                        // warning because it's possible ink! analyzer is just outdated.
+                        Severity::Warning
+                    },
+                    quickfixes: Some(vec![Action {
+                        label: format!(
+                            "Remove unknown ink! attribute argument: '{arg_name_text}'."
+                        ),
+                        range,
+                        edits: vec![TextEdit::delete(range)],
+                    }]),
+                })
+            }
             arg_kind => {
                 let arg_value_type = InkArgValueKind::from(*arg_kind);
                 match arg_value_type {
@@ -145,6 +171,11 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 ),
                                 range: arg.text_range(),
                                 severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: format!("Remove `{arg_name_text}` argument value"),
+                                    range: arg.text_range(),
+                                    edits: vec![TextEdit::replace(arg_name_text, arg.text_range())],
+                                }]),
                             });
                         }
                     }
@@ -177,6 +208,15 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 ),
                                 range: arg.text_range(),
                                 severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: format!("Add `{arg_name_text}` argument value"),
+                                    range: arg.text_range(),
+                                    edits: vec![TextEdit::replace_with_snippet(
+                                        format!("{arg_name_text}=1"),
+                                        arg.text_range(),
+                                        Some(format!("{arg_name_text}=${{1:1}}")),
+                                    )],
+                                }]),
                             });
                         }
                     }
@@ -205,6 +245,29 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 ),
                                 range: arg.text_range(),
                                 severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: format!("Add `{arg_name_text}` argument value"),
+                                    range: arg.text_range(),
+                                    edits: vec![TextEdit::replace_with_snippet(
+                                        format!(
+                                            "{arg_name_text}=\"{}\"",
+                                            if str_kind == InkArgValueStringKind::Identifier {
+                                                "my_namespace"
+                                            } else {
+                                                ""
+                                            }
+                                        ),
+                                        arg.text_range(),
+                                        Some(format!(
+                                            "{arg_name_text}=\"{}\"",
+                                            if str_kind == InkArgValueStringKind::Identifier {
+                                                "${1:my_namespace}"
+                                            } else {
+                                                "$1"
+                                            }
+                                        )),
+                                    )],
+                                }]),
                             });
                         }
                     }
@@ -222,6 +285,15 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 ),
                                 range: arg.text_range(),
                                 severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: format!("Add `{arg_name_text}` argument value"),
+                                    range: arg.text_range(),
+                                    edits: vec![TextEdit::replace_with_snippet(
+                                        format!("{arg_name_text}=true"),
+                                        arg.text_range(),
+                                        Some(format!("{arg_name_text}=${{1:true}}")),
+                                    )],
+                                }]),
                             });
                         }
                     }
@@ -244,6 +316,15 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 ),
                                 range: arg.text_range(),
                                 severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: format!("Add `{arg_name_text}` argument value"),
+                                    range: arg.text_range(),
+                                    edits: vec![TextEdit::replace_with_snippet(
+                                        format!("{arg_name_text}=crate::"),
+                                        arg.text_range(),
+                                        Some(format!("{arg_name_text}=${{1:crate::}}")),
+                                    )],
+                                }]),
                             });
                         }
                     }
@@ -304,6 +385,7 @@ fn ensure_no_duplicate_attributes_and_arguments(
                     message: format!("Duplicate ink! attribute macro: `{}`", attr.syntax()),
                     range: attr.syntax().text_range(),
                     severity: Severity::Error,
+                    quickfixes: Some(vec![Action::remove_attribute(attr)]),
                 });
             }
             seen_macros.insert(macro_kind);
@@ -313,10 +395,17 @@ fn ensure_no_duplicate_attributes_and_arguments(
             let arg_kind = arg.kind();
             // Unknown ink! attribute arguments are ignored.
             if *arg_kind != InkArgKind::Unknown && seen_args.get(arg_kind).is_some() {
+                // Edit range for quickfix.
+                let range = utils::ink_arg_and_delimiter_removal_range(arg, Some(attr));
                 results.push(Diagnostic {
                     message: format!("Duplicate ink! attribute argument: `{}`", arg.meta().name()),
                     range: arg.text_range(),
                     severity: Severity::Error,
+                    quickfixes: Some(vec![Action {
+                        label: format!("Remove ink! `{}` attribute argument.", arg.meta().name()),
+                        range,
+                        edits: vec![TextEdit::delete(range)],
+                    }]),
                 });
             }
 
@@ -366,7 +455,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
             utils::primary_ink_attribute_kind_suggestions(*primary_ink_attr_candidate.kind());
 
         // If the primary ink! attribute candidate is complete and unambiguous,
-        // but isn't the first attribute, then that it be made the first attribute.
+        // but isn't the first attribute, then suggest that it be made the first attribute.
         if !primary_candidate_first && primary_attribute_kind_suggestions.is_empty() {
             results.push(Diagnostic {
                 message: format!(
@@ -375,6 +464,25 @@ fn ensure_no_conflicting_attributes_and_arguments(
                 ),
                 range: primary_ink_attr_candidate.syntax().text_range(),
                 severity: Severity::Error,
+                quickfixes: ink_analyzer_ir::parent_ast_item(primary_ink_attr_candidate.syntax())
+                    .as_ref()
+                    .map(ast::Item::syntax)
+                    .map(|parent_item| {
+                        // Determines the insertion offset and affixes for the quickfix.
+                        let (insert_offset, insert_prefix, insert_suffix) =
+                            utils::first_ink_attribute_insertion_offset_and_affixes(parent_item);
+                        vec![Action::move_item_with_affixes(
+                            primary_ink_attr_candidate.syntax(),
+                            insert_offset,
+                            format!(
+                                "Make `{}` the first ink! attribute for this item.",
+                                primary_ink_attr_candidate.syntax(),
+                            ),
+                            None,
+                            insert_prefix.as_deref(),
+                            insert_suffix.as_deref(),
+                        )]
+                    }),
             });
         }
 
@@ -415,6 +523,47 @@ fn ensure_no_conflicting_attributes_and_arguments(
                             primary_ink_attr_candidate.syntax().text_range()
                         },
                         severity: Severity::Error,
+                        quickfixes: primary_arg.and_then(|arg| {
+                            // Determines the insertion offset and affixes for the quickfix.
+                            utils::first_ink_arg_insertion_offset_and_affixes(
+                                &primary_ink_attr_candidate,
+                            )
+                            .map(
+                                |(insert_offset, insert_prefix, insert_suffix)| {
+                                    // Edit range for quickfix.
+                                    let range = utils::ink_arg_and_delimiter_removal_range(
+                                        arg,
+                                        Some(&primary_ink_attr_candidate),
+                                    );
+                                    vec![Action {
+                                        label: format!(
+                                            "Make `{}` the first argument for this ink! attribute.",
+                                            arg_kind,
+                                        ),
+                                        range,
+                                        edits: vec![
+                                            // Insert a copy of the item at the specified offset.
+                                            TextEdit::insert(
+                                                format!(
+                                                    "{}{}{}",
+                                                    insert_prefix.as_deref().unwrap_or_default(),
+                                                    arg,
+                                                    insert_suffix.as_deref().unwrap_or_default()
+                                                ),
+                                                insert_offset,
+                                            ),
+                                            // Delete the item from current location.
+                                            TextEdit::delete(
+                                                utils::ink_arg_and_delimiter_removal_range(
+                                                    arg,
+                                                    Some(&primary_ink_attr_candidate),
+                                                ),
+                                            ),
+                                        ],
+                                    }]
+                                },
+                            )
+                        }),
                     });
                 }
             }
@@ -443,6 +592,56 @@ fn ensure_no_conflicting_attributes_and_arguments(
                 ),
                 range: primary_ink_attr_candidate.syntax().text_range(),
                 severity: Severity::Error,
+                quickfixes: ink_analyzer_ir::parent_ast_item(primary_ink_attr_candidate.syntax())
+                    .as_ref()
+                    .map(ast::Item::syntax)
+                    .map(|parent_item| {
+                        // Determines the insertion offset and affixes for the quickfix.
+                        let (insert_offset, insert_prefix, insert_suffix) =
+                            utils::first_ink_attribute_insertion_offset_and_affixes(parent_item);
+                        primary_attribute_kind_suggestions
+                            .iter()
+                            .map(|attr_kind| {
+                                let (insert_text, attr_desc, snippet) = match attr_kind {
+                                    InkAttributeKind::Arg(arg_kind) => {
+                                        let (edit, snippet) =
+                                            utils::ink_arg_insertion_text(*arg_kind, None, None);
+                                        (
+                                            format!("#[ink({edit})]"),
+                                            format!("ink! `{arg_kind}`"),
+                                            snippet.map(|snippet| format!("#[ink({snippet})]")),
+                                        )
+                                    }
+                                    InkAttributeKind::Macro(macro_kind) => (
+                                        format!("#[{}]", macro_kind.path_as_str()),
+                                        format!("ink! `{macro_kind}`"),
+                                        None,
+                                    ),
+                                };
+                                Action {
+                                    label: format!(
+                                        "Add an `{attr_desc}` as the first ink! attribute for this item."
+                                    ),
+                                    range: TextRange::new(insert_offset, insert_offset),
+                                    edits: vec![TextEdit::insert_with_snippet(
+                                        format!(
+                                            "{}{insert_text}{}",
+                                            insert_prefix.as_deref().unwrap_or_default(),
+                                            insert_suffix.as_deref().unwrap_or_default()
+                                        ),
+                                        insert_offset,
+                                        snippet.map(|snippet| {
+                                            format!(
+                                                "{}{snippet}{}",
+                                                insert_prefix.as_deref().unwrap_or_default(),
+                                                insert_suffix.as_deref().unwrap_or_default()
+                                            )
+                                        }),
+                                    )],
+                                }
+                            })
+                            .collect()
+                    }),
             });
         }
 
@@ -492,6 +691,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                     ),
                     range: attr.syntax().text_range(),
                     severity: Severity::Error,
+                    quickfixes: Some(vec![Action::remove_attribute(attr)]),
                 });
             } else {
                 // Handle argument level conflicts if the top level attribute kind doesn't conflict.
@@ -507,6 +707,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
 
                     // Ignore arg if it's already been handled at attribute level.
                     if !is_attribute_kind && !valid_sibling_args.contains(arg.kind()) {
+                        // Edit range for quickfix.
+                        let range = utils::ink_arg_and_delimiter_removal_range(arg, Some(attr));
                         results.push(Diagnostic {
                             message: format!(
                                 "ink! attribute argument `{}` conflicts with the {} for this item.",
@@ -529,6 +731,14 @@ fn ensure_no_conflicting_attributes_and_arguments(
                             ),
                             range: arg.text_range(),
                             severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: format!(
+                                    "Remove ink! `{}` attribute argument.",
+                                    arg.meta().name()
+                                ),
+                                range,
+                                edits: vec![TextEdit::delete(range)],
+                            }]),
                         });
                     }
                 }
@@ -577,6 +787,10 @@ pub fn ensure_at_most_one_item<T>(
                 message: message.to_string(),
                 range: item.syntax().text_range(),
                 severity,
+                quickfixes: Some(vec![
+                    Action::remove_attribute(item.ink_attr()),
+                    Action::remove_item(item.syntax()),
+                ]),
             });
         });
     }
@@ -601,12 +815,29 @@ where
                     .map_or(item.syntax(), AstNode::syntax)
                     .text_range(),
                 severity: Severity::Error,
+                quickfixes: visibility
+                    .as_ref()
+                    .map(|vis| vis.syntax().text_range())
+                    .or(struct_item
+                        .struct_token()
+                        .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
+                    .map(|range| {
+                        vec![Action {
+                            label: "Change to `pub` visibility.".to_string(),
+                            range,
+                            edits: vec![TextEdit::replace(
+                                format!("pub{}", if visibility.is_none() { " " } else { "" }),
+                                range,
+                            )],
+                        }]
+                    }),
             })
         }
         None => Some(Diagnostic {
             message: format!("ink! {ink_scope_name} must be a `struct` item.",),
             range: item.syntax().text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action::remove_attribute(item.ink_attr())]),
         }),
     }
 }
@@ -620,6 +851,7 @@ where
         message: format!("ink! {ink_scope_name} must be an `fn` item.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: Some(vec![Action::remove_attribute(item.ink_attr())]),
     })
 }
 
@@ -632,15 +864,25 @@ where
         message: format!("ink! {ink_scope_name} must be a `trait` item.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: Some(vec![Action::remove_attribute(item.ink_attr())]),
     })
 }
 
 /// Ensures that an `fn` item has no self receiver (i.e no `&self`, `&mut self`, self or mut self).
 pub fn ensure_no_self_receiver(fn_item: &ast::Fn, ink_scope_name: &str) -> Option<Diagnostic> {
-    fn_item.param_list()?.self_param().map(|self_param| Diagnostic {
-        message: format!("ink! {ink_scope_name} must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self)."),
-        range: self_param.syntax().text_range(),
-        severity: Severity::Error,
+    fn_item.param_list()?.self_param().map(|self_param| {
+        // Edit range for quickfix.
+        let range = utils::node_and_delimiter_range(self_param.syntax(), SyntaxKind::COMMA);
+        Diagnostic {
+            message: format!("ink! {ink_scope_name} must not have a self receiver (i.e no `&self`, `&mut self`, self or mut self)."),
+            range: self_param.syntax().text_range(),
+            severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove self receiver.".to_string(),
+                range,
+                edits: vec![TextEdit::delete(range)],
+            }]),
+        }
     })
 }
 
@@ -655,6 +897,11 @@ where
         ),
         range: generics.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: Some(vec![Action {
+            label: "Remove generic parameters.".to_string(),
+            range: generics.syntax().text_range(),
+            edits: vec![TextEdit::delete(generics.syntax().text_range())],
+        }]),
     })
 }
 
@@ -663,10 +910,26 @@ pub fn ensure_no_trait_bounds<T>(item: &T, message: &str) -> Option<Diagnostic>
 where
     T: HasTypeBounds,
 {
-    item.type_bound_list().map(|type_bound_list| Diagnostic {
-        message: message.to_string(),
-        range: type_bound_list.syntax().text_range(),
-        severity: Severity::Error,
+    item.type_bound_list().map(|type_bound_list| {
+        // Determines the range of the type bound definition.
+        let range = TextRange::new(
+            item.colon_token()
+                .as_ref()
+                .map(SyntaxToken::text_range)
+                .unwrap_or(type_bound_list.syntax().text_range())
+                .start(),
+            type_bound_list.syntax().text_range().end(),
+        );
+        Diagnostic {
+            message: message.to_string(),
+            range,
+            severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove type bounds.".to_string(),
+                range,
+                edits: vec![TextEdit::delete(range)],
+            }]),
+        }
     })
 }
 
@@ -688,34 +951,62 @@ pub fn ensure_method_invariants(
     }
 
     if let Some(const_token) = fn_item.const_token() {
+        // Edit range for quickfix.
+        let range = utils::token_and_trivia_range(&const_token);
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must not be `const`."),
             range: const_token.text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove `const` keyword.".to_string(),
+                range,
+                edits: vec![TextEdit::delete(range)],
+            }]),
         });
     }
 
     if let Some(async_token) = fn_item.async_token() {
+        // Edit range for quickfix.
+        let range = utils::token_and_trivia_range(&async_token);
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must not be `async`."),
             range: async_token.text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove `async` keyword.".to_string(),
+                range,
+                edits: vec![TextEdit::delete(range)],
+            }]),
         });
     }
 
     if let Some(unsafe_token) = fn_item.unsafe_token() {
+        // Edit range for quickfix.
+        let range = utils::token_and_trivia_range(&unsafe_token);
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must not be `unsafe`."),
             range: unsafe_token.text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove `unsafe` keyword.".to_string(),
+                range,
+                edits: vec![TextEdit::delete(range)],
+            }]),
         });
     }
 
     if let Some(abi) = fn_item.abi() {
+        // Edit range for quickfix.
+        let range = utils::node_and_trivia_range(abi.syntax());
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must not have explicit ABI."),
             range: abi.syntax().text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove explicit ABI.".to_string(),
+                range,
+                edits: vec![TextEdit::delete(range)],
+            }]),
         });
     }
 
@@ -724,10 +1015,19 @@ pub fn ensure_method_invariants(
             &mut param_list
                 .params()
                 .filter_map(|param| {
-                    param.dotdotdot_token().map(|dotdotdot| Diagnostic {
-                        message: format!("ink! {ink_scope_name} must not be variadic."),
-                        range: dotdotdot.text_range(),
-                        severity: Severity::Error,
+                    param.dotdotdot_token().map(|dotdotdot| {
+                        // Edit range for quickfix.
+                        let range = utils::token_and_delimiter_range(&dotdotdot, SyntaxKind::COMMA);
+                        Diagnostic {
+                            message: format!("ink! {ink_scope_name} must not be variadic."),
+                            range: dotdotdot.text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: "Make function un-variadic.".to_string(),
+                                range,
+                                edits: vec![TextEdit::delete(range)],
+                            }]),
+                        }
                     })
                 })
                 .collect(),
@@ -761,6 +1061,39 @@ pub fn ensure_callable_invariants(
                 .map_or(fn_item.syntax(), AstNode::syntax)
                 .text_range(),
             severity: Severity::Error,
+            quickfixes: visibility
+                .as_ref()
+                .map(|vis| vis.syntax().text_range())
+                .or(fn_item
+                    .default_token()
+                    .or(fn_item.const_token())
+                    .or(fn_item.async_token())
+                    .or(fn_item.unsafe_token())
+                    .or(fn_item
+                        .abi()
+                        .and_then(|abi| ink_analyzer_ir::first_child_token(abi.syntax())))
+                    .or(fn_item.fn_token())
+                    .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
+                .map(|range| {
+                    let remove_range = visibility
+                        .as_ref()
+                        .map_or(range, |vis| utils::node_and_trivia_range(vis.syntax()));
+                    vec![
+                        Action {
+                            label: "Change to `pub` visibility.".to_string(),
+                            range,
+                            edits: vec![TextEdit::replace(
+                                format!("pub{}", if visibility.is_none() { " " } else { "" }),
+                                range,
+                            )],
+                        },
+                        Action {
+                            label: "Remove visibility.".to_string(),
+                            range: remove_range,
+                            edits: vec![TextEdit::delete(remove_range)],
+                        },
+                    ]
+                }),
         });
     }
 
@@ -782,18 +1115,32 @@ pub fn ensure_trait_invariants(
     ink_scope_name: &str,
 ) {
     if let Some(unsafe_token) = trait_item.unsafe_token() {
+        // Edit range for quickfix.
+        let range = utils::token_and_trivia_range(&unsafe_token);
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must not be `unsafe`."),
             range: unsafe_token.text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove `unsafe` keyword.".to_string(),
+                range,
+                edits: vec![TextEdit::delete(range)],
+            }]),
         });
     }
 
     if let Some(auto_token) = trait_item.auto_token() {
+        // Edit range for quickfix.
+        let range = utils::token_and_trivia_range(&auto_token);
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must not be `auto` implemented."),
             range: auto_token.text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove `auto` keyword.".to_string(),
+                range,
+                edits: vec![TextEdit::delete(range)],
+            }]),
         });
     }
 
@@ -816,6 +1163,24 @@ pub fn ensure_trait_invariants(
                 .map_or(trait_item.syntax(), AstNode::syntax)
                 .text_range(),
             severity: Severity::Error,
+            quickfixes: visibility
+                .as_ref()
+                .map(|vis| vis.syntax().text_range())
+                .or(trait_item
+                    .unsafe_token()
+                    .or(trait_item.auto_token())
+                    .or(trait_item.trait_token())
+                    .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
+                .map(|range| {
+                    vec![Action {
+                        label: "Change to `pub` visibility.".to_string(),
+                        range,
+                        edits: vec![TextEdit::replace(
+                            format!("pub{}", if visibility.is_none() { " " } else { "" }),
+                            range,
+                        )],
+                    }]
+                }),
         });
     }
 
@@ -840,11 +1205,11 @@ pub fn ensure_trait_item_invariants<F, G>(
     results: &mut Vec<Diagnostic>,
     trait_item: &ast::Trait,
     ink_scope_name: &str,
-    assoc_fn_handler: F,
-    assoc_type_handler: G,
+    mut assoc_fn_handler: F,
+    mut assoc_type_handler: G,
 ) where
-    F: Fn(&mut Vec<Diagnostic>, &ast::Fn),
-    G: Fn(&mut Vec<Diagnostic>, &ast::TypeAlias),
+    F: FnMut(&mut Vec<Diagnostic>, &ast::Fn),
+    G: FnMut(&mut Vec<Diagnostic>, &ast::TypeAlias),
 {
     if let Some(assoc_item_list) = trait_item.assoc_item_list() {
         assoc_item_list.assoc_items().for_each(|assoc_item| {
@@ -855,6 +1220,13 @@ pub fn ensure_trait_item_invariants<F, G>(
                     ),
                     range: const_item.syntax().text_range(),
                     severity: Severity::Error,
+                    quickfixes: Some(vec![
+                        Action {
+                            label: "Remove `const` item.".to_string(),
+                            range: const_item.syntax().text_range(),
+                            edits: vec![TextEdit::delete(const_item.syntax().text_range())],
+                        }
+                    ]),
                 }),
                 ast::AssocItem::MacroCall(macro_call) => results.push(Diagnostic {
                     message: format!(
@@ -862,6 +1234,13 @@ pub fn ensure_trait_item_invariants<F, G>(
                     ),
                     range: macro_call.syntax().text_range(),
                     severity: Severity::Error,
+                    quickfixes: Some(vec![
+                        Action {
+                            label: "Remove macro call.".to_string(),
+                            range: macro_call.syntax().text_range(),
+                            edits: vec![TextEdit::delete(macro_call.syntax().text_range())],
+                        }
+                    ]),
                 }),
                 ast::AssocItem::TypeAlias(type_alias) => assoc_type_handler(results, &type_alias),
                 ast::AssocItem::Fn(fn_item) => {
@@ -871,6 +1250,13 @@ pub fn ensure_trait_item_invariants<F, G>(
                             message: format!("ink! {ink_scope_name} methods with a default implementation are not currently supported."),
                             range: body.syntax().text_range(),
                             severity: Severity::Error,
+                            quickfixes: Some(vec![
+                                Action {
+                                    label: "Remove function body.".to_string(),
+                                    range: body.syntax().text_range(),
+                                    edits: vec![TextEdit::delete(body.syntax().text_range())],
+                                }
+                            ]),
                         });
                     }
 
@@ -893,6 +1279,20 @@ where
         ),
         range: item.syntax().text_range(),
         severity: Severity::Error,
+        // Moves the item to the root of the closest ink! contract's `mod` item.
+        quickfixes: ink_analyzer_ir::ink_ancestors::<Contract>(item.syntax())
+            .next()
+            .as_ref()
+            .and_then(|it| it.module())
+            .and_then(|mod_item| Some(mod_item).zip(mod_item.item_list()))
+            .map(|(mod_item, item_list)| {
+                vec![Action::move_item(
+                    item.syntax(),
+                    utils::item_insert_offset_by_scope_name(&item_list, ink_scope_name),
+                    "Move item to the root of the closest ink! contract's `mod` item.".to_string(),
+                    Some(utils::item_children_indenting(mod_item.syntax()).as_str()),
+                )]
+            }),
     })
 }
 
@@ -902,9 +1302,48 @@ where
     T: FromSyntax + IsInkImplItem,
 {
     item.impl_item().is_none().then_some(Diagnostic {
-        message: format!("ink! {ink_scope_name} must be defined in the root of an `impl` block.",),
+        message: format!("ink! {ink_scope_name} must be defined in the root of an `impl` block."),
         range: item.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxNode, ast::Impl>(
+            item.syntax(),
+        )
+        .or(item
+            .syntax()
+            .siblings(ink_analyzer_ir::syntax::Direction::Prev)
+            .find_map(ast::Impl::cast)
+            .or(item
+                .syntax()
+                .siblings(ink_analyzer_ir::syntax::Direction::Next)
+                .find_map(ast::Impl::cast)))
+        .as_ref()
+        .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
+        .map(|(impl_item, assoc_item_list)| {
+            // Moves the item to the root of the closest parent/ancestor or sibling `impl` block.
+            vec![Action::move_item(
+                item.syntax(),
+                utils::assoc_item_insert_offset_end(&assoc_item_list),
+                "Move item to the root of the closest `impl` block.".to_string(),
+                Some(utils::item_children_indenting(impl_item.syntax()).as_str()),
+            )]
+        })
+        .or(ink_analyzer_ir::ink_ancestors::<Contract>(item.syntax())
+            .next()
+            .and_then(|contract| {
+                // Moves the item to the first non-trait `impl` block or creates a new `impl` block if necessary for the parent ink! contract (if any).
+                utils::callable_insert_offset_indent_and_affixes(&contract).map(
+                    |(insert_offset, indent, prefix, suffix)| {
+                        vec![Action::move_item_with_affixes(
+                            item.syntax(),
+                            insert_offset,
+                            "Move item to the root of the closest `impl` block.".to_string(),
+                            Some(indent.as_str()),
+                            prefix.as_deref(),
+                            suffix.as_deref(),
+                        )]
+                    },
+                )
+            })),
     })
 }
 
@@ -928,6 +1367,15 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
                     .unwrap_or(attr.syntax())
                     .text_range(),
                 severity: Severity::Error,
+                quickfixes: Some(ink_analyzer_ir::parent_ast_item(attr.syntax()).map_or(
+                    vec![Action::remove_attribute(&attr)],
+                    |item| {
+                        vec![
+                            Action::remove_attribute(&attr),
+                            Action::remove_item(item.syntax()),
+                        ]
+                    },
+                )),
             });
         }
     }
@@ -951,6 +1399,7 @@ where
                 .unwrap_or(attr.syntax())
                 .text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action::remove_attribute(&attr)]),
         });
     });
 }

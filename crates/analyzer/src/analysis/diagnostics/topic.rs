@@ -3,7 +3,7 @@
 use ink_analyzer_ir::{FromInkAttribute, FromSyntax, Topic};
 
 use super::utils;
-use crate::{Diagnostic, Severity};
+use crate::{Action, Diagnostic, Severity};
 
 const TOPIC_SCOPE_NAME: &str = "topic";
 
@@ -37,6 +37,7 @@ fn ensure_struct_field(topic: &Topic) -> Option<Diagnostic> {
         ),
         range: topic.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: Some(vec![Action::remove_attribute(ink_attr)]),
     })
 }
 

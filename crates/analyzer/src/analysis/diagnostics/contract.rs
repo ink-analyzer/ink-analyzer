@@ -1,14 +1,21 @@
 //! ink! contract diagnostics.
 
-use ink_analyzer_ir::syntax::SyntaxNode;
+use ink_analyzer_ir::meta::MetaValue;
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
-    Contract, FromSyntax, InkArgKind, InkAttributeKind, InkMacroKind, IsInkCallable, IsInkEntity,
-    Selector, SelectorArg, Storage,
+    ast, Contract, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttributeKind,
+    InkMacroKind, IsInkCallable, IsInkEntity, Selector, SelectorArg, Storage,
 };
 use std::collections::HashSet;
 
 use super::{constructor, event, ink_e2e_test, ink_impl, ink_test, message, storage, utils};
-use crate::{Diagnostic, Severity};
+use crate::analysis::snippets::{
+    CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_PLAIN,
+    STORAGE_SNIPPET,
+};
+use crate::analysis::text_edit::TextEdit;
+use crate::analysis::utils as analysis_utils;
+use crate::{Action, Diagnostic, Severity};
 
 /// Runs all ink! contract diagnostics.
 ///
@@ -106,18 +113,43 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L66>.
 fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
-    let error = match contract.module() {
-        Some(module) => module.item_list().is_none().then_some(
-            "The content of an ink! contract's `mod` item must be defined inline.".to_string(),
-        ),
-        None => Some("ink! contracts must be inline `mod` items".to_string()),
-    };
-
-    error.map(|message| Diagnostic {
-        message,
-        range: contract.syntax().text_range(),
-        severity: Severity::Error,
-    })
+    match contract.module() {
+        Some(module) => module.item_list().is_none().then(|| {
+            let semicolon_token = contract.module().and_then(ast::Module::semicolon_token);
+            // Edit range for quickfix.
+            let range = semicolon_token
+                .as_ref()
+                .map(SyntaxToken::text_range)
+                .unwrap_or(contract.syntax().text_range());
+            Diagnostic {
+                message: "The content of an ink! contract's `mod` item must be defined inline."
+                    .to_string(),
+                range: contract.syntax().text_range(),
+                severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: "Add inline body to ink! contract `mod`.".to_string(),
+                    range,
+                    edits: vec![TextEdit::replace(
+                        format!("{}{{}}", if semicolon_token.is_some() { " " } else { "" }),
+                        range,
+                    )],
+                }]),
+            }
+        }),
+        None => Some(Diagnostic {
+            message: "ink! contracts must be inline `mod` items".to_string(),
+            range: contract.syntax().text_range(),
+            severity: Severity::Error,
+            quickfixes: Some(if contract.syntax().kind() == SyntaxKind::ITEM_LIST {
+                vec![Action::remove_attribute(contract.ink_attr())]
+            } else {
+                vec![
+                    Action::remove_attribute(contract.ink_attr()),
+                    Action::remove_item(contract.syntax()),
+                ]
+            }),
+        }),
+    }
 }
 
 /// Ensures that ink! storage is not missing and there are not multiple ink! storage definitions.
@@ -135,6 +167,41 @@ fn ensure_storage_quantity(results: &mut Vec<Diagnostic>, contract: &Contract) {
             message: "Missing ink! storage definition.".to_string(),
             range: contract.syntax().text_range(),
             severity: Severity::Error,
+            quickfixes: contract
+                .module()
+                .and_then(|mod_item| Some(mod_item).zip(mod_item.item_list()))
+                .map(|(mod_item, item_list)| {
+                    // Set quickfix insertion offset at the beginning of the associated items list.
+                    let insert_offset = analysis_utils::item_insert_offset_start(&item_list);
+                    // Set quickfix insertion indent.
+                    let indent = analysis_utils::item_children_indenting(mod_item.syntax());
+                    // Gets the "resolved" contract name.
+                    let contract_name = analysis_utils::resolve_contract_name(contract);
+
+                    vec![Action {
+                        label: "Add ink! storage `struct`.".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert_with_snippet(
+                            analysis_utils::apply_indenting(
+                                contract_name
+                                    .as_deref()
+                                    .map(|name| STORAGE_PLAIN.replace("Storage", name))
+                                    .as_deref()
+                                    .unwrap_or(STORAGE_PLAIN),
+                                &indent,
+                            ),
+                            insert_offset,
+                            Some(analysis_utils::apply_indenting(
+                                contract_name
+                                    .as_deref()
+                                    .map(|name| STORAGE_SNIPPET.replace("Storage", name))
+                                    .as_deref()
+                                    .unwrap_or(STORAGE_SNIPPET),
+                                &indent,
+                            )),
+                        )],
+                    }]
+                }),
         },
         "Only one ink! storage definition can be defined for an ink! contract.",
         Severity::Error,
@@ -154,6 +221,30 @@ fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
                 .to_string(),
             range: contract.syntax().text_range(),
             severity: Severity::Error,
+            quickfixes: analysis_utils::callable_insert_offset_indent_and_affixes(contract).map(
+                |(insert_offset, indent, prefix, suffix)| {
+                    // Adds an ink! constructor to the first non-trait `impl` block or creates a new `impl` block if necessary.
+                    vec![Action {
+                        label: "Add ink! constructor `fn`.".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert_with_snippet(
+                            format!(
+                                "{}{}{}",
+                                prefix.as_deref().unwrap_or_default(),
+                                analysis_utils::apply_indenting(CONSTRUCTOR_PLAIN, &indent),
+                                suffix.as_deref().unwrap_or_default()
+                            ),
+                            insert_offset,
+                            Some(format!(
+                                "{}{}{}",
+                                prefix.as_deref().unwrap_or_default(),
+                                analysis_utils::apply_indenting(CONSTRUCTOR_SNIPPET, &indent),
+                                suffix.as_deref().unwrap_or_default()
+                            )),
+                        )],
+                    }]
+                },
+            ),
         },
     )
 }
@@ -170,12 +261,36 @@ fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
             message: "At least one ink! message must be defined for an ink! contract.".to_string(),
             range: contract.syntax().text_range(),
             severity: Severity::Error,
+            quickfixes: analysis_utils::callable_insert_offset_indent_and_affixes(contract).map(
+                |(insert_offset, indent, prefix, suffix)| {
+                    // Adds an ink! message to the first non-trait `impl` block or creates a new `impl` block if necessary.
+                    vec![Action {
+                        label: "Add ink! message `fn`.".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert_with_snippet(
+                            format!(
+                                "{}{}{}",
+                                prefix.as_deref().unwrap_or_default(),
+                                analysis_utils::apply_indenting(MESSAGE_PLAIN, &indent),
+                                suffix.as_deref().unwrap_or_default()
+                            ),
+                            insert_offset,
+                            Some(format!(
+                                "{}{}{}",
+                                prefix.as_deref().unwrap_or_default(),
+                                analysis_utils::apply_indenting(MESSAGE_SNIPPET, &indent),
+                                suffix.as_deref().unwrap_or_default()
+                            )),
+                        )],
+                    }]
+                },
+            ),
         },
     )
 }
 
 /// Returns composed selectors for a list of ink! callable entities.
-fn get_composed_selectors<T>(items: &[T]) -> Vec<(Selector, SyntaxNode)>
+fn get_composed_selectors<T>(items: &[T]) -> Vec<(Selector, SyntaxNode, Option<SelectorArg>)>
 where
     T: IsInkCallable,
 {
@@ -183,7 +298,7 @@ where
         .iter()
         .filter_map(|item| {
             item.composed_selector()
-                .map(|selector| (selector, item.syntax().clone()))
+                .map(|selector| (selector, item.syntax().clone(), item.selector_arg()))
         })
         .collect()
 }
@@ -198,22 +313,56 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L336-L337>.
 fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Contract) {
-    for (selectors, name) in [
+    for (selectors, name, mut unavailable_ids) in [
         (
             get_composed_selectors(contract.constructors()),
             "constructor",
+            contract
+                .constructors()
+                .iter()
+                .filter_map(|it| it.composed_selector().map(Selector::into_be_u32))
+                .collect::<HashSet<u32>>(),
         ),
-        (get_composed_selectors(contract.messages()), "message"),
+        (
+            get_composed_selectors(contract.messages()),
+            "message",
+            contract
+                .messages()
+                .iter()
+                .filter_map(|it| it.composed_selector().map(Selector::into_be_u32))
+                .collect::<HashSet<u32>>(),
+        ),
     ] {
         let mut seen_selectors: HashSet<u32> = HashSet::new();
-        for (selector, node) in selectors {
+        for (idx, (selector, node, selector_arg)) in selectors.iter().enumerate() {
             let selector_value = selector.into_be_u32();
 
             if seen_selectors.get(&selector_value).is_some() {
+                // Determines text range for the argument value.
+                let value_range_option = selector_arg
+                    .as_ref()
+                    .map(SelectorArg::arg)
+                    .and_then(InkArg::value)
+                    .map(MetaValue::text_range);
                 results.push(Diagnostic {
                     message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
-                    range: node.text_range(),
+                    range: value_range_option.unwrap_or(node.text_range()),
                     severity: Severity::Error,
+                    quickfixes: value_range_option.map(|range| {
+                        let suggested_id = analysis_utils::suggest_unique_id(
+                            Some(idx as u32 + 1),
+                            &mut unavailable_ids,
+                        );
+                        vec![Action {
+                            label: "Replace with a unique selector.".to_string(),
+                            range,
+                            edits: vec![TextEdit::replace_with_snippet(
+                                format!("{suggested_id}"),
+                                range,
+                                Some(format!("${{1:{suggested_id}}}")),
+                            )],
+                        }]
+                    }),
                 });
             }
 
@@ -256,10 +405,18 @@ fn ensure_at_most_one_wildcard_selector(results: &mut Vec<Diagnostic>, contract:
         for selector in selectors {
             if selector.is_wildcard() {
                 if has_seen_wildcard {
+                    // Edit range for quickfix.
+                    let range =
+                        analysis_utils::ink_arg_and_delimiter_removal_range(selector.arg(), None);
                     results.push(Diagnostic {
                         message: format!("At most one wildcard (`_`) selector can be defined across all ink! {name}s in an ink! contract."),
                         range: selector.text_range(),
                         severity: Severity::Error,
+                        quickfixes: Some(vec![Action {
+                            label: "Remove wildcard selector.".to_string(),
+                            range,
+                            edits: vec![TextEdit::delete(range)],
+                        }]),
                     });
                 } else {
                     has_seen_wildcard = true;
@@ -289,6 +446,18 @@ where
         ),
         range: item.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: contract
+            .module()
+            .and_then(ast::Module::item_list)
+            .map(|item_list| {
+                // Moves the item to the root of the ink! contract's `mod` item.
+                vec![Action::move_item(
+                    item.syntax(),
+                    analysis_utils::item_insert_offset_by_scope_name(&item_list, ink_scope_name),
+                    "Move item to the root of the ink! contract's `mod` item.".to_string(),
+                    Some(analysis_utils::item_children_indenting(contract.syntax()).as_str()),
+                )]
+            }),
     })
 }
 
@@ -314,7 +483,7 @@ fn ensure_root_items(results: &mut Vec<Diagnostic>, contract: &Contract) {
             contract
                 .events()
                 .iter()
-                .filter_map(|item| ensure_parent_contract(contract, item, "impl")),
+                .filter_map(|item| ensure_parent_contract(contract, item, "event")),
         )
         .chain(
             contract
@@ -335,7 +504,7 @@ fn ensure_root_items(results: &mut Vec<Diagnostic>, contract: &Contract) {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/impl_item.rs#L64-L87>.
 fn ensure_impl_parent_for_callables(results: &mut Vec<Diagnostic>, contract: &Contract) {
-    contract
+    for diagnostic in contract
         .constructors()
         .iter()
         .filter_map(|item| utils::ensure_impl_parent(item, "constructor"))
@@ -343,9 +512,11 @@ fn ensure_impl_parent_for_callables(results: &mut Vec<Diagnostic>, contract: &Co
             contract
                 .messages()
                 .iter()
-                .filter_map(|item| utils::ensure_impl_parent(item, "messages")),
+                .filter_map(|item| utils::ensure_impl_parent(item, "message")),
         )
-        .for_each(|diagnostic| results.push(diagnostic));
+    {
+        results.push(diagnostic)
+    }
 }
 
 /// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).

@@ -1,12 +1,18 @@
 //! ink! impl diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasVisibility};
+use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{
     ast, FromSyntax, InkArgKind, InkAttributeKind, InkImpl, IsInkFn, IsInkImplItem,
 };
 
 use super::{constructor, message, utils};
-use crate::{Diagnostic, Severity};
+use crate::analysis::snippets::{
+    CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET,
+};
+use crate::analysis::text_edit::TextEdit;
+use crate::analysis::utils as analysis_utils;
+use crate::{Action, Diagnostic, Severity};
 
 const IMPL_SCOPE_NAME: &str = "impl";
 
@@ -76,6 +82,9 @@ fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
         message: "ink! impl must be an `impl` item.".to_string(),
         range: ink_impl.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: ink_impl
+            .impl_attr()
+            .map(|attr| vec![Action::remove_attribute(&attr)]),
     })
 }
 
@@ -87,18 +96,32 @@ fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
 pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
     if let Some(impl_item) = ink_impl.impl_item() {
         if let Some(default_token) = impl_item.default_token() {
+            // Edit range for quickfix.
+            let range = analysis_utils::token_and_trivia_range(&default_token);
             results.push(Diagnostic {
                 message: "ink! impl must not be `default`.".to_string(),
                 range: default_token.text_range(),
                 severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: "Remove `default` keyword.".to_string(),
+                    range,
+                    edits: vec![TextEdit::delete(range)],
+                }]),
             });
         }
 
         if let Some(unsafe_token) = impl_item.unsafe_token() {
+            // Edit range for quickfix.
+            let range = analysis_utils::token_and_trivia_range(&unsafe_token);
             results.push(Diagnostic {
                 message: "ink! impl must not be `unsafe`.".to_string(),
                 range: unsafe_token.text_range(),
                 severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: "Remove `unsafe` keyword.".to_string(),
+                    range,
+                    edits: vec![TextEdit::delete(range)],
+                }]),
             });
         }
 
@@ -117,6 +140,13 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                     .to_string(),
                                 range: generic_arg_list.syntax().text_range(),
                                 severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: "Remove generic types.".to_string(),
+                                    range: generic_arg_list.syntax().text_range(),
+                                    edits: vec![TextEdit::delete(
+                                        generic_arg_list.syntax().text_range(),
+                                    )],
+                                }]),
                             })
                         })
                         .collect(),
@@ -124,12 +154,19 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             }
         }
 
-        if let Some((_, arg)) = impl_item.trait_().zip(ink_impl.namespace_arg()) {
+        if let Some((_, arg)) = ink_impl.trait_type().zip(ink_impl.namespace_arg()) {
+            // Edit range for quickfix.
+            let range = analysis_utils::ink_arg_and_delimiter_removal_range(&arg, None);
             results.push(Diagnostic {
                 message: "ink! namespace argument is not allowed on trait ink! impl blocks."
                     .to_string(),
                 range: arg.text_range(),
                 severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: "Remove ink! namespace argument.".to_string(),
+                    range,
+                    edits: vec![TextEdit::delete(range)],
+                }]),
             });
         }
 
@@ -148,10 +185,17 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                 if impl_item.trait_().is_some() {
                     // Callables must have inherent visibility for trait implementation blocks.
                     if let Some(visibility) = fn_item.visibility() {
+                        // Edit range for quickfix.
+                        let range = analysis_utils::node_and_trivia_range(visibility.syntax());
                         results.push(Diagnostic {
                             message: format!("ink! {name}s in trait ink! impl blocks must have inherited visibility."),
                             range: visibility.syntax().text_range(),
                             severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: format!("Remove `{}` visibility.", visibility.syntax()),
+                                range,
+                                edits: vec![TextEdit::delete(range)],
+                            }]),
                         });
                     }
                 } else {
@@ -167,9 +211,45 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
 
                     if !has_pub_visibility {
                         results.push(Diagnostic {
-                            message: format!("ink! {name}s in inherent ink! impl blocks must have `pub` visibility."),
-                            range: visibility.as_ref().map_or(fn_item.syntax(), AstNode::syntax).text_range(),
+                            message: format!(
+                                "ink! {name}s in inherent ink! impl blocks must have `pub` visibility."
+                            ),
+                            range: visibility
+                                .as_ref()
+                                .map_or(fn_item.syntax(), AstNode::syntax)
+                                .text_range(),
                             severity: Severity::Error,
+                            quickfixes: visibility
+                                .as_ref()
+                                .map(|vis| vis.syntax().text_range())
+                                .or(fn_item
+                                    .default_token()
+                                    .or(fn_item.const_token())
+                                    .or(fn_item.async_token())
+                                    .or(fn_item.unsafe_token())
+                                    .or(fn_item.abi().and_then(|abi| {
+                                        ink_analyzer_ir::first_child_token(abi.syntax())
+                                    }))
+                                    .or(fn_item.fn_token())
+                                    .map(|it| {
+                                        TextRange::new(
+                                            it.text_range().start(),
+                                            it.text_range().start(),
+                                        )
+                                    }))
+                                .map(|range| {
+                                    vec![Action {
+                                        label: "Change to `pub` visibility.".to_string(),
+                                        range,
+                                        edits: vec![TextEdit::replace(
+                                            format!(
+                                                "pub{}",
+                                                if visibility.is_none() { " " } else { "" }
+                                            ),
+                                            range,
+                                        )],
+                                    }]
+                                }),
                         });
                     }
                 }
@@ -190,6 +270,40 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
             .to_string(),
         range: ink_impl.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: ink_impl
+            .impl_item()
+            .as_ref()
+            .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
+            .map(|(impl_item, assoc_item_list)| {
+                // Set quickfix insertion offset at the beginning of the associated items list.
+                let insert_offset = analysis_utils::assoc_item_insert_offset_start(&assoc_item_list);
+                // Set quickfix insertion indent.
+                let indent = analysis_utils::item_children_indenting(impl_item.syntax());
+
+                vec![
+                    Action {
+                        label: "Add ink! constructor `fn`.".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert_with_snippet(
+                            analysis_utils::apply_indenting(CONSTRUCTOR_PLAIN, &indent),
+                            insert_offset,
+                            Some(analysis_utils::apply_indenting(
+                                CONSTRUCTOR_SNIPPET,
+                                &indent,
+                            )),
+                        )],
+                    },
+                    Action {
+                        label: "Add ink! message `fn`.".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert_with_snippet(
+                            analysis_utils::apply_indenting(MESSAGE_PLAIN, &indent),
+                            insert_offset,
+                            Some(analysis_utils::apply_indenting(MESSAGE_SNIPPET, &indent)),
+                        )],
+                    },
+                ]
+            }),
     })
 }
 
@@ -209,6 +323,18 @@ where
         ),
         range: item.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: ink_impl
+            .impl_item()
+            .and_then(|it| it.assoc_item_list())
+            .map(|assoc_item_list| {
+                // Moves the item to the root of the `impl` block.
+                vec![Action::move_item(
+                    item.syntax(),
+                    analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
+                    "Move item to the root of the ink! contract's `impl` block.".to_string(),
+                    Some(analysis_utils::item_children_indenting(ink_impl.syntax()).as_str()),
+                )]
+            }),
     })
 }
 

@@ -51,6 +51,11 @@ impl InkImpl {
         ast::Impl::cast(self.syntax.clone())
     }
 
+    /// Returns the trait type (if any) for the ink! impl.
+    pub fn trait_type(&self) -> Option<ast::Type> {
+        self.impl_item().and_then(|impl_item| impl_item.trait_())
+    }
+
     /// Returns the ink! impl attribute (if any).
     pub fn impl_attr(&self) -> Option<InkAttribute> {
         self.tree()

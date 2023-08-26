@@ -8,12 +8,14 @@ pub use completions::Completion;
 pub use diagnostics::{Diagnostic, Severity};
 pub use hover::Hover;
 pub use inlay_hints::InlayHint;
+pub use text_edit::TextEdit;
 
 mod actions;
 mod completions;
 mod diagnostics;
 mod hover;
 mod inlay_hints;
+mod snippets;
 mod text_edit;
 mod utils;
 

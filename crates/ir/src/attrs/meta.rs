@@ -1,6 +1,7 @@
 //! ink! attribute meta item IR.
 
 use ra_ap_syntax::{AstToken, SyntaxElement, TextRange, TextSize};
+use std::fmt;
 
 pub use name::MetaName;
 pub use option::MetaOption;
@@ -125,6 +126,21 @@ impl MetaNameValue {
         TextRange::new(
             start.unwrap_or(self.offset),
             end.unwrap_or(self.offset + TextSize::from(1)),
+        )
+    }
+}
+
+impl fmt::Display for MetaNameValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}{}",
+            self.name,
+            match self.eq {
+                Some(_) => "=",
+                None => "",
+            },
+            self.value
         )
     }
 }

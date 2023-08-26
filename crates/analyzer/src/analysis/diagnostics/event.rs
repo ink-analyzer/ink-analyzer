@@ -6,7 +6,8 @@ use ink_analyzer_ir::{
 };
 
 use super::{topic, utils};
-use crate::{Diagnostic, Severity};
+use crate::analysis::text_edit::TextEdit;
+use crate::{Action, Diagnostic, Severity};
 
 const EVENT_SCOPE_NAME: &str = "event";
 
@@ -63,6 +64,11 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
                 .to_string(),
             range: generics.syntax().text_range(),
             severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: "Remove generic types.".to_string(),
+                range: generics.syntax().text_range(),
+                edits: vec![TextEdit::delete(generics.syntax().text_range())],
+            }]),
         })
 }
 
@@ -70,15 +76,16 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L126-L139>.
 fn ensure_only_ink_topic_descendants(results: &mut Vec<Diagnostic>, item: &Event) {
-    item.tree().ink_attrs_descendants().for_each(|attr| {
+    for attr in item.tree().ink_attrs_descendants() {
         if *attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic) {
             results.push(Diagnostic {
                 message: format!("`{}` can't be used inside an ink! event.", attr.syntax()),
                 range: attr.syntax().text_range(),
                 severity: Severity::Error,
+                quickfixes: Some(vec![Action::remove_attribute(&attr)]),
             });
         }
-    });
+    }
 }
 
 /// Ensures that ink! event fields are not annotated with cfg attributes.
@@ -92,11 +99,15 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
                     if let Some(path) = attr.path() {
                         if path.to_string() == "cfg" {
                             results.push(Diagnostic {
-                                message: format!(
-                                    "`{attr}` attributes on event fields are not supported."
-                                ),
+                                message: "`cfg` attributes on event fields are not supported."
+                                    .to_string(),
                                 range: attr.syntax().text_range(),
                                 severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: format!("Remove `{attr}` attribute."),
+                                    range: attr.syntax().text_range(),
+                                    edits: vec![TextEdit::delete(attr.syntax().text_range())],
+                                }]),
                             });
                         }
                     }

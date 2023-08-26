@@ -20,6 +20,8 @@
 use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::InkFile;
 
+use crate::Action;
+
 mod file;
 mod utils;
 
@@ -46,6 +48,8 @@ pub struct Diagnostic {
     pub range: TextRange,
     /// The severity level of the diagnostic.
     pub severity: Severity,
+    /// Quickfixes (suggested edits/actions) for the diagnostic (if any).
+    pub quickfixes: Option<Vec<Action>>,
 }
 
 /// The severity level of a diagnostic.

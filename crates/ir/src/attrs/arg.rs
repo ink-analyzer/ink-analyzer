@@ -58,6 +58,12 @@ impl InkArg {
     }
 }
 
+impl fmt::Display for InkArg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.meta.fmt(f)
+    }
+}
+
 /// The ink! attribute argument kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]

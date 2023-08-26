@@ -8,6 +8,7 @@ It therefore implements the core functionality of ink! analyzer at a high level.
 It currently implements an [Analysis](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis.rs) entry point that accepts a string representation (`&str`) of ink! smart contract code as input and defines associated methods that compute:
 
 - [diagnostics](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/diagnostics.rs) - errors and warnings based on ink! semantic rules.
+- [quickfixes](/crates/analyzer/src/analysis/diagnostics.rs) - suggested edits/code actions for diagnostic errors and warnings.
 - [completions](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros and arguments.
 - [code/intent actions](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros and arguments.
 - [hover content](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/hover.rs) - descriptive/informational text for ink! attribute macros and arguments.

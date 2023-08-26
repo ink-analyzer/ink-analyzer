@@ -1,10 +1,13 @@
 //! ink! message diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
+use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{ast, IsInkFn, Message};
 
 use super::utils;
-use crate::{Diagnostic, Severity};
+use crate::analysis::text_edit::TextEdit;
+use crate::analysis::utils as analysis_utils;
+use crate::{Action, Diagnostic, Severity};
 
 const MESSAGE_SCOPE_NAME: &str = "message";
 
@@ -72,11 +75,39 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
     (!has_self_ref_receiver).then_some(Diagnostic {
         message: "ink! message must have a self reference receiver (i.e `&self` or `&mut self`)."
             .to_string(),
-        range: match marker_token {
-            Some(token) => token.text_range(),
-            None => fn_item.syntax().text_range(),
-        },
+        range: marker_token
+            .as_ref()
+            .unwrap_or(fn_item.syntax())
+            .text_range(),
         severity: Severity::Error,
+        quickfixes: fn_item
+            .param_list()
+            .and_then(|param_list| param_list.l_paren_token())
+            .map(|it| it.text_range().end())
+            .map(|insert_offset| {
+                let has_more_params = fn_item
+                    .param_list()
+                    .map_or(false, |param_list| param_list.params().next().is_some());
+                let insert_suffix = if has_more_params { ", " } else { "" };
+                vec![
+                    Action {
+                        label: "Add immutable self reference receiver".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert(
+                            format!("&self{insert_suffix}"),
+                            insert_offset,
+                        )],
+                    },
+                    Action {
+                        label: "Add mutable self reference receiver".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert(
+                            format!("&mut self{insert_suffix}"),
+                            insert_offset,
+                        )],
+                    },
+                ]
+            }),
     })
 }
 
@@ -87,10 +118,17 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L152-L174>.
 fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
     let return_type = fn_item.ret_type()?.ty()?;
+    // Edit range for quickfix.
+    let range = analysis_utils::node_and_trivia_range(fn_item.ret_type()?.syntax());
     (return_type.to_string() == "Self").then_some(Diagnostic {
         message: "ink! message must not return `Self`.".to_string(),
         range: return_type.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: Some(vec![Action {
+            label: "Remove `Self` return type.".to_string(),
+            range,
+            edits: vec![TextEdit::delete(range)],
+        }]),
     })
 }
 

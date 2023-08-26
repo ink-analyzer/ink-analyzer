@@ -1,14 +1,16 @@
 //! Utilities for ink! analysis.
 
 use either::Either;
-use ink_analyzer_ir::ast::HasDocComments;
+use ink_analyzer_ir::ast::{HasDocComments, HasModuleItem, HasName};
 use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 use ink_analyzer_ir::{
-    ast, FromAST, FromSyntax, HasParent, InkArgKind, InkArgValueKind, InkArgValueStringKind,
-    InkAttribute, InkAttributeKind, InkMacroKind, IsInkEntity,
+    ast, Contract, FromAST, FromSyntax, HasParent, InkArg, InkArgKind, InkArgValueKind,
+    InkArgValueStringKind, InkAttribute, InkAttributeKind, InkImpl, InkMacroKind, IsInkEntity,
+    IsInkStruct, Storage,
 };
+use std::collections::HashSet;
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
 ///
@@ -465,8 +467,8 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
 /// (i.e for `selector`, we return `"selector="` while for `payable`, we simply return `"payable"`)
 pub fn ink_arg_insertion_text(
     arg_kind: InkArgKind,
-    insert_offset: TextSize,
-    parent_node: &SyntaxNode,
+    insert_offset_option: Option<TextSize>,
+    parent_attr_option: Option<&SyntaxNode>,
 ) -> (String, Option<String>) {
     // Determines whether or not to insert the `=` symbol after the ink! attribute argument name.
     let insert_equal_token = match InkArgValueKind::from(arg_kind) {
@@ -474,31 +476,36 @@ pub fn ink_arg_insertion_text(
         InkArgValueKind::None => false,
         // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
         // the next closest non-trivia token after the insertion offset.
-        _ => parent_node
-            .token_at_offset(insert_offset)
-            .right_biased()
-            .and_then(|token| {
-                // Finds the next non-trivia token.
-                let is_next_non_trivia_token = |subject: &SyntaxToken| {
-                    subject.text_range().start() >= insert_offset && !subject.kind().is_trivia()
-                };
-                let next_non_trivia_token = if is_next_non_trivia_token(&token) {
-                    Some(token)
-                } else {
-                    ink_analyzer_ir::closest_item_which(
-                        &token,
-                        SyntaxToken::next_token,
-                        is_next_non_trivia_token,
-                        is_next_non_trivia_token,
-                    )
-                };
-                next_non_trivia_token.map(|next_token| match next_token.kind() {
-                    SyntaxKind::EQ => false,
-                    // Adds an `=` symbol only if the next closest non-trivia token is not an `=` symbol.
-                    _ => true,
-                })
+        _ => parent_attr_option
+            .zip(insert_offset_option)
+            .and_then(|(parent_node, insert_offset)| {
+                parent_node
+                    .token_at_offset(insert_offset)
+                    .right_biased()
+                    .and_then(|token| {
+                        // Finds the next non-trivia token.
+                        let is_next_non_trivia_token = |subject: &SyntaxToken| {
+                            subject.text_range().start() >= insert_offset
+                                && !subject.kind().is_trivia()
+                        };
+                        let next_non_trivia_token = if is_next_non_trivia_token(&token) {
+                            Some(token)
+                        } else {
+                            ink_analyzer_ir::closest_item_which(
+                                &token,
+                                SyntaxToken::next_token,
+                                is_next_non_trivia_token,
+                                is_next_non_trivia_token,
+                            )
+                        };
+                        next_non_trivia_token.map(|next_token| match next_token.kind() {
+                            SyntaxKind::EQ => false,
+                            // Adds an `=` symbol only if the next closest non-trivia token is not an `=` symbol.
+                            _ => true,
+                        })
+                    })
             })
-            // Defaults to adding the `=` symbol if the next closest non-trivia token couldn't be determined.
+            // Defaults to inserting the `=` symbol (e.g. if either parent attribute is `None` or the next closest non-trivia token can't be determined).
             .unwrap_or(true),
     };
     let text = format!("{arg_kind}{}", if insert_equal_token { " = " } else { "" });
@@ -525,7 +532,7 @@ pub fn ink_arg_insertion_text(
 pub fn ink_attribute_insertion_offset_and_affixes(
     parent_ast_node: Either<&ast::Item, &ast::RecordField>,
 ) -> (TextSize, Option<String>, Option<String>) {
-    // Retrieves the parent syntax node and it's the last attribute or doc comment (if any).
+    // Retrieves the parent syntax node and it's last attribute or doc comment (if any).
     let (parent_syntax_node, last_attr_or_doc_comment) = match parent_ast_node {
         Either::Left(ast_item) => (ast_item.syntax(), ast_item.doc_comments_and_attrs().last()),
         Either::Right(record_field) => (
@@ -701,6 +708,89 @@ pub fn ink_arg_insertion_offset_and_affixes(
     })
 }
 
+/// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for the first ink! attribute.
+pub fn first_ink_attribute_insertion_offset_and_affixes(
+    node: &SyntaxNode,
+) -> (TextSize, Option<String>, Option<String>) {
+    let mut ink_attrs: Vec<InkAttribute> = ink_analyzer_ir::ink_attrs(node).collect();
+    ink_attrs.sort_by(|a, b| {
+        b.syntax()
+            .text_range()
+            .start()
+            .cmp(&a.syntax().text_range().start())
+    });
+    (
+        ink_attrs
+            .first()
+            .map(|it| it.syntax().text_range())
+            .unwrap_or(node.text_range())
+            .start(),
+        None,
+        item_indenting(node).map(|indent| format!("\n{indent}")),
+    )
+}
+
+/// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for the first ink! attribute argument.
+pub fn first_ink_arg_insertion_offset_and_affixes(
+    ink_attr: &InkAttribute,
+) -> Option<(TextSize, Option<String>, Option<String>)> {
+    ink_attr
+        .args()
+        .first()
+        .map(|arg| {
+            // Insert before the first argument (if present).
+            (
+                arg.text_range().start(),
+                None,
+                if ink_attr.args().len() > 1 {
+                    Some(", ".to_string())
+                } else {
+                    None
+                },
+            )
+        })
+        .or(ink_attr
+            .ast()
+            .token_tree()
+            .as_ref()
+            .and_then(|token_tree| Some(token_tree).zip(token_tree.l_paren_token()))
+            .map(|(token_tree, l_paren)| {
+                // Otherwise, insert after left parenthesis (if present).
+                (
+                    l_paren.text_range().end(),
+                    None,
+                    match token_tree.r_paren_token() {
+                        Some(_) => None,
+                        None => Some(")".to_string()),
+                    },
+                )
+            }))
+        .or(ink_attr
+            .ast()
+            .token_tree()
+            .as_ref()
+            .and_then(|token_tree| Some(token_tree).zip(token_tree.r_paren_token()))
+            .map(|(token_tree, r_paren)| {
+                // Otherwise, insert before right parenthesis (if present).
+                (
+                    r_paren.text_range().start(),
+                    match token_tree.l_paren_token() {
+                        Some(_) => None,
+                        None => Some("(".to_string()),
+                    },
+                    None,
+                )
+            }))
+        .or(ink_attr.ast().r_brack_token().map(|r_bracket| {
+            // Otherwise, insert before right bracket (if present).
+            (
+                r_bracket.text_range().start(),
+                Some("(".to_string()),
+                Some(")".to_string()),
+            )
+        }))
+}
+
 /// Returns the indenting (preceding whitespace) of the syntax node.
 pub fn item_indenting(node: &SyntaxNode) -> Option<String> {
     node.prev_sibling_or_token().and_then(|prev_elem| {
@@ -713,6 +803,13 @@ pub fn item_indenting(node: &SyntaxNode) -> Option<String> {
                 .collect::<String>(),
         )
     })
+}
+
+/// Returns appropriate indenting (preceding whitespace) for the syntax node's children.
+pub fn item_children_indenting(node: &SyntaxNode) -> String {
+    item_indenting(node)
+        .and_then(|ident| (!ident.is_empty()).then_some(format!("{ident}{ident}")))
+        .unwrap_or("    ".to_string())
 }
 
 /// Returns the deepest syntax element that fully covers text range (if any).
@@ -784,4 +881,316 @@ pub fn parent_ast_item<T: FromSyntax>(item: &T, range: TextRange) -> Option<ast:
             }
         })
     }
+}
+
+/// Returns text range of the syntax token and it's immediate (next) trivia (whitespace and comments).
+pub fn token_and_trivia_range(token: &SyntaxToken) -> TextRange {
+    TextRange::new(
+        token.text_range().start(),
+        // Either the start of the next non-trivia token or the end of the target token.
+        ink_analyzer_ir::closest_non_trivia_token(token, |subject| subject.next_token())
+            .map_or(token.text_range().end(), |it| it.text_range().start()),
+    )
+}
+
+/// Returns text range of the syntax node and it's immediate (next) trivia (whitespace and comments).
+pub fn node_and_trivia_range(node: &SyntaxNode) -> TextRange {
+    TextRange::new(
+        node.text_range().start(),
+        // Either the start of the next non-trivia token or the end of the target node.
+        ink_analyzer_ir::last_child_token(node)
+            .as_ref()
+            .map_or(node.text_range(), token_and_trivia_range)
+            .end(),
+    )
+}
+
+/// Returns text range of the syntax token and it's immediate (next) delimiter (e.g comma - ",").
+pub fn token_and_delimiter_range(token: &SyntaxToken, delimiter: SyntaxKind) -> TextRange {
+    TextRange::new(
+        token.text_range().start(),
+        // Either the end of the next delimiter token or the end of the target token.
+        ink_analyzer_ir::closest_item_which(
+            token,
+            |subject| subject.next_token(),
+            |subject| subject.kind() == delimiter,
+            |subject| !subject.kind().is_trivia(),
+        )
+        .map_or(token.text_range(), |it| it.text_range())
+        .end(),
+    )
+}
+
+/// Returns text range of the syntax node and it's immediate (next) delimiter (e.g comma - ",").
+pub fn node_and_delimiter_range(node: &SyntaxNode, delimiter: SyntaxKind) -> TextRange {
+    TextRange::new(
+        node.text_range().start(),
+        // Either the end of the next delimiter token or the end of the target token.
+        ink_analyzer_ir::last_child_token(node)
+            .as_ref()
+            .map(|token| token_and_delimiter_range(token, delimiter))
+            .unwrap_or(node.text_range())
+            .end(),
+    )
+}
+
+/// Returns text range of the ink! attribute argument and it's immediate (next) delimiter (i.e comma - ",").
+pub fn ink_arg_and_delimiter_removal_range(
+    arg: &InkArg,
+    parent_attr_option: Option<&InkAttribute>,
+) -> TextRange {
+    // Gets the last token of the ink! attribute argument (if any).
+    let last_token_option = arg
+        .meta()
+        // Argument value.
+        .value()
+        .option()
+        .and_then(|result| {
+            match result {
+                Ok(value) => value.elements(),
+                Err(elements) => elements,
+            }
+            .last()
+        })
+        .and_then(|elem| match elem {
+            SyntaxElement::Node(node) => ink_analyzer_ir::last_child_token(node),
+            SyntaxElement::Token(token) => Some(token.clone()),
+        })
+        // Equal token ("=") if no value is present.
+        .or(arg.meta().eq().map(|eq| eq.syntax().clone()))
+        // Argument name if no value nor equal symbol is present.
+        .or(arg.meta().name().option().and_then(|result| match result {
+            Ok(name) => Some(name.syntax().clone()),
+            Err(elements) => elements.last().and_then(|elem| match elem {
+                SyntaxElement::Node(node) => ink_analyzer_ir::last_child_token(node),
+                SyntaxElement::Token(token) => Some(token.clone()),
+            }),
+        }));
+
+    // Returns the text range for the whole attribute if the ink! attribute argument represents the entire attribute.
+    if let Some(attr) = parent_attr_option.cloned().or(last_token_option
+        .as_ref()
+        .and_then(|token| {
+            ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxToken, ast::Attr>(token)
+        })
+        .and_then(InkAttribute::cast))
+    {
+        if matches!(attr.kind(), InkAttributeKind::Arg(_)) && attr.args().len() == 1 {
+            return attr.syntax().text_range();
+        }
+    }
+
+    // Returns the text range of attribute argument + delimiter (if any) .
+    TextRange::new(
+        arg.text_range().start(),
+        // Either the end of the next delimiter token or the end of the ink! attribute argument.
+        last_token_option
+            .as_ref()
+            .map(|token| token_and_delimiter_range(token, SyntaxKind::COMMA))
+            .unwrap_or(arg.text_range())
+            .end(),
+    )
+}
+
+/// Returns the offset for the beginning of an item list (e.g body of an AST item - i.e `mod` e.t.c.)
+pub fn item_insert_offset_start(item_list: &ast::ItemList) -> TextSize {
+    item_list
+        .l_curly_token()
+        .map(|it| it.text_range().end())
+        .or(item_list
+            .items()
+            .next()
+            .map(|it| it.syntax().text_range().start()))
+        .unwrap_or(item_list.syntax().text_range().start())
+}
+
+/// Returns the offset for the end of an item list (e.g body of an AST item - i.e `mod` e.t.c.)
+pub fn item_insert_offset_end(item_list: &ast::ItemList) -> TextSize {
+    item_list
+        .r_curly_token()
+        .map(|it| it.text_range().start())
+        .or(item_list
+            .items()
+            .last()
+            .map(|it| it.syntax().text_range().end()))
+        .unwrap_or(item_list.syntax().text_range().end())
+}
+
+/// Returns the offset after the end of the last struct (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c.).
+/// Defaults to the beginning of the item list if no structs are present.
+pub fn item_insert_offset_after_last_struct_or_start(item_list: &ast::ItemList) -> TextSize {
+    item_list
+        .items()
+        .filter(|it| matches!(it, ast::Item::Struct(_)))
+        .last()
+        .map(|it| it.syntax().text_range().end())
+        .unwrap_or(item_insert_offset_start(item_list))
+}
+
+/// Returns the offset for inserting an item into an item list (e.g body of an AST item - i.e `mod` e.t.c.) based on the ink! entity name.
+pub fn item_insert_offset_by_scope_name(
+    item_list: &ast::ItemList,
+    ink_scope_name: &str,
+) -> TextSize {
+    match ink_scope_name {
+        // ink! storage is inserted at the beginning of the item list.
+        "storage" => item_insert_offset_start(item_list),
+        // ink! events are inserted either after the last `struct` (if any) or at the beginning of the item list.
+        "event" => item_insert_offset_after_last_struct_or_start(item_list),
+        // Everything else is inserted at the end of the item list.
+        _ => item_insert_offset_end(item_list),
+    }
+}
+
+/// Returns the offset for the beginning of an associated item list (e.g body of an AST item - i.e `fn`, `trait` e.t.c.)
+pub fn assoc_item_insert_offset_start(assoc_item_list: &ast::AssocItemList) -> TextSize {
+    assoc_item_list
+        .l_curly_token()
+        .map(|it| it.text_range().end())
+        .or(assoc_item_list
+            .assoc_items()
+            .next()
+            .map(|it| it.syntax().text_range().start()))
+        .unwrap_or(assoc_item_list.syntax().text_range().start())
+}
+
+/// Returns the offset for the end of an associated item list (e.g body of an AST item - i.e `fn`, `trait` e.t.c.)
+pub fn assoc_item_insert_offset_end(assoc_item_list: &ast::AssocItemList) -> TextSize {
+    assoc_item_list
+        .r_curly_token()
+        .map(|it| it.text_range().start())
+        .or(assoc_item_list
+            .assoc_items()
+            .last()
+            .map(|it| it.syntax().text_range().end()))
+        .unwrap_or(assoc_item_list.syntax().text_range().end())
+}
+
+/// Returns an offset, indenting and affixes (prefix and suffix) for inserting a ink! callable into the contract (i.e ink! constructor or ink! message)
+pub fn callable_insert_offset_indent_and_affixes(
+    contract: &Contract,
+) -> Option<(TextSize, String, Option<String>, Option<String>)> {
+    contract
+        .impls()
+        .iter()
+        .find(|it| it.trait_type().is_none())
+        .and_then(InkImpl::impl_item)
+        .as_ref()
+        .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
+        .map(|(impl_item, assoc_item_list)| {
+            // Sets insert offset at the end of the associated items list, insert indent based on `impl` block with no affixes.
+            (
+                assoc_item_insert_offset_end(&assoc_item_list),
+                item_children_indenting(impl_item.syntax()),
+                None,
+                None,
+            )
+        })
+        .or(contract
+            .module()
+            .and_then(|mod_item| Some(mod_item).zip(mod_item.item_list()))
+            .and_then(|(mod_item, item_list)| {
+                // Resolves the contract name (if possible).
+                resolve_contract_name(contract).map(|name| {
+                    // Sets insert offset at the end of the associated items list, insert indent based on contract `mod` block
+                    // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
+                    let indent = item_children_indenting(mod_item.syntax());
+                    let prefix = format!("\n\n{indent}impl {} {{", name);
+                    let suffix = format!("\n{indent}}}");
+                    (
+                        item_insert_offset_end(&item_list),
+                        format!("{indent}    "),
+                        Some(prefix),
+                        Some(suffix),
+                    )
+                })
+            }))
+}
+
+/// Returns the "resolved" contract name.
+///
+/// NOTE: Either reads it directly from the ink! storage `struct` (if present),
+/// or returns the name of the ink! contract `mod` in pascal case (i.e. UpperCamelCase).
+pub fn resolve_contract_name(contract: &Contract) -> Option<String> {
+    contract
+        .storage()
+        .and_then(Storage::struct_item)
+        .and_then(HasName::name)
+        .as_ref()
+        .map(ToString::to_string)
+        .or(contract
+            .module()
+            .and_then(HasName::name)
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref()
+            .map(pascal_case))
+}
+
+/// Converts a name to Pascal case (i.e. UpperCamelCase).
+///
+/// Ref: <https://github.com/serde-rs/serde/blob/dad15b9fd0bef97b7a7c90a8a165b6ffbc682cae/serde_derive/src/internals/case.rs#L86-L100>.
+fn pascal_case(field: &str) -> String {
+    let mut pascal = String::new();
+    let mut capitalize = true;
+    for ch in field.chars() {
+        if ch == '_' {
+            capitalize = true;
+        } else if capitalize {
+            pascal.push(ch.to_ascii_uppercase());
+            capitalize = false;
+        } else {
+            pascal.push(ch);
+        }
+    }
+    pascal
+}
+
+/// Applies indenting to a snippet.
+pub fn apply_indenting(input: &str, indent: &str) -> String {
+    if !indent.is_empty() {
+        let mut output = String::new();
+        for line in input.to_string().lines() {
+            output.push('\n');
+            if !line.is_empty() {
+                output.push_str(indent);
+                output.push_str(line);
+            }
+        }
+        output
+    } else {
+        input.to_string()
+    }
+}
+
+/// Reduces indenting for a snippet.
+pub fn reduce_indenting(input: &str, indent: &str) -> String {
+    if !indent.is_empty() {
+        let mut output = String::new();
+        for line in input.to_string().lines() {
+            output.push('\n');
+            if !line.is_empty() {
+                // Removes indent if it's a prefix of the current line.
+                output.push_str(line.strip_prefix(indent).unwrap_or(line));
+            }
+        }
+        output
+    } else {
+        input.to_string()
+    }
+}
+
+/// Suggests a unique/unused id for an extension method.
+pub fn suggest_unique_id(preferred_id: Option<u32>, unavailable_ids: &mut HashSet<u32>) -> u32 {
+    // Finds a unique/unused id.
+    let mut suggested_id = preferred_id.unwrap_or(1);
+    while unavailable_ids.contains(&suggested_id) {
+        suggested_id += 1;
+    }
+
+    // Makes the id unavailable for future calls to this method.
+    unavailable_ids.insert(suggested_id);
+
+    // Returns the unique id.
+    suggested_id
 }

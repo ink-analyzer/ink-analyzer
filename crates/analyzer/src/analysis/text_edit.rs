@@ -23,8 +23,13 @@ impl TextEdit {
         }
     }
 
-    /// Creates a text edit for an inserting at the given offset.
-    pub fn insert(text: String, offset: TextSize, snippet: Option<String>) -> Self {
+    /// Creates text edit for inserting at the given offset.
+    pub fn insert(text: String, offset: TextSize) -> Self {
+        Self::insert_with_snippet(text, offset, None)
+    }
+
+    /// Creates text edit for inserting at the given offset (including an optional snippet).
+    pub fn insert_with_snippet(text: String, offset: TextSize, snippet: Option<String>) -> Self {
         Self {
             text,
             range: TextRange::new(offset, offset),
@@ -32,8 +37,13 @@ impl TextEdit {
         }
     }
 
-    /// Creates replacing the given range (alias of new).
-    pub fn replace(text: String, range: TextRange, snippet: Option<String>) -> Self {
+    /// Creates text edit for replacing the given range.
+    pub fn replace(text: String, range: TextRange) -> Self {
+        Self::replace_with_snippet(text, range, None)
+    }
+
+    /// Creates text edit for replacing the given range (including an optional snippet) - i.e an alias of [`Self::new`].
+    pub fn replace_with_snippet(text: String, range: TextRange, snippet: Option<String>) -> Self {
         Self::new(text, range, snippet)
     }
 

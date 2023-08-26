@@ -1,13 +1,17 @@
 //! ink! trait definition diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
+use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{
     ast, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, IsInkTrait, Message,
     TraitDefinition,
 };
 
 use super::{message, utils};
-use crate::{Diagnostic, Severity};
+use crate::analysis::snippets::{TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET};
+use crate::analysis::text_edit::TextEdit;
+use crate::analysis::utils as analysis_utils;
+use crate::{Action, Diagnostic, Severity};
 
 const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
 
@@ -79,10 +83,41 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                 // Runs ink! message diagnostics, see `message::diagnostics` doc.
                 message::diagnostics(results, &message_item);
             } else {
+                // Determines the insertion offset and affixes for the quickfix.
+                let (insert_offset, insert_prefix, insert_suffix) =
+                    analysis_utils::first_ink_attribute_insertion_offset_and_affixes(
+                        fn_item.syntax(),
+                    );
                 results.push(Diagnostic {
                     message: "All ink! trait definition methods must be ink! messages.".to_string(),
                     range: fn_item.syntax().text_range(),
                     severity: Severity::Error,
+                    quickfixes: Some(vec![Action {
+                        label: "Add ink! message attribute.".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: [TextEdit::insert(
+                            format!(
+                                "{}#[ink(message)]{}",
+                                insert_prefix.as_deref().unwrap_or_default(),
+                                insert_suffix.as_deref().unwrap_or_default()
+                            ),
+                            insert_offset,
+                        )]
+                        .into_iter()
+                        .chain(
+                            ink_analyzer_ir::ink_attrs(fn_item.syntax()).filter_map(|attr| {
+                                (!matches!(
+                                    attr.kind(),
+                                    InkAttributeKind::Arg(InkArgKind::Message)
+                                        | InkAttributeKind::Arg(InkArgKind::Default)
+                                        | InkAttributeKind::Arg(InkArgKind::Payable)
+                                        | InkAttributeKind::Arg(InkArgKind::Selector)
+                                ))
+                                .then_some(TextEdit::delete(attr.syntax().text_range()))
+                            }),
+                        )
+                        .collect(),
+                    }]),
                 });
             }
 
@@ -93,6 +128,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                 for arg in attr.args().iter() {
                     if let Some(value) = arg.value() {
                         if value.is_wildcard() {
+                            // Edit range for quickfix.
+                            let range = analysis_utils::ink_arg_and_delimiter_removal_range(
+                                arg,
+                                Some(&attr),
+                            );
                             results.push(Diagnostic {
                                 message:
                                 "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
@@ -100,6 +140,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                                     .to_string(),
                                 range: arg.text_range(),
                                 severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: "Remove wildcard selector.".to_string(),
+                                    range,
+                                    edits: vec![TextEdit::delete(range)],
+                                }]),
                             });
                         }
                     }
@@ -112,6 +157,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                     .to_string(),
                 range: type_alias.syntax().text_range(),
                 severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: "Remove associated type.".to_string(),
+                    range: type_alias.syntax().text_range(),
+                    edits: vec![TextEdit::delete(type_alias.syntax().text_range())],
+                }]),
             });
         },
     );
@@ -128,6 +178,29 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
                 .to_string(),
             range: trait_definition.syntax().text_range(),
             severity: Severity::Error,
+            quickfixes: trait_definition
+                .trait_item()
+                .and_then(|trait_item| Some(trait_item).zip(trait_item.assoc_item_list()))
+                .map(|(trait_item, assoc_item_list)| {
+                    // Set quickfix insertion offset at the beginning of the associated items list.
+                    let insert_offset =
+                        analysis_utils::assoc_item_insert_offset_start(&assoc_item_list);
+                    // Set quickfix insertion indent.
+                    let indent = analysis_utils::item_children_indenting(trait_item.syntax());
+
+                    vec![Action {
+                        label: "Add ink! message `fn`.".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert_with_snippet(
+                            analysis_utils::apply_indenting(TRAIT_MESSAGE_PLAIN, &indent),
+                            insert_offset,
+                            Some(analysis_utils::apply_indenting(
+                                TRAIT_MESSAGE_SNIPPET,
+                                &indent,
+                            )),
+                        )],
+                    }]
+                }),
         },
     )
 }

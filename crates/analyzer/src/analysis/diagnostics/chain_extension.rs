@@ -1,14 +1,19 @@
 //! ink! chain extension diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasName};
+use ink_analyzer_ir::meta::MetaValue;
+use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{
-    ast, ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind,
-    IsInkTrait,
+    ast, ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArg, InkArgKind,
+    InkAttributeKind, IsInkTrait,
 };
 use std::collections::HashSet;
 
 use super::{extension, utils};
-use crate::{Diagnostic, Severity};
+use crate::analysis::snippets::{ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET};
+use crate::analysis::text_edit::TextEdit;
+use crate::analysis::utils as analysis_utils;
+use crate::{Action, Diagnostic, Severity};
 
 const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 
@@ -66,6 +71,8 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
 /// This utility also runs `extension::diagnostics` on trait methods with a ink! extension attribute.
 fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
+    // Tracks already used and suggested ids for quickfixes.
+    let mut unavailable_ids = init_unavailable_ids(chain_extension);
     if let Some(trait_item) = chain_extension.trait_item() {
         utils::ensure_trait_item_invariants(
             results,
@@ -79,12 +86,50 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                     // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
                     Some(extension_item) => extension::diagnostics(results, &extension_item),
                     // Add diagnostic if method isn't an ink! extension.
-                    None => results.push(Diagnostic {
-                        message: "All ink! chain extension methods must be ink! extensions."
-                            .to_string(),
-                        range: fn_item.syntax().text_range(),
-                        severity: Severity::Error,
-                    }),
+                    None => {
+                        // Determines quickfix insertion offset and affixes.
+                        let (insert_offset, insert_prefix, insert_suffix) =
+                            analysis_utils::first_ink_attribute_insertion_offset_and_affixes(
+                                fn_item.syntax(),
+                            );
+                        let suggested_id =
+                            analysis_utils::suggest_unique_id(Some(1), &mut unavailable_ids);
+                        results.push(Diagnostic {
+                            message: "All ink! chain extension methods must be ink! extensions."
+                                .to_string(),
+                            range: fn_item.syntax().text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: "Add ink! extension attribute.".to_string(),
+                                range: TextRange::new(insert_offset, insert_offset),
+                                edits: [TextEdit::insert_with_snippet(
+                                    format!(
+                                        "{}#[ink(extension={suggested_id})]{}",
+                                        insert_prefix.as_deref().unwrap_or_default(),
+                                        insert_suffix.as_deref().unwrap_or_default()
+                                    ),
+                                    insert_offset,
+                                    Some(format!(
+                                        "{}#[ink(extension=${{1:{suggested_id}}})]{}",
+                                        insert_prefix.as_deref().unwrap_or_default(),
+                                        insert_suffix.as_deref().unwrap_or_default()
+                                    )),
+                                )]
+                                .into_iter()
+                                .chain(ink_analyzer_ir::ink_attrs(fn_item.syntax()).filter_map(
+                                    |attr| {
+                                        (!matches!(
+                                            attr.kind(),
+                                            InkAttributeKind::Arg(InkArgKind::Extension)
+                                                | InkAttributeKind::Arg(InkArgKind::HandleStatus)
+                                        ))
+                                        .then_some(TextEdit::delete(attr.syntax().text_range()))
+                                    },
+                                ))
+                                .collect(),
+                            }]),
+                        })
+                    }
                 }
             },
             |results, type_alias| {
@@ -97,14 +142,23 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
 
                 if !is_named_error_code {
                     results.push(Diagnostic {
-                        message:
-                        "The associated type of a ink! chain extension must be named `ErrorCode`."
+                        message: "The associated type of a ink! chain extension must be named `ErrorCode`."
                             .to_string(),
                         range: name_marker
                             .as_ref()
                             .map_or(trait_item.syntax(), AstNode::syntax)
                             .text_range(),
                         severity: Severity::Error,
+                        quickfixes: name_marker.as_ref().map(|name| {
+                            vec![Action {
+                                label: "Rename associated type to `ErrorCode`.".to_string(),
+                                range: name.syntax().text_range(),
+                                edits: vec![TextEdit::replace(
+                                    "ErrorCode".to_string(),
+                                    name.syntax().text_range(),
+                                )],
+                            }]
+                        }),
                     });
                 }
 
@@ -122,11 +176,38 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                 }
 
                 if type_alias.ty().is_none() {
+                    // Get the insert offset and affixes for the quickfix.
+                    let insert_offset = type_alias
+                        .eq_token()
+                        .map(|it| it.text_range().end())
+                        .or(type_alias
+                            .semicolon_token()
+                            .map(|it| it.text_range().start()))
+                        .unwrap_or(type_alias.syntax().text_range().start());
+                    let insert_prefix = if type_alias.eq_token().is_none() {
+                        " = "
+                    } else {
+                        ""
+                    };
+                    let insert_suffix = if type_alias.semicolon_token().is_none() {
+                        ";"
+                    } else {
+                        ""
+                    };
                     results.push(Diagnostic {
                         message: "ink! chain extension `ErrorCode` types must have a default type."
                             .to_string(),
                         range: type_alias.syntax().text_range(),
                         severity: Severity::Error,
+                        quickfixes: Some(vec![Action {
+                            label: "Add `ErrorCode` default type.".to_string(),
+                            range: TextRange::new(insert_offset, insert_offset),
+                            edits: vec![TextEdit::insert_with_snippet(
+                                format!("{insert_prefix}(){insert_suffix}"),
+                                insert_offset,
+                                Some(format!("{insert_prefix}${{1:()}}{insert_suffix}")),
+                            )],
+                        }]),
                     });
                 }
             },
@@ -157,12 +238,26 @@ fn ensure_error_code_type_quantity(
                 .collect();
 
             if error_codes.is_empty() {
+                // Set quickfix insertion offset at the beginning of the associated items list.
+                let insert_offset =
+                    analysis_utils::assoc_item_insert_offset_start(&assoc_item_list);
+                // Set quickfix insertion indent.
+                let indent = analysis_utils::item_children_indenting(trait_item.syntax());
                 // Creates diagnostic and quickfix for missing `ErrorCode` type.
                 results.push(Diagnostic {
                     message: "Missing `ErrorCode` associated type for ink! chain extension."
                         .to_string(),
                     range: chain_extension.syntax().text_range(),
                     severity: Severity::Error,
+                    quickfixes: Some(vec![Action {
+                        label: "Add `ErrorCode` type for ink! chain extension.".to_string(),
+                        range: TextRange::new(insert_offset, insert_offset),
+                        edits: vec![TextEdit::insert_with_snippet(
+                            analysis_utils::apply_indenting(ERROR_CODE_PLAIN, &indent),
+                            insert_offset,
+                            Some(analysis_utils::apply_indenting(ERROR_CODE_SNIPPET, &indent)),
+                        )],
+                    }]),
                 });
             } else if error_codes.len() > 1 {
                 error_codes[1..].iter().for_each(|item| {
@@ -171,6 +266,12 @@ fn ensure_error_code_type_quantity(
                             .to_string(),
                         range: item.syntax().text_range(),
                         severity: Severity::Error,
+                        quickfixes: Some(vec![Action {
+                            label: "Remove duplicate `ErrorCode` type for ink! chain extension."
+                                .to_string(),
+                            range: item.syntax().text_range(),
+                            edits: vec![TextEdit::delete(item.syntax().text_range())],
+                        }]),
                     });
                 });
             };
@@ -183,20 +284,38 @@ fn ensure_error_code_type_quantity(
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L292-L306>.
 fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
     let mut seen_ids: HashSet<u32> = HashSet::new();
-    for extension in chain_extension.extensions() {
+    let mut unavailable_ids = init_unavailable_ids(chain_extension);
+    for (idx, extension) in chain_extension.extensions().iter().enumerate() {
         if let Some(id) = extension.id() {
             if seen_ids.get(&id).is_some() {
+                // Determines text range for the argument value.
                 let value_range_option = extension
                     .ink_attr()
                     .args()
                     .iter()
                     .find(|it| *it.kind() == InkArgKind::Extension)
-                    .and_then(|it| it.value())
-                    .map(|it| it.text_range());
+                    .and_then(InkArg::value)
+                    .map(MetaValue::text_range);
                 results.push(Diagnostic {
-                    message: "Extension ids must be unique across all ink! extensions in an ink! chain extension.".to_string(),
+                    message: "Extension ids must be unique across all ink! extensions in an ink! chain extension."
+                        .to_string(),
                     range: value_range_option.unwrap_or(extension.ink_attr().syntax().text_range()),
                     severity: Severity::Error,
+                    quickfixes: value_range_option.map(|range| {
+                        let suggested_id = analysis_utils::suggest_unique_id(
+                            Some(idx as u32 + 1),
+                            &mut unavailable_ids,
+                        );
+                        vec![Action {
+                            label: "Replace with a unique extension id.".to_string(),
+                            range,
+                            edits: vec![TextEdit::replace_with_snippet(
+                                format!("{suggested_id}"),
+                                range,
+                                Some(format!("${{1:{suggested_id}}}")),
+                            )],
+                        }]
+                    }),
                 })
             }
 
@@ -220,12 +339,22 @@ fn ensure_valid_quasi_direct_ink_descendants(
     });
 }
 
+/// Initializes unavailable extension ids.
+fn init_unavailable_ids(chain_extension: &ChainExtension) -> HashSet<u32> {
+    chain_extension
+        .extensions()
+        .iter()
+        .filter_map(Extension::id)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity, IsInkTrait};
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{parse_offset_at, quote_as_str};
 
     fn parse_first_chain_extension(code: &str) -> ChainExtension {
         ChainExtension::cast(
@@ -590,21 +719,37 @@ mod tests {
                     .count(),
                 idx - 1
             );
+            // All quickfixes should be for removal.
+            for item in results {
+                let fix = &item.quickfixes.as_ref().unwrap()[0];
+                assert!(fix.label.contains("Remove duplicate `ErrorCode`"));
+                assert_eq!(&fix.edits[0].text, "");
+            }
         }
     }
 
     #[test]
     fn missing_error_code_type_fails() {
-        let chain_extension = parse_first_chain_extension(quote_as_str! {
+        let code = quote_as_str! {
             #[ink::chain_extension]
             pub trait MyChainExtension {
             }
-        });
+        }
+        .to_string();
+        let chain_extension = parse_first_chain_extension(&code);
 
         let mut results = Vec::new();
         ensure_error_code_type_quantity(&mut results, &chain_extension);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
+        assert!(results[0].quickfixes.as_ref().unwrap()[0]
+            .label
+            .contains("Add `ErrorCode`"));
+        let offset = TextSize::from(parse_offset_at(&code, Some("{")).unwrap() as u32);
+        assert_eq!(
+            results[0].quickfixes.as_ref().unwrap()[0].range,
+            TextRange::new(offset, offset)
+        );
     }
 
     #[test]
@@ -665,6 +810,11 @@ mod tests {
                 results[0].severity,
                 Severity::Error,
                 "chain extension: {code}"
+            );
+            let quick_fix_label = &results[0].quickfixes.as_ref().unwrap()[0].label;
+            assert!(
+                quick_fix_label.contains("Replace")
+                    && quick_fix_label.contains("unique extension id")
             );
         }
     }

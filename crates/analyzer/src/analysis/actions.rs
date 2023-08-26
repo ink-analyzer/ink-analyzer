@@ -2,8 +2,10 @@
 
 use either::Either;
 use ink_analyzer_ir::ast::HasAttrs;
-use ink_analyzer_ir::syntax::{AstNode, SyntaxElement, SyntaxKind, SyntaxNode, TextRange};
-use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttributeKind, InkFile};
+use ink_analyzer_ir::syntax::{
+    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, TextSize,
+};
+use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttribute, InkAttributeKind, InkFile};
 
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
@@ -30,6 +32,78 @@ pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
     ink_attribute_actions(&mut results, file, range);
 
     results
+}
+
+impl Action {
+    /// Removes an ink! item.
+    pub(crate) fn remove_item(item: &SyntaxNode) -> Self {
+        Self {
+            label: "Remove item.".to_string(),
+            range: item.text_range(),
+            edits: vec![TextEdit::delete(item.text_range())],
+        }
+    }
+
+    /// Removes an ink! attribute.
+    pub(crate) fn remove_attribute(attr: &InkAttribute) -> Self {
+        Self {
+            label: format!("Remove `{}` attribute.", attr.syntax()),
+            range: attr.syntax().text_range(),
+            edits: vec![TextEdit::delete(attr.syntax().text_range())],
+        }
+    }
+
+    /// Moves an item (i.e a syntax node) to a new location.
+    pub(crate) fn move_item(
+        item: &SyntaxNode,
+        offset: TextSize,
+        label: String,
+        indent_option: Option<&str>,
+    ) -> Self {
+        Self::move_item_with_affixes(item, offset, label, indent_option, None, None)
+    }
+
+    /// Moves an item (i.e a syntax node) to a new location with affixes (i.e. prefixes and suffixes).
+    pub(crate) fn move_item_with_affixes(
+        item: &SyntaxNode,
+        offset: TextSize,
+        label: String,
+        indent_option: Option<&str>,
+        prefix_option: Option<&str>,
+        suffix_option: Option<&str>,
+    ) -> Self {
+        // Gets the unindented insert text.
+        // NOTE: removes item's top-level indenting (if any).
+        let mut insert_text = utils::item_indenting(item).map_or(item.to_string(), |item_indent| {
+            utils::reduce_indenting(item.to_string().as_str(), item_indent.as_str())
+        });
+
+        // Applies indenting based on insert location (if specified).
+        if let Some(indent) = indent_option {
+            insert_text = utils::apply_indenting(insert_text.as_str(), indent);
+        }
+
+        // Adds prefix (if any).
+        if let Some(prefix) = prefix_option {
+            insert_text = format!("{prefix}{insert_text}");
+        }
+
+        // Adds suffix (if any).
+        if let Some(suffix) = suffix_option {
+            insert_text = format!("{insert_text}{suffix}");
+        }
+
+        Self {
+            label,
+            range: item.text_range(),
+            edits: vec![
+                // Insert a copy of the item at the specified offset.
+                TextEdit::insert(insert_text, offset),
+                // Delete the item from current location.
+                TextEdit::delete(item.text_range()),
+            ],
+        }
+    }
 }
 
 /// Computes AST item-based ink! attribute actions at the given offset.
@@ -96,7 +170,6 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                             insert_suffix.as_deref().unwrap_or_default()
                                         ),
                                         insert_offset,
-                                        None,
                                     )],
                                 });
                             }
@@ -176,13 +249,15 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                             // Adds ink! attribute argument action to accumulator.
                             let (edit, snippet) = utils::ink_arg_insertion_text(
                                 arg_kind,
-                                edit_range.end(),
-                                ast_item.syntax(),
+                                Some(edit_range.end()),
+                                primary_ink_attr_candidate
+                                    .as_ref()
+                                    .map(InkAttribute::syntax),
                             );
                             results.push(Action {
                                 label: format!("Add ink! {arg_kind} attribute argument."),
                                 range: edit_range,
-                                edits: vec![TextEdit::insert(
+                                edits: vec![TextEdit::insert_with_snippet(
                                     format!(
                                         "{}{}{}",
                                         insert_prefix.as_deref().unwrap_or_default(),
@@ -258,13 +333,13 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: T
                     // Adds ink! attribute argument action to accumulator.
                     let (edit, snippet) = utils::ink_arg_insertion_text(
                         arg_kind,
-                        edit_range.end(),
-                        ink_attr.syntax(),
+                        Some(edit_range.end()),
+                        Some(ink_attr.syntax()),
                     );
                     results.push(Action {
                         label: format!("Add ink! {arg_kind} attribute argument."),
                         range: edit_range,
-                        edits: vec![TextEdit::insert(
+                        edits: vec![TextEdit::insert_with_snippet(
                             format!("{insert_prefix}{edit}{insert_suffix}"),
                             insert_offset,
                             snippet

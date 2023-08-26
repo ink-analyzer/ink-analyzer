@@ -3,7 +3,7 @@
 use ink_analyzer_ir::{FromInkAttribute, FromSyntax, StorageItem};
 
 use super::utils;
-use crate::{Diagnostic, Severity};
+use crate::{Action, Diagnostic, Severity};
 
 const STORAGE_ITEM_SCOPE_NAME: &str = "storage_item";
 
@@ -44,6 +44,7 @@ fn ensure_adt(storage_item: &StorageItem) -> Option<Diagnostic> {
         ),
         range: storage_item.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: Some(vec![Action::remove_attribute(storage_item.ink_attr())]),
     })
 }
 

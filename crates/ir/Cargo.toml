@@ -16,8 +16,8 @@ categories = ["development-tools"]
 blake2 = "0.10.6"
 ink-analyzer-macro = { version = "0.6", path = "../macro" }
 itertools = "0.10.5"
-quote = "1.0.26"
 ra_ap_syntax = "0.0.149"
 
 [dev-dependencies]
+quote = "1.0.26"
 test-utils = { path = "../test-utils" }

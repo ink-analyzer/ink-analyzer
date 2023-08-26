@@ -190,7 +190,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         results.push(Completion {
                             label: edit.clone(),
                             range: edit_range,
-                            edit: TextEdit::replace(edit, edit_range, None),
+                            edit: TextEdit::replace(edit, edit_range),
                             detail: Some(format!("ink! {macro_kind} attribute macro.")),
                         });
                     }
@@ -212,7 +212,6 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                                 edit: TextEdit::replace(
                                     ink_macro_crate_name.to_string(),
                                     edit_range,
-                                    None,
                                 ),
                                 detail: Some(detail.to_string()),
                             });
@@ -362,13 +361,13 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     };
                     let (edit, snippet) = utils::ink_arg_insertion_text(
                         arg_kind,
-                        edit_range.end(),
-                        ink_attr.syntax(),
+                        Some(edit_range.end()),
+                        Some(ink_attr.syntax()),
                     );
                     results.push(Completion {
                         label: edit.clone(),
                         range: edit_range,
-                        edit: TextEdit::replace(
+                        edit: TextEdit::replace_with_snippet(
                             format!("{prefix}{edit}"),
                             edit_range,
                             snippet.map(|snippet| format!("{prefix}{snippet}")),

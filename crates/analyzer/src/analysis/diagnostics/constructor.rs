@@ -1,10 +1,12 @@
 //! ink! constructor diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
+use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{ast, Constructor, IsInkFn};
 
 use super::utils;
-use crate::{Diagnostic, Severity};
+use crate::analysis::text_edit::TextEdit;
+use crate::{Action, Diagnostic, Severity};
 
 const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
 
@@ -61,6 +63,20 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
         message: "ink! constructor must have a return type.".to_string(),
         range: fn_item.syntax().text_range(),
         severity: Severity::Error,
+        quickfixes: fn_item
+            .param_list()
+            .map(|param_list| param_list.syntax().text_range().end())
+            .map(|insert_offset| {
+                vec![Action {
+                    label: "Add return type.".to_string(),
+                    range: TextRange::new(insert_offset, insert_offset),
+                    edits: vec![TextEdit::insert_with_snippet(
+                        " -> Self".to_string(),
+                        insert_offset,
+                        Some(" -> ${1:Self}".to_string()),
+                    )],
+                }]
+            }),
     })
 }
 
