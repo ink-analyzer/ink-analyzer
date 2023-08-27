@@ -46,6 +46,10 @@
 //!     // Gets hover content.
 //!     let hover = analysis.hover(range);
 //!     dbg!(&hover);
+//!
+//!     // Computes inlay hints.
+//!     let inlay_hints = analysis.inlay_hints(None);
+//!     dbg!(&inlay_hints);
 //! }
 //! ```
 
