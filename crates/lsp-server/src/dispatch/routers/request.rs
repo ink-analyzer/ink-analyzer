@@ -47,7 +47,9 @@ impl<'a> RequestRouter<'a> {
         }
 
         // Unwrap request if it hasn't been consumed yet, otherwise return immediately.
-        let Some(req) = self.req.take() else { return self };
+        let Some(req) = self.req.take() else {
+            return self;
+        };
 
         // Clone request id so we can use it with a JSON error since it's not returned by `req.extract` for that case.
         let req_id = req.id.clone();
