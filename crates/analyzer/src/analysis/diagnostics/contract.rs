@@ -208,15 +208,16 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
         let mut seen_selectors: HashSet<u32> = HashSet::new();
         for (selector, node) in selectors {
             let selector_value = selector.into_be_u32();
-            let is_seen = seen_selectors.get(&selector_value).is_some();
+
+            if seen_selectors.get(&selector_value).is_some() {
+                results.push(Diagnostic {
+                    message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
+                    range: node.text_range(),
+                    severity: Severity::Error,
+                });
+            }
 
             seen_selectors.insert(selector_value);
-
-            is_seen.then(|| results.push(Diagnostic {
-                message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
-                range: node.text_range(),
-                severity: Severity::Error,
-            }));
         }
     }
 }
@@ -253,7 +254,7 @@ fn ensure_at_most_one_wildcard_selector(results: &mut Vec<Diagnostic>, contract:
     ] {
         let mut has_seen_wildcard = false;
         for selector in selectors {
-            selector.is_wildcard().then(|| {
+            if selector.is_wildcard() {
                 if has_seen_wildcard {
                     results.push(Diagnostic {
                         message: format!("At most one wildcard (`_`) selector can be defined across all ink! {name}s in an ink! contract."),
@@ -263,7 +264,7 @@ fn ensure_at_most_one_wildcard_selector(results: &mut Vec<Diagnostic>, contract:
                 } else {
                     has_seen_wildcard = true;
                 }
-            });
+            }
         }
     }
 }

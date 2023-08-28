@@ -512,7 +512,7 @@ pub fn ink_arg_insertion_text(
                 _ => r#""$1""#,
             },
             InkArgValueKind::Bool => "${1:true}",
-            InkArgValueKind::Path(_) => "$1",
+            InkArgValueKind::Path(_) => "${1:crate::}",
             // Should not be able to get here.
             InkArgValueKind::None => "",
         }
@@ -524,7 +524,7 @@ pub fn ink_arg_insertion_text(
 /// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for an ink! attribute.
 pub fn ink_attribute_insertion_offset_and_affixes(
     parent_ast_node: Either<&ast::Item, &ast::RecordField>,
-) -> (TextSize, String, String) {
+) -> (TextSize, Option<String>, Option<String>) {
     // Retrieves the parent syntax node and it's the last attribute or doc comment (if any).
     let (parent_syntax_node, last_attr_or_doc_comment) = match parent_ast_node {
         Either::Left(ast_item) => (ast_item.syntax(), ast_item.doc_comments_and_attrs().last()),
@@ -536,21 +536,8 @@ pub fn ink_attribute_insertion_offset_and_affixes(
 
     // Determines the insertion suffix (i.e indenting - so that we preserve formatting) for the ink! attribute.
     // It's always a suffix because we insert at the beginning of the target item's first non-(attribute/rustdoc/trivia) token,
-    let get_insert_indenting = |prev_sibling_or_token_option: Option<SyntaxElement>| {
-        prev_sibling_or_token_option
-            .and_then(|prev_elem| {
-                (prev_elem.kind() == SyntaxKind::WHITESPACE).then_some(format!(
-                    "\n{}",
-                    prev_elem
-                        .to_string()
-                        .chars()
-                        .rev()
-                        .take_while(|char| *char != '\n')
-                        .collect::<String>()
-                ))
-            })
-            .unwrap_or(String::new())
-    };
+    let get_insert_indenting =
+        |node: &SyntaxNode| item_indenting(node).map(|indent| format!("\n{indent}"));
 
     last_attr_or_doc_comment
         .and_then(|item| match item {
@@ -564,18 +551,16 @@ pub fn ink_attribute_insertion_offset_and_affixes(
         .map_or(
             (
                 parent_syntax_node.text_range().start(),
-                String::new(),
-                get_insert_indenting(parent_syntax_node.prev_sibling_or_token()),
+                None,
+                get_insert_indenting(parent_syntax_node),
             ),
             |first_non_attr_or_doc_token| {
                 (
                     first_non_attr_or_doc_token.text_range().start(),
-                    String::new(),
-                    get_insert_indenting(
-                        first_non_attr_or_doc_token
-                            .parent_node()
-                            .and_then(|it| it.prev_sibling_or_token()),
-                    ),
+                    None,
+                    first_non_attr_or_doc_token
+                        .parent_node()
+                        .and_then(|it| get_insert_indenting(&it)),
                 )
             },
         )
@@ -712,6 +697,20 @@ pub fn ink_arg_insertion_offset_and_affixes(
                     },
                 )
             },
+        )
+    })
+}
+
+/// Returns the indenting (preceding whitespace) of the syntax node.
+pub fn item_indenting(node: &SyntaxNode) -> Option<String> {
+    node.prev_sibling_or_token().and_then(|prev_elem| {
+        (prev_elem.kind() == SyntaxKind::WHITESPACE).then_some(
+            prev_elem
+                .to_string()
+                .chars()
+                .rev()
+                .take_while(|char| *char != '\n')
+                .collect::<String>(),
         )
     })
 }

@@ -9,3 +9,5 @@ members = [
 ]
 
 exclude = ["test-fixtures"]
+
+resolver = "2"

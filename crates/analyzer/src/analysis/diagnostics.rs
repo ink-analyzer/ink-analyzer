@@ -38,7 +38,7 @@ mod topic;
 mod trait_definition;
 
 /// A diagnostic error or warning.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Error or warning message.
     pub message: String,
@@ -49,7 +49,7 @@ pub struct Diagnostic {
 }
 
 /// The severity level of a diagnostic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     /// A diagnostic error.
     Error,

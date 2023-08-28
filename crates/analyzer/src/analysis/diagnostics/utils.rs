@@ -4,9 +4,9 @@ use ink_analyzer_ir::ast::{AstNode, AstToken, HasGenericParams, HasTypeBounds, H
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{SourceFile, SyntaxElement, SyntaxKind};
 use ink_analyzer_ir::{
-    ast, Contract, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
-    InkAttribute, InkAttributeKind, InkMacroKind, IsInkEntity, IsInkFn, IsInkImplItem, IsInkStruct,
-    IsInkTrait,
+    ast, Contract, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkArgValueKind,
+    InkArgValueStringKind, InkAttribute, InkAttributeKind, InkMacroKind, IsInkEntity, IsInkFn,
+    IsInkImplItem, IsInkStruct, IsInkTrait,
 };
 use std::collections::HashSet;
 
@@ -52,22 +52,18 @@ pub fn run_generic_diagnostics<T: FromSyntax>(results: &mut Vec<Diagnostic>, ite
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/idents_lint.rs#L20>.
 fn ensure_no_ink_identifiers<T: FromSyntax>(results: &mut Vec<Diagnostic>, item: &T) {
-    item.syntax().descendants_with_tokens().for_each(|elem| {
-        elem.into_token()
-            .and_then(ast::Ident::cast)
-            .and_then(|ident| {
-                ident.to_string().starts_with("__ink_").then(|| {
-                    results.push(Diagnostic {
-                        message: format!(
-                            "Invalid identifier starting with __ink_: {}",
-                            ident.text()
-                        ),
-                        range: ident.syntax().text_range(),
-                        severity: Severity::Error,
-                    });
-                })
-            });
-    });
+    for elem in item.syntax().descendants_with_tokens() {
+        if let Some(ident) = elem.into_token().and_then(ast::Ident::cast) {
+            let name = ident.to_string();
+            if name.starts_with("__ink_") {
+                results.push(Diagnostic {
+                    message: format!("Invalid identifier starting with __ink_: {}", ident.text()),
+                    range: ident.syntax().text_range(),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
 }
 
 /// Returns a warning diagnostic for every unknown ink! attribute found.
@@ -83,24 +79,24 @@ fn ensure_no_ink_identifiers<T: FromSyntax>(results: &mut Vec<Diagnostic>, item:
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L876-L1024>.
 fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkAttribute]) {
     for attr in attrs {
-        matches!(
+        if matches!(
             attr.kind(),
             InkAttributeKind::Macro(InkMacroKind::Unknown)
                 | InkAttributeKind::Arg(InkArgKind::Unknown)
-        )
-        .then(|| {
+        ) {
             results.push(Diagnostic {
-                message: format!("Unknown ink! attribute: '{}'", attr.syntax()),
-                range: if let Some(ink_path) = attr.ink_macro() {
-                    ink_path.syntax().text_range()
-                } else if let Some(ink_arg) = attr.ink_arg_name() {
-                    ink_arg.syntax().text_range()
-                } else {
-                    attr.syntax().text_range()
-                },
-                severity: Severity::Warning, // warning because it's possible ink! analyzer is just outdated.
+                message: format!("Unknown ink! attribute: `{}`", attr.syntax()),
+                range: attr
+                    .ink_macro()
+                    .map(|ink_path| ink_path.syntax().text_range())
+                    .or(attr
+                        .ink_arg_name()
+                        .map(|ink_arg| ink_arg.syntax().text_range()))
+                    .unwrap_or(attr.syntax().text_range()),
+                // warning because it's possible ink! analyzer is just outdated.
+                severity: Severity::Warning,
             });
-        });
+        }
     }
 }
 
@@ -119,7 +115,6 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
 fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAttribute) {
     for arg in attr.args() {
-        let text_range = arg.text_range();
         let arg_name_text = arg.meta().name().to_string();
         match arg.kind() {
             // Handle unknown argument.
@@ -129,7 +124,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                 } else {
                     format!("Unknown ink! attribute argument: '{arg_name_text}'.")
                 },
-                range: text_range,
+                range: arg.text_range(),
                 severity: if arg_name_text.is_empty() {
                     // error for missing.
                     Severity::Error
@@ -148,7 +143,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 message: format!(
                                     "`{arg_name_text}` argument shouldn't have a value."
                                 ),
-                                range: text_range,
+                                range: arg.text_range(),
                                 severity: Severity::Error,
                             });
                         }
@@ -173,15 +168,14 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         ) {
                             results.push(Diagnostic {
                                 message: format!(
-                                    "`{}` argument should have an `integer` (`u32`) {} value.",
-                                    arg_name_text,
+                                    "`{arg_name_text}` argument should have an `integer` (`u32`) {} value.",
                                     if can_be_wildcard {
                                         "or wildcard/underscore (`_`)"
                                     } else {
                                         ""
                                     }
                                 ),
-                                range: text_range,
+                                range: arg.text_range(),
                                 severity: Severity::Error,
                             });
                         }
@@ -209,7 +203,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                         ""
                                     }
                                 ),
-                                range: text_range,
+                                range: arg.text_range(),
                                 severity: Severity::Error,
                             });
                         }
@@ -226,7 +220,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 message: format!(
                                     "`{arg_name_text}` argument should have a `boolean` (`bool`) value."
                                 ),
-                                range: text_range,
+                                range: arg.text_range(),
                                 severity: Severity::Error,
                             });
                         }
@@ -248,7 +242,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 message: format!(
                                     "`{arg_name_text}` argument should have a `path` (e.g `my::env::Types`) value."
                                 ),
-                                range: text_range,
+                                range: arg.text_range(),
                                 severity: Severity::Error,
                             });
                         }
@@ -307,7 +301,7 @@ fn ensure_no_duplicate_attributes_and_arguments(
             // Unknown ink! attribute macros are ignored.
             if *macro_kind != InkMacroKind::Unknown && seen_macros.get(macro_kind).is_some() {
                 results.push(Diagnostic {
-                    message: format!("Duplicate ink! attribute macro: '{}'", attr.syntax()),
+                    message: format!("Duplicate ink! attribute macro: `{}`", attr.syntax()),
                     range: attr.syntax().text_range(),
                     severity: Severity::Error,
                 });
@@ -320,7 +314,7 @@ fn ensure_no_duplicate_attributes_and_arguments(
             // Unknown ink! attribute arguments are ignored.
             if *arg_kind != InkArgKind::Unknown && seen_args.get(arg_kind).is_some() {
                 results.push(Diagnostic {
-                    message: format!("Duplicate ink! attribute argument: '{}'", arg.meta().name()),
+                    message: format!("Duplicate ink! attribute argument: `{}`", arg.meta().name()),
                     range: arg.text_range(),
                     severity: Severity::Error,
                 });
@@ -552,13 +546,15 @@ pub fn ensure_at_least_one_item<T>(
 }
 
 /// Ensures that an item is not missing and there are not multiple definitions of it as well.
-pub fn ensure_exactly_one_item<T: FromSyntax>(
+pub fn ensure_exactly_one_item<T>(
     results: &mut Vec<Diagnostic>,
     items: &[T],
     empty_diagnostic: Diagnostic,
     error_too_many: &str,
     severity_too_many: Severity,
-) {
+) where
+    T: FromSyntax + FromInkAttribute,
+{
     if items.is_empty() {
         results.push(empty_diagnostic);
     } else {
@@ -567,12 +563,14 @@ pub fn ensure_exactly_one_item<T: FromSyntax>(
 }
 
 /// Ensures that there are not multiple definitions of an item.
-pub fn ensure_at_most_one_item<T: FromSyntax>(
+pub fn ensure_at_most_one_item<T>(
     results: &mut Vec<Diagnostic>,
     items: &[T],
     message: &str,
     severity: Severity,
-) {
+) where
+    T: FromSyntax + FromInkAttribute,
+{
     if items.len() > 1 {
         items[1..].iter().for_each(|item| {
             results.push(Diagnostic {
@@ -587,41 +585,36 @@ pub fn ensure_at_most_one_item<T: FromSyntax>(
 /// Ensures that ink! entity is a `struct` with `pub` visibility.
 pub fn ensure_pub_struct<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + IsInkStruct,
+    T: FromSyntax + FromInkAttribute + IsInkStruct,
 {
-    let mut marker_token = None;
-
-    let error = match item.struct_item() {
+    match item.struct_item() {
         Some(struct_item) => {
-            let has_pub_visibility = match struct_item.visibility() {
-                Some(visibility) => {
-                    marker_token = Some(visibility.clone());
-                    visibility.to_string() == "pub"
-                }
-                None => false,
+            let (has_pub_visibility, visibility) = match struct_item.visibility() {
+                Some(visibility) => (visibility.to_string() == "pub", Some(visibility)),
+                None => (false, None),
             };
 
-            (!has_pub_visibility)
-                .then_some(format!("ink! {ink_scope_name} must have `pub` visibility.",))
+            (!has_pub_visibility).then_some(Diagnostic {
+                message: format!("ink! {ink_scope_name} must have `pub` visibility.",),
+                range: visibility
+                    .as_ref()
+                    .map_or(item.syntax(), AstNode::syntax)
+                    .text_range(),
+                severity: Severity::Error,
+            })
         }
-        None => Some(format!("ink! {ink_scope_name} must be a `struct` item.",)),
-    };
-
-    error.map(|message| Diagnostic {
-        message,
-        range: if let Some(marker) = marker_token {
-            marker.syntax().text_range()
-        } else {
-            item.syntax().text_range()
-        },
-        severity: Severity::Error,
-    })
+        None => Some(Diagnostic {
+            message: format!("ink! {ink_scope_name} must be a `struct` item.",),
+            range: item.syntax().text_range(),
+            severity: Severity::Error,
+        }),
+    }
 }
 
 /// Ensures that ink! entity is an `fn` item.
 pub fn ensure_fn<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + IsInkFn,
+    T: FromSyntax + FromInkAttribute + IsInkFn,
 {
     item.fn_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be an `fn` item.",),
@@ -633,7 +626,7 @@ where
 /// Ensures that ink! entity is a `trait` item.
 pub fn ensure_trait<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + IsInkTrait,
+    T: FromSyntax + FromInkAttribute + IsInkTrait,
 {
     item.trait_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be a `trait` item.",),
@@ -763,10 +756,10 @@ pub fn ensure_callable_invariants(
     if !has_pub_or_inherited_visibility {
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must have `pub` or inherited visibility."),
-            range: match visibility {
-                Some(vis) => vis.syntax().text_range(),
-                None => fn_item.syntax().text_range(),
-            },
+            range: visibility
+                .as_ref()
+                .map_or(fn_item.syntax(), AstNode::syntax)
+                .text_range(),
             severity: Severity::Error,
         });
     }
@@ -818,10 +811,10 @@ pub fn ensure_trait_invariants(
     if !has_pub_visibility {
         results.push(Diagnostic {
             message: format!("ink! {ink_scope_name} must have `pub` visibility."),
-            range: match visibility {
-                Some(vis) => vis.syntax().text_range(),
-                None => trait_item.syntax().text_range(),
-            },
+            range: visibility
+                .as_ref()
+                .map_or(trait_item.syntax(), AstNode::syntax)
+                .text_range(),
             severity: Severity::Error,
         });
     }
@@ -856,18 +849,18 @@ pub fn ensure_trait_item_invariants<F, G>(
     if let Some(assoc_item_list) = trait_item.assoc_item_list() {
         assoc_item_list.assoc_items().for_each(|assoc_item| {
             match assoc_item {
-                ast::AssocItem::Const(node) => results.push(Diagnostic {
+                ast::AssocItem::Const(const_item) => results.push(Diagnostic {
                     message: format!(
                         "Associated `const` items in an ink! {ink_scope_name} are not yet supported."
                     ),
-                    range: node.syntax().text_range(),
+                    range: const_item.syntax().text_range(),
                     severity: Severity::Error,
                 }),
-                ast::AssocItem::MacroCall(node) => results.push(Diagnostic {
+                ast::AssocItem::MacroCall(macro_call) => results.push(Diagnostic {
                     message: format!(
                         "Macros in an ink! {ink_scope_name} are not supported."
                     ),
-                    range: node.syntax().text_range(),
+                    range: macro_call.syntax().text_range(),
                     severity: Severity::Error,
                 }),
                 ast::AssocItem::TypeAlias(type_alias) => assoc_type_handler(results, &type_alias),
@@ -924,21 +917,20 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
     T: FromSyntax,
     F: Fn(&InkAttribute) -> bool,
 {
-    item.tree()
-        .ink_attrs_closest_descendants()
-        .for_each(|attr| {
-            (!is_valid_quasi_direct_descendant(&attr)).then(|| {
-                results.push(Diagnostic {
-                    message: format!("Invalid scope for an `{}` item.", attr.syntax()),
-                    range: attr
-                        .syntax()
-                        .parent()
-                        .unwrap_or(attr.syntax().clone())
-                        .text_range(),
-                    severity: Severity::Error,
-                });
+    for attr in item.tree().ink_attrs_closest_descendants() {
+        if !is_valid_quasi_direct_descendant(&attr) {
+            results.push(Diagnostic {
+                message: format!("Invalid scope for an `{}` item.", attr.syntax()),
+                range: attr
+                    .syntax()
+                    .parent()
+                    .as_ref()
+                    .unwrap_or(attr.syntax())
+                    .text_range(),
+                severity: Severity::Error,
             });
-        });
+        }
+    }
 }
 
 /// Ensures that no ink! descendants in the item's scope.
@@ -955,7 +947,8 @@ where
             range: attr
                 .syntax()
                 .parent()
-                .unwrap_or(attr.syntax().clone())
+                .as_ref()
+                .unwrap_or(attr.syntax())
                 .text_range(),
             severity: Severity::Error,
         });

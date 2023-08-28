@@ -124,15 +124,11 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             }
         }
 
-        let is_trait_impl = impl_item.trait_().is_some();
-        if is_trait_impl && ink_impl.namespace_arg().is_some() {
+        if let Some((_, arg)) = impl_item.trait_().zip(ink_impl.namespace_arg()) {
             results.push(Diagnostic {
                 message: "ink! namespace argument is not allowed on trait ink! impl blocks."
                     .to_string(),
-                range: ink_impl
-                    .namespace_arg()
-                    .expect("Namespace should exist at this point.")
-                    .text_range(),
+                range: arg.text_range(),
                 severity: Severity::Error,
             });
         }
@@ -149,7 +145,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             .collect();
         for (fns, name) in [(constructor_fns, "constructor"), (message_fns, "message")] {
             for fn_item in fns {
-                if is_trait_impl {
+                if impl_item.trait_().is_some() {
                     // Callables must have inherent visibility for trait implementation blocks.
                     if let Some(visibility) = fn_item.visibility() {
                         results.push(Diagnostic {
@@ -169,14 +165,13 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                         None => (false, None),
                     };
 
-                    (!has_pub_visibility).then(|| results.push(Diagnostic {
-                        message: format!("ink! {name}s in inherent ink! impl blocks must have `pub` visibility."),
-                        range: match visibility {
-                            Some(vis) => vis.syntax().text_range(),
-                            None => fn_item.syntax().text_range()
-                        },
-                        severity: Severity::Error,
-                    }));
+                    if !has_pub_visibility {
+                        results.push(Diagnostic {
+                            message: format!("ink! {name}s in inherent ink! impl blocks must have `pub` visibility."),
+                            range: visibility.as_ref().map_or(fn_item.syntax(), AstNode::syntax).text_range(),
+                            severity: Severity::Error,
+                        });
+                    }
                 }
             }
         }

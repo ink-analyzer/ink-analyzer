@@ -3,9 +3,9 @@
 use ra_ap_syntax::ast::HasAttrs;
 use ra_ap_syntax::{ast, AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken};
 
-use crate::HasParent;
+use crate::traits::HasParent;
 
-/// Returns the closest AST ancestor is a specific type for the syntax element.
+/// Returns the closest AST ancestor of a specific type for the syntax element.
 pub fn closest_ancestor_ast_type<I, T>(item: &I) -> Option<T>
 where
     I: HasParent,

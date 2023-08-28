@@ -33,9 +33,9 @@ impl Selector {
             Some(manual_int_selector) => Some(manual_int_selector.to_be_bytes()),
             // Otherwise the selector has to be computed, but only if the callable is a valid `fn` item.
             None => {
-                Self::get_ident(callable).map(|callable_ident| {
-                    let trait_ident = Self::get_trait_ident(callable);
-                    let namespace = Self::get_namespace(callable);
+                Self::ident(callable).map(|callable_ident| {
+                    let trait_ident = Self::trait_ident(callable);
+                    let namespace = Self::namespace(callable);
 
                     let pre_hash_bytes = [namespace, trait_ident, Some(callable_ident)]
                         .into_iter()
@@ -81,7 +81,7 @@ impl Selector {
     }
 
     /// Returns the identifier for the callable as a string.
-    fn get_ident<T>(callable: &T) -> Option<String>
+    fn ident<T>(callable: &T) -> Option<String>
     where
         T: IsInkCallable,
     {
@@ -91,7 +91,7 @@ impl Selector {
     /// Returns the effective identifier for callable's parent trait (if any).
     ///
     /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/callable.rs#L346-L368>.
-    fn get_trait_ident<T>(callable: &T) -> Option<String>
+    fn trait_ident<T>(callable: &T) -> Option<String>
     where
         T: IsInkCallable,
     {
@@ -116,7 +116,7 @@ impl Selector {
     }
 
     /// Returns the identifier for callable's parent ink! impl namespace argument (if any).
-    fn get_namespace<T>(callable: &T) -> Option<String>
+    fn namespace<T>(callable: &T) -> Option<String>
     where
         T: IsInkCallable,
     {

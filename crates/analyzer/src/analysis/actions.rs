@@ -93,8 +93,10 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                     label: format!("Add ink! {macro_kind} attribute macro."),
                                     range: edit_range,
                                     edit: format!(
-                                        "{insert_prefix}#[{}]{insert_suffix}",
-                                        macro_kind.path_as_str()
+                                        "{}#[{}]{}",
+                                        insert_prefix.as_deref().unwrap_or_default(),
+                                        macro_kind.path_as_str(),
+                                        insert_suffix.as_deref().unwrap_or_default()
                                     ),
                                     snippet: None,
                                 });
@@ -153,8 +155,8 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                                 (
                                                     (
                                                         insert_offset,
-                                                        insert_prefix.to_string(),
-                                                        insert_suffix.to_string(),
+                                                        Some(insert_prefix.to_string()),
+                                                        Some(insert_suffix.to_string()),
                                                     ),
                                                     true,
                                                 )
@@ -182,21 +184,25 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                 label: format!("Add ink! {arg_kind} attribute argument."),
                                 range: edit_range,
                                 edit: format!(
-                                    "{insert_prefix}{}{insert_suffix}",
+                                    "{}{}{}",
+                                    insert_prefix.as_deref().unwrap_or_default(),
                                     if is_extending {
                                         edit
                                     } else {
                                         format!("#[ink({edit})]")
-                                    }
+                                    },
+                                    insert_suffix.as_deref().unwrap_or_default(),
                                 ),
                                 snippet: snippet.map(|snippet| {
                                     format!(
-                                        "{insert_prefix}{}{insert_suffix}",
+                                        "{}{}{}",
+                                        insert_prefix.as_deref().unwrap_or_default(),
                                         if is_extending {
                                             snippet
                                         } else {
                                             format!("#[ink({snippet})]")
-                                        }
+                                        },
+                                        insert_suffix.as_deref().unwrap_or_default(),
                                     )
                                 }),
                             });

@@ -71,13 +71,13 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L126-L139>.
 fn ensure_only_ink_topic_descendants(results: &mut Vec<Diagnostic>, item: &Event) {
     item.tree().ink_attrs_descendants().for_each(|attr| {
-        (*attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic)).then(|| {
+        if *attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic) {
             results.push(Diagnostic {
                 message: format!("`{}` can't be used inside an ink! event.", attr.syntax()),
                 range: attr.syntax().text_range(),
                 severity: Severity::Error,
             });
-        });
+        }
     });
 }
 
@@ -90,7 +90,7 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
             field_list.fields().for_each(|field| {
                 field.attrs().for_each(|attr| {
                     if let Some(path) = attr.path() {
-                        (path.to_string() == "cfg").then(|| {
+                        if path.to_string() == "cfg" {
                             results.push(Diagnostic {
                                 message: format!(
                                     "`{attr}` attributes on event fields are not supported."
@@ -98,7 +98,7 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
                                 range: attr.syntax().text_range(),
                                 severity: Severity::Error,
                             });
-                        });
+                        }
                     }
                 });
             });

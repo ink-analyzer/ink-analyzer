@@ -34,11 +34,11 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
         // see `utils::ensure_trait_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
         utils::ensure_trait_invariants(results, trait_item, CHAIN_EXTENSION_SCOPE_NAME);
-
-        // Ensures that ink! chain extension `trait` item's associated items satisfy all invariants,
-        // see `ensure_trait_item_invariants` doc.
-        ensure_trait_item_invariants(results, trait_item);
     }
+
+    // Ensures that ink! chain extension `trait` item's associated items satisfy all invariants,
+    // see `ensure_trait_item_invariants` doc.
+    ensure_trait_item_invariants(results, chain_extension);
 
     // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
     chain_extension
@@ -65,71 +65,73 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
 ///
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
 /// This utility also runs `extension::diagnostics` on trait methods with a ink! extension attribute.
-fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast::Trait) {
-    utils::ensure_trait_item_invariants(
-        results,
-        trait_item,
-        "chain extension",
-        |results, fn_item| {
-            // All trait methods should be ink! extensions.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L447-L464>.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L501>.
-            match ink_analyzer_ir::ink_attrs(fn_item.syntax()).find_map(Extension::cast) {
-                // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
-                Some(extension_item) => extension::diagnostics(results, &extension_item),
-                // Add diagnostic if method isn't an ink! extension.
-                None => results.push(Diagnostic {
-                    message: "All ink! chain extension methods must be ink! extensions."
-                        .to_string(),
-                    range: fn_item.syntax().text_range(),
-                    severity: Severity::Error,
-                }),
-            }
-        },
-        |results, type_alias| {
-            // Associated type invariants.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L256-L307>.
-            let (is_named_error_code, name_marker) = match type_alias.name() {
-                Some(name) => (name.to_string() == "ErrorCode", Some(name)),
-                None => (false, None),
-            };
+fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
+    if let Some(trait_item) = chain_extension.trait_item() {
+        utils::ensure_trait_item_invariants(
+            results,
+            trait_item,
+            "chain extension",
+            |results, fn_item| {
+                // All trait methods should be ink! extensions.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L447-L464>.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L501>.
+                match ink_analyzer_ir::ink_attrs(fn_item.syntax()).find_map(Extension::cast) {
+                    // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
+                    Some(extension_item) => extension::diagnostics(results, &extension_item),
+                    // Add diagnostic if method isn't an ink! extension.
+                    None => results.push(Diagnostic {
+                        message: "All ink! chain extension methods must be ink! extensions."
+                            .to_string(),
+                        range: fn_item.syntax().text_range(),
+                        severity: Severity::Error,
+                    }),
+                }
+            },
+            |results, type_alias| {
+                // Associated type invariants.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L256-L307>.
+                let (is_named_error_code, name_marker) = match type_alias.name() {
+                    Some(name) => (name.to_string() == "ErrorCode", Some(name)),
+                    None => (false, None),
+                };
 
-            if !is_named_error_code {
-                results.push(Diagnostic {
-                    message:
+                if !is_named_error_code {
+                    results.push(Diagnostic {
+                        message:
                         "The associated type of a ink! chain extension must be named `ErrorCode`."
                             .to_string(),
-                    range: match name_marker {
-                        Some(name) => name.syntax().text_range(),
-                        None => trait_item.syntax().text_range(),
-                    },
-                    severity: Severity::Error,
-                });
-            }
+                        range: name_marker
+                            .as_ref()
+                            .map_or(trait_item.syntax(), AstNode::syntax)
+                            .text_range(),
+                        severity: Severity::Error,
+                    });
+                }
 
-            if let Some(diagnostic) =
-                utils::ensure_no_generics(type_alias, "chain extension `ErrorCode` type")
-            {
-                results.push(diagnostic);
-            }
+                if let Some(diagnostic) =
+                    utils::ensure_no_generics(type_alias, "chain extension `ErrorCode` type")
+                {
+                    results.push(diagnostic);
+                }
 
-            if let Some(diagnostic) = utils::ensure_no_trait_bounds(
-                type_alias,
-                "Trait bounds on ink! chain extension `ErrorCode` types are not supported.",
-            ) {
-                results.push(diagnostic);
-            }
+                if let Some(diagnostic) = utils::ensure_no_trait_bounds(
+                    type_alias,
+                    "Trait bounds on ink! chain extension `ErrorCode` types are not supported.",
+                ) {
+                    results.push(diagnostic);
+                }
 
-            if type_alias.ty().is_none() {
-                results.push(Diagnostic {
-                    message: "ink! chain extension `ErrorCode` types must have a default type."
-                        .to_string(),
-                    range: type_alias.syntax().text_range(),
-                    severity: Severity::Error,
-                });
-            }
-        },
-    );
+                if type_alias.ty().is_none() {
+                    results.push(Diagnostic {
+                        message: "ink! chain extension `ErrorCode` types must have a default type."
+                            .to_string(),
+                        range: type_alias.syntax().text_range(),
+                        severity: Severity::Error,
+                    });
+                }
+            },
+        );
+    }
 }
 
 /// Ensures that exactly one `ErrorCode` associated type is defined.
@@ -155,6 +157,7 @@ fn ensure_error_code_type_quantity(
                 .collect();
 
             if error_codes.is_empty() {
+                // Creates diagnostic and quickfix for missing `ErrorCode` type.
                 results.push(Diagnostic {
                     message: "Missing `ErrorCode` associated type for ink! chain extension."
                         .to_string(),
@@ -179,19 +182,27 @@ fn ensure_error_code_type_quantity(
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L292-L306>.
 fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
-    let mut seen_extensions: HashSet<u32> = HashSet::new();
-    chain_extension.extensions().iter().for_each(|extension| {
-        if let Some(extension_id) = extension.id() {
-            let is_seen = seen_extensions.get(&extension_id).is_some();
-            seen_extensions.insert(extension_id);
+    let mut seen_ids: HashSet<u32> = HashSet::new();
+    for extension in chain_extension.extensions() {
+        if let Some(id) = extension.id() {
+            if seen_ids.get(&id).is_some() {
+                let value_range_option = extension
+                    .ink_attr()
+                    .args()
+                    .iter()
+                    .find(|it| *it.kind() == InkArgKind::Extension)
+                    .and_then(|it| it.value())
+                    .map(|it| it.text_range());
+                results.push(Diagnostic {
+                    message: "Extension ids must be unique across all ink! extensions in an ink! chain extension.".to_string(),
+                    range: value_range_option.unwrap_or(extension.ink_attr().syntax().text_range()),
+                    severity: Severity::Error,
+                })
+            }
 
-            is_seen.then(|| results.push(Diagnostic {
-                message: "Extension ids must be unique across all ink! extensions in an ink! chain extension.".to_string(),
-                range: extension.ink_attr().syntax().text_range(),
-                severity: Severity::Error,
-            }));
+            seen_ids.insert(id);
         }
-    });
+    }
 }
 
 /// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
@@ -398,7 +409,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            ensure_trait_item_invariants(&mut results, chain_extension.trait_item().unwrap());
+            ensure_trait_item_invariants(&mut results, &chain_extension);
             assert!(results.is_empty(), "chain extension: {code}");
         }
     }
@@ -525,7 +536,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            ensure_trait_item_invariants(&mut results, chain_extension.trait_item().unwrap());
+            ensure_trait_item_invariants(&mut results, &chain_extension);
             assert_eq!(results.len(), 1, "chain extension: {items}");
             assert_eq!(
                 results[0].severity,

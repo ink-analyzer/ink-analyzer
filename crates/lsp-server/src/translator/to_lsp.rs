@@ -122,7 +122,7 @@ pub fn code_action(
             )])),
             ..Default::default()
         }),
-        // Add snippet for clients that may be the middleware to apply code actions edits as snippets it.
+        // Add snippet for clients that have the middleware to apply code actions edits as snippets.
         data: action.snippet.map(|snippet| {
             let mut data = serde_json::Map::with_capacity(1);
             data.insert("snippet".to_string(), serde_json::Value::String(snippet));

@@ -53,10 +53,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor) {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L91-L105>.
 fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
-    let has_returns_type = match fn_item.ret_type() {
-        Some(ret_type) => ret_type.ty().is_some(),
-        None => false,
-    };
+    let has_returns_type = fn_item
+        .ret_type()
+        .map_or(false, |ret_type| ret_type.ty().is_some());
 
     (!has_returns_type).then_some(Diagnostic {
         message: "ink! constructor must have a return type.".to_string(),

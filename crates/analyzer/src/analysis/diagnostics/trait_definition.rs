@@ -89,20 +89,22 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
             // Wildcard selectors are not supported.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L80-L101>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L304>.
-            ink_analyzer_ir::ink_attrs(fn_item.syntax()).for_each(|attr| {
-                attr.args().iter().for_each(|arg| {
-                    arg.value().and_then(|value| {
-                        (value.is_wildcard()).then(|| results.push(Diagnostic {
-                            message:
-                            "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
+            for attr in ink_analyzer_ir::ink_attrs(fn_item.syntax()) {
+                for arg in attr.args().iter() {
+                    if let Some(value) = arg.value() {
+                        if value.is_wildcard() {
+                            results.push(Diagnostic {
+                                message:
+                                "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
                                 They're only supported on inherent ink! messages and constructors."
-                                .to_string(),
-                            range: arg.text_range(),
-                            severity: Severity::Error,
-                        }))
-                    });
-                });
-            });
+                                    .to_string(),
+                                range: arg.text_range(),
+                                severity: Severity::Error,
+                            });
+                        }
+                    }
+                }
+            }
         },
         |results, type_alias| {
             results.push(Diagnostic {
