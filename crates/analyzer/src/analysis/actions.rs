@@ -6,6 +6,7 @@ use ink_analyzer_ir::syntax::{AstNode, SyntaxElement, SyntaxKind, SyntaxNode, Te
 use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttributeKind, InkFile};
 
 use super::utils;
+use crate::analysis::text_edit::TextEdit;
 
 /// An ink! attribute code/intent action.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,10 +15,8 @@ pub struct Action {
     pub label: String,
     /// Range where the action will be applied.
     pub range: TextRange,
-    /// Replacement text for the action.
-    pub edit: String,
-    /// Formatted snippet for the action.
-    pub snippet: Option<String>,
+    /// Text edits that will performed by the action.
+    pub edits: Vec<TextEdit>,
 }
 
 /// Computes ink! attribute actions for the given offset.
@@ -84,21 +83,21 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                             let (insert_offset, insert_prefix, insert_suffix) =
                                 utils::ink_attribute_insertion_offset_and_affixes(target_ast_node);
 
-                            // Sets the text range for the edit.
-                            let edit_range = TextRange::new(insert_offset, insert_offset);
-
                             // Add ink! attribute macro actions to accumulator.
                             for macro_kind in ink_macro_suggestions {
                                 results.push(Action {
                                     label: format!("Add ink! {macro_kind} attribute macro."),
-                                    range: edit_range,
-                                    edit: format!(
-                                        "{}#[{}]{}",
-                                        insert_prefix.as_deref().unwrap_or_default(),
-                                        macro_kind.path_as_str(),
-                                        insert_suffix.as_deref().unwrap_or_default()
-                                    ),
-                                    snippet: None,
+                                    range: TextRange::new(insert_offset, insert_offset),
+                                    edits: vec![TextEdit::insert(
+                                        format!(
+                                            "{}#[{}]{}",
+                                            insert_prefix.as_deref().unwrap_or_default(),
+                                            macro_kind.path_as_str(),
+                                            insert_suffix.as_deref().unwrap_or_default()
+                                        ),
+                                        insert_offset,
+                                        None,
+                                    )],
                                 });
                             }
                         }
@@ -183,28 +182,31 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                             results.push(Action {
                                 label: format!("Add ink! {arg_kind} attribute argument."),
                                 range: edit_range,
-                                edit: format!(
-                                    "{}{}{}",
-                                    insert_prefix.as_deref().unwrap_or_default(),
-                                    if is_extending {
-                                        edit
-                                    } else {
-                                        format!("#[ink({edit})]")
-                                    },
-                                    insert_suffix.as_deref().unwrap_or_default(),
-                                ),
-                                snippet: snippet.map(|snippet| {
+                                edits: vec![TextEdit::insert(
                                     format!(
                                         "{}{}{}",
                                         insert_prefix.as_deref().unwrap_or_default(),
                                         if is_extending {
-                                            snippet
+                                            edit
                                         } else {
-                                            format!("#[ink({snippet})]")
+                                            format!("#[ink({edit})]")
                                         },
                                         insert_suffix.as_deref().unwrap_or_default(),
-                                    )
-                                }),
+                                    ),
+                                    insert_offset,
+                                    snippet.map(|snippet| {
+                                        format!(
+                                            "{}{}{}",
+                                            insert_prefix.as_deref().unwrap_or_default(),
+                                            if is_extending {
+                                                snippet
+                                            } else {
+                                                format!("#[ink({snippet})]")
+                                            },
+                                            insert_suffix.as_deref().unwrap_or_default(),
+                                        )
+                                    }),
+                                )],
                             });
                         }
                     }
@@ -262,9 +264,12 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: T
                     results.push(Action {
                         label: format!("Add ink! {arg_kind} attribute argument."),
                         range: edit_range,
-                        edit: format!("{insert_prefix}{edit}{insert_suffix}"),
-                        snippet: snippet
-                            .map(|snippet| format!("{insert_prefix}{snippet}{insert_suffix}")),
+                        edits: vec![TextEdit::insert(
+                            format!("{insert_prefix}{edit}{insert_suffix}"),
+                            insert_offset,
+                            snippet
+                                .map(|snippet| format!("{insert_prefix}{snippet}{insert_suffix}")),
+                        )],
                     });
                 }
             }
@@ -621,7 +626,10 @@ mod tests {
             assert_eq!(
                 results
                     .into_iter()
-                    .map(|action| (remove_whitespace(action.edit), action.range))
+                    .map(|action| (
+                        remove_whitespace(action.edits[0].text.clone()),
+                        action.edits[0].range
+                    ))
                     .collect::<Vec<(String, TextRange)>>(),
                 expected_results
                     .into_iter()
@@ -980,7 +988,10 @@ mod tests {
             assert_eq!(
                 results
                     .into_iter()
-                    .map(|action| (remove_whitespace(action.edit), action.range))
+                    .map(|action| (
+                        remove_whitespace(action.edits[0].text.clone()),
+                        action.edits[0].range
+                    ))
                     .collect::<Vec<(String, TextRange)>>(),
                 expected_results
                     .into_iter()

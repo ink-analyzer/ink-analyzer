@@ -119,33 +119,41 @@ fn actions_works() {
                     .filter_map(|code_action| code_action
                         .edit
                         .as_ref()
-                        .and_then(|it| { it.changes.as_ref().and_then(|it| { it.get(&uri) }) }))
-                    .flatten()
-                    .map(|edit| (
-                        test_utils::remove_whitespace(edit.new_text.clone()),
-                        edit.range
-                    ))
-                    .collect::<Vec<(String, lsp_types::Range)>>(),
+                        .and_then(|it| it.changes.as_ref())
+                        .and_then(|it| it.get(&uri)))
+                    .map(|edits| edits
+                        .into_iter()
+                        .map(|edit| (
+                            test_utils::remove_whitespace(edit.new_text.clone()),
+                            edit.range
+                        ))
+                        .collect())
+                    .collect::<Vec<Vec<(String, lsp_types::Range)>>>(),
                 expected_results
                     .into_iter()
-                    .map(|result| (
-                        test_utils::remove_whitespace(result.text.to_string()),
-                        ink_lsp_server::translator::to_lsp::range(
-                            ink_analyzer::TextRange::new(
-                                ink_analyzer::TextSize::from(
-                                    test_utils::parse_offset_at(&test_code, result.start_pat)
-                                        .unwrap() as u32
+                    .map(|expected_edits| expected_edits
+                        .into_iter()
+                        .map(|result| (
+                            test_utils::remove_whitespace(result.text.to_string()),
+                            ink_lsp_server::translator::to_lsp::range(
+                                ink_analyzer::TextRange::new(
+                                    ink_analyzer::TextSize::from(
+                                        test_utils::parse_offset_at(&test_code, result.start_pat)
+                                            .unwrap()
+                                            as u32
+                                    ),
+                                    ink_analyzer::TextSize::from(
+                                        test_utils::parse_offset_at(&test_code, result.end_pat)
+                                            .unwrap()
+                                            as u32
+                                    ),
                                 ),
-                                ink_analyzer::TextSize::from(
-                                    test_utils::parse_offset_at(&test_code, result.end_pat).unwrap()
-                                        as u32
-                                ),
-                            ),
-                            &translation_context
-                        )
-                        .unwrap()
-                    ))
-                    .collect::<Vec<(String, lsp_types::Range)>>(),
+                                &translation_context
+                            )
+                            .unwrap()
+                        ))
+                        .collect())
+                    .collect::<Vec<Vec<(String, lsp_types::Range)>>>(),
                 "source: {}",
                 test_group.source
             );

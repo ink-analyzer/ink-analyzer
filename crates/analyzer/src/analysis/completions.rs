@@ -1,5 +1,6 @@
 //! ink! attribute completions.
 
+use crate::analysis::text_edit::TextEdit;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{
     ast, FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
@@ -12,14 +13,12 @@ use super::utils;
 pub struct Completion {
     /// Label which identifies the completion.
     pub label: String,
-    /// Descriptive information about the completion.
-    pub detail: Option<String>,
     /// Range of identifier that is being completed.
     pub range: TextRange,
     /// Replacement text for the completion.
-    pub edit: String,
-    /// Formatted snippet for the completion.
-    pub snippet: Option<String>,
+    pub edit: TextEdit,
+    /// Descriptive information about the completion.
+    pub detail: Option<String>,
 }
 
 /// Computes ink! attribute completions at the given offset.
@@ -190,10 +189,9 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         );
                         results.push(Completion {
                             label: edit.clone(),
-                            detail: Some(format!("ink! {macro_kind} attribute macro.")),
                             range: edit_range,
-                            edit,
-                            snippet: None,
+                            edit: TextEdit::replace(edit, edit_range, None),
+                            detail: Some(format!("ink! {macro_kind} attribute macro.")),
                         });
                     }
                 } else if prev_token_is_left_bracket {
@@ -210,10 +208,13 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         {
                             results.push(Completion {
                                 label: ink_macro_crate_name.to_string(),
-                                detail: Some(detail.to_string()),
                                 range: edit_range,
-                                edit: ink_macro_crate_name.to_string(),
-                                snippet: None,
+                                edit: TextEdit::replace(
+                                    ink_macro_crate_name.to_string(),
+                                    edit_range,
+                                    None,
+                                ),
+                                detail: Some(detail.to_string()),
                             });
                         }
                     }
@@ -366,10 +367,13 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     );
                     results.push(Completion {
                         label: edit.clone(),
-                        detail: Some(format!("ink! {arg_kind} attribute argument.")),
                         range: edit_range,
-                        edit: format!("{prefix}{edit}"),
-                        snippet: snippet.map(|snippet| format!("{prefix}{snippet}")),
+                        edit: TextEdit::replace(
+                            format!("{prefix}{edit}"),
+                            edit_range,
+                            snippet.map(|snippet| format!("{prefix}{snippet}")),
+                        ),
+                        detail: Some(format!("ink! {arg_kind} attribute argument.")),
                     });
                 }
             }
@@ -653,7 +657,7 @@ mod tests {
             assert_eq!(
                 results
                     .iter()
-                    .map(|completion| (completion.edit.trim(), completion.range))
+                    .map(|completion| (completion.edit.text.trim(), completion.range))
                     .collect::<Vec<(&str, TextRange)>>(),
                 expected_results
                     .into_iter()
@@ -1154,7 +1158,7 @@ mod tests {
             assert_eq!(
                 results
                     .into_iter()
-                    .map(|completion| (remove_whitespace(completion.edit), completion.range))
+                    .map(|completion| (remove_whitespace(completion.edit.text), completion.range))
                     .collect::<Vec<(String, TextRange)>>(),
                 expected_results
                     .into_iter()

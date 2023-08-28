@@ -14,6 +14,7 @@ mod completions;
 mod diagnostics;
 mod hover;
 mod inlay_hints;
+mod text_edit;
 mod utils;
 
 /// Entry point for asking for semantic information about ink! smart contract code.

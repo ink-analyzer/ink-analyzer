@@ -72,16 +72,16 @@ pub fn completion(
         label: completion.label,
         kind: Some(lsp_types::CompletionItemKind::FUNCTION),
         detail: completion.detail,
-        insert_text_format: snippet_support.then_some(match completion.snippet.as_ref() {
+        insert_text_format: snippet_support.then_some(match completion.edit.snippet.as_ref() {
             Some(_) => lsp_types::InsertTextFormat::SNIPPET,
             None => lsp_types::InsertTextFormat::PLAIN_TEXT,
         }),
         text_edit: Some(
             lsp_types::TextEdit {
                 range,
-                new_text: match (snippet_support, completion.snippet) {
+                new_text: match (snippet_support, completion.edit.snippet) {
                     (true, Some(snippet)) => snippet,
-                    _ => completion.edit,
+                    _ => completion.edit.text,
                 },
             }
             .into(),
@@ -109,26 +109,54 @@ pub fn code_action(
     uri: lsp_types::Url,
     context: &PositionTranslationContext,
 ) -> Option<lsp_types::CodeAction> {
-    range(action.range, context).map(|range| lsp_types::CodeAction {
-        title: action.label,
-        kind: Some(lsp_types::CodeActionKind::REFACTOR_REWRITE),
-        edit: Some(lsp_types::WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                uri,
-                vec![lsp_types::TextEdit {
-                    range,
-                    new_text: action.edit,
-                }],
-            )])),
+    let edits: Vec<(&str, lsp_types::Range, Option<&str>)> = action
+        .edits
+        .iter()
+        .filter_map(|edit| {
+            range(edit.range, context)
+                .map(|range| (edit.text.as_str(), range, edit.snippet.as_deref()))
+        })
+        .collect();
+
+    (!edits.is_empty()).then(|| {
+        let snippets: Vec<(String, String)> = edits
+            .iter()
+            .filter_map(|(text, _, snippet)| {
+                snippet.map(|snippet| (text.to_string(), snippet.to_string()))
+            })
+            .collect();
+
+        lsp_types::CodeAction {
+            title: action.label,
+            kind: Some(lsp_types::CodeActionKind::REFACTOR_REWRITE),
+            edit: Some(lsp_types::WorkspaceEdit {
+                changes: Some(HashMap::from([(
+                    uri,
+                    edits
+                        .into_iter()
+                        .map(|(text, range, _)| lsp_types::TextEdit {
+                            range,
+                            new_text: text.to_string(),
+                        })
+                        .collect(),
+                )])),
+                ..Default::default()
+            }),
+            // Add snippet for clients that have the middleware to apply code actions edits as snippets.
+            data: (!snippets.is_empty()).then(|| {
+                let mut snippets_map = serde_json::Map::with_capacity(snippets.len());
+                for (edit, snippet) in snippets {
+                    snippets_map.insert(edit, serde_json::Value::String(snippet));
+                }
+                let mut data = serde_json::Map::with_capacity(1);
+                data.insert(
+                    "snippets".to_string(),
+                    serde_json::Value::Object(snippets_map),
+                );
+                serde_json::Value::Object(data)
+            }),
             ..Default::default()
-        }),
-        // Add snippet for clients that have the middleware to apply code actions edits as snippets.
-        data: action.snippet.map(|snippet| {
-            let mut data = serde_json::Map::with_capacity(1);
-            data.insert("snippet".to_string(), serde_json::Value::String(snippet));
-            serde_json::Value::Object(data)
-        }),
-        ..Default::default()
+        }
     })
 }
 

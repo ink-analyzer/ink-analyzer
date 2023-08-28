@@ -49,7 +49,7 @@ fn completions_works() {
                 results
                     .into_iter()
                     .map(|completion| (
-                        test_utils::remove_whitespace(completion.edit),
+                        test_utils::remove_whitespace(completion.edit.text),
                         completion.range
                     ))
                     .collect::<Vec<(String, TextRange)>>(),

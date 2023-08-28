@@ -49,24 +49,31 @@ fn actions_works() {
             assert_eq!(
                 results
                     .into_iter()
-                    .map(|action| (test_utils::remove_whitespace(action.edit), action.range))
-                    .collect::<Vec<(String, TextRange)>>(),
+                    .map(|action| action
+                        .edits
+                        .into_iter()
+                        .map(|edit| (test_utils::remove_whitespace(edit.text.clone()), edit.range))
+                        .collect())
+                    .collect::<Vec<Vec<(String, TextRange)>>>(),
                 expected_results
                     .into_iter()
-                    .map(|result| (
-                        test_utils::remove_whitespace(result.text.to_string()),
-                        TextRange::new(
-                            TextSize::from(
-                                test_utils::parse_offset_at(&test_code, result.start_pat).unwrap()
-                                    as u32
-                            ),
-                            TextSize::from(
-                                test_utils::parse_offset_at(&test_code, result.end_pat).unwrap()
-                                    as u32
-                            ),
-                        )
-                    ))
-                    .collect::<Vec<(String, TextRange)>>(),
+                    .map(|expected_edits| expected_edits
+                        .into_iter()
+                        .map(|result| (
+                            test_utils::remove_whitespace(result.text.to_string()),
+                            TextRange::new(
+                                TextSize::from(
+                                    test_utils::parse_offset_at(&test_code, result.start_pat)
+                                        .unwrap() as u32
+                                ),
+                                TextSize::from(
+                                    test_utils::parse_offset_at(&test_code, result.end_pat).unwrap()
+                                        as u32
+                                ),
+                            )
+                        ))
+                        .collect())
+                    .collect::<Vec<Vec<(String, TextRange)>>>(),
                 "source: {}",
                 test_group.source
             );

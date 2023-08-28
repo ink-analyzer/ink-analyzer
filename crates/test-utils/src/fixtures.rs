@@ -815,14 +815,17 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-mod erc20"),
                     })),
                     // Describes the expected code/intent actions.
-                    results: TestCaseResults::Action(vec![TestResultTextRange {
-                        // Declares expected code/intent action text as `#[ink::contract]`, applied to the text range whose
+                    results: TestCaseResults::Action(vec![
+                        // Declares expected code/intent action as one text edit,
+                        // with text as `#[ink::contract]`, applied to the text range whose
                         // starting offset is the position at the beginning of the `mod erc20` substring and
                         // end offset is also the position at the beginning of the `mod erc20` substring.
-                        text: "#[ink::contract]",
-                        start_pat: Some("<-mod erc20"),
-                        end_pat: Some("<-mod erc20"),
-                    }]),
+                        vec![TestResultTextRange {
+                            text: "#[ink::contract]",
+                            start_pat: Some("<-mod erc20"),
+                            end_pat: Some("<-mod erc20"),
+                        }],
+                    ]),
                 },
                 TestCase {
                     modifications: None,
@@ -830,16 +833,16 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-#[ink::contract]"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "(env=)",
                             start_pat: Some("#[ink::contract"),
                             end_pat: Some("#[ink::contract"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "(keep_attr=)",
                             start_pat: Some("#[ink::contract"),
                             end_pat: Some("#[ink::contract"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -852,26 +855,26 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("pub struct Erc20"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "#[ink::storage_item]",
                             start_pat: Some("<-pub struct Erc20"),
                             end_pat: Some("<-pub struct Erc20"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(anonymous)]",
                             start_pat: Some("<-pub struct Erc20"),
                             end_pat: Some("<-pub struct Erc20"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(event)]",
                             start_pat: Some("<-pub struct Erc20"),
                             end_pat: Some("<-pub struct Erc20"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(storage)]",
                             start_pat: Some("<-pub struct Erc20"),
                             end_pat: Some("<-pub struct Erc20"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -891,26 +894,26 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-pub struct Transfer"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "#[ink::storage_item]",
                             start_pat: Some("<-pub struct Transfer"),
                             end_pat: Some("<-pub struct Transfer"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(anonymous)]",
                             start_pat: Some("<-pub struct Transfer"),
                             end_pat: Some("<-pub struct Transfer"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(event)]",
                             start_pat: Some("<-pub struct Transfer"),
                             end_pat: Some("<-pub struct Transfer"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(storage)]",
                             start_pat: Some("<-pub struct Transfer"),
                             end_pat: Some("<-pub struct Transfer"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -918,11 +921,11 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                         pat: Some("<-#[ink(event)]"),
                     })),
-                    results: TestCaseResults::Action(vec![TestResultTextRange {
+                    results: TestCaseResults::Action(vec![vec![TestResultTextRange {
                         text: ", anonymous",
                         start_pat: Some("#[ink(event"),
                         end_pat: Some("#[ink(event"),
-                    }]),
+                    }]]),
                 },
                 TestCase {
                     modifications: Some(vec![TestCaseModification {
@@ -934,41 +937,41 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-pub fn new(total_supply: Balance)"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "#[ink::test]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink_e2e::test]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(constructor)]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(default)]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(message)]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(payable)]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(selector=)]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -977,21 +980,21 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-#[ink(constructor)]"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: ", default",
                             start_pat: Some("#[ink(constructor"),
                             end_pat: Some("#[ink(constructor"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: ", payable",
                             start_pat: Some("#[ink(constructor"),
                             end_pat: Some("#[ink(constructor"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: ", selector=",
                             start_pat: Some("#[ink(constructor"),
                             end_pat: Some("#[ink(constructor"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -1004,41 +1007,41 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-pub fn total_supply(&self)"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "#[ink::test]",
                             start_pat: Some("<-pub fn total_supply(&self)"),
                             end_pat: Some("<-pub fn total_supply(&self)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink_e2e::test]",
                             start_pat: Some("<-pub fn total_supply(&self)"),
                             end_pat: Some("<-pub fn total_supply(&self)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(constructor)]",
                             start_pat: Some("<-pub fn total_supply(&self)"),
                             end_pat: Some("<-pub fn total_supply(&self)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(default)]",
                             start_pat: Some("<-pub fn total_supply(&self)"),
                             end_pat: Some("<-pub fn total_supply(&self)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(message)]",
                             start_pat: Some("<-pub fn total_supply(&self)"),
                             end_pat: Some("<-pub fn total_supply(&self)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(payable)]",
                             start_pat: Some("<-pub fn total_supply(&self)"),
                             end_pat: Some("<-pub fn total_supply(&self)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(selector=)]",
                             start_pat: Some("<-pub fn total_supply(&self)"),
                             end_pat: Some("<-pub fn total_supply(&self)"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -1047,21 +1050,21 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-#[ink(message)]"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: ", default",
                             start_pat: Some("#[ink(message"),
                             end_pat: Some("#[ink(message"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: ", payable",
                             start_pat: Some("#[ink(message"),
                             end_pat: Some("#[ink(message"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: ", selector=",
                             start_pat: Some("#[ink(message"),
                             end_pat: Some("#[ink(message"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -1077,21 +1080,21 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-#[ink_e2e::test]"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "(additional_contracts=)",
                             start_pat: Some("#[ink_e2e::test"),
                             end_pat: Some("#[ink_e2e::test"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "(environment=)",
                             start_pat: Some("#[ink_e2e::test"),
                             end_pat: Some("#[ink_e2e::test"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "(keep_attr=)",
                             start_pat: Some("#[ink_e2e::test"),
                             end_pat: Some("#[ink_e2e::test"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -1100,21 +1103,21 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-async fn e2e_transfer"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "(additional_contracts=)",
                             start_pat: Some("#[ink_e2e::test"),
                             end_pat: Some("#[ink_e2e::test"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "(environment=)",
                             start_pat: Some("#[ink_e2e::test"),
                             end_pat: Some("#[ink_e2e::test"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "(keep_attr=)",
                             start_pat: Some("#[ink_e2e::test"),
                             end_pat: Some("#[ink_e2e::test"),
-                        },
+                        }],
                     ]),
                 },
             ],
@@ -1133,16 +1136,16 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-pub trait BaseErc20"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "#[ink::chain_extension]",
                             start_pat: Some("<-pub trait BaseErc20"),
                             end_pat: Some("<-pub trait BaseErc20"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink::trait_definition]",
                             start_pat: Some("<-pub trait BaseErc20"),
                             end_pat: Some("<-pub trait BaseErc20"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -1151,16 +1154,16 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-#[ink::trait_definition]"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "(keep_attr=)",
                             start_pat: Some("#[ink::trait_definition"),
                             end_pat: Some("#[ink::trait_definition"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "(namespace=)",
                             start_pat: Some("#[ink::trait_definition"),
                             end_pat: Some("#[ink::trait_definition"),
-                        },
+                        }],
                     ]),
                 },
             ],
@@ -1179,16 +1182,16 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-pub trait Psp22Extension"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "#[ink::chain_extension]",
                             start_pat: Some("<-pub trait Psp22Extension"),
                             end_pat: Some("<-pub trait Psp22Extension"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink::trait_definition]",
                             start_pat: Some("<-pub trait Psp22Extension"),
                             end_pat: Some("<-pub trait Psp22Extension"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -1208,26 +1211,26 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-fn token_name(asset_id: u32)"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "#[ink::test]",
                             start_pat: Some("<-fn token_name(asset_id: u32)"),
                             end_pat: Some("<-fn token_name(asset_id: u32)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink_e2e::test]",
                             start_pat: Some("<-fn token_name(asset_id: u32)"),
                             end_pat: Some("<-fn token_name(asset_id: u32)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(extension=)]",
                             start_pat: Some("<-fn token_name(asset_id: u32)"),
                             end_pat: Some("<-fn token_name(asset_id: u32)"),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(handle_status=)]",
                             start_pat: Some("<-fn token_name(asset_id: u32)"),
                             end_pat: Some("<-fn token_name(asset_id: u32)"),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -1235,11 +1238,11 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                         pat: Some("<-#[ink(extension = 0x3d26)]"),
                     })),
-                    results: TestCaseResults::Action(vec![TestResultTextRange {
+                    results: TestCaseResults::Action(vec![vec![TestResultTextRange {
                         text: ", handle_status=",
                         start_pat: Some("#[ink(extension = 0x3d26"),
                         end_pat: Some("#[ink(extension = 0x3d26"),
-                    }]),
+                    }]]),
                 },
             ],
         },
@@ -1257,26 +1260,26 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-struct Contract("),
                     })),
                     results: TestCaseResults::Action(vec![
-                        TestResultTextRange {
+                        vec![TestResultTextRange {
                             text: "#[ink::storage_item]",
                             start_pat: Some("<-struct Contract("),
                             end_pat: Some("<-struct Contract("),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(anonymous)]",
                             start_pat: Some("<-struct Contract("),
                             end_pat: Some("<-struct Contract("),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(event)]",
                             start_pat: Some("<-struct Contract("),
                             end_pat: Some("<-struct Contract("),
-                        },
-                        TestResultTextRange {
+                        }],
+                        vec![TestResultTextRange {
                             text: "#[ink(storage)]",
                             start_pat: Some("<-struct Contract("),
                             end_pat: Some("<-struct Contract("),
-                        },
+                        }],
                     ]),
                 },
                 TestCase {
@@ -1284,11 +1287,11 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                         pat: Some("<-#[ink::storage_item]"),
                     })),
-                    results: TestCaseResults::Action(vec![TestResultTextRange {
+                    results: TestCaseResults::Action(vec![vec![TestResultTextRange {
                         text: "(derive=)",
                         start_pat: Some("#[ink::storage_item"),
                         end_pat: Some("#[ink::storage_item"),
-                    }]),
+                    }]]),
                 },
             ],
         },
