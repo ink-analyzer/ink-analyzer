@@ -20,6 +20,9 @@ jobs:
       - name: Install Rust toolchain
         run: rustup update
 
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
       - name: Run lints
         run: cargo clippy --verbose
 
