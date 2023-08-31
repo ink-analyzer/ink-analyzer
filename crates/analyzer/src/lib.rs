@@ -59,3 +59,5 @@ pub use self::analysis::{
 pub use ink_analyzer_ir::syntax::{TextRange, TextSize};
 
 mod analysis;
+
+mod test_utils;

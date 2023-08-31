@@ -232,9 +232,14 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
+    use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity};
     use quote::{format_ident, quote};
-    use test_utils::quote_as_str;
+    use test_utils::{
+        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
+        TestResultTextRange,
+    };
 
     fn parse_first_trait_definition(code: &str) -> TraitDefinition {
         TraitDefinition::cast(
@@ -354,52 +359,140 @@ mod tests {
 
     #[test]
     fn invalid_trait_properties_fails() {
-        for code in [
+        for (code, expected_quickfixes) in [
             // Visibility.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L48-L58>.
-            quote! {
-                trait MyTrait {}
-            },
-            quote! {
-                crate trait MyTrait {}
-            },
-            quote! {
-                pub(crate) trait MyTrait {}
-            },
-            quote! {
-                pub(self) trait MyTrait {}
-            },
-            quote! {
-                pub(super) trait MyTrait {}
-            },
-            quote! {
-                pub(in my::path) trait MyTrait {}
-            },
+            (
+                quote! {
+                    trait MyTrait {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-trait MyTrait"),
+                        end_pat: Some("<-trait MyTrait"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub(crate) trait MyTrait {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(crate)"),
+                        end_pat: Some("pub(crate)"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub(self) trait MyTrait {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(self)"),
+                        end_pat: Some("pub(self)"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub(super) trait MyTrait {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(super)"),
+                        end_pat: Some("pub(super)"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub(in my::path) trait MyTrait {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(in my::path)"),
+                        end_pat: Some("pub(in my::path)"),
+                    }],
+                }],
+            ),
             // Unsafe.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L32-L38>.
-            quote! {
-                pub unsafe trait MyTrait {}
-            },
+            (
+                quote! {
+                    pub unsafe trait MyTrait {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
             // Auto.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L40-L46>.
-            quote! {
-                pub auto trait MyTrait {}
-            },
+            (
+                quote! {
+                    pub auto trait MyTrait {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `auto`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-auto"),
+                        end_pat: Some("auto "),
+                    }],
+                }],
+            ),
             // Generic.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L60-L66>.
-            quote! {
-                pub trait MyTrait<T> {}
-            },
+            (
+                quote! {
+                    pub trait MyTrait<T> {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
             // Supertrait.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L68-L74>.
-            quote! {
-                pub trait MyTrait: SuperTrait {}
-            },
+            (
+                quote! {
+                    pub trait MyTrait: SuperTrait {}
+                },
+                vec![TestResultAction {
+                    label: "Remove type",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-: SuperTrait"),
+                        end_pat: Some(": SuperTrait"),
+                    }],
+                }],
+            ),
         ] {
-            let trait_definition = parse_first_trait_definition(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink::trait_definition]
                 #code
-            });
+            };
+            let trait_definition = parse_first_trait_definition(&code);
 
             let mut results = Vec::new();
             utils::ensure_trait_invariants(
@@ -407,11 +500,19 @@ mod tests {
                 trait_definition.trait_item().unwrap(),
                 TRAIT_DEFINITION_SCOPE_NAME,
             );
+
+            // Verifies diagnostics.
             assert_eq!(results.len(), 1, "trait definition: {code}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
                 "trait definition: {code}"
+            );
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
             );
         }
     }
@@ -431,125 +532,392 @@ mod tests {
 
     #[test]
     fn invalid_trait_items_fails() {
-        for items in [
+        for (items, expected_quickfixes) in [
             // Const.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L76-L84>.
-            quote! {
-                const T: i32;
-            },
+            (
+                quote! {
+                    const T: i32;
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-const"),
+                        end_pat: Some("i32;"),
+                    }],
+                }],
+            ),
             // Type.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L86-L94>.
-            quote! {
-                type Type;
-            },
+            (
+                quote! {
+                    type Type;
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-type"),
+                        end_pat: Some("Type;"),
+                    }],
+                }],
+            ),
             // Macro.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L96-L104>.
-            quote! {
-                my_macro_call!();
-            },
+            (
+                quote! {
+                    my_macro_call!();
+                },
+                vec![TestResultAction {
+                    label: "Remove macro",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-my_macro_call"),
+                        end_pat: Some("my_macro_call!();"),
+                    }],
+                }],
+            ),
             // Non-flagged method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L106-L126>.
-            quote! {
-                fn non_flagged(&self);
-            },
-            quote! {
-                fn non_flagged_mut(&mut self);
-            },
+            (
+                quote! {
+                    fn non_flagged(&self);
+                },
+                vec![TestResultAction {
+                    label: "Add ink! message",
+                    edits: vec![TestResultTextRange {
+                        text: "message",
+                        start_pat: Some("<-fn"),
+                        end_pat: Some("<-fn"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    fn non_flagged_mut(&mut self);
+                },
+                vec![TestResultAction {
+                    label: "Add ink! message",
+                    edits: vec![TestResultTextRange {
+                        text: "message",
+                        start_pat: Some("<-fn"),
+                        end_pat: Some("<-fn"),
+                    }],
+                }],
+            ),
             // Default implementation.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L128-L144>.
-            quote! {
-                #[ink(message)]
-                fn default_implemented(&self) {}
-            },
+            (
+                quote! {
+                    #[ink(message)]
+                    fn default_implemented(&self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-{}"),
+                        end_pat: Some("{}"),
+                    }],
+                }],
+            ),
             // Const method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L146-L162>.
-            quote! {
-                #[ink(message)]
-                const fn const_message(&self);
-            },
+            (
+                quote! {
+                    #[ink(message)]
+                    const fn const_message(&self);
+                },
+                vec![TestResultAction {
+                    label: "Remove `const`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-const"),
+                        end_pat: Some("const "),
+                    }],
+                }],
+            ),
             // Async method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L164-L180>.
-            quote! {
-                #[ink(message)]
-                async fn async_message(&self);
-            },
+            (
+                quote! {
+                    #[ink(message)]
+                    async fn async_message(&self);
+                },
+                vec![TestResultAction {
+                    label: "Remove `async`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-async"),
+                        end_pat: Some("async "),
+                    }],
+                }],
+            ),
             // Unsafe method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L182-L198>.
-            quote! {
-                #[ink(message)]
-                unsafe fn unsafe_message(&self);
-            },
+            (
+                quote! {
+                    #[ink(message)]
+                    unsafe fn unsafe_message(&self);
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
             // Explicit ABI.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L200-L216>.
-            quote! {
-                #[ink(message)]
-                extern fn extern_message(&self);
-            },
+            (
+                quote! {
+                    #[ink(message)]
+                    extern fn extern_message(&self);
+                },
+                vec![TestResultAction {
+                    label: "Remove explicit ABI",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-extern"),
+                        end_pat: Some("extern "),
+                    }],
+                }],
+            ),
             // Variadic method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L218-L234>.
-            quote! {
-                #[ink(message)]
-                fn variadic_message(&self, ...);
-            },
+            (
+                quote! {
+                    #[ink(message)]
+                    fn variadic_message(&self, ...);
+                },
+                vec![TestResultAction {
+                    label: "un-variadic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-..."),
+                        end_pat: Some("..."),
+                    }],
+                }],
+            ),
             // Generic method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L236-L252>.
-            quote! {
-                #[ink(message)]
-                fn generic_message<T>(&self);
-            },
+            (
+                quote! {
+                    #[ink(message)]
+                    fn generic_message<T>(&self);
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
             // Unsupported ink! attribute.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L254-L270>.
-            quote! {
-                #[ink(constructor)]
-                fn my_constructor() -> Self;
-            },
-            quote! {
-                #[ink(storage)]
-                fn unsupported_ink_attribute(&self);
-            },
-            quote! {
-                #[ink(unknown)]
-                fn unknown_ink_attribute(&self);
-            },
+            (
+                quote! {
+                    #[ink(constructor)]
+                    fn my_constructor() -> Self;
+                },
+                vec![TestResultAction {
+                    label: "Add ink! message",
+                    edits: vec![
+                        // Add ink! message attribute.
+                        TestResultTextRange {
+                            text: "message",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("<-#[ink(constructor)]"),
+                        },
+                        // Remove ink! constructor attribute.
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                        },
+                    ],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(storage)]
+                    fn unsupported_method(&self);
+                },
+                vec![TestResultAction {
+                    label: "Add ink! message",
+                    edits: vec![
+                        // Add ink! message attribute.
+                        TestResultTextRange {
+                            text: "message",
+                            start_pat: Some("<-#[ink(storage)]"),
+                            end_pat: Some("<-#[ink(storage)]"),
+                        },
+                        // Remove ink! storage attribute.
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(storage)]"),
+                            end_pat: Some("#[ink(storage)]"),
+                        },
+                    ],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(unknown)]
+                    fn unknown_method(&self);
+                },
+                vec![TestResultAction {
+                    label: "Add ink! message",
+                    edits: vec![
+                        // Add ink! message attribute.
+                        TestResultTextRange {
+                            text: "message",
+                            start_pat: Some("<-#[ink(unknown)]"),
+                            end_pat: Some("<-#[ink(unknown)]"),
+                        },
+                        // Remove unknown ink! attribute.
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(unknown)]"),
+                            end_pat: Some("#[ink(unknown)]"),
+                        },
+                    ],
+                }],
+            ),
             // Invalid message.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L272-L295>.
-            quote! {
-                #[ink(message)]
-                fn does_not_return_self();
-            },
-            quote! {
-                #[ink(message)]
-                fn does_not_return_self(self: &Self);
-            },
-            quote! {
-                #[ink(message)]
-                fn does_not_return_self(self);
-            },
+            (
+                quote! {
+                    #[ink(message)]
+                    fn no_self_ref_receiver();
+                },
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "&self",
+                            start_pat: Some("no_self_ref_receiver("),
+                            end_pat: Some("no_self_ref_receiver("),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "&mut self",
+                            start_pat: Some("no_self_ref_receiver("),
+                            end_pat: Some("no_self_ref_receiver("),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    #[ink(message)]
+                    fn no_self_ref_receiver(self: &Self);
+                },
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "&self",
+                            start_pat: Some("no_self_ref_receiver("),
+                            end_pat: Some("no_self_ref_receiver("),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "&mut self",
+                            start_pat: Some("no_self_ref_receiver("),
+                            end_pat: Some("no_self_ref_receiver("),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    #[ink(message)]
+                    fn no_self_ref_receiver(self);
+                },
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "&self",
+                            start_pat: Some("no_self_ref_receiver("),
+                            end_pat: Some("no_self_ref_receiver("),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "&mut self",
+                            start_pat: Some("no_self_ref_receiver("),
+                            end_pat: Some("no_self_ref_receiver("),
+                        }],
+                    },
+                ],
+            ),
             // Wildcard selectors.
-            quote! {
-                #[ink(message, selector=_)]
-                fn has_wildcard_selector(&self);
-            },
-            quote! {
-                #[ink(message)]
-                #[ink(selector=_)]
-                fn has_wildcard_selector(&self);
-            },
+            (
+                quote! {
+                    #[ink(message, selector = _)]
+                    fn has_wildcard_selector(&self);
+                },
+                vec![TestResultAction {
+                    label: "Remove wildcard",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        // FIXME: Should also remove leading comma.
+                        start_pat: Some("<-selector = _"),
+                        end_pat: Some("selector = _"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(message)]
+                    #[ink(selector = _)]
+                    fn has_wildcard_selector(&self);
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(selector = _)]"),
+                        end_pat: Some("#[ink(selector = _)]"),
+                    }],
+                }],
+            ),
         ] {
-            let trait_definition = parse_first_trait_definition(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink::trait_definition]
                 pub trait MyTrait {
                     #items
                 }
-            });
+            };
+            let trait_definition = parse_first_trait_definition(&code);
 
             let mut results = Vec::new();
             ensure_trait_item_invariants(&mut results, trait_definition.trait_item().unwrap());
+
+            // Verifies diagnostics.
             assert_eq!(results.len(), 1, "trait definition: {items}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
                 "trait definition: {items}"
+            );
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
             );
         }
     }
@@ -599,15 +967,27 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L106-L126>.
     fn missing_message_fails() {
-        let trait_definition = parse_first_trait_definition(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::trait_definition]
             pub trait MyTrait {
             }
-        });
+        };
+        let trait_definition = parse_first_trait_definition(&code);
 
         let result = ensure_contains_message(&trait_definition);
+
+        // Verifies diagnostics.
         assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+        assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+        // Verifies quickfixes.
+        assert!(result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0]
+            .label
+            .contains("Add ink! message"));
+        let offset = TextSize::from(parse_offset_at(&code, Some("{")).unwrap() as u32);
+        assert_eq!(
+            result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0].range,
+            TextRange::new(offset, offset)
+        );
     }
 
     #[test]
@@ -626,23 +1006,24 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L254-L270>.
     fn invalid_quasi_direct_descendant_fails() {
-        let trait_definition = parse_first_trait_definition(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::trait_definition]
             pub trait MyTrait {
                 #[ink(constructor)]
                 fn my_constructor() -> Self;
 
                 #[ink(event)]
-                fn unsupported_ink_attribute(&self);
+                fn unsupported_method(&self);
 
                 #[ink(unknown)]
-                fn unknown_ink_attribute(&self);
+                fn unknown_method(&self);
             }
-        });
+        };
+        let trait_definition = parse_first_trait_definition(&code);
 
         let mut results = Vec::new();
         ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition);
-        // 1 diagnostics for `constructor` `event` and `unknown`.
+        // 1 diagnostic each for `constructor`, `event` and `unknown`.
         assert_eq!(results.len(), 3);
         // All diagnostics should be errors.
         assert_eq!(
@@ -652,6 +1033,67 @@ mod tests {
                 .count(),
             3
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(constructor)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("#[ink(constructor)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("fn my_constructor() -> Self;"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(event)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("#[ink(event)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("fn unsupported_method(&self);"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(unknown)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(unknown)]"),
+                        end_pat: Some("#[ink(unknown)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(unknown)]"),
+                        end_pat: Some("fn unknown_method(&self);"),
+                    }],
+                },
+            ],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]

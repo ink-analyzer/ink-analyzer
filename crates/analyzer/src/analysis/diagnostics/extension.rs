@@ -42,10 +42,11 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, extension: &Extension) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
     use crate::Severity;
     use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
     fn parse_first_extension(code: &str) -> Extension {
         Extension::cast(
@@ -130,42 +131,103 @@ mod tests {
 
     #[test]
     fn invalid_method_fails() {
-        for code in [
+        for (code, expected_quickfixes) in [
             // Generic params fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L720-L729>.
-            quote! {
-                fn my_extension<T>();
-            },
+            (
+                quote! {
+                    fn my_extension<T>();
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
             // Const fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L665-L674>.
-            quote! {
-                const fn my_extension();
-            },
+            (
+                quote! {
+                    const fn my_extension();
+                },
+                vec![TestResultAction {
+                    label: "Remove `const`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-const fn"),
+                        end_pat: Some("const "),
+                    }],
+                }],
+            ),
             // Async fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L676-L685>.
-            quote! {
-                async fn my_extension();
-            },
+            (
+                quote! {
+                    async fn my_extension();
+                },
+                vec![TestResultAction {
+                    label: "Remove `async`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-async"),
+                        end_pat: Some("async "),
+                    }],
+                }],
+            ),
             // Unsafe fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L687-L696>.
-            quote! {
-                unsafe fn my_extension();
-            },
+            (
+                quote! {
+                    unsafe fn my_extension();
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
             // Explicit ABI fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L698-L707>.
-            quote! {
-                extern "C" fn my_extension();
-            },
+            (
+                quote! {
+                    extern "C" fn my_extension();
+                },
+                vec![TestResultAction {
+                    label: "Remove explicit ABI",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(r#"<-extern "C""#),
+                        end_pat: Some(r#"extern "C" "#),
+                    }],
+                }],
+            ),
             // Variadic fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L698-L707>.
-            quote! {
-                fn my_extension(...);
-            },
+            (
+                quote! {
+                    fn my_extension(...);
+                },
+                vec![TestResultAction {
+                    label: "un-variadic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-..."),
+                        end_pat: Some("..."),
+                    }],
+                }],
+            ),
         ] {
-            let extension = parse_first_extension(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(extension=1)]
                 #code
-            });
+            };
+            let extension = parse_first_extension(&code);
 
             let mut results = Vec::new();
             utils::ensure_method_invariants(
@@ -173,8 +235,16 @@ mod tests {
                 extension.fn_item().unwrap(),
                 EXTENSION_SCOPE_NAME,
             );
+
+            // Verifies diagnostics.
             assert_eq!(results.len(), 1, "extension: {code}");
             assert_eq!(results[0].severity, Severity::Error, "extension: {code}");
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
+            );
         }
     }
 
@@ -192,35 +262,69 @@ mod tests {
     }
 
     #[test]
-    // Ref: <>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/ir/src/ir/chain_extension.rs#L153-L155>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/ir/src/ir/chain_extension.rs#L812-L859>.
     fn self_receiver_fails() {
-        for code in [
-            quote! {
-                fn my_extension(self);
-            },
-            quote! {
-                fn my_extension(mut self);
-            },
-            quote! {
-                fn my_extension(&self);
-            },
-            quote! {
-                fn my_extension(&mut self);
-            },
+        for (code, start_pat, end_pat) in [
+            (
+                quote! {
+                    fn my_extension(self);
+                },
+                "<-self",
+                "self",
+            ),
+            (
+                quote! {
+                    fn my_extension(mut self);
+                },
+                "<-mut self",
+                "mut self",
+            ),
+            (
+                quote! {
+                    fn my_extension(&self);
+                },
+                "<-&self",
+                "&self",
+            ),
+            (
+                quote! {
+                    fn my_extension(&mut self);
+                },
+                "<-&mut self",
+                "&mut self",
+            ),
         ] {
-            let extension = parse_first_extension(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(extension=1)]
                 #code
-            });
+            };
+            let extension = parse_first_extension(&code);
 
             let result =
                 utils::ensure_no_self_receiver(extension.fn_item().unwrap(), EXTENSION_SCOPE_NAME);
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "extension: {code}");
             assert_eq!(
-                result.unwrap().severity,
+                result.as_ref().unwrap().severity,
                 Severity::Error,
                 "extension: {code}"
             );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                // Removes self receiver.
+                TestResultAction {
+                    label: "self receiver",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(start_pat),
+                        end_pat: Some(end_pat),
+                    }],
+                },
+            ];
+            let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
         }
     }
 
@@ -239,7 +343,7 @@ mod tests {
 
     #[test]
     fn ink_descendants_fails() {
-        let extension = parse_first_extension(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink(extension=1)]
             fn my_extension() {
                 #[ink(event)]
@@ -248,10 +352,12 @@ mod tests {
                     value: bool,
                 }
             }
-        });
+        };
+        let extension = parse_first_extension(&code);
 
         let mut results = Vec::new();
         utils::ensure_no_ink_descendants(&mut results, &extension, EXTENSION_SCOPE_NAME);
+
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
@@ -262,6 +368,29 @@ mod tests {
                 .count(),
             2
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![TestResultAction {
+                label: "Remove `#[ink(event)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(event)]"),
+                    end_pat: Some("#[ink(event)]"),
+                }],
+            }],
+            vec![TestResultAction {
+                label: "Remove `#[ink(topic)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(topic)]"),
+                    end_pat: Some("#[ink(topic)]"),
+                }],
+            }],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]

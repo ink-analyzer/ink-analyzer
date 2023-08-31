@@ -83,9 +83,10 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
     use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
     fn parse_first_constructor(code: &str) -> Constructor {
         Constructor::cast(
@@ -205,98 +206,236 @@ mod tests {
 
     #[test]
     fn invalid_callable_fails() {
-        for code in [
+        for (code, expected_quickfixes) in [
             // Bad visibility.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L557-L575>.
-            quote! {
-                crate fn my_constructor() -> Self {}
-            },
-            quote! {
-                crate fn my_constructor() -> Self {}
-            },
-            quote! {
-                pub(crate) fn my_constructor() -> Self {}
-            },
-            quote! {
-                pub(crate) fn my_constructor() -> Self {}
-            },
-            quote! {
-                pub(self) fn my_constructor() -> Self {}
-            },
-            quote! {
-                pub(self) fn my_constructor() -> Self {}
-            },
-            quote! {
-                pub(super) fn my_constructor() -> Self {}
-            },
-            quote! {
-                pub(super) fn my_constructor() -> Self {}
-            },
-            quote! {
-                pub(in my::path) fn my_constructor() -> Self {}
-            },
-            quote! {
-                pub(in my::path) fn my_constructor() -> Self {}
-            },
+            (
+                quote! {
+                    pub(crate) fn my_constructor() -> Self {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(crate)"),
+                            end_pat: Some("pub(crate)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(crate)"),
+                            end_pat: Some("pub(crate) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(self) fn my_constructor() -> Self {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(self)"),
+                            end_pat: Some("pub(self)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(self)"),
+                            end_pat: Some("pub(self) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(super) fn my_constructor() -> Self {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(super)"),
+                            end_pat: Some("pub(super)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(super)"),
+                            end_pat: Some("pub(super) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(in my::path) fn my_constructor() -> Self {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(in my::path)"),
+                            end_pat: Some("pub(in my::path)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(in my::path)"),
+                            end_pat: Some("pub(in my::path) "),
+                        }],
+                    },
+                ],
+            ),
             // Generic params fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L452-L467>.
-            quote! {
-                fn my_constructor<T>() -> Self {}
-            },
-            quote! {
-                pub fn my_constructor<T>() -> Self {}
-            },
-            quote! {
-                fn my_constructor<T>() -> Self {}
-            },
-            quote! {
-                pub fn my_constructor<T>() -> Self {}
-            },
+            (
+                quote! {
+                    fn my_constructor<T>() -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub fn my_constructor<T>() -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    fn my_constructor<T>() -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub fn my_constructor<T>() -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
             // Const fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L469-L484>.
-            quote! {
-                const fn my_constructor() -> Self {}
-            },
-            quote! {
-                const fn my_constructor() -> Self {}
-            },
+            (
+                quote! {
+                    const fn my_constructor() -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `const`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-const fn"),
+                        end_pat: Some("const "),
+                    }],
+                }],
+            ),
             // Async fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L486-L501>.
-            quote! {
-                async fn my_constructor() -> Self {}
-            },
-            quote! {
-                async fn my_constructor() -> Self {}
-            },
+            (
+                quote! {
+                    async fn my_constructor() -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `async`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-async"),
+                        end_pat: Some("async "),
+                    }],
+                }],
+            ),
             // Unsafe fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L503-L518>.
-            quote! {
-                unsafe fn my_constructor() -> Self {}
-            },
-            quote! {
-                unsafe fn my_constructor() -> Self {}
-            },
+            (
+                quote! {
+                    unsafe fn my_constructor() -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
             // Explicit ABI fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L520-L538>.
-            quote! {
-                extern "C" fn my_constructor() -> Self {}
-            },
-            quote! {
-                extern "C" fn my_constructor() -> Self {}
-            },
+            (
+                quote! {
+                    extern "C" fn my_constructor() -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "Remove explicit ABI",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(r#"<-extern "C""#),
+                        end_pat: Some(r#"extern "C" "#),
+                    }],
+                }],
+            ),
             // Variadic fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L540-L555>.
-            quote! {
-                fn my_constructor(...) -> Self {}
-            },
-            quote! {
-                fn my_constructor(...) -> Self {}
-            },
+            (
+                quote! {
+                    fn my_constructor(...) -> Self {}
+                },
+                vec![TestResultAction {
+                    label: "un-variadic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-..."),
+                        end_pat: Some("..."),
+                    }],
+                }],
+            ),
         ] {
-            let constructor = parse_first_constructor(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(constructor)]
                 #code
-            });
+            };
+            let constructor = parse_first_constructor(&code);
 
             let mut results = Vec::new();
             utils::ensure_callable_invariants(
@@ -304,8 +443,16 @@ mod tests {
                 constructor.fn_item().unwrap(),
                 CONSTRUCTOR_SCOPE_NAME,
             );
+
+            // Verifies diagnostics.
             assert_eq!(results.len(), 1, "constructor: {code}");
             assert_eq!(results[0].severity, Severity::Error, "constructor: {code}");
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
+            );
         }
     }
 
@@ -327,47 +474,68 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L424-L450>.
     fn self_receiver_fails() {
-        for code in [
-            quote! {
-                fn my_constructor(self) -> Self {}
-            },
-            quote! {
-                pub fn my_constructor(self) -> Self {}
-            },
-            quote! {
-                fn my_constructor(mut self) -> Self {}
-            },
-            quote! {
-                pub fn my_constructor(mut self) -> Self {}
-            },
-            quote! {
-                fn my_constructor(&self) -> Self {}
-            },
-            quote! {
-                pub fn my_constructor(&self) -> Self {}
-            },
-            quote! {
-                fn my_constructor(&mut self) -> Self {}
-            },
-            quote! {
-                pub fn my_constructor(&mut self) -> Self {}
-            },
+        for (code, start_pat, end_pat) in [
+            (
+                quote! {
+                    fn my_constructor(self) -> Self {}
+                },
+                "<-self",
+                "self",
+            ),
+            (
+                quote! {
+                    fn my_constructor(mut self) -> Self {}
+                },
+                "<-mut self",
+                "mut self",
+            ),
+            (
+                quote! {
+                    fn my_constructor(&self) -> Self {}
+                },
+                "<-&self",
+                "&self",
+            ),
+            (
+                quote! {
+                    fn my_constructor(&mut self) -> Self {}
+                },
+                "<-&mut self",
+                "&mut self",
+            ),
         ] {
-            let constructor = parse_first_constructor(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(constructor)]
                 #code
-            });
+            };
+            let constructor = parse_first_constructor(&code);
 
             let result = utils::ensure_no_self_receiver(
                 constructor.fn_item().unwrap(),
                 CONSTRUCTOR_SCOPE_NAME,
             );
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "constructor: {code}");
             assert_eq!(
-                result.unwrap().severity,
+                result.as_ref().unwrap().severity,
                 Severity::Error,
                 "constructor: {code}"
             );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                // Removes self receiver.
+                TestResultAction {
+                    label: "self receiver",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(start_pat),
+                        end_pat: Some(end_pat),
+                    }],
+                },
+            ];
+            let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
         }
     }
 
@@ -386,32 +554,46 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L407-L422>.
     fn missing_return_type_fails() {
-        for code in [
-            quote! {
-                fn my_constructor() {}
-            },
-            quote! {
-                pub fn my_constructor() {}
-            },
-            quote! {
-                pub fn my_constructor(a: i32) {}
-            },
-            quote! {
-                pub fn my_constructor(a: i32) {}
-            },
+        for (code, pat) in [
+            (
+                quote! {
+                    fn my_constructor() {}
+                },
+                "()",
+            ),
+            (
+                quote! {
+                    fn my_constructor(a: i32) {}
+                },
+                "(a: i32)",
+            ),
         ] {
-            let constructor = parse_first_constructor(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(constructor)]
                 #code
-            });
+            };
+            let constructor = parse_first_constructor(&code);
 
             let result = ensure_return_type(constructor.fn_item().unwrap());
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "constructor: {code}");
             assert_eq!(
-                result.unwrap().severity,
+                result.as_ref().unwrap().severity,
                 Severity::Error,
                 "constructor: {code}"
             );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![TestResultAction {
+                label: "Add return",
+                edits: vec![TestResultTextRange {
+                    text: "->",
+                    start_pat: Some(pat),
+                    end_pat: Some(pat),
+                }],
+            }];
+            let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
         }
     }
 
@@ -430,7 +612,7 @@ mod tests {
 
     #[test]
     fn ink_descendants_fails() {
-        let constructor = parse_first_constructor(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink(constructor)]
             pub fn my_constructor() -> Self {
                 #[ink(event)]
@@ -439,10 +621,12 @@ mod tests {
                     value: bool,
                 }
             }
-        });
+        };
+        let constructor = parse_first_constructor(&code);
 
         let mut results = Vec::new();
         utils::ensure_no_ink_descendants(&mut results, &constructor, CONSTRUCTOR_SCOPE_NAME);
+
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // both diagnostics should be errors.
@@ -453,6 +637,29 @@ mod tests {
                 .count(),
             2
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![TestResultAction {
+                label: "Remove `#[ink(event)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(event)]"),
+                    end_pat: Some("#[ink(event)]"),
+                }],
+            }],
+            vec![TestResultAction {
+                label: "Remove `#[ink(topic)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(topic)]"),
+                    end_pat: Some("#[ink(topic)]"),
+                }],
+            }],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]

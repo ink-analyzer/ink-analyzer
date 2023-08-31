@@ -551,9 +551,14 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, cont
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
+    use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::InkFile;
     use quote::{format_ident, quote};
-    use test_utils::quote_as_str;
+    use test_utils::{
+        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
+        TestResultTextRange,
+    };
 
     fn parse_first_contract(code: &str) -> Contract {
         InkFile::parse(code).contracts().to_owned()[0].clone()
@@ -977,14 +982,28 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L724-L732>.
     fn out_of_line_mod_fails() {
-        let contract = parse_first_contract(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::contract]
             mod my_contract;
-        });
+        };
+        let contract = parse_first_contract(&code);
 
         let result = ensure_inline_module(&contract);
+
+        // Verifies diagnostics.
         assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+        assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+        // Verifies quickfixes.
+        let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
+        assert!(fix.label.contains("inline body"));
+        assert!(&fix.edits[0].text.contains("{}"));
+        assert_eq!(
+            fix.edits[0].range,
+            TextRange::new(
+                TextSize::from(parse_offset_at(&code, Some("<-;")).unwrap() as u32),
+                TextSize::from(parse_offset_at(&code, Some(";")).unwrap() as u32)
+            )
+        );
     }
 
     #[test]
@@ -995,7 +1014,7 @@ mod tests {
                 }
             },
             quote! {
-                struct MyContract;
+                struct MyContract {}
             },
             quote! {
                 enum MyContract {
@@ -1006,32 +1025,43 @@ mod tests {
                 }
             },
         ] {
-            let contract = parse_first_contract(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink::contract]
                 #code
-            });
+            };
+            let contract = parse_first_contract(&code);
 
             let result = ensure_inline_module(&contract);
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "contract: {code}");
             assert_eq!(
-                result.unwrap().severity,
+                result.as_ref().unwrap().severity,
                 Severity::Error,
                 "contract: {code}"
             );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                TestResultAction {
+                    label: "Remove `#[ink::contract]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("}"),
+                    }],
+                },
+            ];
+            let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
         }
-    }
-
-    #[test]
-    fn attribute_in_mod_body_fails() {
-        let contract = parse_first_contract(quote_as_str! {
-            mod my_contract {
-                #[ink::contract]
-            }
-        });
-
-        let result = ensure_inline_module(&contract);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
     }
 
     #[test]
@@ -1050,16 +1080,30 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L667-L686>.
     fn missing_storage_fails() {
-        let contract = parse_first_contract(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::contract]
             mod my_contract {
             }
-        });
+        };
+        let contract = parse_first_contract(&code);
 
         let mut results = Vec::new();
         ensure_storage_quantity(&mut results, &contract);
+
+        // Verifies diagnostics.
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![TestResultAction {
+            label: "Add",
+            edits: vec![TestResultTextRange {
+                text: "#[ink(storage)]",
+                start_pat: Some("mod my_contract {"),
+                end_pat: Some("mod my_contract {"),
+            }],
+        }];
+        let quickfixes = results[0].quickfixes.as_ref().unwrap();
+        verify_actions(&code, quickfixes, &expected_quickfixes);
     }
 
     #[test]
@@ -1096,6 +1140,14 @@ mod tests {
                     .count(),
                 idx - 1
             );
+            // All quickfixes should be for removal.
+            for item in results {
+                let fix = &item.quickfixes.as_ref().unwrap()[0];
+                assert!(fix.label.contains("Remove"));
+                for edit in &fix.edits {
+                    assert_eq!(&edit.text, "");
+                }
+            }
         }
     }
 
@@ -1114,15 +1166,29 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L688-L704>.
     fn missing_constructor_fails() {
-        let contract = parse_first_contract(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::contract]
             mod my_contract {
             }
-        });
+        };
+        let contract = parse_first_contract(&code);
 
         let result = ensure_contains_constructor(&contract);
+
+        // Verifies diagnostics.
         assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+        assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![TestResultAction {
+            label: "Add",
+            edits: vec![TestResultTextRange {
+                text: "#[ink(constructor)]",
+                start_pat: Some("mod my_contract {"),
+                end_pat: Some("mod my_contract {"),
+            }],
+        }];
+        let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+        verify_actions(&code, quickfixes, &expected_quickfixes);
     }
 
     #[test]
@@ -1141,15 +1207,29 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L706-L722>.
     fn missing_message_fails() {
-        let contract = parse_first_contract(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::contract]
             mod my_contract {
             }
-        });
+        };
+        let contract = parse_first_contract(&code);
 
         let result = ensure_contains_message(&contract);
+
+        // Verifies diagnostics.
         assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+        assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![TestResultAction {
+            label: "Add",
+            edits: vec![TestResultTextRange {
+                text: "#[ink(message)]",
+                start_pat: Some("mod my_contract {"),
+                end_pat: Some("mod my_contract {"),
+            }],
+        }];
+        let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+        verify_actions(&code, quickfixes, &expected_quickfixes);
     }
 
     #[test]
@@ -1273,6 +1353,12 @@ mod tests {
                     .count(),
                 2
             );
+            // Verifies quickfixes.
+            if let Some(quickfixes) = &results[0].quickfixes {
+                for fix in quickfixes {
+                    assert!(fix.label.contains("Replace") && fix.label.contains("unique selector"));
+                }
+            }
         }
     }
 
@@ -1294,28 +1380,29 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L859-L881>.
     fn multiple_wildcard_selectors_fails() {
-        let contract = parse_first_contract(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::contract]
             mod my_contract {
                 impl MyContract {
-                    #[ink(constructor, selector=_)]
+                    #[ink(constructor, selector = _)]
                     pub fn my_constructor() -> Self {
                     }
 
-                    #[ink(constructor, selector=_)]
+                    #[ink(constructor, selector = _)]
                     pub fn my_constructor2() -> Self {
                     }
 
-                    #[ink(message, selector=_)]
+                    #[ink(message, selector = _)]
                     pub fn my_message(&mut self) {
                     }
 
-                    #[ink(message, selector=_)]
+                    #[ink(message, selector = _)]
                     pub fn my_message2(&mut self) {
                     }
                 }
             }
-        });
+        };
+        let contract = parse_first_contract(&code);
 
         let mut results = Vec::new();
         ensure_at_most_one_wildcard_selector(&mut results, &contract);
@@ -1329,6 +1416,30 @@ mod tests {
                 .count(),
             2
         );
+        // Verifies quickfixes.
+        // FIXME: Should also remove leading comma.
+        let expected_quickfixes = vec![
+            vec![TestResultAction {
+                label: "Remove wildcard",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-selector = _)]\n        pub fn my_constructor2"),
+                    end_pat: Some("<-)]\n        pub fn my_constructor2"),
+                }],
+            }],
+            vec![TestResultAction {
+                label: "Remove wildcard",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-selector = _)]\n        pub fn my_message2"),
+                    end_pat: Some("<-)]\n        pub fn my_message2"),
+                }],
+            }],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]
@@ -1346,32 +1457,119 @@ mod tests {
 
     #[test]
     fn non_impl_parent_for_callables_fails() {
-        let contract = parse_first_contract(quote_as_str! {
-            #[ink::contract]
-            mod my_contract {
-                #[ink(constructor)]
-                pub fn my_constructor() -> Self {
-                }
+        for (items, expected_quickfixes) in [
+            (
+                quote! {
+                    #[ink(constructor)]
+                    pub fn my_constructor() -> Self {}
 
-                #[ink(message)]
-                pub fn my_message() {
+                    #[ink(message)]
+                    pub fn my_message() {}
+
+                    impl MyContract {}
+                },
+                vec![
+                    vec![TestResultAction {
+                        label: "Move item",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(constructor)]",
+                                start_pat: Some("impl MyContract {"),
+                                end_pat: Some("impl MyContract {"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(constructor)]"),
+                                end_pat: Some("pub fn my_constructor() -> Self {}"),
+                            },
+                        ],
+                    }],
+                    vec![TestResultAction {
+                        label: "Move item",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("impl MyContract {"),
+                                end_pat: Some("impl MyContract {"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("pub fn my_message() {}"),
+                            },
+                        ],
+                    }],
+                ],
+            ),
+            (
+                quote! {
+                    #[ink(constructor)]
+                    pub fn my_constructor() -> Self {}
+
+                    #[ink(message)]
+                    pub fn my_message() {}
+                },
+                vec![
+                    vec![TestResultAction {
+                        label: "Move item",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(constructor)]",
+                                start_pat: Some("<-}->"),
+                                end_pat: Some("<-}->"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(constructor)]"),
+                                end_pat: Some("pub fn my_constructor() -> Self {}"),
+                            },
+                        ],
+                    }],
+                    vec![TestResultAction {
+                        label: "Move item",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("<-}->"),
+                                end_pat: Some("<-}->"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("pub fn my_message() {}"),
+                            },
+                        ],
+                    }],
+                ],
+            ),
+        ] {
+            let code = quote_as_pretty_string! {
+                #[ink::contract]
+                mod my_contract {
+                    #items
                 }
+            };
+            let contract = parse_first_contract(&code);
+
+            let mut results = Vec::new();
+            ensure_impl_parent_for_callables(&mut results, &contract);
+
+            // There should be 2 errors (i.e for the `constructor` and `message`).
+            assert_eq!(results.len(), 2);
+            // All diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                2
+            );
+            // Verifies quickfixes.
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
             }
-        });
-
-        let mut results = Vec::new();
-        ensure_impl_parent_for_callables(&mut results, &contract);
-
-        // There should be 2 errors (i.e for the `constructor` and `message`).
-        assert_eq!(results.len(), 2);
-        // All diagnostics should be errors.
-        assert_eq!(
-            results
-                .iter()
-                .filter(|item| item.severity == Severity::Error)
-                .count(),
-            2
-        );
+        }
     }
 
     #[test]
@@ -1389,17 +1587,15 @@ mod tests {
 
     #[test]
     fn root_items_not_in_root_fails() {
-        let contract = parse_first_contract(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::contract]
             mod my_contract {
                 fn my_contract_container() {
                     #[ink(storage)]
-                    pub struct MyContract {
-                    }
+                    pub struct MyContract {}
 
                     #[ink(event)]
-                    pub struct MyEvent {
-                    }
+                    pub struct MyEvent {}
 
                     impl MyContract {
                         #[ink(constructor)]
@@ -1407,16 +1603,15 @@ mod tests {
                         }
 
                         #[ink(message)]
-                        pub fn my_message() {
-                        }
+                        pub fn my_message() {}
                     }
 
                     #[ink(impl)]
-                    impl MyContract {
-                    }
+                    impl MyContract {}
                 }
             }
-        });
+        };
+        let contract = parse_first_contract(&code);
 
         let mut results = Vec::new();
         ensure_root_items(&mut results, &contract);
@@ -1431,6 +1626,73 @@ mod tests {
                 .count(),
             4
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![TestResultAction {
+                label: "Move item",
+                edits: vec![
+                    TestResultTextRange {
+                        text: "#[ink(storage)]",
+                        start_pat: Some("mod my_contract {"),
+                        end_pat: Some("mod my_contract {"),
+                    },
+                    TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("pub struct MyContract {}"),
+                    },
+                ],
+            }],
+            vec![TestResultAction {
+                label: "Move item",
+                edits: vec![
+                    TestResultTextRange {
+                        text: "#[ink(event)]",
+                        start_pat: Some("mod my_contract {"),
+                        end_pat: Some("mod my_contract {"),
+                    },
+                    TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("pub struct MyEvent {}"),
+                    },
+                ],
+            }],
+            vec![TestResultAction {
+                label: "Move item",
+                edits: vec![
+                    TestResultTextRange {
+                        text: "#[ink(constructor)]",
+                        start_pat: Some("<-}->"),
+                        end_pat: Some("<-}->"),
+                    },
+                    TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-impl MyContract {"),
+                        end_pat: Some("pub fn my_message() {}\n        }"),
+                    },
+                ],
+            }],
+            vec![TestResultAction {
+                label: "Move item",
+                edits: vec![
+                    TestResultTextRange {
+                        text: "#[ink(impl)]",
+                        start_pat: Some("<-}->"),
+                        end_pat: Some("<-}->"),
+                    },
+                    TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(impl)]"),
+                        end_pat: Some("impl MyContract {}"),
+                    },
+                ],
+            }],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]
@@ -1448,7 +1710,7 @@ mod tests {
 
     #[test]
     fn invalid_quasi_direct_descendant_fails() {
-        let contract = parse_first_contract(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::contract]
             mod my_contract {
                 pub struct MyEvent {
@@ -1456,13 +1718,15 @@ mod tests {
                     value: bool,
                 }
 
-                #[ink(extension=1, handle_status=false)]
+                #[ink(extension = 1, handle_status = false)]
                 fn my_extension();
             }
-        });
+        };
+        let contract = parse_first_contract(&code);
 
         let mut results = Vec::new();
         ensure_valid_quasi_direct_ink_descendants(&mut results, &contract);
+
         // There should be 2 errors (i.e `topic`, `extension/handle_status`).
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
@@ -1473,6 +1737,39 @@ mod tests {
                 .count(),
             2
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![TestResultAction {
+                label: "Remove `#[ink(topic)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(topic)]"),
+                    end_pat: Some("#[ink(topic)]"),
+                }],
+            }],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(extension = 1, handle_status = false)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(extension = 1, handle_status = false)]"),
+                        end_pat: Some("#[ink(extension = 1, handle_status = false)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(extension = 1, handle_status = false)]"),
+                        end_pat: Some("fn my_extension();"),
+                    }],
+                },
+            ],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]

@@ -135,9 +135,10 @@ fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
     use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
     fn parse_first_message(code: &str) -> Message {
         Message::cast(
@@ -273,98 +274,394 @@ mod tests {
 
     #[test]
     fn invalid_callable_fails() {
-        for code in [
+        for (code, expected_quickfixes) in [
             // Bad visibility.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L751-L781>.
-            quote! {
-                crate fn my_message(&self) {}
-            },
-            quote! {
-                crate fn my_message(&mut self) {}
-            },
-            quote! {
-                pub(crate) fn my_message(&self) {}
-            },
-            quote! {
-                pub(crate) fn my_message(&mut self) {}
-            },
-            quote! {
-                pub(self) fn my_message(&self) {}
-            },
-            quote! {
-                pub(self) fn my_message(&mut self) {}
-            },
-            quote! {
-                pub(super) fn my_message(&self) {}
-            },
-            quote! {
-                pub(super) fn my_message(&mut self) {}
-            },
-            quote! {
-                pub(in my::path) fn my_message(&self) {}
-            },
-            quote! {
-                pub(in my::path) fn my_message(&mut self) {}
-            },
+            (
+                quote! {
+                    pub(crate) fn my_message(&self) {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(crate)"),
+                            end_pat: Some("pub(crate)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(crate)"),
+                            end_pat: Some("pub(crate) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(crate) fn my_message(&mut self) {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(crate)"),
+                            end_pat: Some("pub(crate)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(crate)"),
+                            end_pat: Some("pub(crate) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(self) fn my_message(&self) {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(self)"),
+                            end_pat: Some("pub(self)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(self)"),
+                            end_pat: Some("pub(self) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(self) fn my_message(&mut self) {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(self)"),
+                            end_pat: Some("pub(self)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(self)"),
+                            end_pat: Some("pub(self) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(super) fn my_message(&self) {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(super)"),
+                            end_pat: Some("pub(super)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(super)"),
+                            end_pat: Some("pub(super) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(super) fn my_message(&mut self) {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(super)"),
+                            end_pat: Some("pub(super)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(super)"),
+                            end_pat: Some("pub(super) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(in my::path) fn my_message(&self) {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(in my::path)"),
+                            end_pat: Some("pub(in my::path)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(in my::path)"),
+                            end_pat: Some("pub(in my::path) "),
+                        }],
+                    },
+                ],
+            ),
+            (
+                quote! {
+                    pub(in my::path) fn my_message(&mut self) {}
+                },
+                vec![
+                    TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(in my::path)"),
+                            end_pat: Some("pub(in my::path)"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-pub(in my::path)"),
+                            end_pat: Some("pub(in my::path) "),
+                        }],
+                    },
+                ],
+            ),
             // Generic params fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L599-L622>.
-            quote! {
-                fn my_message<T>(&self) {}
-            },
-            quote! {
-                pub fn my_message<T>(&self) {}
-            },
-            quote! {
-                fn my_message<T>(&mut self) {}
-            },
-            quote! {
-                pub fn my_message<T>(&mut self) {}
-            },
+            (
+                quote! {
+                    fn my_message<T>(&self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub fn my_message<T>(&self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    fn my_message<T>(&mut self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub fn my_message<T>(&mut self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
             // Const fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L656-L673>.
-            quote! {
-                const fn my_message(&self) {}
-            },
-            quote! {
-                const fn my_message(&mut self) {}
-            },
+            (
+                quote! {
+                    const fn my_message(&self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `const`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-const"),
+                        end_pat: Some("const "),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    const fn my_message(&mut self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `const`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-const"),
+                        end_pat: Some("const "),
+                    }],
+                }],
+            ),
             // Async fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L675-L692>.
-            quote! {
-                async fn my_message(&self) {}
-            },
-            quote! {
-                async fn my_message(&mut self) {}
-            },
+            (
+                quote! {
+                    async fn my_message(&self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `async`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-async"),
+                        end_pat: Some("async "),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    async fn my_message(&mut self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `async`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-async"),
+                        end_pat: Some("async "),
+                    }],
+                }],
+            ),
             // Unsafe fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L694-L711>.
-            quote! {
-                unsafe fn my_message(&self) {}
-            },
-            quote! {
-                unsafe fn my_message(&mut self) {}
-            },
+            (
+                quote! {
+                    unsafe fn my_message(&self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    unsafe fn my_message(&mut self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
             // Explicit ABI fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L713-L730>.
-            quote! {
-                extern "C" fn my_message(&self) {}
-            },
-            quote! {
-                extern "C" fn my_message(&mut self) {}
-            },
+            (
+                quote! {
+                    extern "C" fn my_message(&self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove explicit ABI",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(r#"<-extern "C""#),
+                        end_pat: Some(r#"extern "C" "#),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    extern "C" fn my_message(&mut self) {}
+                },
+                vec![TestResultAction {
+                    label: "Remove explicit ABI",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(r#"<-extern "C""#),
+                        end_pat: Some(r#"extern "C" "#),
+                    }],
+                }],
+            ),
             // Variadic fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L732-L749>.
-            quote! {
-                fn my_message(&self, ...) {}
-            },
-            quote! {
-                fn my_message(&mut self, ...) {}
-            },
+            // FIXME: Should also remove leading comma.
+            (
+                quote! {
+                    fn my_message(&self, ...) {}
+                },
+                vec![TestResultAction {
+                    label: "un-variadic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-..."),
+                        end_pat: Some("..."),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    fn my_message(&mut self, ...) {}
+                },
+                vec![TestResultAction {
+                    label: "un-variadic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-..."),
+                        end_pat: Some("..."),
+                    }],
+                }],
+            ),
         ] {
-            let message = parse_first_message(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(message)]
                 #code
-            });
+            };
+            let message = parse_first_message(&code);
 
             let mut results = Vec::new();
             utils::ensure_callable_invariants(
@@ -372,8 +669,16 @@ mod tests {
                 message.fn_item().unwrap(),
                 MESSAGE_SCOPE_NAME,
             );
+
+            // Verifies diagnostics.
             assert_eq!(results.len(), 1, "message: {code}");
             assert_eq!(results[0].severity, Severity::Error, "message: {code}");
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
+            );
         }
     }
 
@@ -400,23 +705,51 @@ mod tests {
                 fn my_message(self) {}
             },
             quote! {
-                pub fn my_message(mut self) {}
+                fn my_message(mut self) {}
             },
             quote! {
                 fn my_message(this: &Self) {}
             },
             quote! {
-                pub fn my_message(this: &mut Self) {}
+                fn my_message(this: &mut Self) {}
             },
         ] {
-            let message = parse_first_message(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(message)]
                 #code
-            });
+            };
+            let message = parse_first_message(&code);
 
             let result = ensure_receiver_is_self_ref(message.fn_item().unwrap());
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "message: {code}");
-            assert_eq!(result.unwrap().severity, Severity::Error, "message: {code}");
+            assert_eq!(
+                result.as_ref().unwrap().severity,
+                Severity::Error,
+                "message: {code}"
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                TestResultAction {
+                    label: "self reference receiver",
+                    edits: vec![TestResultTextRange {
+                        text: "&self",
+                        start_pat: Some("fn my_message("),
+                        end_pat: Some("fn my_message("),
+                    }],
+                },
+                TestResultAction {
+                    label: "self reference receiver",
+                    edits: vec![TestResultTextRange {
+                        text: "&mut self",
+                        start_pat: Some("fn my_message("),
+                        end_pat: Some("fn my_message("),
+                    }],
+                },
+            ];
+            let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
         }
     }
 
@@ -449,14 +782,32 @@ mod tests {
                 pub fn my_message(&mut self) -> Self {}
             },
         ] {
-            let message = parse_first_message(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(message)]
                 #code
-            });
+            };
+            let message = parse_first_message(&code);
 
             let result = ensure_not_return_self(message.fn_item().unwrap());
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "message: {code}");
-            assert_eq!(result.unwrap().severity, Severity::Error, "message: {code}");
+            assert_eq!(
+                result.as_ref().unwrap().severity,
+                Severity::Error,
+                "message: {code}"
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![TestResultAction {
+                label: "Remove `Self`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<--> Self"),
+                    end_pat: Some("-> Self "),
+                }],
+            }];
+            let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
         }
     }
 
@@ -475,7 +826,7 @@ mod tests {
 
     #[test]
     fn ink_descendants_fails() {
-        let message = parse_first_message(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink(message)]
             pub fn my_message(&mut self) {
                 #[ink(event)]
@@ -484,10 +835,12 @@ mod tests {
                     value: bool,
                 }
             }
-        });
+        };
+        let message = parse_first_message(&code);
 
         let mut results = Vec::new();
         utils::ensure_no_ink_descendants(&mut results, &message, MESSAGE_SCOPE_NAME);
+
         // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
@@ -498,6 +851,29 @@ mod tests {
                 .count(),
             2
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![TestResultAction {
+                label: "Remove `#[ink(event)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(event)]"),
+                    end_pat: Some("#[ink(event)]"),
+                }],
+            }],
+            vec![TestResultAction {
+                label: "Remove `#[ink(topic)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(topic)]"),
+                    end_pat: Some("#[ink(topic)]"),
+                }],
+            }],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]

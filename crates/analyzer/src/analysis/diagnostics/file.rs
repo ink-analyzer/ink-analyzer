@@ -76,9 +76,10 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, file
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
     use ink_analyzer_ir::InkFile;
     use quote::format_ident;
-    use test_utils::quote_as_str;
+    use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
     #[test]
     fn one_contract_definition_works() {
@@ -110,7 +111,7 @@ mod tests {
             let code = (1..=idx)
                 .map(|i| {
                     let name = format_ident!("my_contract{i}");
-                    (quote_as_str! {
+                    (quote_as_pretty_string! {
                         #[ink::contract]
                         mod #name {
                         }
@@ -123,6 +124,7 @@ mod tests {
 
             let mut results = Vec::new();
             ensure_contract_quantity(&mut results, &file);
+
             // There should be `idx-1` extraneous contract definitions.
             assert_eq!(results.len(), idx - 1);
             // All diagnostics should be errors.
@@ -133,6 +135,14 @@ mod tests {
                     .count(),
                 idx - 1
             );
+            // Verifies quickfixes.
+            if let Some(quickfixes) = &results[0].quickfixes {
+                for fix in quickfixes {
+                    let remove_item_or_attribute = fix.label.contains("Remove `#[ink::contract]`")
+                        || fix.label.contains("Remove item");
+                    assert!(remove_item_or_attribute);
+                }
+            }
         }
     }
 
@@ -171,10 +181,9 @@ mod tests {
 
     #[test]
     fn invalid_quasi_direct_descendant_fails() {
-        let contract = InkFile::parse(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink(storage)]
-            struct MyContract {
-            }
+            struct MyContract {}
 
             #[ink(event)]
             struct MyEvent {
@@ -184,17 +193,17 @@ mod tests {
 
             impl MyContract {
                 #[ink(constructor)]
-                pub fn my_constructor() -> Self {
-                }
+                pub fn my_constructor() -> Self {}
 
                 #[ink(message)]
-                pub fn my_message(&mut self) {
-                }
+                pub fn my_message(&mut self) {}
             }
-        });
+        };
+        let contract = InkFile::parse(&code);
 
         let mut results = Vec::new();
         ensure_valid_quasi_direct_ink_descendants(&mut results, &contract);
+
         // There should be 4 errors (i.e `storage`, `event`, `constructor` and `message`,
         // `topic` is not a quasi-direct dependant because it has `event` as a parent).
         assert_eq!(results.len(), 4);
@@ -206,5 +215,84 @@ mod tests {
                 .count(),
             4
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(storage)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("#[ink(storage)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("struct MyContract {}"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(event)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("#[ink(event)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("value: bool,\n}"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(constructor)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("#[ink(constructor)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("pub fn my_constructor() -> Self {}"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(message)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("#[ink(message)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("pub fn my_message(&mut self) {}"),
+                    }],
+                },
+            ],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 }

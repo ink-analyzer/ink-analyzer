@@ -44,9 +44,10 @@ fn ensure_struct_field(topic: &Topic) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{parse_offset_at, quote_as_pretty_string, quote_as_str};
 
     fn parse_first_topic_field(code: &str) -> Topic {
         Topic::cast(
@@ -86,14 +87,28 @@ mod tests {
                 That,
             } },
         ] {
-            let topic = parse_first_topic_field(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(topic)]
                 #item
-            });
+            };
+            let topic = parse_first_topic_field(&code);
 
             let result = ensure_struct_field(&topic);
+
+            // Verifies diagnostics.
             assert!(result.is_some());
-            assert_eq!(result.unwrap().severity, Severity::Error);
+            assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+            // Verifies quickfixes.
+            let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
+            assert!(fix.label.contains("Remove `#[ink(topic)]`"));
+            assert_eq!(&fix.edits[0].text, "");
+            assert_eq!(
+                fix.edits[0].range,
+                TextRange::new(
+                    TextSize::from(parse_offset_at(&code, Some("<-#[ink(topic)]")).unwrap() as u32),
+                    TextSize::from(parse_offset_at(&code, Some("#[ink(topic)]")).unwrap() as u32)
+                )
+            );
         }
     }
 

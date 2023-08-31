@@ -351,10 +351,14 @@ fn init_unavailable_ids(chain_extension: &ChainExtension) -> HashSet<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
     use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity, IsInkTrait};
     use quote::quote;
-    use test_utils::{parse_offset_at, quote_as_str};
+    use test_utils::{
+        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
+        TestResultTextRange,
+    };
 
     fn parse_first_chain_extension(code: &str) -> ChainExtension {
         ChainExtension::cast(
@@ -468,52 +472,140 @@ mod tests {
 
     #[test]
     fn invalid_trait_properties_fails() {
-        for code in [
+        for (code, expected_quickfixes) in [
             // Visibility.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L539-L549>.
-            quote! {
-                trait MyChainExtension {}
-            },
-            quote! {
-                crate trait MyChainExtension {}
-            },
-            quote! {
-                pub(crate) trait MyChainExtension {}
-            },
-            quote! {
-                pub(self) trait MyChainExtension {}
-            },
-            quote! {
-                pub(super) trait MyChainExtension {}
-            },
-            quote! {
-                pub(in my::path) trait MyChainExtension {}
-            },
+            (
+                quote! {
+                    trait MyChainExtension {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-trait"),
+                        end_pat: Some("<-trait"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub(crate) trait MyChainExtension {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(crate)"),
+                        end_pat: Some("pub(crate)"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub(self) trait MyChainExtension {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(self)"),
+                        end_pat: Some("pub(self)"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub(super) trait MyChainExtension {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(super)"),
+                        end_pat: Some("pub(super)"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    pub(in my::path) trait MyChainExtension {}
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(in my::path)"),
+                        end_pat: Some("pub(in my::path)"),
+                    }],
+                }],
+            ),
             // Unsafe.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L523-L529>.
-            quote! {
-                pub unsafe trait MyChainExtension {}
-            },
+            (
+                quote! {
+                    pub unsafe trait MyChainExtension {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
             // Auto.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L531-L537>.
-            quote! {
-                pub auto trait MyChainExtension {}
-            },
+            (
+                quote! {
+                    pub auto trait MyChainExtension {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `auto`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-auto"),
+                        end_pat: Some("auto "),
+                    }],
+                }],
+            ),
             // Generic.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L551-L557>.
-            quote! {
-                pub trait MyChainExtension<T> {}
-            },
+            (
+                quote! {
+                    pub trait MyChainExtension<T> {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
             // Supertrait.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L559-L565>.
-            quote! {
-                pub trait MyChainExtension: SuperChainExtension {}
-            },
+            (
+                quote! {
+                    pub trait MyChainExtension: SuperChainExtension {}
+                },
+                vec![TestResultAction {
+                    label: "Remove type",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-: SuperChainExtension"),
+                        end_pat: Some(": SuperChainExtension"),
+                    }],
+                }],
+            ),
         ] {
-            let chain_extension = parse_first_chain_extension(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink::chain_extension]
                 #code
-            });
+            };
+            let chain_extension = parse_first_chain_extension(&code);
 
             let mut results = Vec::new();
             utils::ensure_trait_invariants(
@@ -521,11 +613,19 @@ mod tests {
                 chain_extension.trait_item().unwrap(),
                 "chain extension",
             );
+
+            // Verifies diagnostics.
             assert_eq!(results.len(), 1, "chain extension: {code}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
                 "chain extension: {code}"
+            );
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
             );
         }
     }
@@ -545,132 +645,388 @@ mod tests {
 
     #[test]
     fn invalid_trait_items_fails() {
-        for items in [
+        for (items, expected_quickfixes) in [
             // Const.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L567-L575>.
-            quote! {
-                const T: i32;
-            },
-            // Associate type name.
+            (
+                quote! {
+                    const T: i32;
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-const"),
+                        end_pat: Some("i32;"),
+                    }],
+                }],
+            ),
+            // Associated type name.
             // NOTE: default type set to `()` to test only the name.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L577-L585>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L587-L620>.
-            quote! {
-                type Type = ();
-            },
-            quote! {
-                type IncorrectName  = ();
-            },
-            // Associate type invariants.
+            (
+                quote! {
+                    type Type = ();
+                },
+                vec![TestResultAction {
+                    label: "`ErrorCode`",
+                    edits: vec![TestResultTextRange {
+                        text: "ErrorCode",
+                        start_pat: Some("<-Type"),
+                        end_pat: Some("Type"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    type IncorrectName  = ();
+                },
+                vec![TestResultAction {
+                    label: "`ErrorCode`",
+                    edits: vec![TestResultTextRange {
+                        text: "ErrorCode",
+                        start_pat: Some("<-IncorrectName"),
+                        end_pat: Some("IncorrectName"),
+                    }],
+                }],
+            ),
+            // Associated type invariants.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L587-L620>.
-            quote! {
-                type ErrorCode<T> = (); // generics.
-            },
-            quote! {
-                type ErrorCode: Copy = (); // trait bounds.
-            },
-            quote! {
-                type ErrorCode; // no default type.
-            },
+            (
+                quote! {
+                    type ErrorCode<T> = (); // generics.
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    type ErrorCode: Copy = (); // trait bounds.
+                },
+                vec![TestResultAction {
+                    label: "Remove type",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-: Copy"),
+                        end_pat: Some(": Copy"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    type ErrorCode; // no default type.
+                },
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "=",
+                        start_pat: Some("ErrorCode"),
+                        end_pat: Some("ErrorCode"),
+                    }],
+                }],
+            ),
             // Macro.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L622-L630>.
-            quote! {
-                my_macro_call!();
-            },
+            (
+                quote! {
+                    my_macro_call!();
+                },
+                vec![TestResultAction {
+                    label: "Remove macro",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-my_macro_call"),
+                        end_pat: Some("my_macro_call!();"),
+                    }],
+                }],
+            ),
             // Non-flagged method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L632-L652>.
-            quote! {
-                fn non_flagged();
-            },
+            (
+                quote! {
+                    fn non_flagged();
+                },
+                vec![TestResultAction {
+                    label: "Add ink! extension",
+                    edits: vec![TestResultTextRange {
+                        text: "extension",
+                        start_pat: Some("<-fn"),
+                        end_pat: Some("<-fn"),
+                    }],
+                }],
+            ),
             // Default implementation.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L654-L663>.
-            quote! {
-                #[ink(extension=1)]
-                fn default_implemented() {}
-            },
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn default_implemented() {}
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-{}"),
+                        end_pat: Some("{}"),
+                    }],
+                }],
+            ),
             // Const method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L665-L674>.
-            quote! {
-                #[ink(extension=1)]
-                const fn const_extension();
-            },
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    const fn const_extension();
+                },
+                vec![TestResultAction {
+                    label: "Remove `const`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-const"),
+                        end_pat: Some("const "),
+                    }],
+                }],
+            ),
             // Async method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L676-L685>.
-            quote! {
-                #[ink(extension=1)]
-                async fn async_extension();
-            },
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    async fn async_extension();
+                },
+                vec![TestResultAction {
+                    label: "Remove `async`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-async"),
+                        end_pat: Some("async "),
+                    }],
+                }],
+            ),
             // Unsafe method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L687-L696>.
-            quote! {
-                #[ink(extension=1)]
-                unsafe fn unsafe_extension();
-            },
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    unsafe fn unsafe_extension();
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
             // Explicit ABI.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L698-L707>.
-            quote! {
-                #[ink(extension=1)]
+            (
+                quote! {
+                    #[ink(extension=1)]
                     extern fn extern_extension();
-            },
+                },
+                vec![TestResultAction {
+                    label: "Remove explicit ABI",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-extern"),
+                        end_pat: Some("extern "),
+                    }],
+                }],
+            ),
             // Variadic method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L709-L718>.
-            quote! {
-                #[ink(extension=1)]
-                fn variadic_extension(...);
-            },
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn variadic_extension(...);
+                },
+                vec![TestResultAction {
+                    label: "un-variadic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-..."),
+                        end_pat: Some("..."),
+                    }],
+                }],
+            ),
             // Generic method.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L720-L729>.
-            quote! {
-                #[ink(extension=1)]
-                fn generic_message<T>();
-            },
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn generic_message<T>();
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
             // Unsupported ink! attribute.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L731-L749>.
-            quote! {
-                #[ink(constructor)]
-                fn my_constructor() -> Self;
-            },
-            quote! {
-                #[ink(message)]
-                fn my_message();
-            },
-            quote! {
-                #[ink(unknown)]
-                fn unknown_ink_attribute();
-            },
-            // Invalid message.
+            (
+                quote! {
+                    #[ink(constructor)]
+                    fn my_constructor() -> Self;
+                },
+                vec![TestResultAction {
+                    label: "Add ink! extension",
+                    edits: vec![
+                        // Add ink! extension attribute.
+                        TestResultTextRange {
+                            text: "extension",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("<-#[ink(constructor)]"),
+                        },
+                        // Remove ink! constructor attribute.
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                        },
+                    ],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(message)]
+                    fn my_message();
+                },
+                vec![TestResultAction {
+                    label: "Add ink! extension",
+                    edits: vec![
+                        // Add ink! extension attribute.
+                        TestResultTextRange {
+                            text: "extension",
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("<-#[ink(message)]"),
+                        },
+                        // Remove ink! message attribute.
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                        },
+                    ],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(unknown)]
+                    fn unknown_method();
+                },
+                vec![TestResultAction {
+                    label: "Add ink! extension",
+                    edits: vec![
+                        // Add ink! extension attribute.
+                        TestResultTextRange {
+                            text: "extension",
+                            start_pat: Some("<-#[ink(unknown)]"),
+                            end_pat: Some("<-#[ink(unknown)]"),
+                        },
+                        // Remove unknown ink! attribute.
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(unknown)]"),
+                            end_pat: Some("#[ink(unknown)]"),
+                        },
+                    ],
+                }],
+            ),
+            // self receiver.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L810-L857>.
-            quote! {
-                #[ink(extension=1)]
-                fn has_self_receiver(self);
-            },
-            quote! {
-                #[ink(extension=1)]
-                fn has_self_receiver(mut self);
-            },
-            quote! {
-                #[ink(extension=1)]
-                fn has_self_receiver(&self);
-            },
-            quote! {
-                #[ink(extension=1)]
-                fn has_self_receiver(&mut self);
-            },
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn has_self_receiver(self);
+                },
+                vec![TestResultAction {
+                    label: "Remove self",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-self)"),
+                        end_pat: Some("(self"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn has_self_receiver(mut self);
+                },
+                vec![TestResultAction {
+                    label: "Remove self",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-mut self"),
+                        end_pat: Some("mut self"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn has_self_receiver(&self);
+                },
+                vec![TestResultAction {
+                    label: "Remove self",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-&self"),
+                        end_pat: Some("&self"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn has_self_receiver(&mut self);
+                },
+                vec![TestResultAction {
+                    label: "Remove self",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-&mut self"),
+                        end_pat: Some("&mut self"),
+                    }],
+                }],
+            ),
         ] {
-            let chain_extension = parse_first_chain_extension(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink::chain_extension]
                 pub trait MyChainExtension {
                     #items
                 }
-            });
+            };
+            let chain_extension = parse_first_chain_extension(&code);
 
             let mut results = Vec::new();
             ensure_trait_item_invariants(&mut results, &chain_extension);
+
+            // Verifies diagnostics.
             assert_eq!(results.len(), 1, "chain extension: {items}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
                 "chain extension: {items}"
+            );
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
             );
         }
     }
@@ -730,18 +1086,20 @@ mod tests {
 
     #[test]
     fn missing_error_code_type_fails() {
-        let code = quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::chain_extension]
             pub trait MyChainExtension {
             }
-        }
-        .to_string();
+        };
         let chain_extension = parse_first_chain_extension(&code);
 
         let mut results = Vec::new();
         ensure_error_code_type_quantity(&mut results, &chain_extension);
+
+        // Verifies diagnostics.
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
+        // Verifies quickfixes.
         assert!(results[0].quickfixes.as_ref().unwrap()[0]
             .label
             .contains("Add `ErrorCode`"));
@@ -811,6 +1169,7 @@ mod tests {
                 Severity::Error,
                 "chain extension: {code}"
             );
+            // Verifies quickfixes.
             let quick_fix_label = &results[0].quickfixes.as_ref().unwrap()[0].label;
             assert!(
                 quick_fix_label.contains("Replace")
@@ -835,7 +1194,7 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L731-L749>.
     fn invalid_quasi_direct_descendant_fails() {
-        let chain_extension = parse_first_chain_extension(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::chain_extension]
             pub trait MyChainExtension {
                 #[ink(constructor)]
@@ -845,13 +1204,15 @@ mod tests {
                 fn my_message(&self);
 
                 #[ink(unknown)]
-                fn unknown_ink_attribute(&self);
+                fn unknown_method(&self);
             }
-        });
+        };
+        let chain_extension = parse_first_chain_extension(&code);
 
         let mut results = Vec::new();
         ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension);
-        // 1 diagnostics for `constructor` `message` and `unknown`.
+
+        // 1 diagnostic each for `constructor`, `message` and `unknown`.
         assert_eq!(results.len(), 3);
         // All diagnostics should be errors.
         assert_eq!(
@@ -861,6 +1222,67 @@ mod tests {
                 .count(),
             3
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(constructor)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("#[ink(constructor)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("fn my_constructor() -> Self;"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(message)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("#[ink(message)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(message)]"),
+                        end_pat: Some("fn my_message(&self);"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(unknown)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(unknown)]"),
+                        end_pat: Some("#[ink(unknown)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(unknown)]"),
+                        end_pat: Some("fn unknown_method(&self);"),
+                    }],
+                },
+            ],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]

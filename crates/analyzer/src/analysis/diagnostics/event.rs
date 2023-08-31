@@ -120,10 +120,15 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
     use crate::Severity;
+    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{
+        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
+        TestResultTextRange,
+    };
 
     fn parse_first_event(code: &str) -> Event {
         Event::cast(
@@ -194,25 +199,83 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L346-L359>.
     fn non_pub_struct_fails() {
-        for vis in vec![
-            quote! {}, // no visibility
-            quote! { crate },
-            quote! { pub(crate) },
-            quote! { pub(self) },
-            quote! { pub(super) },
-            quote! { pub(in my::path) },
+        for (vis, expected_quickfixes) in vec![
+            (
+                quote! {},
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-struct"),
+                        end_pat: Some("<-struct"),
+                    }],
+                }],
+            ), // no visibility
+            (
+                quote! { pub(crate) },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(crate)"),
+                        end_pat: Some("pub(crate)"),
+                    }],
+                }],
+            ),
+            (
+                quote! { pub(self) },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(self)"),
+                        end_pat: Some("pub(self)"),
+                    }],
+                }],
+            ),
+            (
+                quote! { pub(super) },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(super)"),
+                        end_pat: Some("pub(super)"),
+                    }],
+                }],
+            ),
+            (
+                quote! { pub(in my::path) },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-pub(in my::path)"),
+                        end_pat: Some("pub(in my::path)"),
+                    }],
+                }],
+            ),
         ] {
-            let event = parse_first_event(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink(event)]
                 #vis struct MyEvent {
                     #[ink(topic)]
                     value: bool,
                 }
-            });
+            };
+            let event = parse_first_event(&code);
 
             let result = utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME);
+
+            // Verifies diagnostics.
             assert!(result.is_some());
-            assert_eq!(result.unwrap().severity, Severity::Error);
+            assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                result.as_ref().unwrap().quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
+            );
         }
     }
 
@@ -230,36 +293,69 @@ mod tests {
 
     #[test]
     fn non_contract_parent_fails() {
-        for code in [
+        for (code, expected_quickfixes) in [
             // Unannotated parent.
-            quote_as_str! {
-                mod my_contract {
-                    #[ink(event)]
-                    pub struct MyEvent {
-                        #[ink(topic)]
-                        value: bool,
-                    }
-                }
-            },
-            // Contract ancestor.
-            quote_as_str! {
-                #[ink::contract]
-                mod my_contract {
-                    mod my_event_mod {
+            (
+                quote_as_pretty_string! {
+                    mod my_contract {
                         #[ink(event)]
                         pub struct MyEvent {
                             #[ink(topic)]
                             value: bool,
                         }
                     }
-                }
-            },
+                },
+                vec![],
+            ),
+            // Contract ancestor.
+            (
+                quote_as_pretty_string! {
+                    #[ink::contract]
+                    mod my_contract {
+                        mod my_event_mod {
+                            #[ink(event)]
+                            pub struct MyEvent {
+                                #[ink(topic)]
+                                value: bool,
+                            }
+                        }
+                    }
+                },
+                vec![TestResultAction {
+                    label: "Move item",
+                    edits: vec![
+                        TestResultTextRange {
+                            text: "pub struct MyEvent",
+                            start_pat: Some("my_contract {"),
+                            end_pat: Some("my_contract {"),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("}"),
+                        },
+                    ],
+                }],
+            ),
         ] {
-            let event = parse_first_event(code);
+            let event = parse_first_event(&code);
 
             let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
+
+            // Verifies diagnostics.
             assert!(result.is_some());
-            assert_eq!(result.unwrap().severity, Severity::Error);
+            assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                result
+                    .as_ref()
+                    .unwrap()
+                    .quickfixes
+                    .as_ref()
+                    .unwrap_or(&vec![]),
+                &expected_quickfixes,
+            );
         }
     }
 
@@ -278,17 +374,31 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L331-L344>.
     fn struct_with_generics_fails() {
-        let event = parse_first_event(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink(event)]
             pub struct MyEvent<T> {
                 #[ink(topic)]
                 value: T,
             }
-        });
+        };
+        let event = parse_first_event(&code);
 
         let result = ensure_no_generics_on_struct(&event);
+
+        // Verifies diagnostics.
         assert!(result.is_some());
-        assert_eq!(result.unwrap().severity, Severity::Error);
+        assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+        // Verifies quickfixes.
+        let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
+        assert!(fix.label.contains("Remove generic"));
+        assert_eq!(&fix.edits[0].text, "");
+        assert_eq!(
+            fix.edits[0].range,
+            TextRange::new(
+                TextSize::from(parse_offset_at(&code, Some("<-<T>")).unwrap() as u32),
+                TextSize::from(parse_offset_at(&code, Some("<T>")).unwrap() as u32)
+            )
+        );
     }
 
     #[test]
@@ -307,18 +417,32 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L377-L390>.
     fn non_topic_ink_field_fails() {
-        let event = parse_first_event(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink(event)]
             pub struct MyEvent {
                 #[ink(message)]
                 value: bool,
             }
-        });
+        };
+        let event = parse_first_event(&code);
 
         let mut results = Vec::new();
         ensure_only_ink_topic_descendants(&mut results, &event);
+
+        // Verifies diagnostics.
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
+        // Verifies quickfixes.
+        let fix = &results[0].quickfixes.as_ref().unwrap()[0];
+        assert!(fix.label.contains("Remove `#[ink(message)]`"));
+        assert_eq!(&fix.edits[0].text, "");
+        assert_eq!(
+            fix.edits[0].range,
+            TextRange::new(
+                TextSize::from(parse_offset_at(&code, Some("<-#[ink(message)]")).unwrap() as u32),
+                TextSize::from(parse_offset_at(&code, Some("#[ink(message)]")).unwrap() as u32)
+            )
+        );
     }
 
     #[test]
@@ -337,18 +461,32 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L377-L390>.
     fn cfg_field_fails() {
-        let event = parse_first_event(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink(event)]
             pub struct MyEvent {
                 #[cfg(test)]
                 value: bool,
             }
-        });
+        };
+        let event = parse_first_event(&code);
 
         let mut results = Vec::new();
         ensure_no_cfg_event_fields(&mut results, &event);
+
+        // Verifies diagnostics.
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].severity, Severity::Error);
+        // Verifies quickfixes.
+        let fix = &results[0].quickfixes.as_ref().unwrap()[0];
+        assert!(fix.label.contains("Remove `#[cfg(test)]`"));
+        assert_eq!(&fix.edits[0].text, "");
+        assert_eq!(
+            fix.edits[0].range,
+            TextRange::new(
+                TextSize::from(parse_offset_at(&code, Some("<-#[cfg(test)]")).unwrap() as u32),
+                TextSize::from(parse_offset_at(&code, Some("#[cfg(test)]")).unwrap() as u32)
+            )
+        );
     }
 
     #[test]

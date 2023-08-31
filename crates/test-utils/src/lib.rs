@@ -7,11 +7,29 @@ use std::path::PathBuf;
 pub mod fixtures;
 
 /// Quasi-quotation macro that accepts input like the `quote!` macro
+/// but returns a string (`String`) instead of a `TokenStream`.
+#[macro_export]
+macro_rules! quote_as_string {
+    ($($tt:tt)*) => {
+        quote::quote!($($tt)*).to_string()
+    };
+}
+
+/// Quasi-quotation macro that accepts input like the `quote!` macro
 /// but returns a string slice (`&str`) instead of a `TokenStream`.
 #[macro_export]
 macro_rules! quote_as_str {
     ($($tt:tt)*) => {
-        quote::quote!($($tt)*).to_string().as_str()
+        test_utils::quote_as_string!($($tt)*).as_str()
+    };
+}
+
+/// Quasi-quotation macro that accepts input like the `quote!` macro
+/// but returns a [`prettyplease`] formatted string (`String`) instead of a `TokenStream`.
+#[macro_export]
+macro_rules! quote_as_pretty_string {
+    ($($tt:tt)*) => {
+        prettyplease::unparse(&syn::parse2::<syn::File>(quote::quote!($($tt)*)).unwrap())
     };
 }
 
@@ -205,6 +223,15 @@ pub struct TestResultTextOffsetRange {
     pub range_start_pat: Option<&'static str>,
     /// Substring used to find the end of the offset of the expected result (see [`parse_offset_at`] doc).
     pub range_end_pat: Option<&'static str>,
+}
+
+/// Describes the expected text and range result.
+#[derive(Debug)]
+pub struct TestResultAction {
+    /// Expected label.
+    pub label: &'static str,
+    /// Expected edits.
+    pub edits: Vec<TestResultTextRange>,
 }
 
 /// Applies the test case modifications to the source code.

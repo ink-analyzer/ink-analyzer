@@ -17,5 +17,7 @@ either = "1.8.1"
 ink-analyzer-ir = { version = "0.7", path = "../ir" }
 
 [dev-dependencies]
+prettyplease = { version = "0.2.12", features = ["verbatim"] }
 quote = "1.0.26"
+syn = "2.0.29"
 test-utils = { path = "../test-utils" }

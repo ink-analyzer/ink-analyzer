@@ -51,9 +51,14 @@ fn ensure_adt(storage_item: &StorageItem) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
+    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use ink_analyzer_ir::{InkAttributeKind, InkFile, InkMacroKind, IsInkEntity};
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{
+        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
+        TestResultTextRange,
+    };
 
     fn parse_first_storage_item(code: &str) -> StorageItem {
         StorageItem::cast(
@@ -96,7 +101,7 @@ mod tests {
     fn non_adt_fails() {
         for code in [
             quote! {
-                fn my_storage_item {
+                fn my_storage_item() {
                 }
             },
             quote! {
@@ -107,17 +112,35 @@ mod tests {
                 }
             },
         ] {
-            let storage_item = parse_first_storage_item(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink::storage_item]
                 #code
-            });
+            };
+            let storage_item = parse_first_storage_item(&code);
 
             let result = ensure_adt(&storage_item);
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "storage item: {code}");
             assert_eq!(
-                result.unwrap().severity,
+                result.as_ref().unwrap().severity,
                 Severity::Error,
                 "storage item: {code}"
+            );
+            // Verifies quickfixes.
+            let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
+            assert!(fix.label.contains("Remove `#[ink::storage_item]`"));
+            assert_eq!(&fix.edits[0].text, "");
+            assert_eq!(
+                fix.edits[0].range,
+                TextRange::new(
+                    TextSize::from(
+                        parse_offset_at(&code, Some("<-#[ink::storage_item]")).unwrap() as u32
+                    ),
+                    TextSize::from(
+                        parse_offset_at(&code, Some("#[ink::storage_item]")).unwrap() as u32
+                    )
+                )
             );
         }
     }
@@ -137,7 +160,7 @@ mod tests {
 
     #[test]
     fn ink_descendants_fails() {
-        let storage_item = parse_first_storage_item(quote_as_str! {
+        let code = quote_as_pretty_string! {
             #[ink::storage_item]
             struct MyStorageItem {
                 #[ink(event)]
@@ -145,7 +168,8 @@ mod tests {
                 #[ink(topic)]
                 field_2: String,
             }
-        });
+        };
+        let storage_item = parse_first_storage_item(&code);
 
         let mut results = Vec::new();
         utils::ensure_no_ink_descendants(&mut results, &storage_item, STORAGE_ITEM_SCOPE_NAME);
@@ -159,6 +183,29 @@ mod tests {
                 .count(),
             2
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![TestResultAction {
+                label: "Remove `#[ink(event)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(event)]"),
+                    end_pat: Some("#[ink(event)]"),
+                }],
+            }],
+            vec![TestResultAction {
+                label: "Remove `#[ink(topic)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(topic)]"),
+                    end_pat: Some("#[ink(topic)]"),
+                }],
+            }],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]

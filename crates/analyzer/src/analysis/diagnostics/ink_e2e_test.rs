@@ -29,10 +29,15 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_test: &InkE2ETest) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
     use crate::Severity;
+    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use ink_analyzer_ir::{FromInkAttribute, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity};
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{
+        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
+        TestResultTextRange,
+    };
 
     fn parse_first_ink_e2e_test(code: &str) -> InkE2ETest {
         InkE2ETest::cast(
@@ -78,17 +83,33 @@ mod tests {
                 }
             },
         ] {
-            let ink_e2e_test = parse_first_ink_e2e_test(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #[ink_e2e::test]
                 #code
-            });
+            };
+            let ink_e2e_test = parse_first_ink_e2e_test(&code);
 
             let result = utils::ensure_fn(&ink_e2e_test, E2E_TEST_SCOPE_NAME);
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "ink e2e test: {code}");
             assert_eq!(
-                result.unwrap().severity,
+                result.as_ref().unwrap().severity,
                 Severity::Error,
                 "ink e2e test: {code}"
+            );
+            // Verifies quickfixes.
+            let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
+            assert!(fix.label.contains("Remove `#[ink_e2e::test]`"));
+            assert_eq!(&fix.edits[0].text, "");
+            assert_eq!(
+                fix.edits[0].range,
+                TextRange::new(
+                    TextSize::from(
+                        parse_offset_at(&code, Some("<-#[ink_e2e::test]")).unwrap() as u32
+                    ),
+                    TextSize::from(parse_offset_at(&code, Some("#[ink_e2e::test]")).unwrap() as u32)
+                )
             );
         }
     }
@@ -110,7 +131,7 @@ mod tests {
 
     #[test]
     fn ink_descendants_fails() {
-        let ink_e2e_test = parse_first_ink_e2e_test(quote_as_str! {
+        let code = quote_as_pretty_string! {
             type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
             #[ink_e2e::test]
@@ -121,7 +142,8 @@ mod tests {
                     value: bool,
                 }
             }
-        });
+        };
+        let ink_e2e_test = parse_first_ink_e2e_test(&code);
 
         let mut results = Vec::new();
         utils::ensure_no_ink_descendants(&mut results, &ink_e2e_test, E2E_TEST_SCOPE_NAME);
@@ -135,6 +157,29 @@ mod tests {
                 .count(),
             2
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![TestResultAction {
+                label: "Remove `#[ink(event)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(event)]"),
+                    end_pat: Some("#[ink(event)]"),
+                }],
+            }],
+            vec![TestResultAction {
+                label: "Remove `#[ink(topic)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(topic)]"),
+                    end_pat: Some("#[ink(topic)]"),
+                }],
+            }],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]

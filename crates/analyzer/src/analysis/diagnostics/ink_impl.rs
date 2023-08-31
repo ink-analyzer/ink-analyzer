@@ -382,9 +382,14 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, ink_
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
+    use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::InkFile;
     use quote::quote;
-    use test_utils::quote_as_str;
+    use test_utils::{
+        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
+        TestResultTextRange,
+    };
 
     fn parse_first_ink_impl(code: &str) -> InkImpl {
         InkFile::parse(code)
@@ -582,25 +587,43 @@ mod tests {
                 }
             },
             quote! {
-                struct MyContract;
+                struct MyImpl;
             },
             quote! {
-                enum MyContract {
+                enum MyImpl {
                 }
             },
             quote! {
-                trait MyContract {
+                trait MyImpl {
                 }
             },
         ] {
-            let ink_impl = parse_first_ink_impl(quote_as_str! {
-                #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
+            let code = quote_as_pretty_string! {
+                #[ink(impl)]
                 #code
-            });
+            };
+            let ink_impl = parse_first_ink_impl(&code);
 
             let result = ensure_impl(&ink_impl);
+
+            // Verifies diagnostics.
             assert!(result.is_some(), "impl: {code}");
-            assert_eq!(result.unwrap().severity, Severity::Error, "impl: {code}");
+            assert_eq!(
+                result.as_ref().unwrap().severity,
+                Severity::Error,
+                "impl: {code}"
+            );
+            // Verifies quickfixes.
+            let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
+            assert!(fix.label.contains("Remove `#[ink(impl)]`"));
+            assert_eq!(&fix.edits[0].text, "");
+            assert_eq!(
+                fix.edits[0].range,
+                TextRange::new(
+                    TextSize::from(parse_offset_at(&code, Some("<-#[ink(impl)]")).unwrap() as u32),
+                    TextSize::from(parse_offset_at(&code, Some("#[ink(impl)]")).unwrap() as u32)
+                )
+            );
         }
     }
 
@@ -619,60 +642,149 @@ mod tests {
 
     #[test]
     fn invalid_impl_properties_fails() {
-        for code in [
+        for (code, expected_quickfixes) in [
             // Default.
-            quote! {
-                default impl MyContract {}
-            },
+            (
+                quote! {
+                    default impl MyContract {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `default`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-default"),
+                        end_pat: Some("default "),
+                    }],
+                }],
+            ),
             // Unsafe.
-            quote! {
-                unsafe impl MyContract {}
-            },
+            (
+                quote! {
+                    unsafe impl MyContract {}
+                },
+                vec![TestResultAction {
+                    label: "Remove `unsafe`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-unsafe"),
+                        end_pat: Some("unsafe "),
+                    }],
+                }],
+            ),
             // Generic.
-            quote! {
-                impl MyContract<T> {}
-            },
+            (
+                quote! {
+                    impl MyContract<T> {}
+                },
+                vec![TestResultAction {
+                    label: "Remove generic",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-<T>"),
+                        end_pat: Some("<T>"),
+                    }],
+                }],
+            ),
             // Trait implementations with namespace.
-            quote! {
-                #[ink(namespace="my_namespace")]
-                impl MyTrait for MyContract {}
-            },
+            (
+                quote! {
+                    #[ink(namespace = "my_namespace")]
+                    impl MyTrait for MyContract {}
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(r#"<-#[ink(namespace = "my_namespace")]"#),
+                        end_pat: Some(r#"#[ink(namespace = "my_namespace")]"#),
+                    }],
+                }],
+            ),
             // Trait implementations pub visibility for callables.
-            quote! {
-                impl MyTrait for MyContract {
-                    #[ink(constructor)]
-                    pub fn new() -> Self {}
-                }
-            },
-            quote! {
-                impl MyTrait for MyContract {
-                    #[ink(message)]
-                    pub fn minimal_message(&self) {}
-                }
-            },
+            (
+                quote! {
+                    impl MyTrait for MyContract {
+                        #[ink(constructor)]
+                        pub fn new() -> Self {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "Remove `pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-pub"),
+                        end_pat: Some("pub "),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    impl MyTrait for MyContract {
+                        #[ink(message)]
+                        pub fn minimal_message(&self) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "Remove `pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-pub"),
+                        end_pat: Some("pub "),
+                    }],
+                }],
+            ),
             // Inherent implementations inherited visibility for callables.
-            quote! {
-                impl MyContract {
-                    #[ink(constructor)]
-                    fn new() -> Self {}
-                }
-            },
-            quote! {
-                impl MyContract {
-                    #[ink(message)]
-                    fn minimal_message(&self) {}
-                }
-            },
+            (
+                quote! {
+                    impl MyContract {
+                        #[ink(constructor)]
+                        fn new() -> Self {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-fn new()"),
+                        end_pat: Some("<-fn new()"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    impl MyContract {
+                        #[ink(message)]
+                        fn minimal_message(&self) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "`pub`",
+                    edits: vec![TestResultTextRange {
+                        text: "pub",
+                        start_pat: Some("<-fn minimal_message"),
+                        end_pat: Some("<-fn minimal_message"),
+                    }],
+                }],
+            ),
         ] {
-            let ink_impl = parse_first_ink_impl(quote_as_str! {
-                #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
+            let code = quote_as_pretty_string! {
+                #[ink(impl)] // needed for this to be parsed as an ink! impl without messages and constructors.
                 #code
-            });
+            };
+            let ink_impl = parse_first_ink_impl(&code);
 
             let mut results = Vec::new();
             ensure_impl_invariants(&mut results, &ink_impl);
+
+            // Verifies diagnostics.
             assert_eq!(results.len(), 1, "impl: {code}");
             assert_eq!(results[0].severity, Severity::Error, "impl: {code}");
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
+            );
         }
     }
 
@@ -690,7 +802,7 @@ mod tests {
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L688-L704>.
-    fn missing_annotation_and_no_callables_fails() {
+    fn missing_annotation_and_no_callables_ignored() {
         let contract = InkFile::parse(quote_as_str! {
             #[ink::contract]
             mod my_contract {
@@ -722,41 +834,112 @@ mod tests {
 
     #[test]
     fn non_impl_parent_for_callables_fails() {
-        for code in [
-            quote! {
-                fn callable_container() {
-                    #[ink(constructor)]
-                    pub fn my_constructor() -> i32 {
-                    }
-
-                    #[ink(message)]
-                    pub fn my_message() {
-                    }
-                }
-            },
-            quote! {
-                fn callable_container() {
-                    struct MyStruct;
-
-                    impl MyStruct {
+        for (code, expected_quickfixes) in [
+            (
+                quote! {
+                    fn callable_container() {
                         #[ink(constructor)]
-                        pub fn my_constructor() -> i32 {
-                        }
+                        pub fn my_constructor() -> i32 {}
 
                         #[ink(message)]
-                        pub fn my_message() {
-                        }
+                        pub fn my_message() {}
                     }
+                },
+                vec![
+                    vec![TestResultAction {
+                        label: "Move item",
+                        edits: vec![
+                            // Inserts at the end of the `impl MyContract` block
+                            TestResultTextRange {
+                                text: "pub fn my_constructor",
+                                start_pat: Some("<-}->"),
+                                end_pat: Some("<-}->"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(constructor)]"),
+                                end_pat: Some("i32 {}"),
+                            },
+                        ],
+                    }],
+                    vec![TestResultAction {
+                        label: "Move item",
+                        edits: vec![
+                            // Inserts at the end of the `impl MyContract` block
+                            TestResultTextRange {
+                                text: "pub fn my_message",
+                                start_pat: Some("<-}->"),
+                                end_pat: Some("<-}->"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("my_message() {}"),
+                            },
+                        ],
+                    }],
+                ],
+            ),
+            (
+                quote! {
+                    fn callable_container() {
+                        struct MyStruct;
 
-                }
-            },
+                        impl MyStruct {
+                            #[ink(constructor)]
+                            pub fn my_constructor() -> i32 {
+                            }
+
+                            #[ink(message)]
+                            pub fn my_message() {
+                            }
+                        }
+
+                    }
+                },
+                vec![
+                    vec![TestResultAction {
+                        label: "Move item",
+                        edits: vec![
+                            // Inserts at the end of the `impl MyContract` block
+                            TestResultTextRange {
+                                text: "pub fn my_constructor",
+                                start_pat: Some("<-}->"),
+                                end_pat: Some("<-}->"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(constructor)]"),
+                                end_pat: Some("i32 {}"),
+                            },
+                        ],
+                    }],
+                    vec![TestResultAction {
+                        label: "Move item",
+                        edits: vec![
+                            // Inserts at the end of the `impl MyContract` block
+                            TestResultTextRange {
+                                text: "pub fn my_message",
+                                start_pat: Some("<-}->"),
+                                end_pat: Some("<-}->"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("my_message() {}"),
+                            },
+                        ],
+                    }],
+                ],
+            ),
         ] {
-            let ink_impl = parse_first_ink_impl(quote_as_str! {
-                #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
+            let code = quote_as_pretty_string! {
+                #[ink(impl)] // needed for this to be parsed as an ink! impl without messages and constructors.
                 impl MyContract {
                     #code
                 }
-            });
+            };
+            let ink_impl = parse_first_ink_impl(&code);
 
             let mut results = Vec::new();
             ensure_callables_in_root(&mut results, &ink_impl);
@@ -772,6 +955,11 @@ mod tests {
                 2,
                 "impl: {code}"
             );
+            // Verifies quickfixes.
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            }
         }
     }
 
@@ -790,33 +978,30 @@ mod tests {
 
     #[test]
     fn invalid_quasi_direct_descendant_fails() {
-        let ink_impl = parse_first_ink_impl(quote_as_str! {
-            #[ink(impl)] // needed for this to parsed as an ink! impl without messages and constructors.
+        let code = quote_as_pretty_string! {
+            #[ink(impl)] // needed for this to be parsed as an ink! impl without messages and constructors.
             impl MyContract {
                 #[ink(storage)]
-                struct MyContract {
-                }
+                fn my_storage() {}
 
                 #[ink(event)]
-                struct MyEvent {
-                }
+                fn my_event() {}
 
                 #[ink::trait_definition]
-                trait MyTrait {
-                }
+                fn my_trait_definition() {}
 
                 #[ink::chain_extension]
-                trait MyChainExtension {
-                }
+                fn my_chain_extension() {}
 
                 #[ink::storage_item]
-                struct MyStorageItem {
-                }
+                fn my_storage_item() {}
             }
-        });
+        };
+        let ink_impl = parse_first_ink_impl(&code);
 
         let mut results = Vec::new();
         ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl);
+
         // There should be 5 errors (i.e `storage`, `event`, `trait_definition`, `chain_extension` and `storage_item`).
         assert_eq!(results.len(), 5);
         // All diagnostics should be errors.
@@ -827,6 +1012,103 @@ mod tests {
                 .count(),
             5
         );
+        // Verifies quickfixes.
+        let expected_quickfixes = vec![
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(storage)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("#[ink(storage)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(storage)]"),
+                        end_pat: Some("fn my_storage() {}"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(event)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("#[ink(event)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("fn my_event() {}"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink::trait_definition]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("fn my_trait_definition() {}"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink::chain_extension]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink::chain_extension]"),
+                        end_pat: Some("#[ink::chain_extension]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink::chain_extension]"),
+                        end_pat: Some("fn my_chain_extension() {}"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink::storage_item]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink::storage_item]"),
+                        end_pat: Some("#[ink::storage_item]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink::storage_item]"),
+                        end_pat: Some("fn my_storage_item() {}"),
+                    }],
+                },
+            ],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        }
     }
 
     #[test]
