@@ -7,7 +7,7 @@ use ink_analyzer_ir::{ast, IsInkFn, Message};
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity};
 
 const MESSAGE_SCOPE_NAME: &str = "message";
 
@@ -92,6 +92,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
                 vec![
                     Action {
                         label: "Add immutable self reference receiver".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert(
                             format!("&self{insert_suffix}"),
@@ -100,6 +101,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
                     },
                     Action {
                         label: "Add mutable self reference receiver".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert(
                             format!("&mut self{insert_suffix}"),
@@ -126,6 +128,7 @@ fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
         severity: Severity::Error,
         quickfixes: Some(vec![Action {
             label: "Remove `Self` return type.".to_string(),
+            kind: ActionKind::QuickFix,
             range,
             edits: vec![TextEdit::delete(range)],
         }]),

@@ -14,7 +14,7 @@ use std::collections::HashSet;
 
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity};
 
 /// Runs generic diagnostics that apply to all ink! entities.
 /// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
@@ -67,6 +67,7 @@ fn ensure_no_ink_identifiers<T: FromSyntax>(results: &mut Vec<Diagnostic>, item:
                     severity: Severity::Error,
                     quickfixes: (!suggested_name.is_empty()).then_some(vec![Action {
                         label: format!("Rename identifier to `{suggested_name}`"),
+                        kind: ActionKind::QuickFix,
                         range: ident.syntax().text_range(),
                         edits: vec![TextEdit::replace_with_snippet(
                             suggested_name.clone(),
@@ -154,6 +155,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         label: format!(
                             "Remove unknown ink! attribute argument: '{arg_name_text}'."
                         ),
+                        kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::delete(range)],
                     }]),
@@ -173,6 +175,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: format!("Remove `{arg_name_text}` argument value"),
+                                    kind: ActionKind::QuickFix,
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace(arg_name_text, arg.text_range())],
                                 }]),
@@ -210,6 +213,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: format!("Add `{arg_name_text}` argument value"),
+                                    kind: ActionKind::QuickFix,
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace_with_snippet(
                                         format!("{arg_name_text}=1"),
@@ -247,6 +251,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: format!("Add `{arg_name_text}` argument value"),
+                                    kind: ActionKind::QuickFix,
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace_with_snippet(
                                         format!(
@@ -287,6 +292,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: format!("Add `{arg_name_text}` argument value"),
+                                    kind: ActionKind::QuickFix,
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace_with_snippet(
                                         format!("{arg_name_text}=true"),
@@ -318,6 +324,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: format!("Add `{arg_name_text}` argument value"),
+                                    kind: ActionKind::QuickFix,
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace_with_snippet(
                                         format!("{arg_name_text}=crate::"),
@@ -403,6 +410,7 @@ fn ensure_no_duplicate_attributes_and_arguments(
                     severity: Severity::Error,
                     quickfixes: Some(vec![Action {
                         label: format!("Remove ink! `{}` attribute argument.", arg.meta().name()),
+                        kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::delete(range)],
                     }]),
@@ -540,6 +548,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                             "Make `{}` the first argument for this ink! attribute.",
                                             arg_kind,
                                         ),
+                                        kind: ActionKind::QuickFix,
                                         range,
                                         edits: vec![
                                             // Insert a copy of the item at the specified offset.
@@ -622,6 +631,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                     label: format!(
                                         "Add an `{attr_desc}` as the first ink! attribute for this item."
                                     ),
+                                    kind: ActionKind::QuickFix,
                                     range: TextRange::new(insert_offset, insert_offset),
                                     edits: vec![TextEdit::insert_with_snippet(
                                         format!(
@@ -736,6 +746,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                     "Remove ink! `{}` attribute argument.",
                                     arg.meta().name()
                                 ),
+                                kind: ActionKind::QuickFix,
                                 range,
                                 edits: vec![TextEdit::delete(range)],
                             }]),
@@ -824,6 +835,7 @@ where
                     .map(|range| {
                         vec![Action {
                             label: "Change to `pub` visibility.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace(
                                 format!("pub{}", if visibility.is_none() { " " } else { "" }),
@@ -879,6 +891,7 @@ pub fn ensure_no_self_receiver(fn_item: &ast::Fn, ink_scope_name: &str) -> Optio
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove self receiver.".to_string(),
+                kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
             }]),
@@ -899,6 +912,7 @@ where
         severity: Severity::Error,
         quickfixes: Some(vec![Action {
             label: "Remove generic parameters.".to_string(),
+            kind: ActionKind::QuickFix,
             range: generics.syntax().text_range(),
             edits: vec![TextEdit::delete(generics.syntax().text_range())],
         }]),
@@ -926,6 +940,7 @@ where
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove type bounds.".to_string(),
+                kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
             }]),
@@ -959,6 +974,7 @@ pub fn ensure_method_invariants(
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove `const` keyword.".to_string(),
+                kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
             }]),
@@ -974,6 +990,7 @@ pub fn ensure_method_invariants(
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove `async` keyword.".to_string(),
+                kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
             }]),
@@ -989,6 +1006,7 @@ pub fn ensure_method_invariants(
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove `unsafe` keyword.".to_string(),
+                kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
             }]),
@@ -1004,6 +1022,7 @@ pub fn ensure_method_invariants(
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove explicit ABI.".to_string(),
+                kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
             }]),
@@ -1024,6 +1043,7 @@ pub fn ensure_method_invariants(
                             severity: Severity::Error,
                             quickfixes: Some(vec![Action {
                                 label: "Make function un-variadic.".to_string(),
+                                kind: ActionKind::QuickFix,
                                 range,
                                 edits: vec![TextEdit::delete(range)],
                             }]),
@@ -1081,6 +1101,7 @@ pub fn ensure_callable_invariants(
                     vec![
                         Action {
                             label: "Change to `pub` visibility.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace(
                                 format!("pub{}", if visibility.is_none() { " " } else { "" }),
@@ -1089,6 +1110,7 @@ pub fn ensure_callable_invariants(
                         },
                         Action {
                             label: "Remove visibility.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range: remove_range,
                             edits: vec![TextEdit::delete(remove_range)],
                         },
@@ -1123,6 +1145,7 @@ pub fn ensure_trait_invariants(
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove `unsafe` keyword.".to_string(),
+                kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
             }]),
@@ -1138,6 +1161,7 @@ pub fn ensure_trait_invariants(
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove `auto` keyword.".to_string(),
+                kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
             }]),
@@ -1174,6 +1198,7 @@ pub fn ensure_trait_invariants(
                 .map(|range| {
                     vec![Action {
                         label: "Change to `pub` visibility.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::replace(
                             format!("pub{}", if visibility.is_none() { " " } else { "" }),
@@ -1223,6 +1248,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                     quickfixes: Some(vec![
                         Action {
                             label: "Remove `const` item.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range: const_item.syntax().text_range(),
                             edits: vec![TextEdit::delete(const_item.syntax().text_range())],
                         }
@@ -1237,6 +1263,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                     quickfixes: Some(vec![
                         Action {
                             label: "Remove macro call.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range: macro_call.syntax().text_range(),
                             edits: vec![TextEdit::delete(macro_call.syntax().text_range())],
                         }
@@ -1253,6 +1280,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                             quickfixes: Some(vec![
                                 Action {
                                     label: "Remove function body.".to_string(),
+                                    kind: ActionKind::QuickFix,
                                     range: body.syntax().text_range(),
                                     edits: vec![TextEdit::delete(body.syntax().text_range())],
                                 }

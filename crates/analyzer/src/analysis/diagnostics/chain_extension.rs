@@ -13,7 +13,7 @@ use super::{extension, utils};
 use crate::analysis::snippets::{ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET};
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity};
 
 const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 
@@ -101,6 +101,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                             severity: Severity::Error,
                             quickfixes: Some(vec![Action {
                                 label: "Add ink! extension attribute.".to_string(),
+                                kind: ActionKind::QuickFix,
                                 range: TextRange::new(insert_offset, insert_offset),
                                 edits: [TextEdit::insert_with_snippet(
                                     format!(
@@ -152,6 +153,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                         quickfixes: name_marker.as_ref().map(|name| {
                             vec![Action {
                                 label: "Rename associated type to `ErrorCode`.".to_string(),
+                                kind: ActionKind::QuickFix,
                                 range: name.syntax().text_range(),
                                 edits: vec![TextEdit::replace(
                                     "ErrorCode".to_string(),
@@ -201,6 +203,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                         severity: Severity::Error,
                         quickfixes: Some(vec![Action {
                             label: "Add `ErrorCode` default type.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range: TextRange::new(insert_offset, insert_offset),
                             edits: vec![TextEdit::insert_with_snippet(
                                 format!("{insert_prefix}(){insert_suffix}"),
@@ -251,6 +254,7 @@ fn ensure_error_code_type_quantity(
                     severity: Severity::Error,
                     quickfixes: Some(vec![Action {
                         label: "Add `ErrorCode` type for ink! chain extension.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(ERROR_CODE_PLAIN, &indent),
@@ -269,6 +273,7 @@ fn ensure_error_code_type_quantity(
                         quickfixes: Some(vec![Action {
                             label: "Remove duplicate `ErrorCode` type for ink! chain extension."
                                 .to_string(),
+                            kind: ActionKind::QuickFix,
                             range: item.syntax().text_range(),
                             edits: vec![TextEdit::delete(item.syntax().text_range())],
                         }]),
@@ -308,6 +313,7 @@ fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &Ch
                         );
                         vec![Action {
                             label: "Replace with a unique extension id.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace_with_snippet(
                                 format!("{suggested_id}"),

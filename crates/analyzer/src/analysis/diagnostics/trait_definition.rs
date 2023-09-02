@@ -11,7 +11,7 @@ use super::{message, utils};
 use crate::analysis::snippets::{TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET};
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity};
 
 const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
 
@@ -94,6 +94,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                     severity: Severity::Error,
                     quickfixes: Some(vec![Action {
                         label: "Add ink! message attribute.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: [TextEdit::insert(
                             format!(
@@ -142,6 +143,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: "Remove wildcard selector.".to_string(),
+                                    kind: ActionKind::QuickFix,
                                     range,
                                     edits: vec![TextEdit::delete(range)],
                                 }]),
@@ -159,6 +161,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
                     label: "Remove associated type.".to_string(),
+                    kind: ActionKind::QuickFix,
                     range: type_alias.syntax().text_range(),
                     edits: vec![TextEdit::delete(type_alias.syntax().text_range())],
                 }]),
@@ -190,6 +193,7 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
 
                     vec![Action {
                         label: "Add ink! message `fn`.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(TRAIT_MESSAGE_PLAIN, &indent),

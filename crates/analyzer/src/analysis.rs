@@ -4,7 +4,7 @@ use ink_analyzer_ir::syntax::{TextRange, TextSize};
 use ink_analyzer_ir::InkFile;
 use std::collections::HashSet;
 
-pub use actions::Action;
+pub use actions::{Action, ActionKind};
 pub use completions::Completion;
 pub use diagnostics::{Diagnostic, Severity};
 pub use hover::Hover;

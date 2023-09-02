@@ -54,7 +54,7 @@
 //! ```
 
 pub use self::analysis::{
-    Action, Analysis, Completion, Diagnostic, Hover, InlayHint, Severity, TextEdit,
+    Action, ActionKind, Analysis, Completion, Diagnostic, Hover, InlayHint, Severity, TextEdit,
 };
 pub use ink_analyzer_ir::syntax::{TextRange, TextSize};
 

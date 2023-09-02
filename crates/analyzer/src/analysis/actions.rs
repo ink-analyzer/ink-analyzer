@@ -15,6 +15,8 @@ use crate::analysis::text_edit::TextEdit;
 pub struct Action {
     /// Label which identifies the action.
     pub label: String,
+    /// The kind of the action (e.g quickfix or refactor).
+    pub kind: ActionKind,
     /// Range where the action will be applied.
     pub range: TextRange,
     /// Text edits that will performed by the action.
@@ -34,11 +36,20 @@ pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
     results
 }
 
+/// The kind of the action (e.g quickfix or refactor).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ActionKind {
+    QuickFix,
+    Refactor,
+}
+
 impl Action {
     /// Removes an ink! item.
     pub(crate) fn remove_item(item: &SyntaxNode) -> Self {
         Self {
             label: "Remove item.".to_string(),
+            kind: ActionKind::QuickFix,
             range: item.text_range(),
             edits: vec![TextEdit::delete(item.text_range())],
         }
@@ -48,6 +59,7 @@ impl Action {
     pub(crate) fn remove_attribute(attr: &InkAttribute) -> Self {
         Self {
             label: format!("Remove `{}` attribute.", attr.syntax()),
+            kind: ActionKind::QuickFix,
             range: attr.syntax().text_range(),
             edits: vec![TextEdit::delete(attr.syntax().text_range())],
         }
@@ -95,6 +107,7 @@ impl Action {
 
         Self {
             label,
+            kind: ActionKind::QuickFix,
             range: item.text_range(),
             edits: vec![
                 // Insert a copy of the item at the specified offset.
@@ -161,6 +174,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                             for macro_kind in ink_macro_suggestions {
                                 results.push(Action {
                                     label: format!("Add ink! {macro_kind} attribute macro."),
+                                    kind: ActionKind::Refactor,
                                     range: TextRange::new(insert_offset, insert_offset),
                                     edits: vec![TextEdit::insert(
                                         format!(
@@ -256,6 +270,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                             );
                             results.push(Action {
                                 label: format!("Add ink! {arg_kind} attribute argument."),
+                                kind: ActionKind::Refactor,
                                 range: edit_range,
                                 edits: vec![TextEdit::insert_with_snippet(
                                     format!(
@@ -338,6 +353,7 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: T
                     );
                     results.push(Action {
                         label: format!("Add ink! {arg_kind} attribute argument."),
+                        kind: ActionKind::Refactor,
                         range: edit_range,
                         edits: vec![TextEdit::insert_with_snippet(
                             format!("{insert_prefix}{edit}{insert_suffix}"),

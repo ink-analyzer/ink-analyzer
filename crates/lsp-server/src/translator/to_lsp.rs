@@ -128,7 +128,11 @@ pub fn code_action(
 
         lsp_types::CodeAction {
             title: action.label,
-            kind: Some(lsp_types::CodeActionKind::REFACTOR_REWRITE),
+            kind: Some(match action.kind {
+                ink_analyzer::ActionKind::QuickFix => lsp_types::CodeActionKind::QUICKFIX,
+                ink_analyzer::ActionKind::Refactor => lsp_types::CodeActionKind::REFACTOR_REWRITE,
+                _ => lsp_types::CodeActionKind::EMPTY,
+            }),
             edit: Some(lsp_types::WorkspaceEdit {
                 changes: Some(HashMap::from([(
                     uri,

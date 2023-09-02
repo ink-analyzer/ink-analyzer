@@ -15,7 +15,7 @@ use crate::analysis::snippets::{
 };
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity};
 
 /// Runs all ink! contract diagnostics.
 ///
@@ -128,6 +128,7 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
                     label: "Add inline body to ink! contract `mod`.".to_string(),
+                    kind: ActionKind::QuickFix,
                     range,
                     edits: vec![TextEdit::replace(
                         format!("{}{{}}", if semicolon_token.is_some() { " " } else { "" }),
@@ -180,6 +181,7 @@ fn ensure_storage_quantity(results: &mut Vec<Diagnostic>, contract: &Contract) {
 
                     vec![Action {
                         label: "Add ink! storage `struct`.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(
@@ -226,6 +228,7 @@ fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
                     // Adds an ink! constructor to the first non-trait `impl` block or creates a new `impl` block if necessary.
                     vec![Action {
                         label: "Add ink! constructor `fn`.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert_with_snippet(
                             format!(
@@ -266,6 +269,7 @@ fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
                     // Adds an ink! message to the first non-trait `impl` block or creates a new `impl` block if necessary.
                     vec![Action {
                         label: "Add ink! message `fn`.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert_with_snippet(
                             format!(
@@ -355,6 +359,7 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                         );
                         vec![Action {
                             label: "Replace with a unique selector.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace_with_snippet(
                                 format!("{suggested_id}"),
@@ -414,6 +419,7 @@ fn ensure_at_most_one_wildcard_selector(results: &mut Vec<Diagnostic>, contract:
                         severity: Severity::Error,
                         quickfixes: Some(vec![Action {
                             label: "Remove wildcard selector.".to_string(),
+                            kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::delete(range)],
                         }]),

@@ -6,7 +6,7 @@ use ink_analyzer_ir::{ast, Constructor, IsInkFn};
 
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity};
 
 const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
 
@@ -69,6 +69,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
             .map(|insert_offset| {
                 vec![Action {
                     label: "Add return type.".to_string(),
+                    kind: ActionKind::QuickFix,
                     range: TextRange::new(insert_offset, insert_offset),
                     edits: vec![TextEdit::insert_with_snippet(
                         " -> Self".to_string(),

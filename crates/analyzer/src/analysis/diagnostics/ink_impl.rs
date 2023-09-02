@@ -12,7 +12,7 @@ use crate::analysis::snippets::{
 };
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity};
 
 const IMPL_SCOPE_NAME: &str = "impl";
 
@@ -104,6 +104,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
                     label: "Remove `default` keyword.".to_string(),
+                    kind: ActionKind::QuickFix,
                     range,
                     edits: vec![TextEdit::delete(range)],
                 }]),
@@ -119,6 +120,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
                     label: "Remove `unsafe` keyword.".to_string(),
+                    kind: ActionKind::QuickFix,
                     range,
                     edits: vec![TextEdit::delete(range)],
                 }]),
@@ -142,6 +144,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: "Remove generic types.".to_string(),
+                                    kind: ActionKind::QuickFix,
                                     range: generic_arg_list.syntax().text_range(),
                                     edits: vec![TextEdit::delete(
                                         generic_arg_list.syntax().text_range(),
@@ -164,6 +167,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
                     label: "Remove ink! namespace argument.".to_string(),
+                    kind: ActionKind::QuickFix,
                     range,
                     edits: vec![TextEdit::delete(range)],
                 }]),
@@ -193,6 +197,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                             severity: Severity::Error,
                             quickfixes: Some(vec![Action {
                                 label: format!("Remove `{}` visibility.", visibility.syntax()),
+                                kind: ActionKind::QuickFix,
                                 range,
                                 edits: vec![TextEdit::delete(range)],
                             }]),
@@ -240,6 +245,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                 .map(|range| {
                                     vec![Action {
                                         label: "Change to `pub` visibility.".to_string(),
+                                        kind: ActionKind::QuickFix,
                                         range,
                                         edits: vec![TextEdit::replace(
                                             format!(
@@ -283,6 +289,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
                 vec![
                     Action {
                         label: "Add ink! constructor `fn`.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(CONSTRUCTOR_PLAIN, &indent),
@@ -295,6 +302,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
                     },
                     Action {
                         label: "Add ink! message `fn`.".to_string(),
+                        kind: ActionKind::QuickFix,
                         range: TextRange::new(insert_offset, insert_offset),
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(MESSAGE_PLAIN, &indent),

@@ -7,7 +7,7 @@ use ink_analyzer_ir::{
 
 use super::{topic, utils};
 use crate::analysis::text_edit::TextEdit;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity};
 
 const EVENT_SCOPE_NAME: &str = "event";
 
@@ -66,6 +66,7 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
                 label: "Remove generic types.".to_string(),
+                kind: ActionKind::QuickFix,
                 range: generics.syntax().text_range(),
                 edits: vec![TextEdit::delete(generics.syntax().text_range())],
             }]),
@@ -105,6 +106,7 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: format!("Remove `{attr}` attribute."),
+                                    kind: ActionKind::QuickFix,
                                     range: attr.syntax().text_range(),
                                     edits: vec![TextEdit::delete(attr.syntax().text_range())],
                                 }]),
