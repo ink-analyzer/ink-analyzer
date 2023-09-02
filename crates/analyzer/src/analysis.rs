@@ -2,6 +2,7 @@
 
 use ink_analyzer_ir::syntax::{TextRange, TextSize};
 use ink_analyzer_ir::InkFile;
+use std::collections::HashSet;
 
 pub use actions::Action;
 pub use completions::Completion;
@@ -49,9 +50,26 @@ impl Analysis {
         completions::completions(&self.file, position)
     }
 
-    /// Computes ink! attribute code/intent actions for the given position.
+    /// Computes ink! attribute code/intent actions for the given text range.
     pub fn actions(&self, range: TextRange) -> Vec<Action> {
-        actions::actions(&self.file, range)
+        // Gets quickfixes for diagnostics.
+        let quickfixes = diagnostics::diagnostics(&self.file)
+            .into_iter()
+            .filter_map(|it| it.quickfixes)
+            .flatten()
+            .filter(|action| range.contains_range(action.range));
+        // Gets ranges that have quickfixes.
+        let quickfixes_ranges: HashSet<TextRange> = quickfixes.clone().map(|it| it.range).collect();
+        // Combines quickfixes and generic actions (with quickfixes taking priority).
+        quickfixes
+            .chain(
+                actions::actions(&self.file, range)
+                    .into_iter()
+                    // Filters out actions for ranges that have a quickfix
+                    // (quickfixes have more context and therefore take priority).
+                    .filter(|action| !quickfixes_ranges.contains(&action.range)),
+            )
+            .collect()
     }
 
     /// Returns descriptive/informational text for the ink! attribute at the given position (if any).

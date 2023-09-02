@@ -1210,28 +1210,11 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                         pat: Some("<-fn token_name(asset_id: u32)"),
                     })),
-                    results: TestCaseResults::Action(vec![
-                        vec![TestResultTextRange {
-                            text: "#[ink::test]",
-                            start_pat: Some("<-fn token_name(asset_id: u32)"),
-                            end_pat: Some("<-fn token_name(asset_id: u32)"),
-                        }],
-                        vec![TestResultTextRange {
-                            text: "#[ink_e2e::test]",
-                            start_pat: Some("<-fn token_name(asset_id: u32)"),
-                            end_pat: Some("<-fn token_name(asset_id: u32)"),
-                        }],
-                        vec![TestResultTextRange {
-                            text: "#[ink(extension=)]",
-                            start_pat: Some("<-fn token_name(asset_id: u32)"),
-                            end_pat: Some("<-fn token_name(asset_id: u32)"),
-                        }],
-                        vec![TestResultTextRange {
-                            text: "#[ink(handle_status=)]",
-                            start_pat: Some("<-fn token_name(asset_id: u32)"),
-                            end_pat: Some("<-fn token_name(asset_id: u32)"),
-                        }],
-                    ]),
+                    results: TestCaseResults::Action(vec![vec![TestResultTextRange {
+                        text: "#[ink(extension=1)]",
+                        start_pat: Some("<-fn token_name(asset_id: u32)"),
+                        end_pat: Some("<-fn token_name(asset_id: u32)"),
+                    }]]),
                 },
                 TestCase {
                     modifications: None,
