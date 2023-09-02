@@ -1,6 +1,5 @@
 //! ink! attribute code/intent actions.
 
-use either::Either;
 use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{
     AstNode, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, TextSize,
@@ -145,9 +144,6 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                     let target = record_field
                         .as_ref()
                         .map_or(ast_item.syntax(), AstNode::syntax);
-                    let target_ast_node = record_field
-                        .as_ref()
-                        .map_or(Either::Left(&ast_item), Either::Right);
 
                     // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
                     if ink_analyzer_ir::ink_attrs(target).next().is_none() {
@@ -168,7 +164,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                         if !ink_macro_suggestions.is_empty() {
                             // Determines the insertion offset and affixes for the action.
                             let (insert_offset, insert_prefix, insert_suffix) =
-                                utils::ink_attribute_insertion_offset_and_affixes(target_ast_node);
+                                utils::ink_attribute_insertion_offset_and_affixes(target);
 
                             // Add ink! attribute macro actions to accumulator.
                             for macro_kind in ink_macro_suggestions {
@@ -251,9 +247,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                     })
                                     .unwrap_or((
                                         // Fallback to inserting a new attribute.
-                                        utils::ink_attribute_insertion_offset_and_affixes(
-                                            target_ast_node,
-                                        ),
+                                        utils::ink_attribute_insertion_offset_and_affixes(target),
                                         false,
                                     ));
 

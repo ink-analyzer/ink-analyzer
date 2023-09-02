@@ -1,14 +1,12 @@
 //! Utilities for ink! analysis.
 
-use either::Either;
-use ink_analyzer_ir::ast::{HasDocComments, HasModuleItem, HasName};
+use ink_analyzer_ir::ast::{HasModuleItem, HasName};
 use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 use ink_analyzer_ir::{
-    ast, Contract, FromAST, FromSyntax, HasParent, InkArg, InkArgKind, InkArgValueKind,
-    InkArgValueStringKind, InkAttribute, InkAttributeKind, InkImpl, InkMacroKind, IsInkEntity,
-    IsInkStruct, Storage,
+    ast, Contract, FromAST, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
+    InkAttribute, InkAttributeKind, InkImpl, InkMacroKind, IsInkEntity, IsInkStruct, Storage,
 };
 use std::collections::HashSet;
 
@@ -530,47 +528,36 @@ pub fn ink_arg_insertion_text(
 
 /// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for an ink! attribute.
 pub fn ink_attribute_insertion_offset_and_affixes(
-    parent_ast_node: Either<&ast::Item, &ast::RecordField>,
+    node: &SyntaxNode,
 ) -> (TextSize, Option<String>, Option<String>) {
-    // Retrieves the parent syntax node and it's last attribute or doc comment (if any).
-    let (parent_syntax_node, last_attr_or_doc_comment) = match parent_ast_node {
-        Either::Left(ast_item) => (ast_item.syntax(), ast_item.doc_comments_and_attrs().last()),
-        Either::Right(record_field) => (
-            record_field.syntax(),
-            record_field.doc_comments_and_attrs().last(),
-        ),
-    };
-
-    // Determines the insertion suffix (i.e indenting - so that we preserve formatting) for the ink! attribute.
-    // It's always a suffix because we insert at the beginning of the target item's first non-(attribute/rustdoc/trivia) token,
-    let get_insert_indenting =
-        |node: &SyntaxNode| item_indenting(node).map(|indent| format!("\n{indent}"));
-
-    last_attr_or_doc_comment
-        .and_then(|item| match item {
-            Either::Left(attr) => ink_analyzer_ir::last_child_token(attr.syntax()),
-            Either::Right(comment) => Some(comment.syntax().clone()),
-        })
-        .or(ink_analyzer_ir::first_child_token(parent_syntax_node)
-            .and_then(|first_token| first_token.kind().is_trivia().then_some(first_token)))
-        // Finds the first non-(attribute/rustdoc/trivia) token for the AST item.
-        .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
-        .map_or(
-            (
-                parent_syntax_node.text_range().start(),
-                None,
-                get_insert_indenting(parent_syntax_node),
-            ),
-            |first_non_attr_or_doc_token| {
-                (
-                    first_non_attr_or_doc_token.text_range().start(),
-                    None,
-                    first_non_attr_or_doc_token
-                        .parent_node()
-                        .and_then(|it| get_insert_indenting(&it)),
-                )
-            },
-        )
+    (
+        ink_analyzer_ir::ink_attrs(node)
+            // Finds the last ink! attribute.
+            .last()
+            .as_ref()
+            .map(InkAttribute::syntax)
+            // Finds the last attribute.
+            .or(node
+                .children()
+                .filter_map(ast::Attr::cast)
+                .last()
+                .as_ref()
+                .map(ast::Attr::syntax))
+            // First the last token for last ink! attribute or generic attribute (if any).
+            .and_then(ink_analyzer_ir::last_child_token)
+            // Otherwise finds the first trivia/rustdoc token for item (if any).
+            .or(ink_analyzer_ir::first_child_token(node)
+                .and_then(|first_token| first_token.kind().is_trivia().then_some(first_token)))
+            // Finds the first non-(attribute/rustdoc/trivia) token for the item.
+            .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
+            .as_ref()
+            .map(SyntaxToken::text_range)
+            // Defaults to the start of the node.
+            .unwrap_or(node.text_range())
+            .start(),
+        None,
+        item_indenting(node).map(|indent| format!("\n{indent}")),
+    )
 }
 
 /// Returns the insertion offset and affixes (i.e whitespace and delimiters e.g `(`, `,` and `)`) for an ink! attribute argument .
@@ -712,22 +699,16 @@ pub fn ink_arg_insertion_offset_and_affixes(
 pub fn first_ink_attribute_insertion_offset_and_affixes(
     node: &SyntaxNode,
 ) -> (TextSize, Option<String>, Option<String>) {
-    let mut ink_attrs: Vec<InkAttribute> = ink_analyzer_ir::ink_attrs(node).collect();
-    ink_attrs.sort_by(|a, b| {
-        b.syntax()
-            .text_range()
-            .start()
-            .cmp(&a.syntax().text_range().start())
-    });
-    (
-        ink_attrs
-            .first()
-            .map(|it| it.syntax().text_range())
-            .unwrap_or(node.text_range())
-            .start(),
-        None,
-        item_indenting(node).map(|indent| format!("\n{indent}")),
-    )
+    ink_analyzer_ir::ink_attrs(node)
+        // Finds the first ink! attribute.
+        .next()
+        .map_or(ink_attribute_insertion_offset_and_affixes(node), |it| {
+            (
+                it.syntax().text_range().start(),
+                None,
+                item_indenting(node).map(|indent| format!("\n{indent}")),
+            )
+        })
 }
 
 /// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for the first ink! attribute argument.

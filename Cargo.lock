@@ -325,7 +325,6 @@ dependencies = [
 name = "ink-analyzer"
 version = "0.7.1"
 dependencies = [
- "either",
  "ink-analyzer-ir",
  "prettyplease",
  "quote",
