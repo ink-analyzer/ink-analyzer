@@ -216,9 +216,9 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                     kind: ActionKind::QuickFix,
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace_with_snippet(
-                                        format!("{arg_name_text}=1"),
+                                        format!("{arg_name_text} = 1"),
                                         arg.text_range(),
-                                        Some(format!("{arg_name_text}=${{1:1}}")),
+                                        Some(format!("{arg_name_text} = ${{1:1}}")),
                                     )],
                                 }]),
                             });
@@ -255,7 +255,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace_with_snippet(
                                         format!(
-                                            "{arg_name_text}=\"{}\"",
+                                            r#"{arg_name_text} = "{}""#,
                                             if str_kind == InkArgValueStringKind::Identifier {
                                                 "my_namespace"
                                             } else {
@@ -264,7 +264,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                         ),
                                         arg.text_range(),
                                         Some(format!(
-                                            "{arg_name_text}=\"{}\"",
+                                            r#"{arg_name_text} = "{}""#,
                                             if str_kind == InkArgValueStringKind::Identifier {
                                                 "${1:my_namespace}"
                                             } else {
@@ -295,9 +295,9 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                     kind: ActionKind::QuickFix,
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace_with_snippet(
-                                        format!("{arg_name_text}=true"),
+                                        format!("{arg_name_text} = true"),
                                         arg.text_range(),
-                                        Some(format!("{arg_name_text}=${{1:true}}")),
+                                        Some(format!("{arg_name_text} = ${{1:true}}")),
                                     )],
                                 }]),
                             });
@@ -327,9 +327,9 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                                     kind: ActionKind::QuickFix,
                                     range: arg.text_range(),
                                     edits: vec![TextEdit::replace_with_snippet(
-                                        format!("{arg_name_text}=crate::"),
+                                        format!("{arg_name_text} = crate::"),
                                         arg.text_range(),
-                                        Some(format!("{arg_name_text}=${{1:crate::}}")),
+                                        Some(format!("{arg_name_text} = ${{1:crate::}}")),
                                     )],
                                 }]),
                             });

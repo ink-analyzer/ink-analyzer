@@ -105,13 +105,13 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                                 range: TextRange::new(insert_offset, insert_offset),
                                 edits: [TextEdit::insert_with_snippet(
                                     format!(
-                                        "{}#[ink(extension={suggested_id})]{}",
+                                        "{}#[ink(extension = {suggested_id})]{}",
                                         insert_prefix.as_deref().unwrap_or_default(),
                                         insert_suffix.as_deref().unwrap_or_default()
                                     ),
                                     insert_offset,
                                     Some(format!(
-                                        "{}#[ink(extension=${{1:{suggested_id}}})]{}",
+                                        "{}#[ink(extension = ${{1:{suggested_id}}})]{}",
                                         insert_prefix.as_deref().unwrap_or_default(),
                                         insert_suffix.as_deref().unwrap_or_default()
                                     )),
