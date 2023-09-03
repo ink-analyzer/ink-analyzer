@@ -886,32 +886,66 @@ pub fn node_and_trivia_range(node: &SyntaxNode) -> TextRange {
     )
 }
 
-/// Returns text range of the syntax token and it's immediate (next) delimiter (e.g comma - ",").
+/// Returns text range of the syntax token and it's immediate (next or previous) delimiter (e.g comma - ",").
 pub fn token_and_delimiter_range(token: &SyntaxToken, delimiter: SyntaxKind) -> TextRange {
+    // Gets the next delimiter (if any).
+    let next_delimiter = ink_analyzer_ir::closest_item_which(
+        token,
+        |subject| subject.next_token(),
+        |subject| subject.kind() == delimiter,
+        |subject| !subject.kind().is_trivia(),
+    );
     TextRange::new(
-        token.text_range().start(),
-        // Either the end of the next delimiter token or the end of the target token.
-        ink_analyzer_ir::closest_item_which(
-            token,
-            |subject| subject.next_token(),
-            |subject| subject.kind() == delimiter,
-            |subject| !subject.kind().is_trivia(),
-        )
-        .map_or(token.text_range(), |it| it.text_range())
-        .end(),
+        // Either the start of the previous delimiter token (if any and there's no next delimiter)
+        // or the start of the target token.
+        next_delimiter
+            .is_none()
+            .then(|| {
+                // Returns the previous delimiter token (if any).
+                ink_analyzer_ir::closest_item_which(
+                    token,
+                    |subject| subject.prev_token(),
+                    |subject| subject.kind() == delimiter,
+                    |subject| !subject.kind().is_trivia(),
+                )
+            })
+            .flatten()
+            .as_ref()
+            .unwrap_or(token)
+            .text_range()
+            .start(),
+        // Either the end of the next delimiter token (if any) or the end of the target token.
+        next_delimiter
+            .as_ref()
+            .map_or(token.text_range(), SyntaxToken::text_range)
+            .end(),
     )
 }
 
-/// Returns text range of the syntax node and it's immediate (next) delimiter (e.g comma - ",").
+/// Returns text range of the syntax node and it's immediate (next or previous) delimiter (e.g comma - ",").
 pub fn node_and_delimiter_range(node: &SyntaxNode, delimiter: SyntaxKind) -> TextRange {
+    // Gets the end position.
+    let end = ink_analyzer_ir::last_child_token(node)
+        .as_ref()
+        .map(|token| token_and_delimiter_range(token, delimiter))
+        .unwrap_or(node.text_range())
+        .end();
     TextRange::new(
-        node.text_range().start(),
-        // Either the end of the next delimiter token or the end of the target token.
-        ink_analyzer_ir::last_child_token(node)
-            .as_ref()
-            .map(|token| token_and_delimiter_range(token, delimiter))
+        // Either the start of the previous delimiter token (if any and there's no next delimiter)
+        // or the start of the target node.
+        (end == node.text_range().end())
+            .then(|| {
+                // Returns a text range including previous delimiter token (if any).
+                // Previous is implied because we know there's no next delimiter
+                // because `end == node.text_range().end()`.
+                ink_analyzer_ir::first_child_token(node)
+                    .map(|token| token_and_delimiter_range(&token, delimiter))
+            })
+            .flatten()
             .unwrap_or(node.text_range())
-            .end(),
+            .start(),
+        // Either the end of the next delimiter token or the end of the target node.
+        end,
     )
 }
 
@@ -939,7 +973,7 @@ pub fn ink_arg_and_delimiter_removal_range(
         })
         // Equal token ("=") if no value is present.
         .or(arg.meta().eq().map(|eq| eq.syntax().clone()))
-        // Argument name if no value nor equal symbol is present.
+        // Last token of argument name if no value nor equal symbol is present.
         .or(arg.meta().name().option().and_then(|result| match result {
             Ok(name) => Some(name.syntax().clone()),
             Err(elements) => elements.last().and_then(|elem| match elem {
@@ -961,15 +995,58 @@ pub fn ink_arg_and_delimiter_removal_range(
         }
     }
 
+    // Gets the end position.
+    let end = last_token_option
+        .as_ref()
+        .map(|token| token_and_delimiter_range(token, SyntaxKind::COMMA))
+        .unwrap_or(arg.text_range())
+        .end();
+
     // Returns the text range of attribute argument + delimiter (if any) .
     TextRange::new(
-        arg.text_range().start(),
-        // Either the end of the next delimiter token or the end of the ink! attribute argument.
-        last_token_option
+        (end == arg.text_range().end())
+            .then(|| {
+                // Gets the first token of the ink! attribute argument (if any).
+                arg.meta()
+                    // Argument name.
+                    .name()
+                    .option()
+                    .and_then(|result| match result {
+                        Ok(name) => Some(name.syntax().clone()),
+                        Err(elements) => elements.last().and_then(|elem| match elem {
+                            SyntaxElement::Node(node) => ink_analyzer_ir::first_child_token(node),
+                            SyntaxElement::Token(token) => Some(token.clone()),
+                        }),
+                    })
+                    // Equal token ("=") if no name is present.
+                    .or(arg.meta().eq().map(|eq| eq.syntax().clone()))
+                    // First token argument value if no name nor equal symbol is present.
+                    .or(arg
+                        .meta()
+                        .value()
+                        .option()
+                        .and_then(|result| {
+                            match result {
+                                Ok(value) => value.elements(),
+                                Err(elements) => elements,
+                            }
+                            .first()
+                        })
+                        .and_then(|elem| match elem {
+                            SyntaxElement::Node(node) => ink_analyzer_ir::first_child_token(node),
+                            SyntaxElement::Token(token) => Some(token.clone()),
+                        }))
+            })
+            .flatten()
             .as_ref()
+            // Returns a text range including previous delimiter token (if any).
+            // Previous is implied because we know there's no next delimiter
+            // because `end == arg.text_range().end()`.
             .map(|token| token_and_delimiter_range(token, SyntaxKind::COMMA))
             .unwrap_or(arg.text_range())
-            .end(),
+            .start(),
+        // Either the end of the next delimiter token or the end of the ink! attribute argument.
+        end,
     )
 }
 
@@ -1076,8 +1153,12 @@ pub fn callable_insert_offset_indent_and_affixes(
                     // Sets insert offset at the end of the associated items list, insert indent based on contract `mod` block
                     // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
                     let indent = item_children_indenting(mod_item.syntax());
-                    let prefix = format!("\n\n{indent}impl {} {{", name);
-                    let suffix = format!("\n{indent}}}");
+                    let parent_indent = item_indenting(mod_item.syntax());
+                    let prefix = format!("\n\n{indent}impl {name} {{\n");
+                    let suffix = format!(
+                        "\n{indent}}}\n{}",
+                        parent_indent.as_deref().unwrap_or_default()
+                    );
                     (
                         item_insert_offset_end(&item_list),
                         format!("{indent}    "),
@@ -1131,8 +1212,10 @@ fn pascal_case(field: &str) -> String {
 pub fn apply_indenting(input: &str, indent: &str) -> String {
     if !indent.is_empty() {
         let mut output = String::new();
-        for line in input.to_string().lines() {
-            output.push('\n');
+        for (idx, line) in input.to_string().lines().enumerate() {
+            if idx > 0 {
+                output.push('\n');
+            }
             if !line.is_empty() {
                 output.push_str(indent);
                 output.push_str(line);
@@ -1148,8 +1231,10 @@ pub fn apply_indenting(input: &str, indent: &str) -> String {
 pub fn reduce_indenting(input: &str, indent: &str) -> String {
     if !indent.is_empty() {
         let mut output = String::new();
-        for line in input.to_string().lines() {
-            output.push('\n');
+        for (idx, line) in input.to_string().lines().enumerate() {
+            if idx > 0 {
+                output.push('\n');
+            }
             if !line.is_empty() {
                 // Removes indent if it's a prefix of the current line.
                 output.push_str(line.strip_prefix(indent).unwrap_or(line));

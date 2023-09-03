@@ -1423,13 +1423,12 @@ mod tests {
             2
         );
         // Verifies quickfixes.
-        // FIXME: Should also remove leading comma.
         let expected_quickfixes = vec![
             vec![TestResultAction {
                 label: "Remove wildcard",
                 edits: vec![TestResultTextRange {
                     text: "",
-                    start_pat: Some("<-selector = _)]\n        pub fn my_constructor2"),
+                    start_pat: Some("<-, selector = _)]\n        pub fn my_constructor2"),
                     end_pat: Some("<-)]\n        pub fn my_constructor2"),
                 }],
             }],
@@ -1437,7 +1436,7 @@ mod tests {
                 label: "Remove wildcard",
                 edits: vec![TestResultTextRange {
                     text: "",
-                    start_pat: Some("<-selector = _)]\n        pub fn my_message2"),
+                    start_pat: Some("<-, selector = _)]\n        pub fn my_message2"),
                     end_pat: Some("<-)]\n        pub fn my_message2"),
                 }],
             }],

@@ -701,7 +701,7 @@ mod tests {
                     label: "un-variadic",
                     edits: vec![TestResultTextRange {
                         text: "",
-                        start_pat: Some("<-..."),
+                        start_pat: Some("<-, ..."),
                         end_pat: Some("..."),
                     }],
                 }],
@@ -877,8 +877,7 @@ mod tests {
                     label: "Remove wildcard",
                     edits: vec![TestResultTextRange {
                         text: "",
-                        // FIXME: Should also remove leading comma.
-                        start_pat: Some("<-selector = _"),
+                        start_pat: Some("<-, selector = _"),
                         end_pat: Some("selector = _"),
                     }],
                 }],

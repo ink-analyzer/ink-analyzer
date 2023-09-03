@@ -632,7 +632,6 @@ mod tests {
             ),
             // Variadic fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L732-L749>.
-            // FIXME: Should also remove leading comma.
             (
                 quote! {
                     fn my_message(&self, ...) {}
@@ -641,7 +640,7 @@ mod tests {
                     label: "un-variadic",
                     edits: vec![TestResultTextRange {
                         text: "",
-                        start_pat: Some("<-..."),
+                        start_pat: Some("<-, ..."),
                         end_pat: Some("..."),
                     }],
                 }],
@@ -654,7 +653,7 @@ mod tests {
                     label: "un-variadic",
                     edits: vec![TestResultTextRange {
                         text: "",
-                        start_pat: Some("<-..."),
+                        start_pat: Some("<-, ..."),
                         end_pat: Some("..."),
                     }],
                 }],

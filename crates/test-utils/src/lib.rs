@@ -20,7 +20,7 @@ macro_rules! quote_as_string {
 #[macro_export]
 macro_rules! quote_as_str {
     ($($tt:tt)*) => {
-        test_utils::quote_as_string!($($tt)*).as_str()
+        $crate::quote_as_string!($($tt)*).as_str()
     };
 }
 

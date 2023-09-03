@@ -57,7 +57,10 @@ impl Analysis {
             .into_iter()
             .filter_map(|it| it.quickfixes)
             .flatten()
-            .filter(|action| range.contains_range(action.range));
+            // Filters out diagnostics that apply to the given text range.
+            .filter(|action| {
+                range.contains_range(action.range) || action.range.contains_range(range)
+            });
         // Gets ranges that have quickfixes.
         let quickfixes_ranges: HashSet<TextRange> = quickfixes.clone().map(|it| it.range).collect();
         // Combines quickfixes and generic actions (with quickfixes taking priority).

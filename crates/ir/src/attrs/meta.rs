@@ -137,7 +137,7 @@ impl fmt::Display for MetaNameValue {
             "{}{}{}",
             self.name,
             match self.eq {
-                Some(_) => "=",
+                Some(_) => " = ",
                 None => "",
             },
             self.value
