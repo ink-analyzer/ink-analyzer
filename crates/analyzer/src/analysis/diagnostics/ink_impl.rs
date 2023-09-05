@@ -46,16 +46,14 @@ pub fn diagnostics(
 
     if !skip_callable_diagnostics {
         // Runs ink! constructor diagnostics, see `constructor::diagnostics` doc.
-        ink_impl
-            .constructors()
-            .iter()
-            .for_each(|item| constructor::diagnostics(results, item));
+        for item in ink_impl.constructors() {
+            constructor::diagnostics(results, item);
+        }
 
         // Runs ink! message diagnostics, see `message::diagnostics` doc.
-        ink_impl
-            .messages()
-            .iter()
-            .for_each(|item| message::diagnostics(results, item));
+        for item in ink_impl.messages() {
+            message::diagnostics(results, item);
+        }
     }
 
     // Ensures that ink! messages and constructors are defined in the root of an `impl` item,
@@ -373,17 +371,18 @@ fn impl_declaration_range(ink_impl: &InkImpl) -> TextRange {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/impl_item.rs#L64-L87>.
 fn ensure_callables_in_root(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
-    ink_impl
-        .constructors()
-        .iter()
-        .filter_map(|item| ensure_parent_impl(ink_impl, item, "constructor"))
-        .chain(
-            ink_impl
-                .messages()
-                .iter()
-                .filter_map(|item| ensure_parent_impl(ink_impl, item, "message")),
-        )
-        .for_each(|diagnostic| results.push(diagnostic));
+    results.extend(
+        ink_impl
+            .constructors()
+            .iter()
+            .filter_map(|item| ensure_parent_impl(ink_impl, item, "constructor"))
+            .chain(
+                ink_impl
+                    .messages()
+                    .iter()
+                    .filter_map(|item| ensure_parent_impl(ink_impl, item, "message")),
+            ),
+    );
 }
 
 /// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).

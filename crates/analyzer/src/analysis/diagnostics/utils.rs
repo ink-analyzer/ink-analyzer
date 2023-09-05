@@ -34,9 +34,9 @@ pub fn run_generic_diagnostics<T: FromSyntax>(results: &mut Vec<Diagnostic>, ite
 
     // Ensures that ink! attribute arguments are of the right format and have values are of the correct type (if any),
     // See `ensure_valid_attribute_arguments` doc.
-    item.tree()
-        .ink_attrs()
-        .for_each(|attr| ensure_valid_attribute_arguments(results, &attr));
+    for attr in item.tree().ink_attrs() {
+        ensure_valid_attribute_arguments(results, &attr);
+    }
 
     // Ensures that no duplicate ink! attributes and/or arguments, see `ensure_no_duplicate_attributes_and_arguments` doc.
     ensure_no_duplicate_attributes_and_arguments(
@@ -793,7 +793,7 @@ pub fn ensure_at_most_one_item<T>(
     T: FromSyntax + FromInkAttribute,
 {
     if items.len() > 1 {
-        items[1..].iter().for_each(|item| {
+        for item in &items[1..] {
             results.push(Diagnostic {
                 message: message.to_string(),
                 range: item.syntax().text_range(),
@@ -803,7 +803,7 @@ pub fn ensure_at_most_one_item<T>(
                     Action::remove_item(item.syntax()),
                 ]),
             });
-        });
+        }
     }
 }
 
@@ -1237,7 +1237,7 @@ pub fn ensure_trait_item_invariants<F, G>(
     G: FnMut(&mut Vec<Diagnostic>, &ast::TypeAlias),
 {
     if let Some(assoc_item_list) = trait_item.assoc_item_list() {
-        assoc_item_list.assoc_items().for_each(|assoc_item| {
+        for assoc_item in assoc_item_list.assoc_items() {
             match assoc_item {
                 ast::AssocItem::Const(const_item) => results.push(Diagnostic {
                     message: format!(
@@ -1291,7 +1291,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                     assoc_fn_handler(results, &fn_item);
                 },
             }
-        });
+        }
     }
 }
 
@@ -1414,7 +1414,7 @@ pub fn ensure_no_ink_descendants<T>(results: &mut Vec<Diagnostic>, item: &T, ink
 where
     T: FromSyntax,
 {
-    item.tree().ink_attrs_descendants().for_each(|attr| {
+    for attr in item.tree().ink_attrs_descendants() {
         results.push(Diagnostic {
             message: format!(
                 "`{}` cannot be used inside an ink! {ink_scope_name}.",
@@ -1429,7 +1429,7 @@ where
             severity: Severity::Error,
             quickfixes: Some(vec![Action::remove_attribute(&attr)]),
         });
-    });
+    }
 }
 
 #[cfg(test)]

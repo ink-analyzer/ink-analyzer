@@ -35,20 +35,19 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
     ensure_storage_quantity(results, contract);
 
     // Runs ink! storage diagnostics, see `storage::diagnostics` doc.
-    ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
-        .for_each(|item| storage::diagnostics(results, &item));
+    for item in ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()) {
+        storage::diagnostics(results, &item)
+    }
 
     // Runs ink! event diagnostics, see `event::diagnostics` doc.
-    contract
-        .events()
-        .iter()
-        .for_each(|item| event::diagnostics(results, item));
+    for item in contract.events() {
+        event::diagnostics(results, item);
+    }
 
     // Runs ink! impl diagnostics, see `ink_impl::diagnostics` doc.
-    contract
-        .impls()
-        .iter()
-        .for_each(|item| ink_impl::diagnostics(results, item, true));
+    for item in contract.impls() {
+        ink_impl::diagnostics(results, item, true);
+    }
 
     // Ensures that at least one ink! constructor, see `ensure_contains_constructor` doc.
     if let Some(diagnostic) = ensure_contains_constructor(contract) {
@@ -56,10 +55,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
     }
 
     // Runs ink! constructor diagnostics, see `constructor::diagnostics` doc.
-    contract
-        .constructors()
-        .iter()
-        .for_each(|item| constructor::diagnostics(results, item));
+    for item in contract.constructors() {
+        constructor::diagnostics(results, item);
+    }
 
     // Ensures that at least one ink! message, see `ensure_contains_message` doc.
     if let Some(diagnostic) = ensure_contains_message(contract) {
@@ -67,10 +65,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
     }
 
     // Runs ink! message diagnostics, see `message::diagnostics` doc.
-    contract
-        .messages()
-        .iter()
-        .for_each(|item| message::diagnostics(results, item));
+    for item in contract.messages() {
+        message::diagnostics(results, item);
+    }
 
     // Ensures that no ink! message or constructor selectors are overlapping,
     // see `ensure_no_overlapping_selectors` doc.
@@ -89,16 +86,14 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
     ensure_impl_parent_for_callables(results, contract);
 
     // Runs ink! test diagnostics, see `ink_test::diagnostics` doc.
-    contract
-        .tests()
-        .iter()
-        .for_each(|item| ink_test::diagnostics(results, item));
+    for item in contract.tests() {
+        ink_test::diagnostics(results, item);
+    }
 
     // Runs ink! e2e test diagnostics, see `ink_e2e_test::diagnostics` doc.
-    contract
-        .e2e_tests()
-        .iter()
-        .for_each(|item| ink_e2e_test::diagnostics(results, item));
+    for item in contract.e2e_tests() {
+        ink_e2e_test::diagnostics(results, item);
+    }
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
@@ -499,21 +494,23 @@ where
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
 fn ensure_root_items(results: &mut Vec<Diagnostic>, contract: &Contract) {
-    ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()) // All storage definitions.
-        .filter_map(|item| ensure_parent_contract(contract, &item, "storage"))
-        .chain(
-            contract
-                .events()
-                .iter()
-                .filter_map(|item| ensure_parent_contract(contract, item, "event")),
-        )
-        .chain(
-            contract
-                .impls()
-                .iter()
-                .filter_map(|item| ensure_parent_contract(contract, item, "impl")),
-        )
-        .for_each(|diagnostic| results.push(diagnostic));
+    results.extend(
+        // All storage definitions.
+        ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
+            .filter_map(|item| ensure_parent_contract(contract, &item, "storage"))
+            .chain(
+                contract
+                    .events()
+                    .iter()
+                    .filter_map(|item| ensure_parent_contract(contract, item, "event")),
+            )
+            .chain(
+                contract
+                    .impls()
+                    .iter()
+                    .filter_map(|item| ensure_parent_contract(contract, item, "impl")),
+            ),
+    );
 }
 
 /// Ensures that ink! messages and constructors are defined in the root of an `impl` item.

@@ -43,10 +43,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event) {
     ensure_only_ink_topic_descendants(results, event);
 
     // Runs ink! topic diagnostics, see `topic::diagnostics` doc.
-    event
-        .topics()
-        .iter()
-        .for_each(|item| topic::diagnostics(results, item));
+    for item in event.topics() {
+        topic::diagnostics(results, item);
+    }
 
     // Ensures that ink! event fields are not annotated with `cfg` attributes, see `ensure_no_cfg_event_fields` doc.
     ensure_no_cfg_event_fields(results, event);
@@ -95,8 +94,8 @@ fn ensure_only_ink_topic_descendants(results: &mut Vec<Diagnostic>, item: &Event
 fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
     if let Some(struct_item) = event.struct_item() {
         if let Some(ast::FieldList::RecordFieldList(field_list)) = struct_item.field_list() {
-            field_list.fields().for_each(|field| {
-                field.attrs().for_each(|attr| {
+            for field in field_list.fields() {
+                for attr in field.attrs() {
                     if let Some(path) = attr.path() {
                         if path.to_string() == "cfg" {
                             results.push(Diagnostic {
@@ -113,8 +112,8 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
                             });
                         }
                     }
-                });
-            });
+                }
+            }
         }
     }
 }

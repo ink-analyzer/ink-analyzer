@@ -16,34 +16,34 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile) {
     ensure_contract_quantity(results, file);
 
     // ink! contract diagnostics.
-    file.contracts()
-        .iter()
-        .for_each(|item| contract::diagnostics(results, item));
+    for item in file.contracts() {
+        contract::diagnostics(results, item);
+    }
 
     // Runs ink! trait definition diagnostics, see `trait_definition::diagnostics` doc.
-    file.trait_definitions()
-        .iter()
-        .for_each(|item| trait_definition::diagnostics(results, item));
+    for item in file.trait_definitions() {
+        trait_definition::diagnostics(results, item);
+    }
 
     // Runs ink! chain extension diagnostics, see `chain_extension::diagnostics` doc.
-    file.chain_extensions()
-        .iter()
-        .for_each(|item| chain_extension::diagnostics(results, item));
+    for item in file.chain_extensions() {
+        chain_extension::diagnostics(results, item);
+    }
 
     // Runs ink! storage item diagnostics, see `storage_item::diagnostics` doc.
-    file.storage_items()
-        .iter()
-        .for_each(|item| storage_item::diagnostics(results, item));
+    for item in file.storage_items() {
+        storage_item::diagnostics(results, item);
+    }
 
     // Runs ink! test diagnostics, see `ink_test::diagnostics` doc.
-    file.tests()
-        .iter()
-        .for_each(|item| ink_test::diagnostics(results, item));
+    for item in file.tests() {
+        ink_test::diagnostics(results, item);
+    }
 
     // Runs ink! e2e test diagnostics, see `ink_e2e_test::diagnostics` doc.
-    file.e2e_tests()
-        .iter()
-        .for_each(|item| ink_e2e_test::diagnostics(results, item));
+    for item in file.e2e_tests() {
+        ink_e2e_test::diagnostics(results, item);
+    }
 
     // Ensures that only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.

@@ -43,10 +43,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, trait_definition: &TraitDefini
     }
 
     // Runs ink! message diagnostics, see `message::diagnostics` doc.
-    trait_definition
-        .messages()
-        .iter()
-        .for_each(|item| message::diagnostics(results, item));
+    for item in trait_definition.messages() {
+        message::diagnostics(results, item);
+    }
 
     // Ensures that at least one ink! message, see `ensure_contains_message` doc.
     if let Some(diagnostic) = ensure_contains_message(trait_definition) {

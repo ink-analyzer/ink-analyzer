@@ -62,7 +62,7 @@ impl Analysis {
                 range.contains_range(action.range) || action.range.contains_range(range)
             })
             // Combines quickfixes and generic actions (with quickfixes taking priority).
-            .chain(actions::actions(&self.file, range).into_iter())
+            .chain(actions::actions(&self.file, range))
             // Deduplicate by edits.
             .unique_by(|item| item.edits.clone())
             .collect()

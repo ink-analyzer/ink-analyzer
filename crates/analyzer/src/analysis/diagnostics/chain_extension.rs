@@ -46,10 +46,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
     ensure_trait_item_invariants(results, chain_extension);
 
     // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
-    chain_extension
-        .extensions()
-        .iter()
-        .for_each(|item| extension::diagnostics(results, item));
+    for item in chain_extension.extensions() {
+        extension::diagnostics(results, item);
+    }
 
     // Ensures that exactly one `ErrorCode` associated type is defined, see `ensure_error_code_quantity` doc.
     ensure_error_code_type_quantity(results, chain_extension);
@@ -275,7 +274,7 @@ fn ensure_error_code_type_quantity(
                     }]),
                 });
             } else if error_codes.len() > 1 {
-                error_codes[1..].iter().for_each(|item| {
+                for item in &error_codes[1..] {
                     results.push(Diagnostic {
                         message: "Duplicate `ErrorCode` associated type for ink! chain extension."
                             .to_string(),
@@ -289,7 +288,7 @@ fn ensure_error_code_type_quantity(
                             edits: vec![TextEdit::delete(item.syntax().text_range())],
                         }]),
                     });
-                });
+                }
             };
         }
     }
