@@ -92,17 +92,23 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                             analysis_utils::first_ink_attribute_insertion_offset_and_affixes(
                                 fn_item.syntax(),
                             );
+                        // Computes a unique id for the chain extension method.
                         let suggested_id =
                             analysis_utils::suggest_unique_id(Some(1), &mut unavailable_ids);
+                        // Gets the declaration range for the item.
+                        let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(
+                            fn_item.clone(),
+                        ))
+                        .unwrap_or(fn_item.syntax().text_range());
                         results.push(Diagnostic {
                             message: "All ink! chain extension methods must be ink! extensions."
                                 .to_string(),
-                            range: fn_item.syntax().text_range(),
+                            range,
                             severity: Severity::Error,
                             quickfixes: Some(vec![Action {
                                 label: "Add ink! extension attribute.".to_string(),
                                 kind: ActionKind::QuickFix,
-                                range: TextRange::new(insert_offset, insert_offset),
+                                range,
                                 edits: [TextEdit::insert_with_snippet(
                                     format!(
                                         "{}#[ink(extension = {suggested_id})]{}",
@@ -147,8 +153,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                             .to_string(),
                         range: name_marker
                             .as_ref()
-                            .map_or(trait_item.syntax(), AstNode::syntax)
-                            .text_range(),
+                            .map(|it| it.syntax().text_range())
+                            // Defaults to the declaration range for the chain extension.
+                            .unwrap_or(
+                                chain_extension_declaration_range(chain_extension)
+                            ),
                         severity: Severity::Error,
                         quickfixes: name_marker.as_ref().map(|name| {
                             vec![Action {
@@ -204,7 +213,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                         quickfixes: Some(vec![Action {
                             label: "Add `ErrorCode` default type.".to_string(),
                             kind: ActionKind::QuickFix,
-                            range: TextRange::new(insert_offset, insert_offset),
+                            range: type_alias.syntax().text_range(),
                             edits: vec![TextEdit::insert_with_snippet(
                                 format!("{insert_prefix}(){insert_suffix}"),
                                 insert_offset,
@@ -246,16 +255,18 @@ fn ensure_error_code_type_quantity(
                     analysis_utils::assoc_item_insert_offset_start(&assoc_item_list);
                 // Set quickfix insertion indent.
                 let indent = analysis_utils::item_children_indenting(trait_item.syntax());
+                // Gets the declaration range for the item.
+                let range = chain_extension_declaration_range(chain_extension);
                 // Creates diagnostic and quickfix for missing `ErrorCode` type.
                 results.push(Diagnostic {
                     message: "Missing `ErrorCode` associated type for ink! chain extension."
                         .to_string(),
-                    range: chain_extension.syntax().text_range(),
+                    range,
                     severity: Severity::Error,
                     quickfixes: Some(vec![Action {
                         label: "Add `ErrorCode` type for ink! chain extension.".to_string(),
                         kind: ActionKind::QuickFix,
-                        range: TextRange::new(insert_offset, insert_offset),
+                        range,
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(ERROR_CODE_PLAIN, &indent),
                             insert_offset,
@@ -282,6 +293,14 @@ fn ensure_error_code_type_quantity(
             };
         }
     }
+}
+
+/// Returns text range of the contract `mod` "declaration" (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
+fn chain_extension_declaration_range(chain_extension: &ChainExtension) -> TextRange {
+    chain_extension
+        .trait_item()
+        .and_then(|it| analysis_utils::ast_item_declaration_range(&ast::Item::Trait(it.clone())))
+        .unwrap_or(chain_extension.syntax().text_range())
 }
 
 /// Ensures that no ink! extension ids are overlapping.
@@ -1111,7 +1130,7 @@ mod tests {
             .contains("Add `ErrorCode`"));
         let offset = TextSize::from(parse_offset_at(&code, Some("{")).unwrap() as u32);
         assert_eq!(
-            results[0].quickfixes.as_ref().unwrap()[0].range,
+            results[0].quickfixes.as_ref().unwrap()[0].edits[0].range,
             TextRange::new(offset, offset)
         );
     }

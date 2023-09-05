@@ -834,7 +834,7 @@ where
                         .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
                     .map(|range| {
                         vec![Action {
-                            label: "Change to `pub` visibility.".to_string(),
+                            label: "Change visibility to `pub`.".to_string(),
                             kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace(
@@ -1100,7 +1100,7 @@ pub fn ensure_callable_invariants(
                         .map_or(range, |vis| utils::node_and_trivia_range(vis.syntax()));
                     vec![
                         Action {
-                            label: "Change to `pub` visibility.".to_string(),
+                            label: "Change visibility to `pub`.".to_string(),
                             kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace(
@@ -1197,7 +1197,7 @@ pub fn ensure_trait_invariants(
                     .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
                 .map(|range| {
                     vec![Action {
-                        label: "Change to `pub` visibility.".to_string(),
+                        label: "Change visibility to `pub`.".to_string(),
                         kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::replace(

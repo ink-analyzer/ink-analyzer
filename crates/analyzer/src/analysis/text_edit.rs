@@ -3,7 +3,7 @@
 use ink_analyzer_ir::syntax::{TextRange, TextSize};
 
 /// A text edit (with an optional snippet - i.e tab stops and/or placeholders).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TextEdit {
     /// Replacement text for the text edit.
     pub text: String,

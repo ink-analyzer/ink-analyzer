@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::syntax::{TextRange, TextSize};
 use ink_analyzer_ir::InkFile;
-use std::collections::HashSet;
+use itertools::Itertools;
 
 pub use actions::{Action, ActionKind};
 pub use completions::Completion;
@@ -52,26 +52,19 @@ impl Analysis {
 
     /// Computes ink! attribute code/intent actions for the given text range.
     pub fn actions(&self, range: TextRange) -> Vec<Action> {
-        // Gets quickfixes for diagnostics.
-        let quickfixes = diagnostics::diagnostics(&self.file)
+        // Returns quickfixes (for diagnostics) + generic code actions.
+        diagnostics::diagnostics(&self.file)
             .into_iter()
             .filter_map(|it| it.quickfixes)
             .flatten()
             // Filters out diagnostics that apply to the given text range.
             .filter(|action| {
                 range.contains_range(action.range) || action.range.contains_range(range)
-            });
-        // Gets ranges that have quickfixes.
-        let quickfixes_ranges: HashSet<TextRange> = quickfixes.clone().map(|it| it.range).collect();
-        // Combines quickfixes and generic actions (with quickfixes taking priority).
-        quickfixes
-            .chain(
-                actions::actions(&self.file, range)
-                    .into_iter()
-                    // Filters out actions for ranges that have a quickfix
-                    // (quickfixes have more context and therefore take priority).
-                    .filter(|action| !quickfixes_ranges.contains(&action.range)),
-            )
+            })
+            // Combines quickfixes and generic actions (with quickfixes taking priority).
+            .chain(actions::actions(&self.file, range).into_iter())
+            // Deduplicate by edits.
+            .unique_by(|item| item.edits.clone())
             .collect()
     }
 

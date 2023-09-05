@@ -1,6 +1,6 @@
 //! Utilities for ink! analysis.
 
-use ink_analyzer_ir::ast::{HasModuleItem, HasName};
+use ink_analyzer_ir::ast::{HasAttrs, HasDocComments, HasModuleItem, HasName};
 use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
@@ -445,16 +445,18 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
     suggestions: &mut Vec<InkMacroKind>,
     attr_parent: &SyntaxNode,
 ) {
-    let parent_ink_scope_valid_ink_macros: Vec<InkMacroKind> =
-        ink_analyzer_ir::ink_attrs_closest_ancestors(attr_parent)
+    let mut ink_ancestors = ink_analyzer_ir::ink_attrs_closest_ancestors(attr_parent);
+    // Filters out invalid ink! macros for the parent ink! scope (if any).
+    if let Some(first_ancestor) = ink_ancestors.next() {
+        let parent_ink_scope_valid_ink_macros: Vec<InkMacroKind> = [first_ancestor]
+            .into_iter()
+            .chain(ink_ancestors)
             .flat_map(|attr| valid_quasi_direct_descendant_ink_macros(*attr.kind()))
             .collect();
 
-    // Filters out invalid arguments for the parent ink! scope (if any).
-    if !parent_ink_scope_valid_ink_macros.is_empty() {
         suggestions.retain(|macro_kind| {
-            parent_ink_scope_valid_ink_macros.is_empty()
-                || parent_ink_scope_valid_ink_macros.contains(macro_kind)
+            !parent_ink_scope_valid_ink_macros.is_empty()
+                && parent_ink_scope_valid_ink_macros.contains(macro_kind)
         });
     }
 }
@@ -506,7 +508,7 @@ pub fn ink_arg_insertion_text(
             // Defaults to inserting the `=` symbol (e.g. if either parent attribute is `None` or the next closest non-trivia token can't be determined).
             .unwrap_or(true),
     };
-    let text = format!("{arg_kind}{}", if insert_equal_token { " = " } else { "" });
+    let mut text = format!("{arg_kind}{}", if insert_equal_token { " = " } else { "" });
     // Creates (if appropriate) a snippet with tab stops and/or placeholders where applicable.
     let snippet = insert_equal_token.then_some(format!(
         "{text}{}",
@@ -522,6 +524,25 @@ pub fn ink_arg_insertion_text(
             InkArgValueKind::None => "",
         }
     ));
+    // Add default values to insert text (if appropriate).
+    text = format!(
+        "{text}{}",
+        if insert_equal_token {
+            match InkArgValueKind::from(arg_kind) {
+                InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => "1",
+                InkArgValueKind::String(str_kind) => match str_kind {
+                    InkArgValueStringKind::Identifier => r#""my_namespace""#,
+                    _ => r#""""#,
+                },
+                InkArgValueKind::Bool => "true",
+                InkArgValueKind::Path(_) => "crate::",
+                // Should not be able to get here.
+                InkArgValueKind::None => "",
+            }
+        } else {
+            ""
+        }
+    );
 
     (text, snippet)
 }
@@ -862,6 +883,127 @@ pub fn parent_ast_item<T: FromSyntax>(item: &T, range: TextRange) -> Option<ast:
             }
         })
     }
+}
+
+/// Returns text range of the AST item "declaration" (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
+pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
+    match item {
+        ast::Item::Module(module) => module
+            .item_list()
+            .map(|it| {
+                it.l_curly_token()
+                    .as_ref()
+                    .map(SyntaxToken::text_range)
+                    .unwrap_or(it.syntax().text_range())
+            })
+            .or(module
+                .semicolon_token()
+                .as_ref()
+                .map(SyntaxToken::text_range)),
+        ast::Item::Trait(trait_item) => trait_item
+            .assoc_item_list()
+            .map(|it| {
+                it.l_curly_token()
+                    .as_ref()
+                    .map(SyntaxToken::text_range)
+                    .unwrap_or(it.syntax().text_range())
+            })
+            .or(trait_item
+                .semicolon_token()
+                .as_ref()
+                .map(SyntaxToken::text_range)),
+        ast::Item::Impl(impl_item) => impl_item.assoc_item_list().map(|it| {
+            it.l_curly_token()
+                .as_ref()
+                .map(SyntaxToken::text_range)
+                .unwrap_or(it.syntax().text_range())
+        }),
+        ast::Item::Fn(fn_item) => fn_item
+            .body()
+            .map(|it| {
+                it.stmt_list()
+                    .map(|it| {
+                        it.l_curly_token()
+                            .as_ref()
+                            .map(SyntaxToken::text_range)
+                            .unwrap_or(it.syntax().text_range())
+                    })
+                    .unwrap_or(it.syntax().text_range())
+            })
+            .or(fn_item
+                .semicolon_token()
+                .as_ref()
+                .map(SyntaxToken::text_range)),
+        ast::Item::Enum(enum_item) => enum_item.variant_list().map(|it| {
+            it.l_curly_token()
+                .as_ref()
+                .map(SyntaxToken::text_range)
+                .unwrap_or(it.syntax().text_range())
+        }),
+        ast::Item::Struct(struct_item) => struct_item
+            .field_list()
+            .map(|it| {
+                match &it {
+                    ast::FieldList::RecordFieldList(it) => {
+                        it.l_curly_token().as_ref().map(SyntaxToken::text_range)
+                    }
+
+                    ast::FieldList::TupleFieldList(it) => {
+                        struct_item
+                            .semicolon_token()
+                            .as_ref()
+                            .map(SyntaxToken::text_range)
+                            // should be end.
+                            .or(it.r_paren_token().as_ref().map(SyntaxToken::text_range))
+                            // should be end.
+                            .or(Some(it.syntax().text_range()))
+                    }
+                }
+                .unwrap_or(it.syntax().text_range())
+            })
+            .or(struct_item
+                .semicolon_token()
+                .as_ref()
+                .map(SyntaxToken::text_range)),
+        ast::Item::Union(union_item) => union_item.record_field_list().map(|it| {
+            it.l_curly_token()
+                .as_ref()
+                .map(SyntaxToken::text_range)
+                .unwrap_or(it.syntax().text_range())
+        }),
+        ast::Item::TypeAlias(type_alias) => type_alias
+            .semicolon_token()
+            .as_ref()
+            .map(SyntaxToken::text_range),
+        _ => None,
+    }
+    .map(TextRange::end)
+    .map(|end| {
+        let last_comment = item.doc_comments().last().map(|it| it.syntax().clone());
+        let last_attr_token = item.attrs().last().and_then(|it| it.syntax().last_token());
+        let start = last_comment
+            .as_ref()
+            .zip(last_attr_token.as_ref())
+            .map(|(comment, attr)| {
+                if comment.text_range().end() >= attr.text_range().end() {
+                    comment.clone()
+                } else {
+                    attr.clone()
+                }
+            })
+            .or(last_comment)
+            .or(last_attr_token)
+            // Finds the first non-(attribute/rustdoc/trivia) token for the item.
+            .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
+            .as_ref()
+            .map(SyntaxToken::text_range)
+            // Defaults to the start of the item.
+            .unwrap_or(item.syntax().text_range())
+            .start();
+
+        // Returns the text range for the item's "declaration".
+        TextRange::new(start, end)
+    })
 }
 
 /// Returns text range of the syntax token and it's immediate (next) trivia (whitespace and comments).

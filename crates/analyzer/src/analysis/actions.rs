@@ -16,7 +16,7 @@ pub struct Action {
     pub label: String,
     /// The kind of the action (e.g quickfix or refactor).
     pub kind: ActionKind,
-    /// Range where the action will be applied.
+    /// Range where the action is activated.
     pub range: TextRange,
     /// Text edits that will performed by the action.
     pub edits: Vec<TextEdit>,
@@ -516,9 +516,13 @@ mod tests {
                 "#,
                 Some("<-mod"),
                 vec![
-                    ("(env=)", Some("#[ink::contract"), Some("#[ink::contract")),
                     (
-                        "(keep_attr=)",
+                        "(env=crate::)",
+                        Some("#[ink::contract"),
+                        Some("#[ink::contract"),
+                    ),
+                    (
+                        r#"(keep_attr="")"#,
                         Some("#[ink::contract"),
                         Some("#[ink::contract"),
                     ),
@@ -554,12 +558,12 @@ mod tests {
                 Some("<-pub"),
                 vec![
                     (
-                        "(keep_attr=)",
+                        r#"(keep_attr="")"#,
                         Some("#[ink::trait_definition"),
                         Some("#[ink::trait_definition"),
                     ),
                     (
-                        "(namespace=)",
+                        r#"(namespace="my_namespace")"#,
                         Some("#[ink::trait_definition"),
                         Some("#[ink::trait_definition"),
                     ),
@@ -617,11 +621,11 @@ mod tests {
                     ("#[ink_e2e::test]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(constructor)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(default)]", Some("<-fn"), Some("<-fn")),
-                    ("#[ink(extension=)]", Some("<-fn"), Some("<-fn")),
-                    ("#[ink(handle_status=)]", Some("<-fn"), Some("<-fn")),
+                    ("#[ink(extension=1)]", Some("<-fn"), Some("<-fn")),
+                    ("#[ink(handle_status=true)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(message)]", Some("<-fn"), Some("<-fn")),
                     ("#[ink(payable)]", Some("<-fn"), Some("<-fn")),
-                    ("#[ink(selector=)]", Some("<-fn"), Some("<-fn")),
+                    ("#[ink(selector=1)]", Some("<-fn"), Some("<-fn")),
                 ],
             ),
             (
@@ -642,17 +646,17 @@ mod tests {
                 Some("<-fn"),
                 vec![
                     (
-                        "(additional_contracts=)",
+                        r#"(additional_contracts="")"#,
                         Some("#[ink_e2e::test"),
                         Some("#[ink_e2e::test"),
                     ),
                     (
-                        "(environment=)",
+                        "(environment=crate::)",
                         Some("#[ink_e2e::test"),
                         Some("#[ink_e2e::test"),
                     ),
                     (
-                        "(keep_attr=)",
+                        r#"(keep_attr="")"#,
                         Some("#[ink_e2e::test"),
                         Some("#[ink_e2e::test"),
                     ),
@@ -677,7 +681,7 @@ mod tests {
                         Some("#[ink(constructor"),
                     ),
                     (
-                        ", selector=",
+                        ", selector=1",
                         Some("#[ink(constructor"),
                         Some("#[ink(constructor"),
                     ),
@@ -797,8 +801,8 @@ mod tests {
                 "#,
                 Some("<-#["),
                 vec![
-                    ("(env=)", Some("<-]"), Some("<-]")),
-                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
+                    ("(env=crate::)", Some("<-]"), Some("<-]")),
+                    (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
                 ],
             ),
             (
@@ -809,8 +813,8 @@ mod tests {
                 "#,
                 Some("ink::"),
                 vec![
-                    ("(env=)", Some("<-]"), Some("<-]")),
-                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
+                    ("(env=crate::)", Some("<-]"), Some("<-]")),
+                    (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
                 ],
             ),
             (
@@ -821,8 +825,8 @@ mod tests {
                 "#,
                 Some("contract]"),
                 vec![
-                    ("(env=)", Some("<-]"), Some("<-]")),
-                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
+                    ("(env=crate::)", Some("<-]"), Some("<-]")),
+                    (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
                 ],
             ),
             (
@@ -832,7 +836,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![(", keep_attr=", Some("<-)]"), Some("<-)]"))],
+                vec![(r#", keep_attr="""#, Some("<-)]"), Some("<-)]"))],
             ),
             (
                 r#"
@@ -841,7 +845,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![("keep_attr=", Some("<-)]"), Some("<-)]"))],
+                vec![(r#"keep_attr="""#, Some("<-)]"), Some("<-)]"))],
             ),
             (
                 r#"
@@ -860,8 +864,8 @@ mod tests {
                 "#,
                 Some("<-#["),
                 vec![
-                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
-                    ("(namespace=)", Some("<-]"), Some("<-]")),
+                    (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
+                    (r#"(namespace="my_namespace")"#, Some("<-]"), Some("<-]")),
                 ],
             ),
             (
@@ -871,7 +875,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![(", keep_attr=", Some("<-)]"), Some("<-)]"))],
+                vec![(r#", keep_attr="""#, Some("<-)]"), Some("<-)]"))],
             ),
             (
                 r#"
@@ -880,7 +884,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![("(derive=)", Some("<-]"), Some("<-]"))],
+                vec![("(derive=true)", Some("<-]"), Some("<-]"))],
             ),
             (
                 r#"
@@ -889,7 +893,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![("(derive=)", Some("<-]"), Some("<-]"))],
+                vec![("(derive=true)", Some("<-]"), Some("<-]"))],
             ),
             (
                 r#"
@@ -898,7 +902,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![("(derive=)", Some("<-]"), Some("<-]"))],
+                vec![("(derive=true)", Some("<-]"), Some("<-]"))],
             ),
             (
                 r#"
@@ -917,9 +921,9 @@ mod tests {
                 "#,
                 Some("<-#["),
                 vec![
-                    ("(additional_contracts=)", Some("<-]"), Some("<-]")),
-                    ("(environment=)", Some("<-]"), Some("<-]")),
-                    ("(keep_attr=)", Some("<-]"), Some("<-]")),
+                    (r#"(additional_contracts="")"#, Some("<-]"), Some("<-]")),
+                    (r#"(environment=crate::)"#, Some("<-]"), Some("<-]")),
+                    (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
                 ],
             ),
             // ink! attribute arguments.
@@ -1000,7 +1004,7 @@ mod tests {
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
                     (", payable", Some("<-)]"), Some("<-)]")),
-                    (", selector=", Some("<-)]"), Some("<-)]")),
+                    (", selector=1", Some("<-)]"), Some("<-)]")),
                 ],
             ),
             (
@@ -1012,7 +1016,7 @@ mod tests {
                 Some("<-#["),
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
-                    (", selector=", Some("<-)]"), Some("<-)]")),
+                    (", selector=1", Some("<-)]"), Some("<-)]")),
                 ],
             ),
             (
@@ -1025,7 +1029,7 @@ mod tests {
                 Some("<-#["),
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
-                    (", selector=", Some("<-)]"), Some("<-)]")),
+                    (", selector=1", Some("<-)]"), Some("<-)]")),
                 ],
             ),
             (
@@ -1038,7 +1042,7 @@ mod tests {
                 Some("<-#[->"),
                 vec![
                     (", default", Some("<-)]->"), Some("<-)]->")),
-                    (", selector=", Some("<-)]->"), Some("<-)]->")),
+                    (", selector=1", Some("<-)]->"), Some("<-)]->")),
                 ],
             ),
             (
@@ -1051,7 +1055,7 @@ mod tests {
                 vec![
                     (", default", Some("<-)]"), Some("<-)]")),
                     (", payable", Some("<-)]"), Some("<-)]")),
-                    (", selector=", Some("<-)]"), Some("<-)]")),
+                    (", selector=1", Some("<-)]"), Some("<-)]")),
                 ],
             ),
             (
@@ -1061,7 +1065,7 @@ mod tests {
                     }
                 "#,
                 Some("<-#["),
-                vec![(", handle_status=", Some("<-)]"), Some("<-)]"))],
+                vec![(", handle_status=true", Some("<-)]"), Some("<-)]"))],
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);

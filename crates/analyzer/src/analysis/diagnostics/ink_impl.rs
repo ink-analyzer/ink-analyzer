@@ -80,7 +80,7 @@ pub fn diagnostics(
 fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
     ink_impl.impl_item().is_none().then_some(Diagnostic {
         message: "ink! impl must be an `impl` item.".to_string(),
-        range: ink_impl.syntax().text_range(),
+        range: impl_declaration_range(ink_impl),
         severity: Severity::Error,
         quickfixes: ink_impl
             .impl_attr()
@@ -196,7 +196,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                             range: visibility.syntax().text_range(),
                             severity: Severity::Error,
                             quickfixes: Some(vec![Action {
-                                label: format!("Remove `{}` visibility.", visibility.syntax()),
+                                label: format!("Remove visibility `{}`.", visibility.syntax()),
                                 kind: ActionKind::QuickFix,
                                 range,
                                 edits: vec![TextEdit::delete(range)],
@@ -215,14 +215,19 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                     };
 
                     if !has_pub_visibility {
+                        // Gets the declaration range for the `fn` item.
+                        let fn_declaration_range = analysis_utils::ast_item_declaration_range(
+                            &ast::Item::Fn(fn_item.clone()),
+                        )
+                        .unwrap_or(fn_item.syntax().text_range());
                         results.push(Diagnostic {
                             message: format!(
                                 "ink! {name}s in inherent ink! impl blocks must have `pub` visibility."
                             ),
                             range: visibility
                                 .as_ref()
-                                .map_or(fn_item.syntax(), AstNode::syntax)
-                                .text_range(),
+                                .map(|it| it.syntax().text_range())
+                                .unwrap_or(fn_declaration_range),
                             severity: Severity::Error,
                             quickfixes: visibility
                                 .as_ref()
@@ -244,9 +249,12 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                     }))
                                 .map(|range| {
                                     vec![Action {
-                                        label: "Change to `pub` visibility.".to_string(),
+                                        label: "Change visibility to `pub`.".to_string(),
                                         kind: ActionKind::QuickFix,
-                                        range,
+                                        range: visibility
+                                            .as_ref()
+                                            .map(|it| it.syntax().text_range())
+                                            .unwrap_or(fn_declaration_range),
                                         edits: vec![TextEdit::replace(
                                             format!(
                                                 "pub{}",
@@ -268,13 +276,15 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L119-L210>.
 fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnostic> {
+    // Gets the declaration range for the item.
+    let range = impl_declaration_range(ink_impl);
     (ink_impl.impl_attr().is_none()
         && ink_impl.constructors().is_empty()
         && ink_impl.messages().is_empty())
     .then_some(Diagnostic {
         message: "At least one ink! constructor or ink! message must be defined for an ink! impl without an `#[ink(impl)]` annotation."
             .to_string(),
-        range: ink_impl.syntax().text_range(),
+        range,
         severity: Severity::Error,
         quickfixes: ink_impl
             .impl_item()
@@ -290,7 +300,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
                     Action {
                         label: "Add ink! constructor `fn`.".to_string(),
                         kind: ActionKind::QuickFix,
-                        range: TextRange::new(insert_offset, insert_offset),
+                        range,
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(CONSTRUCTOR_PLAIN, &indent),
                             insert_offset,
@@ -303,7 +313,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
                     Action {
                         label: "Add ink! message `fn`.".to_string(),
                         kind: ActionKind::QuickFix,
-                        range: TextRange::new(insert_offset, insert_offset),
+                        range,
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(MESSAGE_PLAIN, &indent),
                             insert_offset,
@@ -318,18 +328,17 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
 /// Ensures that item is defined in the root of this specific `impl` item.
 fn ensure_parent_impl<T>(ink_impl: &InkImpl, item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: IsInkImplItem + FromSyntax,
+    T: IsInkImplItem + IsInkFn + FromSyntax,
 {
-    let is_parent = match item.impl_item() {
-        Some(parent_impl_item) => parent_impl_item.syntax() == ink_impl.syntax(),
-        None => false,
-    };
+    let is_parent = item.impl_item().map_or(false, |parent_impl_item| {
+        parent_impl_item.syntax() == ink_impl.syntax()
+    });
 
     (!is_parent).then_some(Diagnostic {
         message: format!(
             "ink! {ink_scope_name}s must be defined in the root of an ink! contract's `impl` block."
         ),
-        range: item.syntax().text_range(),
+        range: impl_declaration_range(ink_impl),
         severity: Severity::Error,
         quickfixes: ink_impl
             .impl_item()
@@ -344,6 +353,14 @@ where
                 )]
             }),
     })
+}
+
+/// Returns text range of the contract `mod` "declaration" (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
+fn impl_declaration_range(ink_impl: &InkImpl) -> TextRange {
+    ink_impl
+        .impl_item()
+        .and_then(|it| analysis_utils::ast_item_declaration_range(&ast::Item::Impl(it.clone())))
+        .unwrap_or(ink_impl.syntax().text_range())
 }
 
 /// Ensures that ink! messages and constructors are defined in the root of the `impl` item.
@@ -717,7 +734,7 @@ mod tests {
                     }
                 },
                 vec![TestResultAction {
-                    label: "Remove `pub`",
+                    label: "Remove visibility",
                     edits: vec![TestResultTextRange {
                         text: "",
                         start_pat: Some("<-pub"),
@@ -733,7 +750,7 @@ mod tests {
                     }
                 },
                 vec![TestResultAction {
-                    label: "Remove `pub`",
+                    label: "Remove visibility",
                     edits: vec![TestResultTextRange {
                         text: "",
                         start_pat: Some("<-pub"),

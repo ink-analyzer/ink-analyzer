@@ -1,7 +1,6 @@
 //! ink! message diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{ast, IsInkFn, Message};
 
 use super::utils;
@@ -54,31 +53,21 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message) {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L121-L150>.
 fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
-    let mut has_self_ref_receiver = false;
-    let mut marker_token = None;
+    // Determines if the function has a self reference receiver.
+    let has_self_ref_receiver = fn_item
+        .param_list()
+        .as_ref()
+        .and_then(ast::ParamList::self_param)
+        .map_or(false, |self_param| self_param.amp_token().is_some());
 
-    if let Some(param_list) = fn_item.param_list() {
-        if let Some(self_param) = param_list.self_param() {
-            if self_param.amp_token().is_some() {
-                has_self_ref_receiver = true; // Only case that passes.
-            } else {
-                marker_token = Some(self_param.syntax().clone());
-            }
-        } else {
-            marker_token = param_list
-                .params()
-                .next()
-                .map(|param| param.syntax().clone());
-        }
-    }
+    // Gets the declaration range for the item.
+    let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+        .unwrap_or(fn_item.syntax().text_range());
 
     (!has_self_ref_receiver).then_some(Diagnostic {
         message: "ink! message must have a self reference receiver (i.e `&self` or `&mut self`)."
             .to_string(),
-        range: marker_token
-            .as_ref()
-            .unwrap_or(fn_item.syntax())
-            .text_range(),
+        range,
         severity: Severity::Error,
         quickfixes: fn_item
             .param_list()
@@ -93,7 +82,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
                     Action {
                         label: "Add immutable self reference receiver".to_string(),
                         kind: ActionKind::QuickFix,
-                        range: TextRange::new(insert_offset, insert_offset),
+                        range,
                         edits: vec![TextEdit::insert(
                             format!("&self{insert_suffix}"),
                             insert_offset,
@@ -102,7 +91,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
                     Action {
                         label: "Add mutable self reference receiver".to_string(),
                         kind: ActionKind::QuickFix,
-                        range: TextRange::new(insert_offset, insert_offset),
+                        range,
                         edits: vec![TextEdit::insert(
                             format!("&mut self{insert_suffix}"),
                             insert_offset,

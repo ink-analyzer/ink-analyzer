@@ -14,6 +14,7 @@ categories = ["development-tools"]
 
 [dependencies]
 ink-analyzer-ir = { version = "0.7", path = "../ir" }
+itertools = "0.10.5"
 
 [dev-dependencies]
 prettyplease = { version = "0.2.12", features = ["verbatim"] }

@@ -1,7 +1,6 @@
 //! ink! trait definition diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{
     ast, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, IsInkTrait, Message,
     TraitDefinition,
@@ -88,14 +87,18 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                     analysis_utils::first_ink_attribute_insertion_offset_and_affixes(
                         fn_item.syntax(),
                     );
+                // Gets the declaration range for the item.
+                let range =
+                    analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+                        .unwrap_or(fn_item.syntax().text_range());
                 results.push(Diagnostic {
                     message: "All ink! trait definition methods must be ink! messages.".to_string(),
-                    range: fn_item.syntax().text_range(),
+                    range,
                     severity: Severity::Error,
                     quickfixes: Some(vec![Action {
                         label: "Add ink! message attribute.".to_string(),
                         kind: ActionKind::QuickFix,
-                        range: TextRange::new(insert_offset, insert_offset),
+                        range,
                         edits: [TextEdit::insert(
                             format!(
                                 "{}#[ink(message)]{}",
@@ -174,12 +177,17 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L73-L79>.
 fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnostic> {
+    // Gets the declaration range for the item.
+    let range = trait_definition
+        .trait_item()
+        .and_then(|it| analysis_utils::ast_item_declaration_range(&ast::Item::Trait(it.clone())))
+        .unwrap_or(trait_definition.syntax().text_range());
     utils::ensure_at_least_one_item(
         trait_definition.messages(),
         Diagnostic {
             message: "At least one ink! message must be defined for an ink! trait definition."
                 .to_string(),
-            range: trait_definition.syntax().text_range(),
+            range,
             severity: Severity::Error,
             quickfixes: trait_definition
                 .trait_item()
@@ -194,7 +202,7 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
                     vec![Action {
                         label: "Add ink! message `fn`.".to_string(),
                         kind: ActionKind::QuickFix,
-                        range: TextRange::new(insert_offset, insert_offset),
+                        range,
                         edits: vec![TextEdit::insert_with_snippet(
                             analysis_utils::apply_indenting(TRAIT_MESSAGE_PLAIN, &indent),
                             insert_offset,
@@ -237,7 +245,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
 mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
-    use ink_analyzer_ir::syntax::TextSize;
+    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity};
     use quote::{format_ident, quote};
     use test_utils::{
@@ -988,7 +996,7 @@ mod tests {
             .contains("Add ink! message"));
         let offset = TextSize::from(parse_offset_at(&code, Some("{")).unwrap() as u32);
         assert_eq!(
-            result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0].range,
+            result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0].edits[0].range,
             TextRange::new(offset, offset)
         );
     }

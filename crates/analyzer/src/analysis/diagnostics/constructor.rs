@@ -1,11 +1,11 @@
 //! ink! constructor diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{ast, Constructor, IsInkFn};
 
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
+use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity};
 
 const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
@@ -55,13 +55,18 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor) {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L91-L105>.
 fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
-    let has_returns_type = fn_item
+    // Determines if the function has a return type.
+    let has_return_type = fn_item
         .ret_type()
         .map_or(false, |ret_type| ret_type.ty().is_some());
 
-    (!has_returns_type).then_some(Diagnostic {
+    // Gets the declaration range for the item.
+    let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+        .unwrap_or(fn_item.syntax().text_range());
+
+    (!has_return_type).then_some(Diagnostic {
         message: "ink! constructor must have a return type.".to_string(),
-        range: fn_item.syntax().text_range(),
+        range,
         severity: Severity::Error,
         quickfixes: fn_item
             .param_list()
@@ -70,7 +75,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
                 vec![Action {
                     label: "Add return type.".to_string(),
                     kind: ActionKind::QuickFix,
-                    range: TextRange::new(insert_offset, insert_offset),
+                    range,
                     edits: vec![TextEdit::insert_with_snippet(
                         " -> Self".to_string(),
                         insert_offset,
