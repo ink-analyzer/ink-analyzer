@@ -468,7 +468,7 @@ where
             .and_then(ast::Module::item_list)
             .map(|item_list| {
                 // Moves the item to the root of the ink! contract's `mod` item.
-                vec![Action::move_item(
+                vec![Action::move_block_item(
                     item.syntax(),
                     analysis_utils::item_insert_offset_by_scope_name(&item_list, ink_scope_name),
                     "Move item to the root of the ink! contract's `mod` item.".to_string(),
@@ -1533,8 +1533,8 @@ mod tests {
                         edits: vec![
                             TestResultTextRange {
                                 text: "#[ink(constructor)]",
-                                start_pat: Some("<-}->"),
-                                end_pat: Some("<-}->"),
+                                start_pat: Some("pub fn my_message() {}"),
+                                end_pat: Some("pub fn my_message() {}"),
                             },
                             TestResultTextRange {
                                 text: "",
@@ -1548,8 +1548,8 @@ mod tests {
                         edits: vec![
                             TestResultTextRange {
                                 text: "#[ink(message)]",
-                                start_pat: Some("<-}->"),
-                                end_pat: Some("<-}->"),
+                                start_pat: Some("pub fn my_message() {}"),
+                                end_pat: Some("pub fn my_message() {}"),
                             },
                             TestResultTextRange {
                                 text: "",
@@ -1681,8 +1681,8 @@ mod tests {
                 edits: vec![
                     TestResultTextRange {
                         text: "#[ink(constructor)]",
-                        start_pat: Some("<-}->"),
-                        end_pat: Some("<-}->"),
+                        start_pat: Some("impl MyContract {}\n    }"),
+                        end_pat: Some("impl MyContract {}\n    }"),
                     },
                     TestResultTextRange {
                         text: "",
@@ -1696,8 +1696,8 @@ mod tests {
                 edits: vec![
                     TestResultTextRange {
                         text: "#[ink(impl)]",
-                        start_pat: Some("<-}->"),
-                        end_pat: Some("<-}->"),
+                        start_pat: Some("impl MyContract {}\n    }"),
+                        end_pat: Some("impl MyContract {}\n    }"),
                     },
                     TestResultTextRange {
                         text: "",

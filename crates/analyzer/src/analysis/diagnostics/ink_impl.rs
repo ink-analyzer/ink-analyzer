@@ -343,7 +343,7 @@ where
             .and_then(|it| it.assoc_item_list())
             .map(|assoc_item_list| {
                 // Moves the item to the root of the `impl` block.
-                vec![Action::move_item(
+                vec![Action::move_block_item(
                     item.syntax(),
                     analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
                     "Move item to the root of the ink! contract's `impl` block.".to_string(),
@@ -876,8 +876,8 @@ mod tests {
                             // Inserts at the end of the `impl MyContract` block
                             TestResultTextRange {
                                 text: "pub fn my_constructor",
-                                start_pat: Some("<-}->"),
-                                end_pat: Some("<-}->"),
+                                start_pat: Some("pub fn my_message() {}\n    }"),
+                                end_pat: Some("pub fn my_message() {}\n    }"),
                             },
                             TestResultTextRange {
                                 text: "",
@@ -892,8 +892,8 @@ mod tests {
                             // Inserts at the end of the `impl MyContract` block
                             TestResultTextRange {
                                 text: "pub fn my_message",
-                                start_pat: Some("<-}->"),
-                                end_pat: Some("<-}->"),
+                                start_pat: Some("pub fn my_message() {}\n    }"),
+                                end_pat: Some("pub fn my_message() {}\n    }"),
                             },
                             TestResultTextRange {
                                 text: "",
@@ -911,14 +911,11 @@ mod tests {
 
                         impl MyStruct {
                             #[ink(constructor)]
-                            pub fn my_constructor() -> i32 {
-                            }
+                            pub fn my_constructor() -> i32 {}
 
                             #[ink(message)]
-                            pub fn my_message() {
-                            }
+                            pub fn my_message() {}
                         }
-
                     }
                 },
                 vec![
@@ -928,8 +925,8 @@ mod tests {
                             // Inserts at the end of the `impl MyContract` block
                             TestResultTextRange {
                                 text: "pub fn my_constructor",
-                                start_pat: Some("<-}->"),
-                                end_pat: Some("<-}->"),
+                                start_pat: Some("pub fn my_message() {}\n        }\n    }"),
+                                end_pat: Some("pub fn my_message() {}\n        }\n    }"),
                             },
                             TestResultTextRange {
                                 text: "",
@@ -944,8 +941,8 @@ mod tests {
                             // Inserts at the end of the `impl MyContract` block
                             TestResultTextRange {
                                 text: "pub fn my_message",
-                                start_pat: Some("<-}->"),
-                                end_pat: Some("<-}->"),
+                                start_pat: Some("pub fn my_message() {}\n        }\n    }"),
+                                end_pat: Some("pub fn my_message() {}\n        }\n    }"),
                             },
                             TestResultTextRange {
                                 text: "",

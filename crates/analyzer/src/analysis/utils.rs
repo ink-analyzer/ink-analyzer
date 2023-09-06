@@ -1207,17 +1207,16 @@ pub fn item_insert_offset_start(item_list: &ast::ItemList) -> TextSize {
 /// Returns the offset for the end of an item list (e.g body of an AST item - i.e `mod` e.t.c.)
 pub fn item_insert_offset_end(item_list: &ast::ItemList) -> TextSize {
     item_list
-        .r_curly_token()
-        .map(|it| it.text_range().start())
-        .or(item_list
-            .items()
-            .last()
-            .map(|it| it.syntax().text_range().end()))
-        .unwrap_or(item_list.syntax().text_range().end())
+        // Determines position after the last item in the item list.
+        .items()
+        .last()
+        .map(|it| it.syntax().text_range().end())
+        // Defaults to the start if item list is empty because it's easier to apply additional formatting that way.
+        .unwrap_or(item_insert_offset_start(item_list))
 }
 
-/// Returns the offset after the end of the last struct (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c.).
-/// Defaults to the beginning of the item list if no structs are present.
+/// Returns the offset after the end of the last `struct` (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c.).
+/// Defaults to the beginning of the item list if no `struct`s are present.
 pub fn item_insert_offset_after_last_struct_or_start(item_list: &ast::ItemList) -> TextSize {
     item_list
         .items()
@@ -1225,6 +1224,30 @@ pub fn item_insert_offset_after_last_struct_or_start(item_list: &ast::ItemList) 
         .last()
         .map(|it| it.syntax().text_range().end())
         .unwrap_or(item_insert_offset_start(item_list))
+}
+
+/// Returns the offset after the end of the last `impl` (if any), or the end of the last `struct` (if any),
+/// or the beginning of the first `mod` (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c.).
+/// Defaults to the end of the item list if no `impl`s, `struct`s nor `mod`s are present.
+pub fn item_insert_offset_impl(item_list: &ast::ItemList) -> TextSize {
+    item_list
+        .items()
+        // After last `impl` block.
+        .filter(|it| matches!(it, ast::Item::Impl(_)))
+        .last()
+        // Or after last `struct` item.
+        .or(item_list
+            .items()
+            .filter(|it| matches!(it, ast::Item::Struct(_)))
+            .last())
+        .map(|it| it.syntax().text_range().end())
+        // Or before the first `mod` item.
+        .or(item_list
+            .items()
+            .find(|it| matches!(it, ast::Item::Module(_)))
+            .map(|it| it.syntax().text_range().start()))
+        // Defaults to the end of the item list.
+        .unwrap_or(item_insert_offset_end(item_list))
 }
 
 /// Returns the offset for inserting an item into an item list (e.g body of an AST item - i.e `mod` e.t.c.) based on the ink! entity name.
@@ -1237,6 +1260,9 @@ pub fn item_insert_offset_by_scope_name(
         "storage" => item_insert_offset_start(item_list),
         // ink! events are inserted either after the last `struct` (if any) or at the beginning of the item list.
         "event" => item_insert_offset_after_last_struct_or_start(item_list),
+        // ink! `impl` are inserted either after the last `impl` (if any), or after the last `struct` (if any),
+        // or before the fist `mod` (if any), or at the end of the item list.
+        "impl" => item_insert_offset_impl(item_list),
         // Everything else is inserted at the end of the item list.
         _ => item_insert_offset_end(item_list),
     }
@@ -1257,13 +1283,12 @@ pub fn assoc_item_insert_offset_start(assoc_item_list: &ast::AssocItemList) -> T
 /// Returns the offset for the end of an associated item list (e.g body of an AST item - i.e `fn`, `trait` e.t.c.)
 pub fn assoc_item_insert_offset_end(assoc_item_list: &ast::AssocItemList) -> TextSize {
     assoc_item_list
-        .r_curly_token()
-        .map(|it| it.text_range().start())
-        .or(assoc_item_list
-            .assoc_items()
-            .last()
-            .map(|it| it.syntax().text_range().end()))
-        .unwrap_or(assoc_item_list.syntax().text_range().end())
+        // Determines position after the last item in the associated item list.
+        .assoc_items()
+        .last()
+        .map(|it| it.syntax().text_range().end())
+        // Defaults to the start if associated item list is empty because it's easier to apply additional formatting that way.
+        .unwrap_or(assoc_item_insert_offset_start(assoc_item_list))
 }
 
 /// Returns an offset, indenting and affixes (prefix and suffix) for inserting a ink! callable into the contract (i.e ink! constructor or ink! message)
@@ -1271,10 +1296,21 @@ pub fn callable_insert_offset_indent_and_affixes(
     contract: &Contract,
 ) -> Option<(TextSize, String, Option<String>, Option<String>)> {
     contract
-        .impls()
-        .iter()
-        .find(|it| it.trait_type().is_none())
-        .and_then(InkImpl::impl_item)
+        .module()
+        // Gets the first non-trait `impl` block (if any).
+        .and_then(ast::Module::item_list)
+        .and_then(|it| {
+            it.items().find_map(|it| match it {
+                ast::Item::Impl(impl_item) => impl_item.trait_().is_none().then_some(impl_item),
+                _ => None,
+            })
+        })
+        // Gets the first non-trait ink! `impl` block (if any).
+        .or(contract
+            .impls()
+            .iter()
+            .find(|it| it.trait_type().is_none())
+            .and_then(InkImpl::impl_item))
         .as_ref()
         .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
         .map(|(impl_item, assoc_item_list)| {
@@ -1286,6 +1322,7 @@ pub fn callable_insert_offset_indent_and_affixes(
                 None,
             )
         })
+        // Otherwise inserts a new `impl` block (returned as affixes).
         .or(contract
             .module()
             .and_then(|mod_item| Some(mod_item).zip(mod_item.item_list()))
@@ -1295,14 +1332,10 @@ pub fn callable_insert_offset_indent_and_affixes(
                     // Sets insert offset at the end of the associated items list, insert indent based on contract `mod` block
                     // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
                     let indent = item_children_indenting(mod_item.syntax());
-                    let parent_indent = item_indenting(mod_item.syntax());
                     let prefix = format!("\n\n{indent}impl {name} {{\n");
-                    let suffix = format!(
-                        "\n{indent}}}\n{}",
-                        parent_indent.as_deref().unwrap_or_default()
-                    );
+                    let suffix = format!("\n{indent}}}\n\n",);
                     (
-                        item_insert_offset_end(&item_list),
+                        item_insert_offset_impl(&item_list),
                         format!("{indent}    "),
                         Some(prefix),
                         Some(suffix),

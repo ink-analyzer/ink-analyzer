@@ -64,16 +64,6 @@ impl Action {
         }
     }
 
-    /// Moves an item (i.e a syntax node) to a new location.
-    pub(crate) fn move_item(
-        item: &SyntaxNode,
-        offset: TextSize,
-        label: String,
-        indent_option: Option<&str>,
-    ) -> Self {
-        Self::move_item_with_affixes(item, offset, label, indent_option, None, None)
-    }
-
     /// Moves an item (i.e a syntax node) to a new location with affixes (i.e. prefixes and suffixes).
     pub(crate) fn move_item_with_affixes(
         item: &SyntaxNode,
@@ -115,6 +105,23 @@ impl Action {
                 TextEdit::delete(item.text_range()),
             ],
         }
+    }
+
+    /// Moves an block item to a new location.
+    pub(crate) fn move_block_item(
+        item: &SyntaxNode,
+        offset: TextSize,
+        label: String,
+        indent_option: Option<&str>,
+    ) -> Self {
+        Self::move_item_with_affixes(
+            item,
+            offset,
+            label,
+            indent_option,
+            Some("\n\n"),
+            Some("\n\n"),
+        )
     }
 }
 
