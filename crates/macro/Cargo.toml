@@ -21,4 +21,4 @@ quote = "1.0.26"
 syn = { version = "2.0.15", features = ["parsing", "full", "extra-traits"] }
 
 [dev-dependencies]
-ink-analyzer-ir = { version = "0.7", path = "../ir" }
+ink-analyzer-ir = { path = "../ir" }
