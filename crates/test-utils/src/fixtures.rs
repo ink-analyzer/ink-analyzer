@@ -1681,7 +1681,7 @@ pub fn inlay_hints_fixtures() -> Vec<TestGroup> {
                 TestCase {
                     // Makes no modifications to the source code.
                     modifications: None,
-                    // Sets the visible range for span the contents of the whole file.
+                    // Sets the selection range to span the contents of the whole file.
                     // NOTE: `Some(TestCaseParams::InlayHints(None))` would also work in this case.
                     params: Some(TestCaseParams::InlayHints(Some(TestParamsRangeOnly {
                         start_pat: Some("<-"),

@@ -39,7 +39,7 @@ fn inlay_hints_works() {
             // Sets the LSP document version as the index of the test case.
             let version = idx as i32;
 
-            // Sets the visible range.
+            // Sets the selection range.
             let (range_start_pat, range_end_pat) = match test_case.params.unwrap() {
                 TestCaseParams::InlayHints(Some(it)) => (it.start_pat, it.end_pat),
                 _ => (Some("<-"), Some("->")),

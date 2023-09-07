@@ -24,11 +24,11 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>) -> Vec<InlayHint> {
     file.tree()
         .ink_attrs_in_scope()
         .flat_map(|attr| {
-            // Returns inlay hints for all ink! attribute arguments with values in the visible range.
+            // Returns inlay hints for all ink! attribute arguments with values in the selection range.
             attr.args()
                 .iter()
                 .filter_map(|arg| {
-                    // Filters out ink! attribute arguments that aren't in the visible range.
+                    // Filters out ink! attribute arguments that aren't in the selection range.
                     (range.is_none()
                         || matches!(
                             range.as_ref().map(|it| it.contains_range(arg.text_range())),
@@ -84,11 +84,11 @@ mod tests {
 
     #[test]
     fn inlay_hints_works() {
-        for (code, visible_range_pat, expected_results) in [
-            // (code, (Option<(target_pat_start, target_pat_end)>, [(label, detail, pos_pat, (range_pat_start, range_pat_end))])) where:
+        for (code, selection_range_pat, expected_results) in [
+            // (code, Option<(target_pat_start, target_pat_end)>, [(label, detail, pos_pat, (range_pat_start, range_pat_end))]) where:
             // code = source code,
-            // range_pat_start = substring used to find the start of the visible range (see `test_utils::parse_offset_at` doc),
-            // range_pat_end = substring used to find the end of the range the visible range (see `test_utils::parse_offset_at` doc).
+            // range_pat_start = substring used to find the start of the selection range (see `test_utils::parse_offset_at` doc),
+            // range_pat_end = substring used to find the end of the range the selection range (see `test_utils::parse_offset_at` doc).
             // label = the label text for the inlay hint,
             // detail = the optional detail text for the inlay hint,
             // pos_pat = substring used to find the cursor offset for the inlay hint (see `test_utils::parse_offset_at` doc),
@@ -252,14 +252,14 @@ mod tests {
                 ],
             ),
         ] {
-            let visible_range = visible_range_pat.map(|(pat_start, pat_end)| {
+            let range = selection_range_pat.map(|(pat_start, pat_end)| {
                 TextRange::new(
                     TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
                     TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32),
                 )
             });
 
-            let results = inlay_hints(&InkFile::parse(code), visible_range);
+            let results = inlay_hints(&InkFile::parse(code), range);
 
             assert_eq!(
                 results
