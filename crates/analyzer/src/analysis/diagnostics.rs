@@ -19,8 +19,9 @@
 
 use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::InkFile;
+use itertools::Itertools;
 
-use crate::Action;
+use crate::{Action, TextEdit};
 
 mod file;
 mod utils;
@@ -53,7 +54,7 @@ pub struct Diagnostic {
 }
 
 /// The severity level of a diagnostic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
     /// A diagnostic error.
     Error,
@@ -66,4 +67,14 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
     let mut results = Vec::new();
     file::diagnostics(&mut results, file);
     results
+        .into_iter()
+        // Deduplicate by range, severity and quickfix edits.
+        .unique_by(|item| {
+            let quickfix_edits: Option<Vec<TextEdit>> = item
+                .quickfixes
+                .as_ref()
+                .map(|it| it.iter().flat_map(|it| it.edits.clone()).collect());
+            (item.range, item.severity, quickfix_edits)
+        })
+        .collect()
 }

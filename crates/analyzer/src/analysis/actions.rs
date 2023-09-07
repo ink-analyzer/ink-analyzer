@@ -5,6 +5,7 @@ use ink_analyzer_ir::syntax::{
     AstNode, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, TextSize,
 };
 use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttribute, InkAttributeKind, InkFile};
+use itertools::Itertools;
 
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
@@ -33,6 +34,10 @@ pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
     ink_attribute_actions(&mut results, file, range);
 
     results
+        .into_iter()
+        // Deduplicate by edits.
+        .unique_by(|item| item.edits.clone())
+        .collect()
 }
 
 /// The kind of the action (e.g quickfix or refactor).
