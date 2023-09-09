@@ -343,7 +343,7 @@ where
             .and_then(|it| it.assoc_item_list())
             .map(|assoc_item_list| {
                 // Moves the item to the root of the `impl` block.
-                vec![Action::move_block_item(
+                vec![Action::move_item(
                     item.syntax(),
                     analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
                     "Move item to the root of the ink! contract's `impl` block.".to_string(),

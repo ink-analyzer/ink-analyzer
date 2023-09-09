@@ -547,38 +547,32 @@ pub fn ink_arg_insertion_text(
     (text, snippet)
 }
 
-/// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for an ink! attribute.
-pub fn ink_attribute_insertion_offset_and_affixes(
-    node: &SyntaxNode,
-) -> (TextSize, Option<String>, Option<String>) {
-    (
-        ink_analyzer_ir::ink_attrs(node)
-            // Finds the last ink! attribute.
+/// Returns the insertion offset for an ink! attribute.
+pub fn ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
+    ink_analyzer_ir::ink_attrs(node)
+        // Finds the last ink! attribute.
+        .last()
+        .as_ref()
+        .map(InkAttribute::syntax)
+        // Finds the last attribute.
+        .or(node
+            .children()
+            .filter_map(ast::Attr::cast)
             .last()
             .as_ref()
-            .map(InkAttribute::syntax)
-            // Finds the last attribute.
-            .or(node
-                .children()
-                .filter_map(ast::Attr::cast)
-                .last()
-                .as_ref()
-                .map(ast::Attr::syntax))
-            // First the last token for last ink! attribute or generic attribute (if any).
-            .and_then(ink_analyzer_ir::last_child_token)
-            // Otherwise finds the first trivia/rustdoc token for item (if any).
-            .or(ink_analyzer_ir::first_child_token(node)
-                .and_then(|first_token| first_token.kind().is_trivia().then_some(first_token)))
-            // Finds the first non-(attribute/rustdoc/trivia) token for the item.
-            .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
-            .as_ref()
-            .map(SyntaxToken::text_range)
-            // Defaults to the start of the node.
-            .unwrap_or(node.text_range())
-            .start(),
-        None,
-        item_indenting(node).map(|indent| format!("\n{indent}")),
-    )
+            .map(ast::Attr::syntax))
+        // First the last token for last ink! attribute or generic attribute (if any).
+        .and_then(ink_analyzer_ir::last_child_token)
+        // Otherwise finds the first trivia/rustdoc token for item (if any).
+        .or(ink_analyzer_ir::first_child_token(node)
+            .and_then(|first_token| first_token.kind().is_trivia().then_some(first_token)))
+        // Finds the first non-(attribute/rustdoc/trivia) token for the item.
+        .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
+        .as_ref()
+        .map(SyntaxToken::text_range)
+        // Defaults to the start of the node.
+        .unwrap_or(node.text_range())
+        .start()
 }
 
 /// Returns the insertion offset and affixes (i.e whitespace and delimiters e.g `(`, `,` and `)`) for an ink! attribute argument .
@@ -716,19 +710,13 @@ pub fn ink_arg_insertion_offset_and_affixes(
     })
 }
 
-/// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for the first ink! attribute.
-pub fn first_ink_attribute_insertion_offset_and_affixes(
-    node: &SyntaxNode,
-) -> (TextSize, Option<String>, Option<String>) {
+/// Returns the insertion offset for the first ink! attribute.
+pub fn first_ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
     ink_analyzer_ir::ink_attrs(node)
         // Finds the first ink! attribute.
         .next()
-        .map_or(ink_attribute_insertion_offset_and_affixes(node), |it| {
-            (
-                it.syntax().text_range().start(),
-                None,
-                item_indenting(node).map(|indent| format!("\n{indent}")),
-            )
+        .map_or(ink_attribute_insert_offset(node), |it| {
+            it.syntax().text_range().start()
         })
 }
 
@@ -796,15 +784,20 @@ pub fn first_ink_arg_insertion_offset_and_affixes(
 /// Returns the indenting (preceding whitespace) of the syntax node.
 pub fn item_indenting(node: &SyntaxNode) -> Option<String> {
     node.prev_sibling_or_token().and_then(|prev_elem| {
-        (prev_elem.kind() == SyntaxKind::WHITESPACE).then_some(
-            prev_elem
-                .to_string()
-                .chars()
-                .rev()
-                .take_while(|char| *char != '\n')
-                .collect::<String>(),
-        )
+        (prev_elem.kind() == SyntaxKind::WHITESPACE)
+            .then_some(end_indenting(prev_elem.to_string().as_str()))
     })
+}
+
+/// Returns the indenting at the end of string of whitespace.
+///
+/// NOTE: This function doesn't verify that the input is actually whitespace.
+pub fn end_indenting(whitespace: &str) -> String {
+    whitespace
+        .chars()
+        .rev()
+        .take_while(|char| *char != '\n' && char.is_whitespace())
+        .collect()
 }
 
 /// Returns appropriate indenting (preceding whitespace) for the syntax node's children.
@@ -1332,8 +1325,8 @@ pub fn callable_insert_offset_indent_and_affixes(
                     // Sets insert offset at the end of the associated items list, insert indent based on contract `mod` block
                     // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
                     let indent = item_children_indenting(mod_item.syntax());
-                    let prefix = format!("\n\n{indent}impl {name} {{\n");
-                    let suffix = format!("\n{indent}}}\n\n",);
+                    let prefix = format!("{indent}impl {name} {{\n");
+                    let suffix = format!("\n{indent}}}",);
                     (
                         item_insert_offset_impl(&item_list),
                         format!("{indent}    "),
@@ -1387,7 +1380,7 @@ fn pascal_case(field: &str) -> String {
 pub fn apply_indenting(input: &str, indent: &str) -> String {
     if !indent.is_empty() {
         let mut output = String::new();
-        for (idx, line) in input.to_string().lines().enumerate() {
+        for (idx, line) in input.lines().enumerate() {
             if idx > 0 {
                 output.push('\n');
             }
@@ -1406,7 +1399,7 @@ pub fn apply_indenting(input: &str, indent: &str) -> String {
 pub fn reduce_indenting(input: &str, indent: &str) -> String {
     if !indent.is_empty() {
         let mut output = String::new();
-        for (idx, line) in input.to_string().lines().enumerate() {
+        for (idx, line) in input.lines().enumerate() {
             if idx > 0 {
                 output.push('\n');
             }

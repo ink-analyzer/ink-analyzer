@@ -21,6 +21,7 @@ use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::InkFile;
 use itertools::Itertools;
 
+use crate::analysis::text_edit;
 use crate::{Action, TextEdit};
 
 mod file;
@@ -75,6 +76,19 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
                 .as_ref()
                 .map(|it| it.iter().flat_map(|it| it.edits.clone()).collect());
             (item.range, item.severity, quickfix_edits)
+        })
+        // Format edits.
+        .map(|diagnostic| Diagnostic {
+            quickfixes: diagnostic.quickfixes.map(|fixes| {
+                fixes
+                    .into_iter()
+                    .map(|action| Action {
+                        edits: text_edit::format_edits(action.edits, file).collect(),
+                        ..action
+                    })
+                    .collect()
+            }),
+            ..diagnostic
         })
         .collect()
 }

@@ -87,10 +87,8 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                     // Add diagnostic if method isn't an ink! extension.
                     None => {
                         // Determines quickfix insertion offset and affixes.
-                        let (insert_offset, insert_prefix, insert_suffix) =
-                            analysis_utils::first_ink_attribute_insertion_offset_and_affixes(
-                                fn_item.syntax(),
-                            );
+                        let insert_offset =
+                            analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax());
                         // Computes a unique id for the chain extension method.
                         let suggested_id =
                             analysis_utils::suggest_unique_id(Some(1), &mut unavailable_ids);
@@ -109,17 +107,9 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                                 kind: ActionKind::QuickFix,
                                 range,
                                 edits: [TextEdit::insert_with_snippet(
-                                    format!(
-                                        "{}#[ink(extension = {suggested_id})]{}",
-                                        insert_prefix.as_deref().unwrap_or_default(),
-                                        insert_suffix.as_deref().unwrap_or_default()
-                                    ),
+                                    format!("#[ink(extension = {suggested_id})]"),
                                     insert_offset,
-                                    Some(format!(
-                                        "{}#[ink(extension = ${{1:{suggested_id}}})]{}",
-                                        insert_prefix.as_deref().unwrap_or_default(),
-                                        insert_suffix.as_deref().unwrap_or_default()
-                                    )),
+                                    Some(format!("#[ink(extension = ${{1:{suggested_id}}})]")),
                                 )]
                                 .into_iter()
                                 .chain(ink_analyzer_ir::ink_attrs(fn_item.syntax()).filter_map(

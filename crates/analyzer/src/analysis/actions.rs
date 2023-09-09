@@ -8,7 +8,8 @@ use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttribute, InkAttributeKind, 
 use itertools::Itertools;
 
 use super::utils;
-use crate::analysis::text_edit::TextEdit;
+use crate::analysis::text_edit;
+use crate::TextEdit;
 
 /// An ink! attribute code/intent action.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +38,11 @@ pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
         .into_iter()
         // Deduplicate by edits.
         .unique_by(|item| item.edits.clone())
+        // Format edits.
+        .map(|item| Action {
+            edits: text_edit::format_edits(item.edits, file).collect(),
+            ..item
+        })
         .collect()
 }
 
@@ -67,6 +73,16 @@ impl Action {
             range: attr.syntax().text_range(),
             edits: vec![TextEdit::delete(attr.syntax().text_range())],
         }
+    }
+
+    /// Moves an item (i.e a syntax node) to a new location.
+    pub(crate) fn move_item(
+        item: &SyntaxNode,
+        offset: TextSize,
+        label: String,
+        indent_option: Option<&str>,
+    ) -> Self {
+        Self::move_item_with_affixes(item, offset, label, indent_option, None, None)
     }
 
     /// Moves an item (i.e a syntax node) to a new location with affixes (i.e. prefixes and suffixes).
@@ -110,23 +126,6 @@ impl Action {
                 TextEdit::delete(item.text_range()),
             ],
         }
-    }
-
-    /// Moves an block item to a new location.
-    pub(crate) fn move_block_item(
-        item: &SyntaxNode,
-        offset: TextSize,
-        label: String,
-        indent_option: Option<&str>,
-    ) -> Self {
-        Self::move_item_with_affixes(
-            item,
-            offset,
-            label,
-            indent_option,
-            Some("\n\n"),
-            Some("\n\n"),
-        )
     }
 }
 
@@ -175,8 +174,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
 
                         if !ink_macro_suggestions.is_empty() {
                             // Determines the insertion offset and affixes for the action.
-                            let (insert_offset, insert_prefix, insert_suffix) =
-                                utils::ink_attribute_insertion_offset_and_affixes(target);
+                            let insert_offset = utils::ink_attribute_insert_offset(target);
 
                             // Add ink! attribute macro actions to accumulator.
                             for macro_kind in ink_macro_suggestions {
@@ -185,12 +183,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                     kind: ActionKind::Refactor,
                                     range: TextRange::new(insert_offset, insert_offset),
                                     edits: vec![TextEdit::insert(
-                                        format!(
-                                            "{}#[{}]{}",
-                                            insert_prefix.as_deref().unwrap_or_default(),
-                                            macro_kind.path_as_str(),
-                                            insert_suffix.as_deref().unwrap_or_default()
-                                        ),
+                                        format!("#[{}]", macro_kind.path_as_str(),),
                                         insert_offset,
                                     )],
                                 });
@@ -259,7 +252,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                     })
                                     .unwrap_or((
                                         // Fallback to inserting a new attribute.
-                                        utils::ink_attribute_insertion_offset_and_affixes(target),
+                                        (utils::ink_attribute_insert_offset(target), None, None),
                                         false,
                                     ));
 

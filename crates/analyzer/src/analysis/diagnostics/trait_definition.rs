@@ -82,10 +82,8 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                 message::diagnostics(results, &message_item);
             } else {
                 // Determines the insertion offset and affixes for the quickfix.
-                let (insert_offset, insert_prefix, insert_suffix) =
-                    analysis_utils::first_ink_attribute_insertion_offset_and_affixes(
-                        fn_item.syntax(),
-                    );
+                let insert_offset =
+                    analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax());
                 // Gets the declaration range for the item.
                 let range =
                     analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
@@ -99,11 +97,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                         kind: ActionKind::QuickFix,
                         range,
                         edits: [TextEdit::insert(
-                            format!(
-                                "{}#[ink(message)]{}",
-                                insert_prefix.as_deref().unwrap_or_default(),
-                                insert_suffix.as_deref().unwrap_or_default()
-                            ),
+                            "#[ink(message)]".to_string(),
                             insert_offset,
                         )]
                         .into_iter()

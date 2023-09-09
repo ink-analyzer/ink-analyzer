@@ -477,9 +477,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
                     .map(ast::Item::syntax)
                     .map(|parent_item| {
                         // Determines the insertion offset and affixes for the quickfix.
-                        let (insert_offset, insert_prefix, insert_suffix) =
-                            utils::first_ink_attribute_insertion_offset_and_affixes(parent_item);
-                        vec![Action::move_item_with_affixes(
+                        let insert_offset = utils::first_ink_attribute_insert_offset(parent_item);
+                        vec![Action::move_item(
                             primary_ink_attr_candidate.syntax(),
                             insert_offset,
                             format!(
@@ -487,8 +486,6 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                 primary_ink_attr_candidate.syntax(),
                             ),
                             None,
-                            insert_prefix.as_deref(),
-                            insert_suffix.as_deref(),
                         )]
                     }),
             });
@@ -606,8 +603,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                     .map(ast::Item::syntax)
                     .map(|parent_item| {
                         // Determines the insertion offset and affixes for the quickfix.
-                        let (insert_offset, insert_prefix, insert_suffix) =
-                            utils::first_ink_attribute_insertion_offset_and_affixes(parent_item);
+                        let insert_offset = utils::first_ink_attribute_insert_offset(parent_item);
                         primary_attribute_kind_suggestions
                             .iter()
                             .map(|attr_kind| {
@@ -634,19 +630,9 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                     kind: ActionKind::QuickFix,
                                     range: TextRange::new(insert_offset, insert_offset),
                                     edits: vec![TextEdit::insert_with_snippet(
-                                        format!(
-                                            "{}{insert_text}{}",
-                                            insert_prefix.as_deref().unwrap_or_default(),
-                                            insert_suffix.as_deref().unwrap_or_default()
-                                        ),
+                                        insert_text,
                                         insert_offset,
-                                        snippet.map(|snippet| {
-                                            format!(
-                                                "{}{snippet}{}",
-                                                insert_prefix.as_deref().unwrap_or_default(),
-                                                insert_suffix.as_deref().unwrap_or_default()
-                                            )
-                                        }),
+                                        snippet,
                                     )],
                                 }
                             })
@@ -1314,7 +1300,7 @@ where
             .and_then(|it| it.module())
             .and_then(|mod_item| Some(mod_item).zip(mod_item.item_list()))
             .map(|(mod_item, item_list)| {
-                vec![Action::move_block_item(
+                vec![Action::move_item(
                     item.syntax(),
                     utils::item_insert_offset_by_scope_name(&item_list, ink_scope_name),
                     "Move item to the root of the closest ink! contract's `mod` item.".to_string(),
@@ -1348,7 +1334,7 @@ where
         .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
         .map(|(impl_item, assoc_item_list)| {
             // Moves the item to the root of the closest parent/ancestor or sibling `impl` block.
-            vec![Action::move_block_item(
+            vec![Action::move_item(
                 item.syntax(),
                 utils::assoc_item_insert_offset_end(&assoc_item_list),
                 "Move item to the root of the closest `impl` block.".to_string(),
@@ -1366,8 +1352,8 @@ where
                             insert_offset,
                             "Move item to the root of the closest `impl` block.".to_string(),
                             Some(indent.as_str()),
-                            prefix.as_deref().or(Some("\n\n")),
-                            suffix.as_deref().or(Some("\n\n")),
+                            prefix.as_deref().or(Some("")),
+                            suffix.as_deref().or(Some("")),
                         )]
                     },
                 )

@@ -468,7 +468,7 @@ where
             .and_then(ast::Module::item_list)
             .map(|item_list| {
                 // Moves the item to the root of the ink! contract's `mod` item.
-                vec![Action::move_block_item(
+                vec![Action::move_item(
                     item.syntax(),
                     analysis_utils::item_insert_offset_by_scope_name(&item_list, ink_scope_name),
                     "Move item to the root of the ink! contract's `mod` item.".to_string(),
