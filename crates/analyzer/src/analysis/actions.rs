@@ -156,6 +156,13 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                         .as_ref()
                         .map_or(ast_item.syntax(), AstNode::syntax);
 
+                    // Determines text range for item "declaration" (fallbacks to range of the entire item).
+                    let item_declaration_text_range = record_field
+                        .as_ref()
+                        .map(|it| it.syntax().text_range())
+                        .or(utils::ast_item_declaration_range(&ast_item))
+                        .unwrap_or(ast_item.syntax().text_range());
+
                     // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
                     if ink_analyzer_ir::ink_attrs(target).next().is_none() {
                         // Suggests ink! attribute macros based on the context.
@@ -181,7 +188,7 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                 results.push(Action {
                                     label: format!("Add ink! {macro_kind} attribute macro."),
                                     kind: ActionKind::Refactor,
-                                    range: TextRange::new(insert_offset, insert_offset),
+                                    range: item_declaration_text_range,
                                     edits: vec![TextEdit::insert(
                                         format!("#[{}]", macro_kind.path_as_str(),),
                                         insert_offset,
@@ -256,21 +263,29 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                                         false,
                                     ));
 
-                            // Sets the text range for the edit.
-                            let edit_range = TextRange::new(insert_offset, insert_offset);
-
                             // Adds ink! attribute argument action to accumulator.
                             let (edit, snippet) = utils::ink_arg_insertion_text(
                                 arg_kind,
-                                Some(edit_range.end()),
-                                primary_ink_attr_candidate
-                                    .as_ref()
-                                    .map(InkAttribute::syntax),
+                                Some(insert_offset),
+                                is_extending
+                                    .then(|| {
+                                        primary_ink_attr_candidate
+                                            .as_ref()
+                                            .map(InkAttribute::syntax)
+                                    })
+                                    .flatten(),
                             );
                             results.push(Action {
                                 label: format!("Add ink! {arg_kind} attribute argument."),
                                 kind: ActionKind::Refactor,
-                                range: edit_range,
+                                range: is_extending
+                                    .then(|| {
+                                        primary_ink_attr_candidate
+                                            .as_ref()
+                                            .map(|it| it.syntax().text_range())
+                                    })
+                                    .flatten()
+                                    .unwrap_or(item_declaration_text_range),
                                 edits: vec![TextEdit::insert_with_snippet(
                                     format!(
                                         "{}{}{}",
@@ -341,19 +356,16 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: T
                 if let Some((insert_offset, insert_prefix, insert_suffix)) =
                     utils::ink_arg_insertion_offset_and_affixes(arg_kind, &ink_attr)
                 {
-                    // Computes the text range for the edit.
-                    let edit_range = TextRange::new(insert_offset, insert_offset);
-
                     // Adds ink! attribute argument action to accumulator.
                     let (edit, snippet) = utils::ink_arg_insertion_text(
                         arg_kind,
-                        Some(edit_range.end()),
+                        Some(insert_offset),
                         Some(ink_attr.syntax()),
                     );
                     results.push(Action {
                         label: format!("Add ink! {arg_kind} attribute argument."),
                         kind: ActionKind::Refactor,
-                        range: edit_range,
+                        range: ink_attr.syntax().text_range(),
                         edits: vec![TextEdit::insert_with_snippet(
                             format!("{insert_prefix}{edit}{insert_suffix}"),
                             insert_offset,

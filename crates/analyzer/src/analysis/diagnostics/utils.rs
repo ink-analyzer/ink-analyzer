@@ -628,7 +628,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                         "Add an `{attr_desc}` as the first ink! attribute for this item."
                                     ),
                                     kind: ActionKind::QuickFix,
-                                    range: TextRange::new(insert_offset, insert_offset),
+                                    range: primary_ink_attr_candidate.syntax().text_range(),
                                     edits: vec![TextEdit::insert_with_snippet(
                                         insert_text,
                                         insert_offset,
