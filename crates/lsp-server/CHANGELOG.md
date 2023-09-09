@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2023-09-09
+
+- Improve formatting of text edits (i.e. actions and quickfixes) based on context.
+- General robustness improvements for semantic analyzer.
+
 ## [0.2.2] - 2023-09-07
 
 - Add quickfixes for diagnostic errors and warnings.
