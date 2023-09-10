@@ -40,7 +40,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
 
     // Only computes completions if a focused token can be determined.
     if let Some(focused_token) = item_at_offset.focused_token() {
-        // Only computes completions for ink! attributes.
+        // Only computes completions for attributes.
         if let Some((attr, _, _)) = item_at_offset.normalized_parent_attr() {
             let focused_token_is_left_bracket = focused_token.kind() == SyntaxKind::L_BRACK;
             let prev_token_is_left_bracket = matches!(
@@ -100,63 +100,81 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                     focused_token.text_range()
                 };
 
-                // Suggests ink! attribute macros based on the context (if any).
-                let mut ink_macro_suggestions =
-                    match item_at_offset.normalized_parent_ast_item_keyword() {
-                        // Returns suggestions based on the AST item type keyword.
-                        Some((ast_item_keyword, _, _)) => {
-                            utils::valid_ink_macros_by_syntax_kind(ast_item_keyword.kind())
-                        }
-                        // Handles the case where the AST item type is unknown.
-                        None => {
-                            // Returns all valid ink! attribute macro suggestions if focused token is part of an ink! path segment.
-                            if focused_token_is_in_ink_crate_path_segment {
-                                vec![
-                                    InkMacroKind::ChainExtension,
-                                    InkMacroKind::Contract,
-                                    InkMacroKind::StorageItem,
-                                    InkMacroKind::Test,
-                                    InkMacroKind::TraitDefinition,
-                                    InkMacroKind::E2ETest,
-                                ]
-                            } else {
-                                // Returns nothing if the ink! context can't be determined.
-                                Vec::new()
+                // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
+                let mut ink_macro_suggestions = Vec::new();
+                let has_other_ink_siblings = ink_analyzer_ir::parent_ast_item(attr.syntax())
+                    .map_or(false, |item| {
+                        ink_analyzer_ir::ink_attrs(item.syntax())
+                            .any(|it| it.syntax() != attr.syntax())
+                    });
+                let has_other_ink_macro_siblings = ink_analyzer_ir::parent_ast_item(attr.syntax())
+                    .map_or(false, |item| {
+                        ink_analyzer_ir::ink_attrs(item.syntax()).any(|it| {
+                            it.syntax() != attr.syntax()
+                                && matches!(it.kind(), InkAttributeKind::Macro(_))
+                        })
+                    });
+                if !has_other_ink_siblings {
+                    // Suggests ink! attribute macros based on the context (if any).
+                    ink_macro_suggestions =
+                        match item_at_offset.normalized_parent_ast_item_keyword() {
+                            // Returns suggestions based on the AST item type keyword.
+                            Some((ast_item_keyword, _, _)) => {
+                                utils::valid_ink_macros_by_syntax_kind(ast_item_keyword.kind())
                             }
-                        }
-                    };
+                            // Handles the case where the AST item type is unknown.
+                            None => {
+                                // Returns all valid ink! attribute macro suggestions if focused token is part of an ink! path segment.
+                                if focused_token_is_in_ink_crate_path_segment {
+                                    vec![
+                                        InkMacroKind::ChainExtension,
+                                        InkMacroKind::Contract,
+                                        InkMacroKind::StorageItem,
+                                        InkMacroKind::Test,
+                                        InkMacroKind::TraitDefinition,
+                                        InkMacroKind::E2ETest,
+                                    ]
+                                } else {
+                                    // Returns nothing if the ink! context can't be determined.
+                                    Vec::new()
+                                }
+                            }
+                        };
 
-                // Filters suggestions by the matching ink! macro crate
-                // if a complete `ink` or `ink_e2e` path segment is already present before the focused token.
-                if focused_token_is_in_ink_crate_path_segment && !focused_token_is_ink_crate_name {
-                    if let Some(ink_crate_name) = attr
-                        .path()
-                        .and_then(|it| it.first_segment())
-                        .map(|it| it.to_string())
+                    // Filters suggestions by the matching ink! macro crate
+                    // if a complete `ink` or `ink_e2e` path segment is already present before the focused token.
+                    if focused_token_is_in_ink_crate_path_segment
+                        && !focused_token_is_ink_crate_name
                     {
-                        ink_macro_suggestions
-                            .retain(|macro_kind| macro_kind.crate_name() == ink_crate_name);
+                        if let Some(ink_crate_name) = attr
+                            .path()
+                            .and_then(|it| it.first_segment())
+                            .map(|it| it.to_string())
+                        {
+                            ink_macro_suggestions
+                                .retain(|macro_kind| macro_kind.crate_name() == ink_crate_name);
+                        }
                     }
-                }
 
-                // Filters suggestions by the focused prefix if the focused token is
-                // not a delimiter nor in the `ink::` or `ink_e2e::` path segment position.
-                if !focused_token_is_left_bracket
-                    && !prev_token_is_left_bracket
-                    && !focused_token_is_ink_crate_name_or_colon_prefix
-                {
-                    if let Some(prefix) = item_at_offset.focused_token_prefix() {
-                        ink_macro_suggestions
-                            .retain(|macro_kind| macro_kind.macro_name().starts_with(prefix));
+                    // Filters suggestions by the focused prefix if the focused token is
+                    // not a delimiter nor in the `ink::` or `ink_e2e::` path segment position.
+                    if !focused_token_is_left_bracket
+                        && !prev_token_is_left_bracket
+                        && !focused_token_is_ink_crate_name_or_colon_prefix
+                    {
+                        if let Some(prefix) = item_at_offset.focused_token_prefix() {
+                            ink_macro_suggestions
+                                .retain(|macro_kind| macro_kind.macro_name().starts_with(prefix));
+                        }
                     }
-                }
 
-                // Filters out invalid ink! attribute macro suggestions based on parent ink! scope (if any).
-                if let Some(attr_parent) = attr.syntax().parent() {
-                    utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
-                        &mut ink_macro_suggestions,
-                        &attr_parent,
-                    );
+                    // Filters out invalid ink! attribute macro suggestions based on parent ink! scope (if any).
+                    if let Some(attr_parent) = attr.syntax().parent() {
+                        utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
+                            &mut ink_macro_suggestions,
+                            &attr_parent,
+                        );
+                    }
                 }
 
                 // Add context-specific completions to accumulator (if any).
@@ -194,24 +212,32 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                             detail: Some(format!("ink! {macro_kind} attribute macro.")),
                         });
                     }
-                } else if prev_token_is_left_bracket {
+                } else if prev_token_is_left_bracket && !has_other_ink_macro_siblings {
                     // Suggests the `ink` and `ink_e2e` path segments if
                     // the focused token is an `ink` or `ink_e2e` prefix and is also
                     // the next token right after the `[` delimiter.
                     let focused_token_prefix = item_at_offset.focused_token_prefix();
-                    for (ink_macro_crate_name, detail) in [
-                        ("ink", "ink! attribute macro"),
-                        ("ink_e2e", "ink! e2e attribute macro"),
-                    ] {
+                    let ink_path_suggestions = if has_other_ink_siblings {
+                        vec![("ink()", Some("ink($1)"), "ink! attribute")]
+                    } else {
+                        vec![
+                            ("ink", None, "ink! attribute macro"),
+                            ("ink_e2e", None, "ink! e2e attribute macro"),
+                        ]
+                    };
+                    for (ink_macro_crate_name, ink_macro_crate_name_snippet, detail) in
+                        ink_path_suggestions
+                    {
                         if focused_token_prefix
                             .map_or(false, |prefix| ink_macro_crate_name.starts_with(prefix))
                         {
                             results.push(Completion {
                                 label: ink_macro_crate_name.to_string(),
                                 range: edit_range,
-                                edit: TextEdit::replace(
+                                edit: TextEdit::replace_with_snippet(
                                     ink_macro_crate_name.to_string(),
                                     edit_range,
+                                    ink_macro_crate_name_snippet.map(ToString::to_string),
                                 ),
                                 detail: Some(detail.to_string()),
                             });
