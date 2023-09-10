@@ -1018,24 +1018,21 @@ mod tests {
 
                 #[ink(event)]
                 fn unsupported_method(&self);
-
-                #[ink(unknown)]
-                fn unknown_method(&self);
             }
         };
         let trait_definition = parse_first_trait_definition(&code);
 
         let mut results = Vec::new();
         ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition);
-        // 1 diagnostic each for `constructor`, `event` and `unknown`.
-        assert_eq!(results.len(), 3);
+        // 1 diagnostic each for `constructor` and `event`.
+        assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
         assert_eq!(
             results
                 .iter()
                 .filter(|item| item.severity == Severity::Error)
                 .count(),
-            3
+            2
         );
         // Verifies quickfixes.
         let expected_quickfixes = vec![
@@ -1072,24 +1069,6 @@ mod tests {
                         text: "",
                         start_pat: Some("<-#[ink(event)]"),
                         end_pat: Some("fn unsupported_method(&self);"),
-                    }],
-                },
-            ],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(unknown)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(unknown)]"),
-                        end_pat: Some("#[ink(unknown)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(unknown)]"),
-                        end_pat: Some("fn unknown_method(&self);"),
                     }],
                 },
             ],

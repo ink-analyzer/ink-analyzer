@@ -1216,9 +1216,6 @@ mod tests {
 
                 #[ink(message)]
                 fn my_message(&self);
-
-                #[ink(unknown)]
-                fn unknown_method(&self);
             }
         };
         let chain_extension = parse_first_chain_extension(&code);
@@ -1226,15 +1223,15 @@ mod tests {
         let mut results = Vec::new();
         ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension);
 
-        // 1 diagnostic each for `constructor`, `message` and `unknown`.
-        assert_eq!(results.len(), 3);
+        // 1 diagnostic each for `constructor` and `message`.
+        assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
         assert_eq!(
             results
                 .iter()
                 .filter(|item| item.severity == Severity::Error)
                 .count(),
-            3
+            2
         );
         // Verifies quickfixes.
         let expected_quickfixes = vec![
@@ -1271,24 +1268,6 @@ mod tests {
                         text: "",
                         start_pat: Some("<-#[ink(message)]"),
                         end_pat: Some("fn my_message(&self);"),
-                    }],
-                },
-            ],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(unknown)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(unknown)]"),
-                        end_pat: Some("#[ink(unknown)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(unknown)]"),
-                        end_pat: Some("fn unknown_method(&self);"),
                     }],
                 },
             ],

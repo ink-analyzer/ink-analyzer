@@ -844,14 +844,24 @@ mod tests {
         );
         // Verifies quickfixes.
         let expected_quickfixes = vec![
-            vec![TestResultAction {
-                label: "Remove `#[ink(event)]`",
-                edits: vec![TestResultTextRange {
-                    text: "",
-                    start_pat: Some("<-#[ink(event)]"),
-                    end_pat: Some("#[ink(event)]"),
-                }],
-            }],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(event)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("#[ink(event)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("}"),
+                    }],
+                },
+            ],
             vec![TestResultAction {
                 label: "Remove `#[ink(topic)]`",
                 edits: vec![TestResultTextRange {

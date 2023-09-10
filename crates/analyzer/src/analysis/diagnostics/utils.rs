@@ -1370,16 +1370,17 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
     T: FromSyntax,
     F: Fn(&InkAttribute) -> bool,
 {
-    for attr in item.tree().ink_attrs_closest_descendants() {
+    for attr in item.tree().ink_attrs_closest_descendants().filter(|it| {
+        !matches!(
+            it.kind(),
+            InkAttributeKind::Macro(InkMacroKind::Unknown)
+                | InkAttributeKind::Arg(InkArgKind::Unknown)
+        )
+    }) {
         if !is_valid_quasi_direct_descendant(&attr) {
             results.push(Diagnostic {
                 message: format!("Invalid scope for an `{}` item.", attr.syntax()),
-                range: attr
-                    .syntax()
-                    .parent()
-                    .as_ref()
-                    .unwrap_or(attr.syntax())
-                    .text_range(),
+                range: attr.syntax().text_range(),
                 severity: Severity::Error,
                 quickfixes: Some(ink_analyzer_ir::parent_ast_item(attr.syntax()).map_or(
                     vec![Action::remove_attribute(&attr)],
@@ -1400,20 +1401,29 @@ pub fn ensure_no_ink_descendants<T>(results: &mut Vec<Diagnostic>, item: &T, ink
 where
     T: FromSyntax,
 {
-    for attr in item.tree().ink_attrs_descendants() {
+    for attr in item.tree().ink_attrs_descendants().filter(|it| {
+        !matches!(
+            it.kind(),
+            InkAttributeKind::Macro(InkMacroKind::Unknown)
+                | InkAttributeKind::Arg(InkArgKind::Unknown)
+        )
+    }) {
         results.push(Diagnostic {
             message: format!(
                 "`{}` cannot be used inside an ink! {ink_scope_name}.",
                 attr.syntax()
             ),
-            range: attr
-                .syntax()
-                .parent()
-                .as_ref()
-                .unwrap_or(attr.syntax())
-                .text_range(),
+            range: attr.syntax().text_range(),
             severity: Severity::Error,
-            quickfixes: Some(vec![Action::remove_attribute(&attr)]),
+            quickfixes: Some(ink_analyzer_ir::parent_ast_item(attr.syntax()).map_or(
+                vec![Action::remove_attribute(&attr)],
+                |item| {
+                    vec![
+                        Action::remove_attribute(&attr),
+                        Action::remove_item(item.syntax()),
+                    ]
+                },
+            )),
         });
     }
 }
