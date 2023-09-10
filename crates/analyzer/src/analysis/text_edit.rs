@@ -69,21 +69,32 @@ pub fn format_edits(edits: Vec<TextEdit>, file: &InkFile) -> impl Iterator<Item 
 
 /// Format text edit (i.e. add indenting and new lines based on context).
 pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
-    // Only format inserts and replaces (ignore deletes).
-    if !edit.text.is_empty() {
-        // Determines the token right before the start of the edit offset.
-        let token_before_option = file
-            .syntax()
-            .token_at_offset(edit.range.start())
-            .left_biased()
-            .filter(|it| it.text_range().end() <= edit.range.start());
-        // Determines the token right after the end of the edit offset.
-        let token_after_option = file
-            .syntax()
-            .token_at_offset(edit.range.end())
-            .right_biased()
-            .filter(|it| it.text_range().start() >= edit.range.end());
+    // Determines the token right before the start of the edit offset.
+    let token_before_option = file
+        .syntax()
+        .token_at_offset(edit.range.start())
+        .left_biased()
+        .filter(|it| it.text_range().end() <= edit.range.start());
+    // Determines the token right after the end of the edit offset.
+    let token_after_option = file
+        .syntax()
+        .token_at_offset(edit.range.end())
+        .right_biased()
+        .filter(|it| it.text_range().start() >= edit.range.end());
 
+    if edit.text.is_empty() {
+        // Handles deletes, removes whitespace immediately following a delete if the text was surrounded by whitespace.
+        if let Some(token_after) = token_after_option {
+            let token_before_is_whitespace =
+                token_before_option.as_ref().map_or(false, |token_before| {
+                    token_before.kind() == SyntaxKind::WHITESPACE
+                });
+            if token_before_is_whitespace && token_after.kind() == SyntaxKind::WHITESPACE {
+                edit.range = TextRange::new(edit.range.start(), token_after.text_range().end());
+            }
+        }
+    } else {
+        // Handles inserts and replaces.
         if let Some(token_before) = token_before_option {
             let (prefix, suffix) = match token_before.kind() {
                 // Handles edits after whitespace.
