@@ -23,10 +23,10 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, extension: &Extension) {
     }
 
     if let Some(fn_item) = extension.fn_item() {
-        // Ensures that ink! extension `fn` item satisfies all common invariants of method-based ink! entities,
-        // see `utils::ensure_method_invariants` doc.
+        // Ensures that ink! extension `fn` item satisfies all common invariants of function-based ink! entities,
+        // see `utils::ensure_fn_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L395-L465>.
-        utils::ensure_method_invariants(results, fn_item, EXTENSION_SCOPE_NAME);
+        utils::ensure_fn_invariants(results, fn_item, EXTENSION_SCOPE_NAME);
 
         // Ensures that ink! extension `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L488-L493>.
@@ -113,14 +113,14 @@ mod tests {
     }
 
     #[test]
-    fn valid_method_works() {
+    fn valid_fn_works() {
         for code in valid_extensions!() {
             let extension = parse_first_extension(quote_as_str! {
                 #code
             });
 
             let mut results = Vec::new();
-            utils::ensure_method_invariants(
+            utils::ensure_fn_invariants(
                 &mut results,
                 extension.fn_item().unwrap(),
                 EXTENSION_SCOPE_NAME,
@@ -130,7 +130,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_method_fails() {
+    fn invalid_fn_fails() {
         for (code, expected_quickfixes) in [
             // Generic params fails.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L720-L729>.
@@ -230,7 +230,7 @@ mod tests {
             let extension = parse_first_extension(&code);
 
             let mut results = Vec::new();
-            utils::ensure_method_invariants(
+            utils::ensure_fn_invariants(
                 &mut results,
                 extension.fn_item().unwrap(),
                 EXTENSION_SCOPE_NAME,

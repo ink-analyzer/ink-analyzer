@@ -2,7 +2,6 @@
 
 use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::meta::MetaValue;
-use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::{
     ast, ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArg, InkArgKind,
     InkAttributeKind, IsInkTrait,
@@ -10,7 +9,7 @@ use ink_analyzer_ir::{
 use std::collections::HashSet;
 
 use super::{extension, utils};
-use crate::analysis::snippets::{ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET};
+use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity};
@@ -68,7 +67,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
 ///
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
-/// This utility also runs `extension::diagnostics` on trait methods with a ink! extension attribute.
+/// This utility also runs `extension::diagnostics` on trait functions with a ink! extension attribute.
 fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
     // Tracks already used and suggested ids for quickfixes.
     let mut unavailable_ids = init_unavailable_ids(chain_extension);
@@ -78,18 +77,18 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
             trait_item,
             "chain extension",
             |results, fn_item| {
-                // All trait methods should be ink! extensions.
+                // All trait functions should be ink! extensions.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L447-L464>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L501>.
                 match ink_analyzer_ir::ink_attrs(fn_item.syntax()).find_map(Extension::cast) {
                     // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
                     Some(extension_item) => extension::diagnostics(results, &extension_item),
-                    // Add diagnostic if method isn't an ink! extension.
+                    // Add diagnostic if function isn't an ink! extension.
                     None => {
                         // Determines quickfix insertion offset and affixes.
                         let insert_offset =
                             analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax());
-                        // Computes a unique id for the chain extension method.
+                        // Computes a unique id for the chain extension function.
                         let suggested_id =
                             analysis_utils::suggest_unique_id(Some(1), &mut unavailable_ids);
                         // Gets the declaration range for the item.
@@ -98,7 +97,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                         ))
                         .unwrap_or(fn_item.syntax().text_range());
                         results.push(Diagnostic {
-                            message: "All ink! chain extension methods must be ink! extensions."
+                            message: "All ink! chain extension functions must be ink! extensions."
                                 .to_string(),
                             range,
                             severity: Severity::Error,
@@ -145,7 +144,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                             .map(|it| it.syntax().text_range())
                             // Defaults to the declaration range for the chain extension.
                             .unwrap_or(
-                                chain_extension_declaration_range(chain_extension)
+                                analysis_utils::ink_trait_declaration_range(chain_extension)
                             ),
                         severity: Severity::Error,
                         quickfixes: name_marker.as_ref().map(|name| {
@@ -239,29 +238,18 @@ fn ensure_error_code_type_quantity(
                 .collect();
 
             if error_codes.is_empty() {
-                // Set quickfix insertion offset at the beginning of the associated items list.
-                let insert_offset =
-                    analysis_utils::assoc_item_insert_offset_start(&assoc_item_list);
-                // Set quickfix insertion indent.
-                let indent = analysis_utils::item_children_indenting(trait_item.syntax());
-                // Gets the declaration range for the item.
-                let range = chain_extension_declaration_range(chain_extension);
                 // Creates diagnostic and quickfix for missing `ErrorCode` type.
                 results.push(Diagnostic {
                     message: "Missing `ErrorCode` associated type for ink! chain extension."
                         .to_string(),
-                    range,
+                    range: analysis_utils::ink_trait_declaration_range(chain_extension),
                     severity: Severity::Error,
-                    quickfixes: Some(vec![Action {
-                        label: "Add `ErrorCode` type for ink! chain extension.".to_string(),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: vec![TextEdit::insert_with_snippet(
-                            analysis_utils::apply_indenting(ERROR_CODE_PLAIN, &indent),
-                            insert_offset,
-                            Some(analysis_utils::apply_indenting(ERROR_CODE_SNIPPET, &indent)),
-                        )],
-                    }]),
+                    quickfixes: entity_actions::add_error_code(
+                        chain_extension,
+                        ActionKind::QuickFix,
+                        None,
+                    )
+                    .map(|action| vec![action]),
                 });
             } else if error_codes.len() > 1 {
                 for item in &error_codes[1..] {
@@ -282,14 +270,6 @@ fn ensure_error_code_type_quantity(
             };
         }
     }
-}
-
-/// Returns text range of the contract `mod` "declaration" (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
-fn chain_extension_declaration_range(chain_extension: &ChainExtension) -> TextRange {
-    chain_extension
-        .trait_item()
-        .and_then(|it| analysis_utils::ast_item_declaration_range(&ast::Item::Trait(it.clone())))
-        .unwrap_or(chain_extension.syntax().text_range())
 }
 
 /// Ensures that no ink! extension ids are overlapping.
@@ -366,7 +346,7 @@ fn init_unavailable_ids(chain_extension: &ChainExtension) -> HashSet<u32> {
 mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
-    use ink_analyzer_ir::syntax::TextSize;
+    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity, IsInkTrait};
     use quote::quote;
     use test_utils::{
@@ -391,9 +371,9 @@ mod tests {
     macro_rules! valid_chain_extensions {
         () => {
             [
-                // No methods.
+                // No functions.
                 quote! {
-                    // Chain extension with no methods is valid.
+                    // Chain extension with no functions is valid.
                 },
                 // Simple.
                 quote! {
@@ -761,7 +741,7 @@ mod tests {
                     }],
                 }],
             ),
-            // Non-flagged method.
+            // Non-flagged function.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L632-L652>.
             (
                 quote! {
@@ -792,7 +772,7 @@ mod tests {
                     }],
                 }],
             ),
-            // Const method.
+            // Const function.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L665-L674>.
             (
                 quote! {
@@ -808,7 +788,7 @@ mod tests {
                     }],
                 }],
             ),
-            // Async method.
+            // Async function.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L676-L685>.
             (
                 quote! {
@@ -824,7 +804,7 @@ mod tests {
                     }],
                 }],
             ),
-            // Unsafe method.
+            // Unsafe function.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L687-L696>.
             (
                 quote! {
@@ -856,7 +836,7 @@ mod tests {
                     }],
                 }],
             ),
-            // Variadic method.
+            // Variadic function.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L709-L718>.
             (
                 quote! {
@@ -872,7 +852,7 @@ mod tests {
                     }],
                 }],
             ),
-            // Generic method.
+            // Generic function.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L720-L729>.
             (
                 quote! {
@@ -939,7 +919,7 @@ mod tests {
             (
                 quote! {
                     #[ink(unknown)]
-                    fn unknown_method();
+                    fn unknown_fn();
                 },
                 vec![TestResultAction {
                     label: "Add ink! extension",

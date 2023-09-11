@@ -150,14 +150,20 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                         }),
                     )
                 }
-                // Handles edits at the end a statement or block.
-                SyntaxKind::SEMICOLON | SyntaxKind::R_CURLY => {
+                // Handles edits at the end a statement or block or after a comment.
+                SyntaxKind::SEMICOLON | SyntaxKind::R_CURLY | SyntaxKind::COMMENT => {
                     (
                         // Adds formatting prefix only if the edit doesn't start with a new line
                         // and then only add indenting if the edit doesn't start with a space (i.e ' ') or a tab (i.e. '\t').
                         (!edit.text.starts_with('\n')).then(|| {
                             format!(
-                                "\n\n{}",
+                                "\n{}{}",
+                                // Extra new line at the end of statements and blocks.
+                                if token_before.kind() == SyntaxKind::COMMENT {
+                                    ""
+                                } else {
+                                    "\n"
+                                },
                                 (!edit.text.starts_with(' ') && !edit.text.starts_with('\t'))
                                     .then(|| {
                                         ink_analyzer_ir::closest_ancestor_ast_type::<

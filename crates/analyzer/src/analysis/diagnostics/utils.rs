@@ -934,7 +934,7 @@ where
     })
 }
 
-/// Ensures that `fn` item satisfies all common invariants of method-based ink! entities
+/// Ensures that `fn` item satisfies all common invariants of function and method-based ink! entities
 /// (i.e `constructor`s, `message`s and `extension`s).
 ///
 /// See reference below for details about checked invariants.
@@ -942,7 +942,7 @@ where
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L395-L465>.
-pub fn ensure_method_invariants(
+pub fn ensure_fn_invariants(
     results: &mut Vec<Diagnostic>,
     fn_item: &ast::Fn,
     ink_scope_name: &str,
@@ -1105,8 +1105,8 @@ pub fn ensure_callable_invariants(
         });
     }
 
-    // See `ensure_method_invariants` doc.
-    ensure_method_invariants(results, fn_item, ink_scope_name);
+    // See `ensure_fn_invariants` doc.
+    ensure_fn_invariants(results, fn_item, ink_scope_name);
 }
 
 /// Ensures that `trait` item satisfies all common invariants of trait-based ink! entities
@@ -1260,7 +1260,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                     // No default implementations.
                     if let Some(body) = fn_item.body() {
                         results.push(Diagnostic {
-                            message: format!("ink! {ink_scope_name} methods with a default implementation are not currently supported."),
+                            message: format!("ink! {ink_scope_name} functions with a default implementation are not currently supported."),
                             range: body.syntax().text_range(),
                             severity: Severity::Error,
                             quickfixes: Some(vec![

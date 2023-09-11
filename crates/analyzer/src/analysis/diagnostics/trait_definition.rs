@@ -7,7 +7,7 @@ use ink_analyzer_ir::{
 };
 
 use super::{message, utils};
-use crate::analysis::snippets::{TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET};
+use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity};
@@ -182,30 +182,12 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
                 .to_string(),
             range,
             severity: Severity::Error,
-            quickfixes: trait_definition
-                .trait_item()
-                .and_then(|trait_item| Some(trait_item).zip(trait_item.assoc_item_list()))
-                .map(|(trait_item, assoc_item_list)| {
-                    // Set quickfix insertion offset at the beginning of the associated items list.
-                    let insert_offset =
-                        analysis_utils::assoc_item_insert_offset_start(&assoc_item_list);
-                    // Set quickfix insertion indent.
-                    let indent = analysis_utils::item_children_indenting(trait_item.syntax());
-
-                    vec![Action {
-                        label: "Add ink! message `fn`.".to_string(),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: vec![TextEdit::insert_with_snippet(
-                            analysis_utils::apply_indenting(TRAIT_MESSAGE_PLAIN, &indent),
-                            insert_offset,
-                            Some(analysis_utils::apply_indenting(
-                                TRAIT_MESSAGE_SNIPPET,
-                                &indent,
-                            )),
-                        )],
-                    }]
-                }),
+            quickfixes: entity_actions::add_message_to_trait_definition(
+                trait_definition,
+                ActionKind::QuickFix,
+                None,
+            )
+            .map(|action| vec![action]),
         },
     )
 }

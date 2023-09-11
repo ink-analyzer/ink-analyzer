@@ -6,7 +6,8 @@ use ink_analyzer_ir::syntax::{
 };
 use ink_analyzer_ir::{
     ast, Contract, FromAST, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
-    InkAttribute, InkAttributeKind, InkImpl, InkMacroKind, IsInkEntity, IsInkStruct, Storage,
+    InkAttribute, InkAttributeKind, InkImpl, InkMacroKind, IsInkEntity, IsInkStruct, IsInkTrait,
+    Storage,
 };
 use std::collections::HashSet;
 
@@ -940,7 +941,6 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
                     ast::FieldList::RecordFieldList(it) => {
                         it.l_curly_token().as_ref().map(SyntaxToken::text_range)
                     }
-
                     ast::FieldList::TupleFieldList(it) => {
                         struct_item
                             .semicolon_token()
@@ -997,6 +997,47 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
         // Returns the text range for the item's "declaration".
         TextRange::new(start, end)
     })
+}
+
+/// Returns the terminal syntax token of the AST item "declaration" (i.e the right curly bracket `}` or semi-colon `;`).
+pub fn ast_item_terminal_token(item: &ast::Item) -> Option<SyntaxToken> {
+    match item {
+        ast::Item::Module(module) => module
+            .item_list()
+            .and_then(|it| it.r_curly_token())
+            .or(module.semicolon_token()),
+        ast::Item::Trait(trait_item) => trait_item
+            .assoc_item_list()
+            .and_then(|it| it.r_curly_token())
+            .or(trait_item.semicolon_token()),
+        ast::Item::Impl(impl_item) => impl_item
+            .assoc_item_list()
+            .and_then(|it| it.r_curly_token()),
+        ast::Item::Fn(fn_item) => fn_item
+            .body()
+            .and_then(|it| it.stmt_list().and_then(|it| it.r_curly_token()))
+            .or(fn_item.semicolon_token()),
+        ast::Item::Enum(enum_item) => enum_item.variant_list().and_then(|it| it.r_curly_token()),
+        ast::Item::Struct(struct_item) => struct_item
+            .field_list()
+            .and_then(|it| {
+                match &it {
+                    ast::FieldList::RecordFieldList(it) => it.r_curly_token(),
+                    ast::FieldList::TupleFieldList(it) => {
+                        struct_item
+                            .semicolon_token()
+                            // should be end.
+                            .or(it.r_paren_token())
+                    }
+                }
+            })
+            .or(struct_item.semicolon_token()),
+        ast::Item::Union(union_item) => union_item
+            .record_field_list()
+            .and_then(|it| it.r_curly_token()),
+        ast::Item::TypeAlias(type_alias) => type_alias.semicolon_token(),
+        _ => None,
+    }
 }
 
 /// Returns text range of the syntax token and it's immediate (next) trivia (whitespace and comments).
@@ -1284,7 +1325,8 @@ pub fn assoc_item_insert_offset_end(assoc_item_list: &ast::AssocItemList) -> Tex
         .unwrap_or(assoc_item_insert_offset_start(assoc_item_list))
 }
 
-/// Returns an offset, indenting and affixes (prefix and suffix) for inserting a ink! callable into the contract (i.e ink! constructor or ink! message)
+/// Returns an offset, indenting and affixes (prefix and suffix)
+/// for inserting an ink! callable (i.e ink! constructor or ink! message) into a contract.
 pub fn callable_insert_offset_indent_and_affixes(
     contract: &Contract,
 ) -> Option<(TextSize, String, Option<String>, Option<String>)> {
@@ -1318,15 +1360,11 @@ pub fn callable_insert_offset_indent_and_affixes(
         // Otherwise inserts a new `impl` block (returned as affixes).
         .or(contract
             .module()
-            .and_then(|mod_item| Some(mod_item).zip(mod_item.item_list()))
-            .and_then(|(mod_item, item_list)| {
-                // Resolves the contract name (if possible).
-                resolve_contract_name(contract).map(|name| {
+            .and_then(ast::Module::item_list)
+            .and_then(|item_list| {
+                callable_impl_indent_and_affixes(contract).map(|(indent, prefix, suffix)| {
                     // Sets insert offset at the end of the associated items list, insert indent based on contract `mod` block
                     // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
-                    let indent = item_children_indenting(mod_item.syntax());
-                    let prefix = format!("{indent}impl {name} {{\n");
-                    let suffix = format!("\n{indent}}}",);
                     (
                         item_insert_offset_impl(&item_list),
                         format!("{indent}    "),
@@ -1335,6 +1373,22 @@ pub fn callable_insert_offset_indent_and_affixes(
                     )
                 })
             }))
+}
+
+/// Returns indenting and `impl` affixes (prefix and suffix)
+/// for inserting an ink! callable (i.e ink! constructor or ink! message) into a contract.
+pub fn callable_impl_indent_and_affixes(contract: &Contract) -> Option<(String, String, String)> {
+    contract.module().and_then(|mod_item| {
+        // Resolves the contract name (if possible).
+        resolve_contract_name(contract).map(|name| {
+            // Sets insert indent based on contract `mod` block
+            // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
+            let indent = item_children_indenting(mod_item.syntax());
+            let prefix = format!("{indent}impl {name} {{\n");
+            let suffix = format!("\n{indent}}}",);
+            (format!("{indent}    "), prefix, suffix)
+        })
+    })
 }
 
 /// Returns the "resolved" contract name.
@@ -1414,7 +1468,7 @@ pub fn reduce_indenting(input: &str, indent: &str) -> String {
     }
 }
 
-/// Suggests a unique/unused id for an extension method.
+/// Suggests a unique/unused id for an extension function.
 pub fn suggest_unique_id(preferred_id: Option<u32>, unavailable_ids: &mut HashSet<u32>) -> u32 {
     // Finds a unique/unused id.
     let mut suggested_id = preferred_id.unwrap_or(1);
@@ -1422,9 +1476,39 @@ pub fn suggest_unique_id(preferred_id: Option<u32>, unavailable_ids: &mut HashSe
         suggested_id += 1;
     }
 
-    // Makes the id unavailable for future calls to this method.
+    // Makes the id unavailable for future calls to this function.
     unavailable_ids.insert(suggested_id);
 
     // Returns the unique id.
     suggested_id
+}
+
+/// Returns text range of the contract `mod` "declaration"
+/// (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
+pub fn contract_declaration_range(contract: &Contract) -> TextRange {
+    contract
+        .module()
+        .and_then(|it| ast_item_declaration_range(&ast::Item::Module(it.clone())))
+        .unwrap_or(contract.syntax().text_range())
+}
+
+/// Returns text range of the ink! `impl` "declaration"
+/// (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
+pub fn ink_impl_declaration_range(ink_impl: &InkImpl) -> TextRange {
+    ink_impl
+        .impl_item()
+        .and_then(|it| ast_item_declaration_range(&ast::Item::Impl(it.clone())))
+        .unwrap_or(ink_impl.syntax().text_range())
+}
+
+/// Returns text range of the `trait` "declaration"
+/// (i.e tokens between meta - attributes/rustdoc - and the start of the item list) for a trait-based ink! entity.
+pub fn ink_trait_declaration_range<T>(ink_trait_item: &T) -> TextRange
+where
+    T: FromSyntax + IsInkTrait,
+{
+    ink_trait_item
+        .trait_item()
+        .and_then(|it| ast_item_declaration_range(&ast::Item::Trait(it.clone())))
+        .unwrap_or(ink_trait_item.syntax().text_range())
 }

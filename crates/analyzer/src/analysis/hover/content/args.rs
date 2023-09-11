@@ -87,11 +87,11 @@ pub const CONSTRUCTOR_DOC: &str = r#"
 
 # Description
 
-Flags a method for the ink! storage `struct` as constructor making it available to the API for instantiating the contract.
+Flags a function for the ink! storage `struct` as constructor making it available to the API for instantiating the contract.
 
 # Usage
 
-Applicable to methods.
+Applicable to functions.
 
 # Example
 
@@ -318,11 +318,11 @@ pub const EXTENSION_DOC: &str = r#"
 
 # Description
 
-Determines the unique function ID of the chain extension method.
+Determines the unique function ID of the chain extension function.
 
 # Usage
 
-Required attribute for chain extension methods.
+Required attribute for chain extension functions.
 
 # Example
 
@@ -350,11 +350,11 @@ pub const HANDLE_STATUS_DOC: &str = r#"
 
 # Description
 
-Assumes that the returned status code of the chain extension method always indicates success and therefore always loads and decodes the output buffer of the call.
+Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.
 
 # Usage
 
-Applicable to chain extension methods.
+Applicable to chain extension functions.
 
 **Default value:** `true`.
 

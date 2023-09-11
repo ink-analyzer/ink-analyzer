@@ -1,15 +1,18 @@
 //! ink! attribute code/intent actions.
 
 use ink_analyzer_ir::ast::HasAttrs;
-use ink_analyzer_ir::syntax::{
-    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, TextSize,
+use ink_analyzer_ir::syntax::{AstNode, SyntaxNode, SyntaxToken, TextRange, TextSize};
+use ink_analyzer_ir::{
+    ast, ChainExtension, Contract, FromAST, FromInkAttribute, FromSyntax, InkAttribute,
+    InkAttributeKind, InkFile, InkImpl, InkMacroKind, TraitDefinition,
 };
-use ink_analyzer_ir::{ast, FromAST, FromSyntax, InkAttribute, InkAttributeKind, InkFile};
 use itertools::Itertools;
 
 use super::utils;
 use crate::analysis::text_edit;
 use crate::TextEdit;
+
+pub mod entity;
 
 /// An ink! attribute code/intent action.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +27,15 @@ pub struct Action {
     pub edits: Vec<TextEdit>,
 }
 
-/// Computes ink! attribute actions for the given offset.
+/// The kind of the action (e.g quickfix or refactor).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ActionKind {
+    QuickFix,
+    Refactor,
+}
+
+/// Computes ink! attribute actions for the text range.
 pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
     let mut results = Vec::new();
 
@@ -44,14 +55,6 @@ pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
             ..item
         })
         .collect()
-}
-
-/// The kind of the action (e.g quickfix or refactor).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ActionKind {
-    QuickFix,
-    Refactor,
 }
 
 impl Action {
@@ -129,7 +132,7 @@ impl Action {
     }
 }
 
-/// Computes AST item-based ink! attribute actions at the given offset.
+/// Computes AST item-based ink! attribute actions at the given text range.
 pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
     // Only computes actions if a focused element can be determined.
     if let Some(focused_elem) = utils::focused_element(file, range) {
@@ -137,17 +140,14 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
         if utils::covering_attribute(file, range).is_none() {
             // Only computes actions if the parent AST item can be determined.
             if let Some(ast_item) = utils::parent_ast_item(file, range) {
-                // Gets the covering struct record field if the AST item is a struct.
-                let record_field: Option<ast::RecordField> = match &ast_item {
-                    ast::Item::Struct(_) => match focused_elem {
-                        SyntaxElement::Node(it) => ink_analyzer_ir::closest_ancestor_ast_type(&it),
-                        SyntaxElement::Token(it) => ink_analyzer_ir::closest_ancestor_ast_type(&it),
-                    },
-                    _ => None,
-                };
+                // Gets the covering struct record field (if any) if the AST item is a struct.
+                let record_field: Option<ast::RecordField> =
+                    matches!(&ast_item, ast::Item::Struct(_))
+                        .then(|| ink_analyzer_ir::closest_ancestor_ast_type(&focused_elem))
+                        .flatten();
 
-                // Only computes actions if the focus is on either a struct record field or
-                // an AST item's declaration (i.e not inside the AST item's item list or body) for
+                // Only computes ink! attribute actions if the focus is on either a struct record field or
+                // an AST item's declaration (i.e not on attributes nor rustdoc nor inside the AST item's item list or body) for
                 // an item that can be annotated with ink! attributes.
                 if record_field.is_some() || is_focused_on_ast_item_declaration(&ast_item, range) {
                     // Retrieves the target syntax node as either the covering struct field (if present) or
@@ -163,164 +163,339 @@ pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRa
                         .or(utils::ast_item_declaration_range(&ast_item))
                         .unwrap_or(ast_item.syntax().text_range());
 
-                    // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
-                    if ink_analyzer_ir::ink_attrs(target).next().is_none() {
-                        // Suggests ink! attribute macros based on the context.
-                        let mut ink_macro_suggestions =
-                            utils::valid_ink_macros_by_syntax_kind(target.kind());
-
-                        // Filters out duplicate and invalid ink! attribute macro actions based on parent ink! scope (if any).
-                        utils::remove_duplicate_ink_macro_suggestions(
-                            &mut ink_macro_suggestions,
-                            target,
-                        );
-                        utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
-                            &mut ink_macro_suggestions,
-                            target,
-                        );
-
-                        if !ink_macro_suggestions.is_empty() {
-                            // Determines the insertion offset and affixes for the action.
-                            let insert_offset = utils::ink_attribute_insert_offset(target);
-
-                            // Add ink! attribute macro actions to accumulator.
-                            for macro_kind in ink_macro_suggestions {
-                                results.push(Action {
-                                    label: format!("Add ink! {macro_kind} attribute macro."),
-                                    kind: ActionKind::Refactor,
-                                    range: item_declaration_text_range,
-                                    edits: vec![TextEdit::insert(
-                                        format!("#[{}]", macro_kind.path_as_str(),),
-                                        insert_offset,
-                                    )],
-                                });
-                            }
-                        }
-                    }
-
-                    // Gets the primary ink! attribute candidate (if any).
-                    let primary_ink_attr_candidate =
-                        utils::primary_ink_attribute_candidate(ink_analyzer_ir::ink_attrs(target))
-                            .map(|(attr, ..)| attr);
+                    // Suggests ink! attribute macros based on the context.
+                    ast_item_add_ink_macro_actions(results, target, item_declaration_text_range);
 
                     // Suggests ink! attribute arguments based on the context.
-                    let mut ink_arg_suggestions =
-                        if let Some(ink_attr) = primary_ink_attr_candidate.as_ref() {
-                            // Make suggestions based on the first valid ink! attribute (if any).
-                            utils::valid_sibling_ink_args(*ink_attr.kind())
-                        } else {
-                            // Otherwise make suggestions based on the AST item's syntax kind.
-                            utils::valid_ink_args_by_syntax_kind(target.kind())
-                        };
+                    ast_item_add_ink_arg_actions(results, target, item_declaration_text_range);
+                }
 
-                    // Filters out duplicate ink! attribute argument actions.
-                    utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, target);
-                    // Filters out conflicting ink! attribute argument actions.
-                    utils::remove_conflicting_ink_arg_suggestions(&mut ink_arg_suggestions, target);
-                    // Filters out invalid ink! attribute argument actions based on parent ink! scope
-                    // if there's either no valid ink! attribute macro (not argument) applied to the item
-                    // (i.e either no valid ink! attribute macro or only ink! attribute arguments).
-                    if primary_ink_attr_candidate.is_none()
-                        || !matches!(
-                            primary_ink_attr_candidate.as_ref().map(|attr| attr.kind()),
-                            Some(InkAttributeKind::Macro(_))
-                        )
-                    {
-                        utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
-                            &mut ink_arg_suggestions,
-                            target,
-                        );
-                    }
-
-                    if !ink_arg_suggestions.is_empty() {
-                        // Add ink! attribute argument actions to accumulator.
-                        for arg_kind in ink_arg_suggestions {
-                            // Determines the insertion offset and affixes for the action and whether or not an existing attribute can be extended.
-                            let ((insert_offset, insert_prefix, insert_suffix), is_extending) =
-                                primary_ink_attr_candidate
-                                    .as_ref()
-                                    .and_then(|ink_attr| {
-                                        // Try to extend an existing attribute (if possible).
-                                        utils::ink_arg_insertion_offset_and_affixes(
-                                            arg_kind, ink_attr,
-                                        )
-                                        .map(
-                                            |(insert_offset, insert_prefix, insert_suffix)| {
-                                                (
-                                                    (
-                                                        insert_offset,
-                                                        Some(insert_prefix.to_string()),
-                                                        Some(insert_suffix.to_string()),
-                                                    ),
-                                                    true,
-                                                )
-                                            },
-                                        )
-                                    })
-                                    .unwrap_or((
-                                        // Fallback to inserting a new attribute.
-                                        (utils::ink_attribute_insert_offset(target), None, None),
-                                        false,
-                                    ));
-
-                            // Adds ink! attribute argument action to accumulator.
-                            let (edit, snippet) = utils::ink_arg_insertion_text(
-                                arg_kind,
-                                Some(insert_offset),
-                                is_extending
-                                    .then(|| {
-                                        primary_ink_attr_candidate
-                                            .as_ref()
-                                            .map(InkAttribute::syntax)
-                                    })
-                                    .flatten(),
-                            );
-                            results.push(Action {
-                                label: format!("Add ink! {arg_kind} attribute argument."),
-                                kind: ActionKind::Refactor,
-                                range: is_extending
-                                    .then(|| {
-                                        primary_ink_attr_candidate
-                                            .as_ref()
-                                            .map(|it| it.syntax().text_range())
-                                    })
-                                    .flatten()
-                                    .unwrap_or(item_declaration_text_range),
-                                edits: vec![TextEdit::insert_with_snippet(
-                                    format!(
-                                        "{}{}{}",
-                                        insert_prefix.as_deref().unwrap_or_default(),
-                                        if is_extending {
-                                            edit
-                                        } else {
-                                            format!("#[ink({edit})]")
-                                        },
-                                        insert_suffix.as_deref().unwrap_or_default(),
-                                    ),
-                                    insert_offset,
-                                    snippet.map(|snippet| {
-                                        format!(
-                                            "{}{}{}",
-                                            insert_prefix.as_deref().unwrap_or_default(),
-                                            if is_extending {
-                                                snippet
-                                            } else {
-                                                format!("#[ink({snippet})]")
-                                            },
-                                            insert_suffix.as_deref().unwrap_or_default(),
-                                        )
-                                    }),
-                                )],
-                            });
-                        }
-                    }
+                // Only computes ink! entities if the focus is on either an AST item's "declaration" or body
+                // (i.e not on meta - attributes/rustdoc) for an item that can can have ink! attribute descendants.
+                let is_focused_on_body = is_focused_on_ast_item_body(&ast_item, range);
+                if is_focused_on_ast_item_declaration(&ast_item, range) || is_focused_on_body {
+                    ast_item_add_ink_entity_actions(
+                        results,
+                        &ast_item,
+                        is_focused_on_body.then_some(focused_elem.text_range().end()),
+                    );
                 }
             }
         }
     }
 }
 
-/// Computes AST item-based ink! attribute actions at the given offset.
+/// Computes AST item-based ink! attribute macro actions.
+fn ast_item_add_ink_macro_actions(
+    results: &mut Vec<Action>,
+    target: &SyntaxNode,
+    range: TextRange,
+) {
+    // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
+    if ink_analyzer_ir::ink_attrs(target).next().is_none() {
+        // Suggests ink! attribute macros based on the context.
+        let mut ink_macro_suggestions = utils::valid_ink_macros_by_syntax_kind(target.kind());
+
+        // Filters out duplicate and invalid ink! attribute macro actions based on parent ink! scope (if any).
+        utils::remove_duplicate_ink_macro_suggestions(&mut ink_macro_suggestions, target);
+        utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
+            &mut ink_macro_suggestions,
+            target,
+        );
+
+        if !ink_macro_suggestions.is_empty() {
+            // Determines the insertion offset and affixes for the action.
+            let insert_offset = utils::ink_attribute_insert_offset(target);
+
+            // Add ink! attribute macro actions to accumulator.
+            for macro_kind in ink_macro_suggestions {
+                results.push(Action {
+                    label: format!("Add ink! {macro_kind} attribute macro."),
+                    kind: ActionKind::Refactor,
+                    range,
+                    edits: vec![TextEdit::insert(
+                        format!("#[{}]", macro_kind.path_as_str(),),
+                        insert_offset,
+                    )],
+                });
+            }
+        }
+    }
+}
+
+/// Computes AST item-based ink! attribute argument actions.
+fn ast_item_add_ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRange) {
+    // Gets the primary ink! attribute candidate (if any).
+    let primary_ink_attr_candidate =
+        utils::primary_ink_attribute_candidate(ink_analyzer_ir::ink_attrs(target))
+            .map(|(attr, ..)| attr);
+
+    // Suggests ink! attribute arguments based on the context.
+    let mut ink_arg_suggestions = match primary_ink_attr_candidate.as_ref() {
+        // Make suggestions based on the "primary" valid ink! attribute (if any).
+        Some(ink_attr) => utils::valid_sibling_ink_args(*ink_attr.kind()),
+        // Otherwise make suggestions based on the AST item's syntax kind.
+        None => utils::valid_ink_args_by_syntax_kind(target.kind()),
+    };
+
+    // Filters out duplicate ink! attribute argument actions.
+    utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, target);
+    // Filters out conflicting ink! attribute argument actions.
+    utils::remove_conflicting_ink_arg_suggestions(&mut ink_arg_suggestions, target);
+    // Filters out invalid ink! attribute argument actions based on parent ink! scope
+    // if there's either no valid ink! attribute macro (not argument) applied to the item
+    // (i.e either no valid ink! attribute macro or only ink! attribute arguments).
+    if primary_ink_attr_candidate.is_none()
+        || !matches!(
+            primary_ink_attr_candidate.as_ref().map(|attr| attr.kind()),
+            Some(InkAttributeKind::Macro(_))
+        )
+    {
+        utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
+            &mut ink_arg_suggestions,
+            target,
+        );
+    }
+
+    if !ink_arg_suggestions.is_empty() {
+        // Add ink! attribute argument actions to accumulator.
+        for arg_kind in ink_arg_suggestions {
+            // Determines the insertion offset and affixes for the action and whether or not an existing attribute can be extended.
+            let ((insert_offset, insert_prefix, insert_suffix), is_extending) =
+                primary_ink_attr_candidate
+                    .as_ref()
+                    .and_then(|ink_attr| {
+                        // Try to extend an existing attribute (if possible).
+                        utils::ink_arg_insertion_offset_and_affixes(arg_kind, ink_attr).map(
+                            |(insert_offset, insert_prefix, insert_suffix)| {
+                                (
+                                    (
+                                        insert_offset,
+                                        Some(insert_prefix.to_string()),
+                                        Some(insert_suffix.to_string()),
+                                    ),
+                                    true,
+                                )
+                            },
+                        )
+                    })
+                    .unwrap_or((
+                        // Fallback to inserting a new attribute.
+                        (utils::ink_attribute_insert_offset(target), None, None),
+                        false,
+                    ));
+
+            // Adds ink! attribute argument action to accumulator.
+            let (edit, snippet) = utils::ink_arg_insertion_text(
+                arg_kind,
+                Some(insert_offset),
+                is_extending
+                    .then(|| {
+                        primary_ink_attr_candidate
+                            .as_ref()
+                            .map(InkAttribute::syntax)
+                    })
+                    .flatten(),
+            );
+            results.push(Action {
+                label: format!("Add ink! {arg_kind} attribute argument."),
+                kind: ActionKind::Refactor,
+                range: is_extending
+                    .then(|| {
+                        primary_ink_attr_candidate
+                            .as_ref()
+                            .map(|it| it.syntax().text_range())
+                    })
+                    .flatten()
+                    .unwrap_or(range),
+                edits: vec![TextEdit::insert_with_snippet(
+                    format!(
+                        "{}{}{}",
+                        insert_prefix.as_deref().unwrap_or_default(),
+                        if is_extending {
+                            edit
+                        } else {
+                            format!("#[ink({edit})]")
+                        },
+                        insert_suffix.as_deref().unwrap_or_default(),
+                    ),
+                    insert_offset,
+                    snippet.map(|snippet| {
+                        format!(
+                            "{}{}{}",
+                            insert_prefix.as_deref().unwrap_or_default(),
+                            if is_extending {
+                                snippet
+                            } else {
+                                format!("#[ink({snippet})]")
+                            },
+                            insert_suffix.as_deref().unwrap_or_default(),
+                        )
+                    }),
+                )],
+            });
+        }
+    }
+}
+
+/// Computes AST item-based ink! entity macro actions.
+fn ast_item_add_ink_entity_actions(
+    results: &mut Vec<Action>,
+    item: &ast::Item,
+    insert_offset_option: Option<TextSize>,
+) {
+    let mut add_result = |action_option: Option<Action>| {
+        // Add action to accumulator (if any).
+        if let Some(action) = action_option {
+            results.push(action);
+        }
+    };
+    match item {
+        ast::Item::Module(module) => {
+            let contract_option = ink_analyzer_ir::ink_attrs(module.syntax())
+                .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::Contract))
+                .and_then(Contract::cast);
+            match contract_option {
+                Some(contract) => {
+                    // Adds ink! storage if it doesn't exist.
+                    if contract.storage().is_none() {
+                        add_result(entity::add_storage(
+                            &contract,
+                            ActionKind::Refactor,
+                            insert_offset_option,
+                        ));
+                    }
+
+                    // Adds ink! event.
+                    add_result(entity::add_event(
+                        &contract,
+                        ActionKind::Refactor,
+                        insert_offset_option,
+                    ));
+
+                    // Adds ink! constructor.
+                    add_result(entity::add_constructor_to_contract(
+                        &contract,
+                        ActionKind::Refactor,
+                        insert_offset_option,
+                    ));
+
+                    // Adds ink! message.
+                    add_result(entity::add_message_to_contract(
+                        &contract,
+                        ActionKind::Refactor,
+                        insert_offset_option,
+                    ));
+                }
+                None => {
+                    let is_cfg_test = module.attrs().any(|attr| {
+                        attr.path().map_or(false, |path| path.to_string() == "cfg")
+                            && attr.token_tree().map_or(false, |token_tree| {
+                                let mut meta = token_tree.syntax().to_string();
+                                meta.retain(|it| !it.is_whitespace());
+                                meta.contains("(test")
+                                    || token_tree.syntax().to_string().contains(",test")
+                            })
+                    });
+                    if is_cfg_test {
+                        // Adds ink! test.
+                        add_result(entity::add_ink_test(
+                            module,
+                            ActionKind::Refactor,
+                            insert_offset_option,
+                        ));
+
+                        let is_cfg_e2e_tests = module.attrs().any(|attr| {
+                            attr.path().map_or(false, |path| path.to_string() == "cfg")
+                                && attr.token_tree().map_or(false, |token_tree| {
+                                    let mut meta = token_tree.syntax().to_string();
+                                    meta.retain(|it| !it.is_whitespace());
+                                    meta.contains(r#"feature="e2e-tests""#)
+                                })
+                        });
+
+                        if is_cfg_e2e_tests {
+                            // Adds ink! e2e test.
+                            add_result(entity::add_ink_e2e_test(
+                                module,
+                                ActionKind::Refactor,
+                                insert_offset_option,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        ast::Item::Impl(impl_item) => {
+            // Only computes ink! entities if impl item either:
+            // - has an ink! `impl` attribute.
+            // - contains at least one ink! constructor or ink! message.
+            // - has an ink! contract as the direct parent.
+            if InkImpl::can_cast(impl_item.syntax())
+                || ink_analyzer_ir::ink_parent::<Contract>(impl_item.syntax()).is_some()
+            {
+                // Adds ink! constructor.
+                add_result(entity::add_constructor_to_impl(
+                    impl_item,
+                    ActionKind::Refactor,
+                    insert_offset_option,
+                ));
+
+                // Adds ink! message.
+                add_result(entity::add_message_to_impl(
+                    impl_item,
+                    ActionKind::Refactor,
+                    insert_offset_option,
+                ));
+            }
+        }
+        ast::Item::Trait(trait_item) => {
+            if let Some((attr, _)) = utils::primary_ink_attribute_candidate(
+                ink_analyzer_ir::ink_attrs(trait_item.syntax()),
+            ) {
+                if let InkAttributeKind::Macro(macro_kind) = attr.kind() {
+                    match macro_kind {
+                        InkMacroKind::ChainExtension => {
+                            if let Some(chain_extension) = ChainExtension::cast(attr) {
+                                // Add `ErrorCode` if it doesn't exist.
+                                if chain_extension.error_code().is_none() {
+                                    add_result(entity::add_error_code(
+                                        &chain_extension,
+                                        ActionKind::Refactor,
+                                        insert_offset_option,
+                                    ));
+                                }
+
+                                // Adds ink! extension.
+                                add_result(entity::add_extension(
+                                    &chain_extension,
+                                    ActionKind::Refactor,
+                                    insert_offset_option,
+                                ));
+                            }
+                        }
+                        InkMacroKind::TraitDefinition => {
+                            if let Some(trait_definition) = TraitDefinition::cast(attr) {
+                                // Adds ink! message declaration.
+                                add_result(entity::add_message_to_trait_definition(
+                                    &trait_definition,
+                                    ActionKind::Refactor,
+                                    insert_offset_option,
+                                ));
+                            }
+                        }
+                        // Ignores other macros.
+                        _ => (),
+                    }
+                }
+            }
+        }
+        // Ignores other items.
+        _ => (),
+    }
+}
+
+/// Computes ink! attribute-based actions at the given text range.
 pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
     // Only computes actions if the focused range is part of/covered by an ink! attribute.
     if let Some(ink_attr) = utils::covering_ink_attribute(file, range) {
@@ -379,64 +554,33 @@ pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: T
     }
 }
 
-/// Determines if the offset is focused on an AST item's declaration
-/// (i.e not inside the AST item's item list or body) for an item that can be annotated with ink! attributes.
+/// Determines if the selection range is in an AST item's declaration
+/// (i.e not on meta - attributes/rustdoc - nor inside the AST item's item list or body)
+/// for an item that can be annotated with ink! attributes or can have ink! attribute descendants.
 fn is_focused_on_ast_item_declaration(item: &ast::Item, range: TextRange) -> bool {
-    // Shared logic that ensures the range is not inside the AST item's item list or body.
-    let is_focused_on_declaration_impl = |item_list: Option<&SyntaxNode>| {
-        item_list.map_or(true, |node| {
-            let opening_curly_end = ink_analyzer_ir::first_child_token(node).and_then(|token| {
-                (token.kind() == SyntaxKind::L_CURLY).then_some(token.text_range().end())
-            });
-            let closing_curly_start = ink_analyzer_ir::last_child_token(node).and_then(|token| {
-                (token.kind() == SyntaxKind::R_CURLY).then_some(token.text_range().start())
-            });
+    // Returns false for "unsupported" item types (see [`utils::ast_item_declaration_range`] doc and implementation).
+    utils::ast_item_declaration_range(item).map_or(false, |declaration_range| {
+        declaration_range.contains_range(range)
+    }) || utils::ast_item_terminal_token(item)
+        .map_or(false, |token| token.text_range().contains_range(range))
+}
 
-            let opening_curly_end_or_node_end =
-                opening_curly_end.unwrap_or(node.text_range().end());
-            let closing_curly_start_or_node_end =
-                closing_curly_start.unwrap_or(node.text_range().end());
-
-            // We already know the range is focused on the AST item,
-            // this makes sure either it's before the body (if any) or after the body (i.e covering the closing curly bracket).
-            range.end() <= opening_curly_end_or_node_end
-                || closing_curly_start_or_node_end <= range.start()
+/// Determines if the selection range is in an AST item's body (i.e inside the AST item's item list or body)
+/// for an item that can be annotated with ink! attributes or can have ink! attribute descendants.
+fn is_focused_on_ast_item_body(item: &ast::Item, range: TextRange) -> bool {
+    // Returns false for "unsupported" item types (see [`utils::ast_item_declaration_range`] doc and implementation).
+    utils::ast_item_declaration_range(item)
+        .zip(
+            utils::ast_item_terminal_token(item)
+                .as_ref()
+                .map(SyntaxToken::text_range),
+        )
+        .map_or(false, |(declaration_range, terminal_range)| {
+            // Verifies that
+            declaration_range.end() < terminal_range.start()
+                && TextRange::new(declaration_range.end(), terminal_range.start())
+                    .contains_range(range)
         })
-    };
-
-    // Gets the last attribute for the AST item (if any).
-    item.attrs().last()
-        // Ensures start offset is either after the last attribute (if any) or after the beginning of the AST item.
-        .map_or(item.syntax().text_range().start(), |attr| attr.syntax().text_range().end()) <= range.start()
-        // Ensures end offset is before the end of the AST item.
-        && range.end() <= item.syntax().text_range().end()
-        // Ensures the offset in not inside the AST item's item list or body.
-        && match item {
-            // We only care about AST items that can be annotated with ink! attributes.
-            ast::Item::Module(item) => {
-                is_focused_on_declaration_impl(item.item_list().as_ref().map(AstNode::syntax))
-            }
-            ast::Item::Trait(item) => is_focused_on_declaration_impl(
-                item.assoc_item_list().as_ref().map(AstNode::syntax),
-            ),
-            ast::Item::Enum(item) => is_focused_on_declaration_impl(
-                item.variant_list().as_ref().map(AstNode::syntax),
-            ),
-            ast::Item::Struct(item) => {
-                is_focused_on_declaration_impl(item.field_list().as_ref().map(AstNode::syntax))
-            }
-            ast::Item::Union(item) => is_focused_on_declaration_impl(
-                item.record_field_list().as_ref().map(AstNode::syntax),
-            ),
-            ast::Item::Fn(item) => {
-                is_focused_on_declaration_impl(item.body().as_ref().map(AstNode::syntax))
-            }
-            ast::Item::Impl(item) => is_focused_on_declaration_impl(
-                item.assoc_item_list().as_ref().map(AstNode::syntax),
-            ),
-            // Everything else is ignored.
-            _ => false,
-        }
 }
 
 #[cfg(test)]
@@ -543,6 +687,26 @@ mod tests {
                         Some("#[ink::contract"),
                         Some("#[ink::contract"),
                     ),
+                    (
+                        "#[ink(storage)]",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
+                    (
+                        "#[ink(event)]",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
+                    (
+                        "#[ink(constructor)]",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
+                    (
+                        "#[ink(message)]",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
                 ],
             ),
             // Trait focus.
@@ -564,7 +728,18 @@ mod tests {
                     }
                 "#,
                 Some("<-pub"),
-                vec![],
+                vec![
+                    (
+                        "type ErrorCode",
+                        Some("pub trait MyTrait {"),
+                        Some("pub trait MyTrait {"),
+                    ),
+                    (
+                        "#[ink(extension=1)]",
+                        Some("pub trait MyTrait {"),
+                        Some("pub trait MyTrait {"),
+                    ),
+                ],
             ),
             (
                 r#"
@@ -583,6 +758,11 @@ mod tests {
                         r#"(namespace="my_namespace")"#,
                         Some("#[ink::trait_definition"),
                         Some("#[ink::trait_definition"),
+                    ),
+                    (
+                        "#[ink(message)]",
+                        Some("pub trait MyTrait {"),
+                        Some("pub trait MyTrait {"),
                     ),
                 ],
             ),
@@ -730,25 +910,32 @@ mod tests {
             ast_item_actions(&mut results, &InkFile::parse(code), range);
 
             assert_eq!(
-                results
-                    .into_iter()
-                    .map(|action| (
-                        remove_whitespace(action.edits[0].text.clone()),
-                        action.edits[0].range
-                    ))
-                    .collect::<Vec<(String, TextRange)>>(),
-                expected_results
-                    .into_iter()
-                    .map(|(edit, pat_start, pat_end)| (
-                        remove_whitespace(edit.to_string()),
-                        TextRange::new(
-                            TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
-                            TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
-                        )
-                    ))
-                    .collect::<Vec<(String, TextRange)>>(),
-                "code: {code}"
+                results.len(),
+                expected_results.len(),
+                "code: {code} | {:#?}",
+                pat
             );
+            for (idx, action) in results.into_iter().enumerate() {
+                let edit_text = remove_whitespace(action.edits[0].text.clone());
+                let (expected_edit_text, pat_start, pat_end) = expected_results[idx];
+                let expected_edit_text = remove_whitespace(expected_edit_text.to_string());
+                assert!(
+                    edit_text == expected_edit_text
+                        || (!expected_edit_text.is_empty()
+                            && edit_text.contains(expected_edit_text.as_str())),
+                    "code: {code} | {:#?}",
+                    pat
+                );
+                assert_eq!(
+                    action.edits[0].range,
+                    TextRange::new(
+                        TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
+                        TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
+                    ),
+                    "code: {code} | {:#?}",
+                    pat
+                );
+            }
         }
     }
 
@@ -1115,9 +1302,9 @@ mod tests {
     }
 
     #[test]
-    fn is_focused_on_ast_item_declaration_works() {
+    fn is_focused_on_ast_item_declaration_and_body_works() {
         for (code, test_cases) in [
-            // (code, [(pat, result)]) where:
+            // (code, [(pat, declaration_result, body_result)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
             // result = expected result from calling `is_focused_on_ast_item_declaration` (i.e whether or not an AST item's declaration is in focus),
@@ -1132,25 +1319,25 @@ mod tests {
                     }
                 "#,
                 vec![
-                    (Some("<-#[a"), false),
-                    (Some("#[ab"), false),
-                    (Some("abc]"), false),
-                    (Some("<-#[ink"), false),
-                    (Some("#[in"), false),
-                    (Some("ink::"), false),
-                    (Some("::con"), false),
-                    (Some("contract]"), true),
-                    (Some("<-mod"), true),
-                    (Some("mo"), true),
-                    (Some("mod"), true),
-                    (Some("<-my_module"), true),
-                    (Some("my_"), true),
-                    (Some("<-my_module"), true),
-                    (Some("<-{"), true),
-                    (Some("{"), true),
-                    (Some("<-//"), false),
-                    (Some("<-}"), true),
-                    (Some("}"), true),
+                    (Some("<-#[a"), false, false),
+                    (Some("#[ab"), false, false),
+                    (Some("abc]"), false, false),
+                    (Some("<-#[ink"), false, false),
+                    (Some("#[in"), false, false),
+                    (Some("ink::"), false, false),
+                    (Some("::con"), false, false),
+                    (Some("contract]"), false, false),
+                    (Some("<-mod"), true, false),
+                    (Some("mo"), true, false),
+                    (Some("mod"), true, false),
+                    (Some("<-my_module"), true, false),
+                    (Some("my_"), true, false),
+                    (Some("<-my_module"), true, false),
+                    (Some("<-{"), true, false),
+                    (Some("{"), true, true),
+                    (Some("<-//"), false, true),
+                    (Some("<-}"), true, true),
+                    (Some("}"), true, false),
                 ],
             ),
             // Trait.
@@ -1163,28 +1350,28 @@ mod tests {
                     }
                 "#,
                 vec![
-                    (Some("<-#[a"), false),
-                    (Some("#[ab"), false),
-                    (Some("abc]"), false),
-                    (Some("<-#[ink"), false),
-                    (Some("#[in"), false),
-                    (Some("ink::"), false),
-                    (Some("::trait"), false),
-                    (Some("definition]"), true),
-                    (Some("<-pub"), true),
-                    (Some("pu"), true),
-                    (Some("pub"), true),
-                    (Some("<-trait MyTrait"), true),
-                    (Some("pub tr"), true),
-                    (Some("pub trait"), true),
-                    (Some("<-MyTrait"), true),
-                    (Some("My"), true),
-                    (Some("<-MyTrait"), true),
-                    (Some("<-{"), true),
-                    (Some("{"), true),
-                    (Some("<-//"), false),
-                    (Some("<-}"), true),
-                    (Some("}"), true),
+                    (Some("<-#[a"), false, false),
+                    (Some("#[ab"), false, false),
+                    (Some("abc]"), false, false),
+                    (Some("<-#[ink"), false, false),
+                    (Some("#[in"), false, false),
+                    (Some("ink::"), false, false),
+                    (Some("::trait"), false, false),
+                    (Some("definition]"), false, false),
+                    (Some("<-pub"), true, false),
+                    (Some("pu"), true, false),
+                    (Some("pub"), true, false),
+                    (Some("<-trait MyTrait"), true, false),
+                    (Some("pub tr"), true, false),
+                    (Some("pub trait"), true, false),
+                    (Some("<-MyTrait"), true, false),
+                    (Some("My"), true, false),
+                    (Some("<-MyTrait"), true, false),
+                    (Some("<-{"), true, false),
+                    (Some("{"), true, true),
+                    (Some("<-//"), false, true),
+                    (Some("<-}"), true, true),
+                    (Some("}"), true, false),
                 ],
             ),
             // Enum.
@@ -1197,28 +1384,28 @@ mod tests {
                     }
                 "#,
                 vec![
-                    (Some("<-#[a"), false),
-                    (Some("#[ab"), false),
-                    (Some("abc]"), false),
-                    (Some("<-#[ink"), false),
-                    (Some("#[in"), false),
-                    (Some("ink::"), false),
-                    (Some("::storage"), false),
-                    (Some("storage_item]"), true),
-                    (Some("<-pub"), true),
-                    (Some("pu"), true),
-                    (Some("pub"), true),
-                    (Some("<-enum"), true),
-                    (Some("en"), true),
-                    (Some("enum"), true),
-                    (Some("<-MyEnum"), true),
-                    (Some("My"), true),
-                    (Some("<-MyEnum"), true),
-                    (Some("<-{"), true),
-                    (Some("{"), true),
-                    (Some("<-//"), false),
-                    (Some("<-}"), true),
-                    (Some("}"), true),
+                    (Some("<-#[a"), false, false),
+                    (Some("#[ab"), false, false),
+                    (Some("abc]"), false, false),
+                    (Some("<-#[ink"), false, false),
+                    (Some("#[in"), false, false),
+                    (Some("ink::"), false, false),
+                    (Some("::storage"), false, false),
+                    (Some("storage_item]"), false, false),
+                    (Some("<-pub"), true, false),
+                    (Some("pu"), true, false),
+                    (Some("pub"), true, false),
+                    (Some("<-enum"), true, false),
+                    (Some("en"), true, false),
+                    (Some("enum"), true, false),
+                    (Some("<-MyEnum"), true, false),
+                    (Some("My"), true, false),
+                    (Some("<-MyEnum"), true, false),
+                    (Some("<-{"), true, false),
+                    (Some("{"), true, true),
+                    (Some("<-//"), false, true),
+                    (Some("<-}"), true, true),
+                    (Some("}"), true, false),
                 ],
             ),
             // Struct.
@@ -1231,30 +1418,30 @@ mod tests {
                     }
                 "#,
                 vec![
-                    (Some("<-#[a"), false),
-                    (Some("#[ab"), false),
-                    (Some("abc]"), false),
-                    (Some("<-#[ink"), false),
-                    (Some("#[in"), false),
-                    (Some("ink("), false),
-                    (Some("(eve"), false),
-                    (Some("(event,"), false),
-                    (Some(", anon"), false),
-                    (Some("anonymous)]"), true),
-                    (Some("<-pub"), true),
-                    (Some("pu"), true),
-                    (Some("pub"), true),
-                    (Some("<-struct"), true),
-                    (Some("st"), true),
-                    (Some("struct"), true),
-                    (Some("<-MyStruct"), true),
-                    (Some("My"), true),
-                    (Some("<-MyStruct"), true),
-                    (Some("<-{"), true),
-                    (Some("{"), true),
-                    (Some("<-//"), false),
-                    (Some("<-}"), true),
-                    (Some("}"), true),
+                    (Some("<-#[a"), false, false),
+                    (Some("#[ab"), false, false),
+                    (Some("abc]"), false, false),
+                    (Some("<-#[ink"), false, false),
+                    (Some("#[in"), false, false),
+                    (Some("ink("), false, false),
+                    (Some("(eve"), false, false),
+                    (Some("(event,"), false, false),
+                    (Some(", anon"), false, false),
+                    (Some("anonymous)]"), false, false),
+                    (Some("<-pub"), true, false),
+                    (Some("pu"), true, false),
+                    (Some("pub"), true, false),
+                    (Some("<-struct"), true, false),
+                    (Some("st"), true, false),
+                    (Some("struct"), true, false),
+                    (Some("<-MyStruct"), true, false),
+                    (Some("My"), true, false),
+                    (Some("<-MyStruct"), true, false),
+                    (Some("<-{"), true, false),
+                    (Some("{"), true, true),
+                    (Some("<-//"), false, true),
+                    (Some("<-}"), true, true),
+                    (Some("}"), true, false),
                 ],
             ),
             // Union.
@@ -1267,28 +1454,28 @@ mod tests {
                     }
                 "#,
                 vec![
-                    (Some("<-#[a"), false),
-                    (Some("#[ab"), false),
-                    (Some("abc]"), false),
-                    (Some("<-#[ink"), false),
-                    (Some("#[in"), false),
-                    (Some("ink::"), false),
-                    (Some("::storage"), false),
-                    (Some("storage_item]"), true),
-                    (Some("<-pub"), true),
-                    (Some("pu"), true),
-                    (Some("pub"), true),
-                    (Some("<-union"), true),
-                    (Some("un"), true),
-                    (Some("union"), true),
-                    (Some("<-MyUnion"), true),
-                    (Some("My"), true),
-                    (Some("<-MyUnion"), true),
-                    (Some("<-{"), true),
-                    (Some("{"), true),
-                    (Some("<-//"), false),
-                    (Some("<-}"), true),
-                    (Some("}"), true),
+                    (Some("<-#[a"), false, false),
+                    (Some("#[ab"), false, false),
+                    (Some("abc]"), false, false),
+                    (Some("<-#[ink"), false, false),
+                    (Some("#[in"), false, false),
+                    (Some("ink::"), false, false),
+                    (Some("::storage"), false, false),
+                    (Some("storage_item]"), false, false),
+                    (Some("<-pub"), true, false),
+                    (Some("pu"), true, false),
+                    (Some("pub"), true, false),
+                    (Some("<-union"), true, false),
+                    (Some("un"), true, false),
+                    (Some("union"), true, false),
+                    (Some("<-MyUnion"), true, false),
+                    (Some("My"), true, false),
+                    (Some("<-MyUnion"), true, false),
+                    (Some("<-{"), true, false),
+                    (Some("{"), true, true),
+                    (Some("<-//"), false, true),
+                    (Some("<-}"), true, true),
+                    (Some("}"), true, false),
                 ],
             ),
             // Fn.
@@ -1302,36 +1489,36 @@ mod tests {
                     }
                 "#,
                 vec![
-                    (Some("<-#[a"), false),
-                    (Some("#[ab"), false),
-                    (Some("abc]"), false),
-                    (Some("<-#[ink"), false),
-                    (Some("#[in"), false),
-                    (Some("ink("), false),
-                    (Some("(con"), false),
-                    (Some("(constructor,"), false),
-                    (Some(", select"), false),
-                    (Some("selector=1)]"), false),
-                    (Some("(pay"), false),
-                    (Some("payable)]"), true),
-                    (Some("<-pub"), true),
-                    (Some("pu"), true),
-                    (Some("pub"), true),
-                    (Some("<-fn"), true),
-                    (Some("f"), true),
-                    (Some("fn"), true),
-                    (Some("<-my_fn"), true),
-                    (Some("my_"), true),
-                    (Some("<-my_fn"), true),
-                    (Some("<-{"), true),
-                    (Some("{"), true),
-                    (Some("<-//"), false),
-                    (Some("<-}"), true),
-                    (Some("}"), true),
+                    (Some("<-#[a"), false, false),
+                    (Some("#[ab"), false, false),
+                    (Some("abc]"), false, false),
+                    (Some("<-#[ink"), false, false),
+                    (Some("#[in"), false, false),
+                    (Some("ink("), false, false),
+                    (Some("(con"), false, false),
+                    (Some("(constructor,"), false, false),
+                    (Some(", select"), false, false),
+                    (Some("selector=1)]"), false, false),
+                    (Some("(pay"), false, false),
+                    (Some("payable)]"), false, false),
+                    (Some("<-pub"), true, false),
+                    (Some("pu"), true, false),
+                    (Some("pub"), true, false),
+                    (Some("<-fn"), true, false),
+                    (Some("f"), true, false),
+                    (Some("fn"), true, false),
+                    (Some("<-my_fn"), true, false),
+                    (Some("my_"), true, false),
+                    (Some("<-my_fn"), true, false),
+                    (Some("<-{"), true, false),
+                    (Some("{"), true, true),
+                    (Some("<-//"), false, true),
+                    (Some("<-}"), true, true),
+                    (Some("}"), true, false),
                 ],
             ),
         ] {
-            for (pat, expected_result) in test_cases {
+            for (pat, expected_declaration_result, expected_body_result) in test_cases {
                 let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
                 let range = TextRange::new(offset, offset);
 
@@ -1343,8 +1530,15 @@ mod tests {
                     .unwrap();
                 assert_eq!(
                     is_focused_on_ast_item_declaration(&ast_item, range),
-                    expected_result,
-                    "code: {code}"
+                    expected_declaration_result,
+                    "code: {code} | {:#?}",
+                    pat
+                );
+                assert_eq!(
+                    is_focused_on_ast_item_body(&ast_item, range),
+                    expected_body_result,
+                    "code: {code} | {:#?}",
+                    pat
                 );
             }
         }

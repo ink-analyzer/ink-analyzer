@@ -1,7 +1,7 @@
 //! ink! contract diagnostics.
 
 use ink_analyzer_ir::meta::MetaValue;
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
+use ink_analyzer_ir::syntax::{SyntaxKind, SyntaxNode, SyntaxToken};
 use ink_analyzer_ir::{
     ast, Contract, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttributeKind,
     InkMacroKind, IsInkCallable, IsInkEntity, Selector, SelectorArg, Storage,
@@ -9,10 +9,7 @@ use ink_analyzer_ir::{
 use std::collections::HashSet;
 
 use super::{constructor, event, ink_e2e_test, ink_impl, ink_test, message, storage, utils};
-use crate::analysis::snippets::{
-    CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_PLAIN,
-    STORAGE_SNIPPET,
-};
+use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity};
@@ -109,7 +106,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L66>.
 fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
     // Gets the declaration range for the item.
-    let declaration_range = contract_declaration_range(contract);
+    let declaration_range = analysis_utils::contract_declaration_range(contract);
     match contract.module() {
         Some(module) => module.item_list().is_none().then(|| {
             let semicolon_token = contract.module().and_then(ast::Module::semicolon_token);
@@ -156,8 +153,6 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L328>.
 fn ensure_storage_quantity(results: &mut Vec<Diagnostic>, contract: &Contract) {
-    // Gets the declaration range for the item.
-    let range = contract_declaration_range(contract);
     utils::ensure_exactly_one_item(
         results,
         // All storage definitions.
@@ -165,44 +160,10 @@ fn ensure_storage_quantity(results: &mut Vec<Diagnostic>, contract: &Contract) {
             .collect::<Vec<Storage>>(),
         Diagnostic {
             message: "Missing ink! storage definition.".to_string(),
-            range,
+            range: analysis_utils::contract_declaration_range(contract),
             severity: Severity::Error,
-            quickfixes: contract
-                .module()
-                .and_then(|mod_item| Some(mod_item).zip(mod_item.item_list()))
-                .map(|(mod_item, item_list)| {
-                    // Set quickfix insertion offset at the beginning of the associated items list.
-                    let insert_offset = analysis_utils::item_insert_offset_start(&item_list);
-                    // Set quickfix insertion indent.
-                    let indent = analysis_utils::item_children_indenting(mod_item.syntax());
-                    // Gets the "resolved" contract name.
-                    let contract_name = analysis_utils::resolve_contract_name(contract);
-
-                    vec![Action {
-                        label: "Add ink! storage `struct`.".to_string(),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: vec![TextEdit::insert_with_snippet(
-                            analysis_utils::apply_indenting(
-                                contract_name
-                                    .as_deref()
-                                    .map(|name| STORAGE_PLAIN.replace("Storage", name))
-                                    .as_deref()
-                                    .unwrap_or(STORAGE_PLAIN),
-                                &indent,
-                            ),
-                            insert_offset,
-                            Some(analysis_utils::apply_indenting(
-                                contract_name
-                                    .as_deref()
-                                    .map(|name| STORAGE_SNIPPET.replace("Storage", name))
-                                    .as_deref()
-                                    .unwrap_or(STORAGE_SNIPPET),
-                                &indent,
-                            )),
-                        )],
-                    }]
-                }),
+            quickfixes: entity_actions::add_storage(contract, ActionKind::QuickFix, None)
+                .map(|action| vec![action]),
         },
         "Only one ink! storage definition can be defined for an ink! contract.",
         Severity::Error,
@@ -216,7 +177,7 @@ fn ensure_storage_quantity(results: &mut Vec<Diagnostic>, contract: &Contract) {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L145-L165>.
 fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
     // Gets the declaration range for the item.
-    let range = contract_declaration_range(contract);
+    let range = analysis_utils::contract_declaration_range(contract);
     utils::ensure_at_least_one_item(
         contract.constructors(),
         Diagnostic {
@@ -224,31 +185,12 @@ fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
                 .to_string(),
             range,
             severity: Severity::Error,
-            quickfixes: analysis_utils::callable_insert_offset_indent_and_affixes(contract).map(
-                |(insert_offset, indent, prefix, suffix)| {
-                    // Adds an ink! constructor to the first non-trait `impl` block or creates a new `impl` block if necessary.
-                    vec![Action {
-                        label: "Add ink! constructor `fn`.".to_string(),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: vec![TextEdit::insert_with_snippet(
-                            format!(
-                                "{}{}{}",
-                                prefix.as_deref().unwrap_or_default(),
-                                analysis_utils::apply_indenting(CONSTRUCTOR_PLAIN, &indent),
-                                suffix.as_deref().unwrap_or_default()
-                            ),
-                            insert_offset,
-                            Some(format!(
-                                "{}{}{}",
-                                prefix.as_deref().unwrap_or_default(),
-                                analysis_utils::apply_indenting(CONSTRUCTOR_SNIPPET, &indent),
-                                suffix.as_deref().unwrap_or_default()
-                            )),
-                        )],
-                    }]
-                },
-            ),
+            quickfixes: entity_actions::add_constructor_to_contract(
+                contract,
+                ActionKind::QuickFix,
+                None,
+            )
+            .map(|action| vec![action]),
         },
     )
 }
@@ -260,48 +202,21 @@ fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L123-L143>.
 fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
     // Gets the declaration range for the item.
-    let range = contract_declaration_range(contract);
+    let range = analysis_utils::contract_declaration_range(contract);
     utils::ensure_at_least_one_item(
         contract.messages(),
         Diagnostic {
             message: "At least one ink! message must be defined for an ink! contract.".to_string(),
             range,
             severity: Severity::Error,
-            quickfixes: analysis_utils::callable_insert_offset_indent_and_affixes(contract).map(
-                |(insert_offset, indent, prefix, suffix)| {
-                    // Adds an ink! message to the first non-trait `impl` block or creates a new `impl` block if necessary.
-                    vec![Action {
-                        label: "Add ink! message `fn`.".to_string(),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: vec![TextEdit::insert_with_snippet(
-                            format!(
-                                "{}{}{}",
-                                prefix.as_deref().unwrap_or_default(),
-                                analysis_utils::apply_indenting(MESSAGE_PLAIN, &indent),
-                                suffix.as_deref().unwrap_or_default()
-                            ),
-                            insert_offset,
-                            Some(format!(
-                                "{}{}{}",
-                                prefix.as_deref().unwrap_or_default(),
-                                analysis_utils::apply_indenting(MESSAGE_SNIPPET, &indent),
-                                suffix.as_deref().unwrap_or_default()
-                            )),
-                        )],
-                    }]
-                },
-            ),
+            quickfixes: entity_actions::add_message_to_contract(
+                contract,
+                ActionKind::QuickFix,
+                None,
+            )
+            .map(|action| vec![action]),
         },
     )
-}
-
-/// Returns text range of the contract `mod` "declaration" (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
-fn contract_declaration_range(contract: &Contract) -> TextRange {
-    contract
-        .module()
-        .and_then(|it| analysis_utils::ast_item_declaration_range(&ast::Item::Module(it.clone())))
-        .unwrap_or(contract.syntax().text_range())
 }
 
 /// Returns composed selectors for a list of ink! callable entities.
@@ -571,7 +486,7 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, cont
 mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
-    use ink_analyzer_ir::syntax::TextSize;
+    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use ink_analyzer_ir::InkFile;
     use quote::{format_ident, quote};
     use test_utils::{

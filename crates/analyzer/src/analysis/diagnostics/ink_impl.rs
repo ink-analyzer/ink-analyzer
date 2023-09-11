@@ -7,9 +7,7 @@ use ink_analyzer_ir::{
 };
 
 use super::{constructor, message, utils};
-use crate::analysis::snippets::{
-    CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET,
-};
+use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity};
@@ -78,7 +76,7 @@ pub fn diagnostics(
 fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
     ink_impl.impl_item().is_none().then_some(Diagnostic {
         message: "ink! impl must be an `impl` item.".to_string(),
-        range: impl_declaration_range(ink_impl),
+        range: analysis_utils::ink_impl_declaration_range(ink_impl),
         severity: Severity::Error,
         quickfixes: ink_impl
             .impl_attr()
@@ -275,51 +273,26 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L119-L210>.
 fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnostic> {
     // Gets the declaration range for the item.
-    let range = impl_declaration_range(ink_impl);
+    let range = analysis_utils::ink_impl_declaration_range(ink_impl);
     (ink_impl.impl_attr().is_none()
         && ink_impl.constructors().is_empty()
         && ink_impl.messages().is_empty())
     .then_some(Diagnostic {
-        message: "At least one ink! constructor or ink! message must be defined for an ink! impl without an `#[ink(impl)]` annotation."
+        message: "At least one ink! constructor or ink! message \
+        must be defined for an ink! impl without an `#[ink(impl)]` annotation."
             .to_string(),
         range,
         severity: Severity::Error,
-        quickfixes: ink_impl
-            .impl_item()
-            .as_ref()
-            .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
-            .map(|(impl_item, assoc_item_list)| {
-                // Set quickfix insertion offset at the beginning of the associated items list.
-                let insert_offset = analysis_utils::assoc_item_insert_offset_start(&assoc_item_list);
-                // Set quickfix insertion indent.
-                let indent = analysis_utils::item_children_indenting(impl_item.syntax());
-
-                vec![
-                    Action {
-                        label: "Add ink! constructor `fn`.".to_string(),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: vec![TextEdit::insert_with_snippet(
-                            analysis_utils::apply_indenting(CONSTRUCTOR_PLAIN, &indent),
-                            insert_offset,
-                            Some(analysis_utils::apply_indenting(
-                                CONSTRUCTOR_SNIPPET,
-                                &indent,
-                            )),
-                        )],
-                    },
-                    Action {
-                        label: "Add ink! message `fn`.".to_string(),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: vec![TextEdit::insert_with_snippet(
-                            analysis_utils::apply_indenting(MESSAGE_PLAIN, &indent),
-                            insert_offset,
-                            Some(analysis_utils::apply_indenting(MESSAGE_SNIPPET, &indent)),
-                        )],
-                    },
-                ]
-            }),
+        quickfixes: ink_impl.impl_item().as_ref().map(|impl_item| {
+            // Adds ink! callables if possible.
+            [
+                entity_actions::add_constructor_to_impl(impl_item, ActionKind::QuickFix, None),
+                entity_actions::add_message_to_impl(impl_item, ActionKind::QuickFix, None),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        }),
     })
 }
 
@@ -336,7 +309,7 @@ where
         message: format!(
             "ink! {ink_scope_name}s must be defined in the root of an ink! contract's `impl` block."
         ),
-        range: impl_declaration_range(ink_impl),
+        range: analysis_utils::ink_impl_declaration_range(ink_impl),
         severity: Severity::Error,
         quickfixes: ink_impl
             .impl_item()
@@ -351,14 +324,6 @@ where
                 )]
             }),
     })
-}
-
-/// Returns text range of the contract `mod` "declaration" (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
-fn impl_declaration_range(ink_impl: &InkImpl) -> TextRange {
-    ink_impl
-        .impl_item()
-        .and_then(|it| analysis_utils::ast_item_declaration_range(&ast::Item::Impl(it.clone())))
-        .unwrap_or(ink_impl.syntax().text_range())
 }
 
 /// Ensures that ink! messages and constructors are defined in the root of the `impl` item.
