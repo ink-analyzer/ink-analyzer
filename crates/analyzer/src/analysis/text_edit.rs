@@ -1,7 +1,7 @@
 //! A text edit.
 
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
-use ink_analyzer_ir::{ast, FromSyntax, InkFile};
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, TextRange, TextSize};
+use ink_analyzer_ir::{FromSyntax, InkFile};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -121,11 +121,8 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                                 "\n{}",
                                 (!edit.text.starts_with(' ') && !edit.text.starts_with('\t'))
                                     .then(|| {
-                                        ink_analyzer_ir::closest_ancestor_ast_type::<
-                                            SyntaxToken,
-                                            ast::Item,
-                                        >(&token_before)
-                                        .map(|it| utils::item_children_indenting(it.syntax()))
+                                        ink_analyzer_ir::parent_ast_item(&token_before)
+                                            .map(|it| utils::item_children_indenting(it.syntax()))
                                     })
                                     .flatten()
                                     .as_deref()
@@ -166,11 +163,8 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                                 },
                                 (!edit.text.starts_with(' ') && !edit.text.starts_with('\t'))
                                     .then(|| {
-                                        ink_analyzer_ir::closest_ancestor_ast_type::<
-                                            SyntaxToken,
-                                            ast::Item,
-                                        >(&token_before)
-                                        .and_then(|it| utils::item_indenting(it.syntax()))
+                                        ink_analyzer_ir::parent_ast_item(&token_before)
+                                            .and_then(|it| utils::item_indenting(it.syntax()))
                                     })
                                     .flatten()
                                     .as_deref()

@@ -1,17 +1,17 @@
 //! AST traversal utilities.
 
 use ra_ap_syntax::ast::HasAttrs;
-use ra_ap_syntax::{ast, AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken};
+use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxToken};
 
-use crate::traits::HasParent;
+use crate::traits::IsSyntax;
 
-/// Returns the closest AST ancestor of a specific type for the syntax element.
+/// Returns the closest AST ancestor of a specific type for the syntax "element".
 pub fn closest_ancestor_ast_type<I, T>(item: &I) -> Option<T>
 where
-    I: HasParent,
+    I: IsSyntax,
     T: AstNode,
 {
-    let parent = item.parent_node()?;
+    let parent = item.parent()?;
     if T::can_cast(parent.kind()) {
         T::cast(parent)
     } else {
@@ -20,34 +20,24 @@ where
 }
 
 /// Returns parent [AST Item](https://github.com/rust-lang/rust-analyzer/blob/master/crates/syntax/src/ast/generated/nodes.rs#L1589-L1610)
-/// for the syntax node.
-pub fn parent_ast_item(node: &SyntaxNode) -> Option<ast::Item> {
-    closest_ancestor_ast_type::<SyntaxNode, ast::Item>(node).and_then(|item| {
+/// for the syntax "element".
+pub fn parent_ast_item<T>(node: &T) -> Option<ast::Item>
+where
+    T: IsSyntax,
+{
+    closest_ancestor_ast_type::<T, ast::Item>(node).and_then(|item| {
         if node.kind() == SyntaxKind::ATTR {
             // If the subject is an attribute, we make sure it's actually applied to the AST item.
             // This handles the case where an attribute is not really applied to any AST item.
             item.attrs()
-                .any(|attr| attr.syntax() == node)
+                .any(|attr| {
+                    attr.syntax().kind() == node.kind()
+                        && attr.syntax().text_range() == node.text_range()
+                })
                 .then_some(item)
         } else {
             Some(item)
         }
-    })
-}
-
-/// Returns the first syntax token for the syntax node.
-pub fn first_child_token(node: &SyntaxNode) -> Option<SyntaxToken> {
-    node.first_child_or_token().and_then(|child| match child {
-        SyntaxElement::Token(token) => Some(token),
-        SyntaxElement::Node(node) => first_child_token(&node),
-    })
-}
-
-/// Returns the last syntax token for the syntax node.
-pub fn last_child_token(node: &SyntaxNode) -> Option<SyntaxToken> {
-    node.last_child_or_token().and_then(|child| match child {
-        SyntaxElement::Token(token) => Some(token),
-        SyntaxElement::Node(node) => last_child_token(&node),
     })
 }
 

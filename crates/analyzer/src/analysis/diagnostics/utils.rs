@@ -1075,9 +1075,7 @@ pub fn ensure_callable_invariants(
                     .or(fn_item.const_token())
                     .or(fn_item.async_token())
                     .or(fn_item.unsafe_token())
-                    .or(fn_item
-                        .abi()
-                        .and_then(|abi| ink_analyzer_ir::first_child_token(abi.syntax())))
+                    .or(fn_item.abi().and_then(|abi| abi.syntax().first_token()))
                     .or(fn_item.fn_token())
                     .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
                 .map(|range| {

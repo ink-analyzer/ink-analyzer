@@ -60,12 +60,11 @@ pub use self::{
     topic::Topic,
     trait_definition::TraitDefinition,
     traits::{
-        FromAST, FromInkAttribute, FromSyntax, HasParent, IsInkCallable, IsInkEntity, IsInkFn,
-        IsInkImplItem, IsInkStruct, IsInkTrait,
+        FromAST, FromInkAttribute, FromSyntax, IsInkCallable, IsInkEntity, IsInkFn, IsInkImplItem,
+        IsInkStruct, IsInkTrait, IsSyntax,
     },
     tree::ast_ext::{
-        closest_ancestor_ast_type, closest_item_which, closest_non_trivia_token, first_child_token,
-        last_child_token, parent_ast_item,
+        closest_ancestor_ast_type, closest_item_which, closest_non_trivia_token, parent_ast_item,
     },
     tree::utils::{
         ink_ancestors, ink_arg_by_kind, ink_args, ink_args_by_kind, ink_attrs, ink_attrs_ancestors,

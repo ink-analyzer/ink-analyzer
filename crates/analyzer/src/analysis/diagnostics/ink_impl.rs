@@ -234,7 +234,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                     .or(fn_item.async_token())
                                     .or(fn_item.unsafe_token())
                                     .or(fn_item.abi().and_then(|abi| {
-                                        ink_analyzer_ir::first_child_token(abi.syntax())
+                                        abi.syntax().first_token()
                                     }))
                                     .or(fn_item.fn_token())
                                     .map(|it| {

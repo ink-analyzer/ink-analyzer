@@ -563,10 +563,11 @@ pub fn ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
             .as_ref()
             .map(ast::Attr::syntax))
         // First the last token for last ink! attribute or generic attribute (if any).
-        .and_then(ink_analyzer_ir::last_child_token)
+        .and_then(SyntaxNode::last_token)
         // Otherwise finds the first trivia/rustdoc token for item (if any).
-        .or(ink_analyzer_ir::first_child_token(node)
-            .and_then(|first_token| first_token.kind().is_trivia().then_some(first_token)))
+        .or(node
+            .first_token()
+            .filter(|first_token| first_token.kind().is_trivia()))
         // Finds the first non-(attribute/rustdoc/trivia) token for the item.
         .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
         .as_ref()
@@ -642,22 +643,19 @@ pub fn ink_arg_insertion_offset_and_affixes(
                                             }
                                         })
                                     })
-                                    .unwrap_or(
-                                        match ink_analyzer_ir::last_child_token(token_tree.syntax())
-                                        {
-                                            Some(last_token) => match last_token.kind() {
-                                                SyntaxKind::COMMA
-                                                | SyntaxKind::L_PAREN
-                                                | SyntaxKind::R_PAREN => "",
-                                                // Adds a comma if there is no right parenthesis and the last token is
-                                                // neither a comma nor the left parenthesis
-                                                // (the right parenthesis in the pattern above will likely never match anything,
-                                                // but parsers are weird :-) so we leave it for robustness? and clarity).
-                                                _ => ", ",
-                                            },
-                                            None => "",
+                                    .unwrap_or(match token_tree.syntax().last_token() {
+                                        Some(last_token) => match last_token.kind() {
+                                            SyntaxKind::COMMA
+                                            | SyntaxKind::L_PAREN
+                                            | SyntaxKind::R_PAREN => "",
+                                            // Adds a comma if there is no right parenthesis and the last token is
+                                            // neither a comma nor the left parenthesis
+                                            // (the right parenthesis in the pattern above will likely never match anything,
+                                            // but parsers are weird :-) so we leave it for robustness? and clarity).
+                                            _ => ", ",
                                         },
-                                    )
+                                        None => "",
+                                    })
                             }
                         }
                         // Adds a left parenthesis if none already exists.
@@ -680,23 +678,19 @@ pub fn ink_arg_insertion_offset_and_affixes(
                                             }
                                         })
                                     })
-                                    .unwrap_or(
-                                        match ink_analyzer_ir::first_child_token(
-                                            token_tree.syntax(),
-                                        ) {
-                                            Some(first_token) => match first_token.kind() {
-                                                SyntaxKind::COMMA
-                                                | SyntaxKind::L_PAREN
-                                                | SyntaxKind::R_PAREN => "",
-                                                // Adds a comma if there is no left parenthesis and the first token is
-                                                // neither a comma nor the right parenthesis
-                                                // (the left parenthesis in the pattern above will likely never match anything,
-                                                // but parsers are weird :-) so we leave it for robustness? and clarity).
-                                                _ => ", ",
-                                            },
-                                            None => "",
+                                    .unwrap_or(match token_tree.syntax().first_token() {
+                                        Some(first_token) => match first_token.kind() {
+                                            SyntaxKind::COMMA
+                                            | SyntaxKind::L_PAREN
+                                            | SyntaxKind::R_PAREN => "",
+                                            // Adds a comma if there is no left parenthesis and the first token is
+                                            // neither a comma nor the right parenthesis
+                                            // (the left parenthesis in the pattern above will likely never match anything,
+                                            // but parsers are weird :-) so we leave it for robustness? and clarity).
+                                            _ => ", ",
                                         },
-                                    )
+                                        None => "",
+                                    })
                             } else {
                                 // No suffix for "non-primary" attribute arguments that already have a right parenthesis after them.
                                 ""
@@ -871,9 +865,7 @@ pub fn parent_ast_item<T: FromSyntax>(item: &T, range: TextRange) -> Option<ast:
                 covering_element.into_node().and_then(ast::Item::cast)
             } else {
                 // Finds the parent AST item (if any) of the covering element.
-                ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxElement, ast::Item>(
-                    &covering_element,
-                )
+                ink_analyzer_ir::parent_ast_item(&covering_element)
             }
         })
     }
@@ -1055,7 +1047,7 @@ pub fn node_and_trivia_range(node: &SyntaxNode) -> TextRange {
     TextRange::new(
         node.text_range().start(),
         // Either the start of the next non-trivia token or the end of the target node.
-        ink_analyzer_ir::last_child_token(node)
+        node.last_token()
             .as_ref()
             .map_or(node.text_range(), token_and_trivia_range)
             .end(),
@@ -1101,7 +1093,8 @@ pub fn token_and_delimiter_range(token: &SyntaxToken, delimiter: SyntaxKind) -> 
 /// Returns text range of the syntax node and it's immediate (next or previous) delimiter (e.g comma - ",").
 pub fn node_and_delimiter_range(node: &SyntaxNode, delimiter: SyntaxKind) -> TextRange {
     // Gets the end position.
-    let end = ink_analyzer_ir::last_child_token(node)
+    let end = node
+        .last_token()
         .as_ref()
         .map(|token| token_and_delimiter_range(token, delimiter))
         .unwrap_or(node.text_range())
@@ -1114,7 +1107,7 @@ pub fn node_and_delimiter_range(node: &SyntaxNode, delimiter: SyntaxKind) -> Tex
                 // Returns a text range including previous delimiter token (if any).
                 // Previous is implied because we know there's no next delimiter
                 // because `end == node.text_range().end()`.
-                ink_analyzer_ir::first_child_token(node)
+                node.first_token()
                     .map(|token| token_and_delimiter_range(&token, delimiter))
             })
             .flatten()
@@ -1144,7 +1137,7 @@ pub fn ink_arg_and_delimiter_removal_range(
             .last()
         })
         .and_then(|elem| match elem {
-            SyntaxElement::Node(node) => ink_analyzer_ir::last_child_token(node),
+            SyntaxElement::Node(node) => node.last_token(),
             SyntaxElement::Token(token) => Some(token.clone()),
         })
         // Equal token ("=") if no value is present.
@@ -1153,7 +1146,7 @@ pub fn ink_arg_and_delimiter_removal_range(
         .or(arg.meta().name().option().and_then(|result| match result {
             Ok(name) => Some(name.syntax().clone()),
             Err(elements) => elements.last().and_then(|elem| match elem {
-                SyntaxElement::Node(node) => ink_analyzer_ir::last_child_token(node),
+                SyntaxElement::Node(node) => node.last_token(),
                 SyntaxElement::Token(token) => Some(token.clone()),
             }),
         }));
@@ -1190,7 +1183,7 @@ pub fn ink_arg_and_delimiter_removal_range(
                     .and_then(|result| match result {
                         Ok(name) => Some(name.syntax().clone()),
                         Err(elements) => elements.last().and_then(|elem| match elem {
-                            SyntaxElement::Node(node) => ink_analyzer_ir::first_child_token(node),
+                            SyntaxElement::Node(node) => node.first_token(),
                             SyntaxElement::Token(token) => Some(token.clone()),
                         }),
                     })
@@ -1209,7 +1202,7 @@ pub fn ink_arg_and_delimiter_removal_range(
                             .first()
                         })
                         .and_then(|elem| match elem {
-                            SyntaxElement::Node(node) => ink_analyzer_ir::first_child_token(node),
+                            SyntaxElement::Node(node) => node.first_token(),
                             SyntaxElement::Token(token) => Some(token.clone()),
                         }))
             })

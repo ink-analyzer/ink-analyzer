@@ -118,9 +118,7 @@ impl ItemAtOffset {
                 None => None,
             },
             // Non-attributes are straight forward.
-            None => self.focused_token().and_then(|focused_token| {
-                ast_ext::closest_ancestor_ast_type::<SyntaxToken, ast::Item>(focused_token)
-            }),
+            None => self.focused_token().and_then(ast_ext::parent_ast_item),
         }
     }
 
