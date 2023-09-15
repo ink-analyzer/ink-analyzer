@@ -1,7 +1,7 @@
 //! ink! attribute code/intent actions.
 
 use ink_analyzer_ir::ast::HasAttrs;
-use ink_analyzer_ir::syntax::{AstNode, SyntaxNode, SyntaxToken, TextRange, TextSize};
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{
     ast, ChainExtension, Contract, FromAST, FromInkAttribute, FromSyntax, InkAttribute,
     InkAttributeKind, InkFile, InkImpl, InkMacroKind, TraitDefinition,
@@ -134,52 +134,99 @@ impl Action {
 
 /// Computes AST item-based ink! attribute actions at the given text range.
 pub fn ast_item_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
-    // Only computes actions if a focused element can be determined.
-    if let Some(focused_elem) = utils::focused_element(file, range) {
-        // Only computes actions if the focused element isn't part of an attribute.
-        if utils::covering_attribute(file, range).is_none() {
-            // Only computes actions if the parent AST item can be determined.
-            if let Some(ast_item) = utils::parent_ast_item(file, range) {
-                // Gets the covering struct record field (if any) if the AST item is a struct.
-                let record_field: Option<ast::RecordField> =
-                    matches!(&ast_item, ast::Item::Struct(_))
-                        .then(|| ink_analyzer_ir::closest_ancestor_ast_type(&focused_elem))
-                        .flatten();
-
-                // Only computes ink! attribute actions if the focus is on either a struct record field or
-                // an AST item's declaration (i.e not on attributes nor rustdoc nor inside the AST item's item list or body) for
-                // an item that can be annotated with ink! attributes.
-                if record_field.is_some() || is_focused_on_ast_item_declaration(&ast_item, range) {
-                    // Retrieves the target syntax node as either the covering struct field (if present) or
-                    // the parent AST item (for all other cases).
-                    let target = record_field
-                        .as_ref()
-                        .map_or(ast_item.syntax(), AstNode::syntax);
-
-                    // Determines text range for item "declaration" (fallbacks to range of the entire item).
-                    let item_declaration_text_range = record_field
-                        .as_ref()
-                        .map(|it| it.syntax().text_range())
-                        .or(utils::ast_item_declaration_range(&ast_item))
-                        .unwrap_or(ast_item.syntax().text_range());
-
-                    // Suggests ink! attribute macros based on the context.
-                    ast_item_add_ink_macro_actions(results, target, item_declaration_text_range);
-
-                    // Suggests ink! attribute arguments based on the context.
-                    ast_item_add_ink_arg_actions(results, target, item_declaration_text_range);
+    match utils::focused_element(file, range) {
+        // Computes actions based on focused element (if it can be determined).
+        Some(focused_elem) => {
+            // Computes an offset for inserting around the focused element
+            // (i.e. insert at the end of the focused element except if it's whitespace,
+            // in which case insert based on the passed text range).
+            let focused_elem_insert_offset = || -> TextSize {
+                if focused_elem.kind() == SyntaxKind::WHITESPACE
+                    && focused_elem.text_range().contains_range(range)
+                {
+                    range
+                } else {
+                    focused_elem.text_range()
                 }
+                .end()
+            };
 
-                // Only computes ink! entities if the focus is on either an AST item's "declaration" or body
-                // (i.e not on meta - attributes/rustdoc) for an item that can can have ink! attribute descendants.
-                let is_focused_on_body = is_focused_on_ast_item_body(&ast_item, range);
-                if is_focused_on_ast_item_declaration(&ast_item, range) || is_focused_on_body {
-                    ast_item_add_ink_entity_actions(
-                        results,
-                        &ast_item,
-                        is_focused_on_body.then_some(focused_elem.text_range().end()),
-                    );
+            // Only computes actions if the focused element isn't part of an attribute.
+            if utils::covering_attribute(file, range).is_none() {
+                match utils::parent_ast_item(file, range) {
+                    // Computes actions based on the parent AST item.
+                    Some(ast_item) => {
+                        // Gets the covering struct record field (if any) if the AST item is a struct.
+                        let record_field: Option<ast::RecordField> =
+                            matches!(&ast_item, ast::Item::Struct(_))
+                                .then(|| ink_analyzer_ir::closest_ancestor_ast_type(&focused_elem))
+                                .flatten();
+
+                        // Only computes ink! attribute actions if the focus is on either a struct record field or
+                        // an AST item's declaration (i.e not on attributes nor rustdoc nor inside the AST item's item list or body) for
+                        // an item that can be annotated with ink! attributes.
+                        if record_field.is_some()
+                            || is_focused_on_ast_item_declaration(&ast_item, range)
+                        {
+                            // Retrieves the target syntax node as either the covering struct field (if present) or
+                            // the parent AST item (for all other cases).
+                            let target = record_field
+                                .as_ref()
+                                .map_or(ast_item.syntax(), AstNode::syntax);
+
+                            // Determines text range for item "declaration" (fallbacks to range of the entire item).
+                            let item_declaration_text_range = record_field
+                                .as_ref()
+                                .map(|it| it.syntax().text_range())
+                                .or(utils::ast_item_declaration_range(&ast_item))
+                                .unwrap_or(ast_item.syntax().text_range());
+
+                            // Suggests ink! attribute macros based on the context.
+                            ast_item_add_ink_macro_actions(
+                                results,
+                                target,
+                                item_declaration_text_range,
+                            );
+
+                            // Suggests ink! attribute arguments based on the context.
+                            ast_item_add_ink_arg_actions(
+                                results,
+                                target,
+                                item_declaration_text_range,
+                            );
+                        }
+
+                        // Only computes ink! entity actions if the focus is on either an AST item's "declaration" or body
+                        // (i.e not on meta - attributes/rustdoc) for an item that can can have ink! attribute descendants.
+                        let is_focused_on_body = is_focused_on_ast_item_body(&ast_item, range);
+                        if is_focused_on_ast_item_declaration(&ast_item, range)
+                            || is_focused_on_body
+                        {
+                            ast_item_add_ink_entity_actions(
+                                results,
+                                &ast_item,
+                                is_focused_on_body.then_some(focused_elem_insert_offset()),
+                            );
+                        }
+                    }
+                    // Computes root-level ink! entity actions if focused element is whitespace in the root of the file (i.e. has no AST parent).
+                    None => {
+                        let is_in_file_root = focused_elem
+                            .parent()
+                            .map_or(false, |it| it.kind() == SyntaxKind::SOURCE_FILE);
+                        if is_in_file_root {
+                            root_ink_entity_actions(results, file, focused_elem_insert_offset());
+                        }
+                    }
                 }
+            }
+        }
+        // Computes root-level ink! entity actions if file is empty.
+        None => {
+            if file.syntax().text_range().is_empty()
+                && file.syntax().text_range().contains_range(range)
+            {
+                root_ink_entity_actions(results, file, range.end());
             }
         }
     }
@@ -495,6 +542,28 @@ fn ast_item_add_ink_entity_actions(
     }
 }
 
+/// Computes root-level ink! entity macro actions.
+fn root_ink_entity_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextSize) {
+    if file.contracts().is_empty() {
+        // Adds ink! contract.
+        results.push(entity::add_contract(offset, ActionKind::Refactor, None));
+    }
+
+    // Adds ink! trait definition.
+    results.push(entity::add_trait_definition(
+        offset,
+        ActionKind::Refactor,
+        None,
+    ));
+
+    // Adds ink! chain extension.
+    results.push(entity::add_chain_extension(
+        offset,
+        ActionKind::Refactor,
+        None,
+    ));
+}
+
 /// Computes ink! attribute-based actions at the given text range.
 pub fn ink_attribute_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
     // Only computes actions if the focused range is part of/covered by an ink! attribute.
@@ -600,8 +669,65 @@ mod tests {
             // pat_start = substring used to find the start of the edit offset (see `test_utils::parse_offset_at` doc),
             // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
 
-            // No AST item declaration in focus.
-            ("// A comment in focus.", None, vec![]),
+            // No AST item in focus.
+            (
+                "",
+                None,
+                vec![
+                    ("#[ink::contract]", None, None),
+                    ("#[ink::trait_definition]", None, None),
+                    ("#[ink::chain_extension]", None, None),
+                ],
+            ),
+            (
+                " ",
+                None,
+                vec![
+                    ("#[ink::contract]", Some(" "), Some(" ")),
+                    ("#[ink::trait_definition]", Some(" "), Some(" ")),
+                    ("#[ink::chain_extension]", Some(" "), Some(" ")),
+                ],
+            ),
+            (
+                "\n\n",
+                Some("\n"),
+                vec![
+                    ("#[ink::contract]", Some("\n"), Some("\n")),
+                    ("#[ink::trait_definition]", Some("\n"), Some("\n")),
+                    ("#[ink::chain_extension]", Some("\n"), Some("\n")),
+                ],
+            ),
+            (
+                "// A comment in focus.",
+                None,
+                vec![
+                    (
+                        "#[ink::contract]",
+                        Some("// A comment in focus."),
+                        Some("// A comment in focus."),
+                    ),
+                    (
+                        "#[ink::trait_definition]",
+                        Some("// A comment in focus."),
+                        Some("// A comment in focus."),
+                    ),
+                    (
+                        "#[ink::chain_extension]",
+                        Some("// A comment in focus."),
+                        Some("// A comment in focus."),
+                    ),
+                ],
+            ),
+            // Module focus.
+            (
+                r#"
+                    mod my_module {
+
+                    }
+                "#,
+                Some("<-\n                    }"),
+                vec![],
+            ),
             (
                 r#"
                     mod my_module {
@@ -611,7 +737,6 @@ mod tests {
                 Some("<-//"),
                 vec![],
             ),
-            // Module focus.
             (
                 r#"
                     mod my_contract {
@@ -706,6 +831,37 @@ mod tests {
                         "#[ink(message)]",
                         Some("mod my_contract {"),
                         Some("mod my_contract {"),
+                    ),
+                ],
+            ),
+            (
+                r#"
+                    #[ink::contract]
+                    mod my_contract {
+
+                    }
+                "#,
+                Some("<-\n                    }"),
+                vec![
+                    (
+                        "#[ink(storage)]",
+                        Some("<-\n                    }"),
+                        Some("<-\n                    }"),
+                    ),
+                    (
+                        "#[ink(event)]",
+                        Some("<-\n                    }"),
+                        Some("<-\n                    }"),
+                    ),
+                    (
+                        "#[ink(constructor)]",
+                        Some("<-\n                    }"),
+                        Some("<-\n                    }"),
+                    ),
+                    (
+                        "#[ink(message)]",
+                        Some("<-\n                    }"),
+                        Some("<-\n                    }"),
                     ),
                 ],
             ),
@@ -1316,6 +1472,7 @@ mod tests {
                     #[ink::contract]
                     mod my_module {
                         // The module declaration is out of focus when this comment is in focus.
+
                     }
                 "#,
                 vec![
@@ -1336,6 +1493,7 @@ mod tests {
                     (Some("<-{"), true, false),
                     (Some("{"), true, true),
                     (Some("<-//"), false, true),
+                    (Some("<-\n                    }"), false, true),
                     (Some("<-}"), true, true),
                     (Some("}"), true, false),
                 ],

@@ -5,10 +5,12 @@ use ink_analyzer_ir::{ast, ChainExtension, Contract, FromSyntax, IsInkTrait, Tra
 
 use super::{Action, ActionKind};
 use crate::analysis::snippets::{
-    CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN,
+    CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_SNIPPET, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET,
+    CONTRACT_PLAIN, CONTRACT_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN,
     EVENT_SNIPPET, EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET,
     INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_PLAIN,
-    STORAGE_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
+    STORAGE_SNIPPET, TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN,
+    TRAIT_MESSAGE_SNIPPET,
 };
 use crate::analysis::utils;
 use crate::TextEdit;
@@ -420,4 +422,77 @@ pub fn add_ink_e2e_test(
                 )],
             }
         })
+}
+
+/// Creates an insert edit with a snippet and indenting.
+fn insert_edit_with_snippet_and_indent(
+    text: &str,
+    offset: TextSize,
+    snippet_option: Option<&str>,
+    indent_option: Option<&str>,
+) -> TextEdit {
+    TextEdit::insert_with_snippet(
+        match indent_option {
+            Some(indent) => utils::apply_indenting(text, indent),
+            None => text.to_string(),
+        },
+        offset,
+        snippet_option.map(|snippet| match indent_option {
+            Some(indent) => utils::apply_indenting(snippet, indent),
+            None => snippet.to_string(),
+        }),
+    )
+}
+
+/// Add an ink! contract `mod`.
+pub fn add_contract(offset: TextSize, kind: ActionKind, indent_option: Option<&str>) -> Action {
+    Action {
+        label: "Add ink! contract `mod`.".to_string(),
+        kind,
+        range: TextRange::new(offset, offset),
+        edits: vec![insert_edit_with_snippet_and_indent(
+            CONTRACT_PLAIN,
+            offset,
+            Some(CONTRACT_SNIPPET),
+            indent_option,
+        )],
+    }
+}
+
+/// Add an ink! trait definition `trait`.
+pub fn add_trait_definition(
+    offset: TextSize,
+    kind: ActionKind,
+    indent_option: Option<&str>,
+) -> Action {
+    Action {
+        label: "Add ink! trait definition.".to_string(),
+        kind,
+        range: TextRange::new(offset, offset),
+        edits: vec![insert_edit_with_snippet_and_indent(
+            TRAIT_DEFINITION_PLAIN,
+            offset,
+            Some(TRAIT_DEFINITION_SNIPPET),
+            indent_option,
+        )],
+    }
+}
+
+/// Add an ink! chain extension `trait`.
+pub fn add_chain_extension(
+    offset: TextSize,
+    kind: ActionKind,
+    indent_option: Option<&str>,
+) -> Action {
+    Action {
+        label: "Add ink! chain extension `trait`.".to_string(),
+        kind,
+        range: TextRange::new(offset, offset),
+        edits: vec![insert_edit_with_snippet_and_indent(
+            CHAIN_EXTENSION_PLAIN,
+            offset,
+            Some(CHAIN_EXTENSION_SNIPPET),
+            indent_option,
+        )],
+    }
 }
