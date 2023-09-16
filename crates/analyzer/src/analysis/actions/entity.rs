@@ -4,7 +4,8 @@ use ink_analyzer_ir::syntax::{AstNode, TextRange, TextSize};
 use ink_analyzer_ir::{ast, ChainExtension, Contract, FromSyntax, IsInkTrait, TraitDefinition};
 
 use super::{Action, ActionKind};
-use crate::analysis::snippets::{
+use crate::analysis::utils;
+use crate::codegen::snippets::{
     CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_SNIPPET, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET,
     CONTRACT_PLAIN, CONTRACT_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN,
     EVENT_SNIPPET, EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET,
@@ -12,7 +13,6 @@ use crate::analysis::snippets::{
     STORAGE_SNIPPET, TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN,
     TRAIT_MESSAGE_SNIPPET,
 };
-use crate::analysis::utils;
 use crate::TextEdit;
 
 /// Adds an ink! storage `struct` to an ink! contract `mod` item.

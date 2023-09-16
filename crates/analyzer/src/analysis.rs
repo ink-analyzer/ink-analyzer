@@ -16,7 +16,6 @@ mod completions;
 mod diagnostics;
 mod hover;
 mod inlay_hints;
-mod snippets;
 mod text_edit;
 mod utils;
 

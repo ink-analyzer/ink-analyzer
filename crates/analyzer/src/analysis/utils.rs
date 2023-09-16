@@ -11,6 +11,8 @@ use ink_analyzer_ir::{
 };
 use std::collections::HashSet;
 
+use crate::utils;
+
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
 ///
 /// (i.e argument kinds that don't conflict with the given ink! attribute kind,
@@ -1401,26 +1403,7 @@ pub fn resolve_contract_name(contract: &Contract) -> Option<String> {
             .as_ref()
             .map(ToString::to_string)
             .as_deref()
-            .map(pascal_case))
-}
-
-/// Converts a name to Pascal case (i.e. UpperCamelCase).
-///
-/// Ref: <https://github.com/serde-rs/serde/blob/dad15b9fd0bef97b7a7c90a8a165b6ffbc682cae/serde_derive/src/internals/case.rs#L86-L100>.
-fn pascal_case(field: &str) -> String {
-    let mut pascal = String::new();
-    let mut capitalize = true;
-    for ch in field.chars() {
-        if ch == '_' {
-            capitalize = true;
-        } else if capitalize {
-            pascal.push(ch.to_ascii_uppercase());
-            capitalize = false;
-        } else {
-            pascal.push(ch);
-        }
-    }
-    pascal
+            .map(utils::pascal_case))
 }
 
 /// Applies indenting to a snippet.

@@ -25,7 +25,7 @@ macro_rules! quote_as_str {
 }
 
 /// Quasi-quotation macro that accepts input like the `quote!` macro
-/// but returns a [`prettyplease`] formatted string (`String`) instead of a `TokenStream`.
+/// but returns a `prettyplease` formatted string (`String`) instead of a `TokenStream`.
 #[macro_export]
 macro_rules! quote_as_pretty_string {
     ($($tt:tt)*) => {
