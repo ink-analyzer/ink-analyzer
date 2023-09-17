@@ -1221,7 +1221,7 @@ pub fn ink_arg_and_delimiter_removal_range(
     )
 }
 
-/// Returns the offset for the beginning of an item list (e.g body of an AST item - i.e `mod` e.t.c.)
+/// Returns the offset for the beginning of an item list (e.g body of an AST item - i.e `mod` e.t.c).
 pub fn item_insert_offset_start(item_list: &ast::ItemList) -> TextSize {
     item_list
         .l_curly_token()
@@ -1233,7 +1233,7 @@ pub fn item_insert_offset_start(item_list: &ast::ItemList) -> TextSize {
         .unwrap_or(item_list.syntax().text_range().start())
 }
 
-/// Returns the offset for the end of an item list (e.g body of an AST item - i.e `mod` e.t.c.)
+/// Returns the offset for the end of an item list (e.g body of an AST item - i.e `mod` e.t.c).
 pub fn item_insert_offset_end(item_list: &ast::ItemList) -> TextSize {
     item_list
         // Determines position after the last item in the item list.
@@ -1244,7 +1244,7 @@ pub fn item_insert_offset_end(item_list: &ast::ItemList) -> TextSize {
         .unwrap_or(item_insert_offset_start(item_list))
 }
 
-/// Returns the offset after the end of the last `struct` (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c.).
+/// Returns the offset after the end of the last `struct` (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c).
 /// Defaults to the beginning of the item list if no `struct`s are present.
 pub fn item_insert_offset_after_last_struct_or_start(item_list: &ast::ItemList) -> TextSize {
     item_list
@@ -1256,7 +1256,7 @@ pub fn item_insert_offset_after_last_struct_or_start(item_list: &ast::ItemList) 
 }
 
 /// Returns the offset after the end of the last `impl` (if any), or the end of the last `struct` (if any),
-/// or the beginning of the first `mod` (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c.).
+/// or the beginning of the first `mod` (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c).
 /// Defaults to the end of the item list if no `impl`s, `struct`s nor `mod`s are present.
 pub fn item_insert_offset_impl(item_list: &ast::ItemList) -> TextSize {
     item_list
@@ -1297,7 +1297,7 @@ pub fn item_insert_offset_by_scope_name(
     }
 }
 
-/// Returns the offset for the beginning of an associated item list (e.g body of an AST item - i.e `fn`, `trait` e.t.c.)
+/// Returns the offset for the beginning of an associated item list (e.g body of an AST item - i.e `fn`, `trait` e.t.c).
 pub fn assoc_item_insert_offset_start(assoc_item_list: &ast::AssocItemList) -> TextSize {
     assoc_item_list
         .l_curly_token()
@@ -1309,7 +1309,7 @@ pub fn assoc_item_insert_offset_start(assoc_item_list: &ast::AssocItemList) -> T
         .unwrap_or(assoc_item_list.syntax().text_range().start())
 }
 
-/// Returns the offset for the end of an associated item list (e.g body of an AST item - i.e `fn`, `trait` e.t.c.)
+/// Returns the offset for the end of an associated item list (e.g body of an AST item - i.e `fn`, `trait` e.t.c).
 pub fn assoc_item_insert_offset_end(assoc_item_list: &ast::AssocItemList) -> TextSize {
     assoc_item_list
         // Determines position after the last item in the associated item list.
@@ -1318,6 +1318,91 @@ pub fn assoc_item_insert_offset_end(assoc_item_list: &ast::AssocItemList) -> Tex
         .map(|it| it.syntax().text_range().end())
         // Defaults to the start if associated item list is empty because it's easier to apply additional formatting that way.
         .unwrap_or(assoc_item_insert_offset_start(assoc_item_list))
+}
+
+/// Returns the offset for the beginning of a field list and affixes (prefix and suffix).
+pub fn field_insert_offset_start_and_affixes(
+    field_list: &ast::FieldList,
+) -> (TextSize, Option<String>, Option<String>) {
+    match field_list {
+        ast::FieldList::RecordFieldList(record_field_list) => record_field_list
+            .l_curly_token()
+            .map(|it| (it.text_range().end(), None, None))
+            .or(record_field_list.fields().next().map(|it| {
+                (
+                    it.syntax().text_range().start(),
+                    None,
+                    Some(format!(
+                        "\n{}",
+                        item_children_indenting(field_list.syntax())
+                    )),
+                )
+            }))
+            .unwrap_or((record_field_list.syntax().text_range().start(), None, None)),
+        ast::FieldList::TupleFieldList(tuple_field_list) => tuple_field_list
+            .l_paren_token()
+            .map(|it| (it.text_range().end(), None, None))
+            .or(tuple_field_list.fields().next().map(|it| {
+                (
+                    it.syntax().text_range().start(),
+                    None,
+                    Some(", ".to_string()),
+                )
+            }))
+            .unwrap_or((tuple_field_list.syntax().text_range().start(), None, None)),
+    }
+}
+
+/// Returns the offset for the end of a field list and affixes (prefix and suffix).
+pub fn field_insert_offset_end_and_affixes(
+    field_list: &ast::FieldList,
+) -> (TextSize, Option<String>, Option<String>) {
+    // Determines the insert prefix for inserting after a field item.
+    let insert_after_prefix = |last_field: &SyntaxNode, is_block: bool| {
+        let has_comma = last_field
+            .last_token()
+            .and_then(|token| {
+                ink_analyzer_ir::closest_item_which(
+                    &token,
+                    |subject| subject.next_token(),
+                    |subject| subject.kind() == SyntaxKind::COMMA,
+                    |subject| !subject.kind().is_trivia(),
+                )
+            })
+            .is_some();
+        (!has_comma || is_block).then_some(format!(
+            "{}{}",
+            if has_comma { "" } else { "," },
+            if is_block { "\n" } else { " " }
+        ))
+    };
+
+    match field_list {
+        ast::FieldList::RecordFieldList(record_field_list) => record_field_list
+            // Determines position after the last field in the record field list.
+            .fields()
+            .last()
+            .map(|it| {
+                (
+                    node_and_delimiter_range(it.syntax(), SyntaxKind::COMMA).end(),
+                    insert_after_prefix(it.syntax(), true),
+                    None,
+                )
+            }),
+        ast::FieldList::TupleFieldList(tuple_field_list) => tuple_field_list
+            // Determines position after the last field in the tuple field list.
+            .fields()
+            .last()
+            .map(|it| {
+                (
+                    node_and_delimiter_range(it.syntax(), SyntaxKind::COMMA).end(),
+                    insert_after_prefix(it.syntax(), false),
+                    None,
+                )
+            }),
+    }
+    // Defaults to the start if field list is empty because it's easier to apply additional formatting that way.
+    .unwrap_or(field_insert_offset_start_and_affixes(field_list))
 }
 
 /// Returns an offset, indenting and affixes (prefix and suffix)

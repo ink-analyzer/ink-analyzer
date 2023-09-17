@@ -14,6 +14,11 @@ pub struct ${1:Event} {
     $2
 }"#;
 
+pub const TOPIC_PLAIN: &str = r#"#[ink(topic)]
+topic: bool,"#;
+pub const TOPIC_SNIPPET: &str = r#"#[ink(topic)]
+${1:topic}: ${2:bool},"#;
+
 pub const CONSTRUCTOR_PLAIN: &str = r#"#[ink(constructor)]
 pub fn new() -> Self {
     todo!()

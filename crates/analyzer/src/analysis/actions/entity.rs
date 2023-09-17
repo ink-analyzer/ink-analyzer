@@ -1,7 +1,9 @@
 //! ink! entity code/intent actions.
 
 use ink_analyzer_ir::syntax::{AstNode, TextRange, TextSize};
-use ink_analyzer_ir::{ast, ChainExtension, Contract, FromSyntax, IsInkTrait, TraitDefinition};
+use ink_analyzer_ir::{
+    ast, ChainExtension, Contract, Event, FromSyntax, IsInkStruct, IsInkTrait, TraitDefinition,
+};
 
 use super::{Action, ActionKind};
 use crate::analysis::utils;
@@ -10,8 +12,8 @@ use crate::codegen::snippets::{
     CONTRACT_PLAIN, CONTRACT_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN,
     EVENT_SNIPPET, EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET,
     INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN,
-    STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TRAIT_DEFINITION_PLAIN,
-    TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
+    STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN, TOPIC_SNIPPET,
+    TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
 };
 use crate::TextEdit;
 
@@ -103,6 +105,51 @@ pub fn add_event(
                                 .as_deref()
                                 .unwrap_or(EVENT_SNIPPET),
                             &indent,
+                        )),
+                    )],
+                }
+            })
+    })
+}
+
+/// Adds an ink! topic to an ink! event `struct` item.
+pub fn add_topic(
+    event: &Event,
+    kind: ActionKind,
+    insert_offset_option: Option<TextSize>,
+) -> Option<Action> {
+    event.struct_item().and_then(|struct_item| {
+        // Sets insert offset or defaults to inserting at the end of the field list (if possible).
+        insert_offset_option
+            .map(|offset| (offset, None, None))
+            .or(struct_item
+                .field_list()
+                .as_ref()
+                .map(utils::field_insert_offset_end_and_affixes))
+            .map(|(insert_offset, prefix, suffix)| {
+                // Sets insert indent.
+                let indent = utils::item_children_indenting(struct_item.syntax());
+
+                Action {
+                    label: "Add ink! topic `field`.".to_string(),
+                    kind,
+                    range: utils::ast_item_declaration_range(&ast::Item::Struct(
+                        struct_item.clone(),
+                    ))
+                    .unwrap_or(struct_item.syntax().text_range()),
+                    edits: vec![TextEdit::insert_with_snippet(
+                        format!(
+                            "{}{}{}",
+                            prefix.as_deref().unwrap_or_default(),
+                            utils::apply_indenting(TOPIC_PLAIN, &indent),
+                            suffix.as_deref().unwrap_or_default()
+                        ),
+                        insert_offset,
+                        Some(format!(
+                            "{}{}{}",
+                            prefix.as_deref().unwrap_or_default(),
+                            utils::apply_indenting(TOPIC_SNIPPET, &indent),
+                            suffix.as_deref().unwrap_or_default()
                         )),
                     )],
                 }
@@ -500,7 +547,7 @@ pub fn add_chain_extension(
 /// Add an ink! storage item.
 pub fn add_storage_item(offset: TextSize, kind: ActionKind, indent_option: Option<&str>) -> Action {
     Action {
-        label: "Add ink! storage item.".to_string(),
+        label: "Add ink! storage item `ADT` (i.e. `struct`, `enum` or `union`).".to_string(),
         kind,
         range: TextRange::new(offset, offset),
         edits: vec![insert_edit_with_snippet_and_indent(

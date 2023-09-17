@@ -3,8 +3,8 @@
 use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, FromInkAttribute, FromSyntax, InkAttribute, InkAttributeKind,
-    InkFile, InkImpl, InkMacroKind, TraitDefinition,
+    ast, ChainExtension, Contract, Event, FromInkAttribute, FromSyntax, InkArgKind, InkAttribute,
+    InkAttributeKind, InkFile, InkImpl, InkMacroKind, TraitDefinition,
 };
 
 use super::entity;
@@ -68,10 +68,13 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                             ink_arg_actions(results, target, item_declaration_text_range);
                         }
 
-                        // Only computes ink! entity actions if the focus is on either an AST item's "declaration" or body
+                        // Only computes ink! entity actions if the focus is on either
+                        // an AST item's "declaration" or body (except for record fields)
                         // (i.e not on meta - attributes/rustdoc) for an item that can can have ink! attribute descendants.
                         let is_focused_on_body = is_focused_on_item_body(&ast_item, range);
-                        if is_focused_on_item_declaration(&ast_item, range) || is_focused_on_body {
+                        if is_focused_on_item_declaration(&ast_item, range)
+                            || (is_focused_on_body && record_field.is_none())
+                        {
                             item_ink_entity_actions(
                                 results,
                                 &ast_item,
@@ -265,10 +268,10 @@ fn item_ink_entity_actions(
     };
     match item {
         ast::Item::Module(module) => {
-            let contract_option = ink_analyzer_ir::ink_attrs(module.syntax())
+            match ink_analyzer_ir::ink_attrs(module.syntax())
                 .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::Contract))
-                .and_then(Contract::cast);
-            match contract_option {
+                .and_then(Contract::cast)
+            {
                 Some(contract) => {
                     // Adds ink! storage if it doesn't exist.
                     if contract.storage().is_none() {
@@ -403,6 +406,19 @@ fn item_ink_entity_actions(
                 }
             }
         }
+        ast::Item::Struct(struct_item) => {
+            if let Some(event) = ink_analyzer_ir::ink_attrs(struct_item.syntax())
+                .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
+                .and_then(Event::cast)
+            {
+                // Adds ink! topic.
+                add_result(entity::add_topic(
+                    &event,
+                    ActionKind::Refactor,
+                    insert_offset_option,
+                ));
+            }
+        }
         // Ignores other items.
         _ => (),
     }
@@ -475,7 +491,7 @@ mod tests {
             // (code, pat, [(edit, pat_start, pat_end)]) where:
             // code = source code,
             // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // edit = the text that will inserted (represented without whitespace for simplicity),
+            // edit = the text (of a substring of it) that will inserted (represented without whitespace for simplicity),
             // pat_start = substring used to find the start of the edit offset (see `test_utils::parse_offset_at` doc),
             // pat_end = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
 
@@ -865,7 +881,15 @@ mod tests {
                     }
                 "#,
                 Some("<-struct"),
-                vec![(", anonymous", Some("#[ink(event"), Some("#[ink(event"))],
+                vec![
+                    (", anonymous", Some("#[ink(event"), Some("#[ink(event")),
+                    // Adds ink! topic `field`.
+                    (
+                        "#[ink(topic)]",
+                        Some("struct MyEvent {"),
+                        Some("struct MyEvent {"),
+                    ),
+                ],
             ),
             (
                 r#"
@@ -875,6 +899,36 @@ mod tests {
                 "#,
                 Some("<-struct"),
                 vec![("event, ", Some("#[ink("), Some("#[ink("))],
+            ),
+            (
+                r#"
+                    #[ink(event, anonymous)]
+                    struct MyEvent {
+                        my_field: u8,
+                    }
+                "#,
+                Some("<-struct"),
+                vec![
+                    // Adds ink! topic `field`.
+                    (
+                        "#[ink(topic)]",
+                        Some("my_field: u8,"),
+                        Some("my_field: u8,"),
+                    ),
+                ],
+            ),
+            (
+                r#"
+                    #[ink(event, anonymous)]
+                    struct MyEvent {
+                        my_field: u8,
+                    }
+                "#,
+                Some("<-my_field"),
+                vec![
+                    // Adds ink! topic attribute argument.
+                    ("#[ink(topic)]", Some("<-my_field"), Some("<-my_field")),
+                ],
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
