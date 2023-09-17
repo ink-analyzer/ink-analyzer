@@ -213,6 +213,13 @@ impl ink::env::chain_extension::FromStatusCode for ${2:CustomErrorCode} {
   }
 }"#;
 
+pub const STORAGE_ITEM_PLAIN: &str = r#"#[ink::storage_item]
+pub struct StorageItem {}"#;
+pub const STORAGE_ITEM_SNIPPET: &str = r#"#[ink::storage_item]
+pub ${1:struct} ${2:StorageItem} {
+    $3
+}"#;
+
 pub const CARGO_TOML_PLAIN: &str = r#"[package]
 name = "my_contract"
 version = "0.1.0"

@@ -428,6 +428,9 @@ fn root_ink_entity_actions(results: &mut Vec<Action>, file: &InkFile, offset: Te
         ActionKind::Refactor,
         None,
     ));
+
+    // Adds ink! storage item.
+    results.push(entity::add_storage_item(offset, ActionKind::Refactor, None));
 }
 
 /// Determines if the selection range is in an AST item's declaration
@@ -484,6 +487,7 @@ mod tests {
                     ("#[ink::contract]", None, None),
                     ("#[ink::trait_definition]", None, None),
                     ("#[ink::chain_extension]", None, None),
+                    ("#[ink::storage_item]", None, None),
                 ],
             ),
             (
@@ -493,6 +497,7 @@ mod tests {
                     ("#[ink::contract]", Some(" "), Some(" ")),
                     ("#[ink::trait_definition]", Some(" "), Some(" ")),
                     ("#[ink::chain_extension]", Some(" "), Some(" ")),
+                    ("#[ink::storage_item]", Some(" "), Some(" ")),
                 ],
             ),
             (
@@ -502,6 +507,7 @@ mod tests {
                     ("#[ink::contract]", Some("\n"), Some("\n")),
                     ("#[ink::trait_definition]", Some("\n"), Some("\n")),
                     ("#[ink::chain_extension]", Some("\n"), Some("\n")),
+                    ("#[ink::storage_item]", Some("\n"), Some("\n")),
                 ],
             ),
             (
@@ -520,6 +526,11 @@ mod tests {
                     ),
                     (
                         "#[ink::chain_extension]",
+                        Some("// A comment in focus."),
+                        Some("// A comment in focus."),
+                    ),
+                    (
+                        "#[ink::storage_item]",
                         Some("// A comment in focus."),
                         Some("// A comment in focus."),
                     ),

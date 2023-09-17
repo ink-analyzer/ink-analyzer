@@ -9,9 +9,9 @@ use crate::codegen::snippets::{
     CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_SNIPPET, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET,
     CONTRACT_PLAIN, CONTRACT_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN,
     EVENT_SNIPPET, EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET,
-    INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_PLAIN,
-    STORAGE_SNIPPET, TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN,
-    TRAIT_MESSAGE_SNIPPET,
+    INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN,
+    STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TRAIT_DEFINITION_PLAIN,
+    TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
 };
 use crate::TextEdit;
 
@@ -492,6 +492,21 @@ pub fn add_chain_extension(
             CHAIN_EXTENSION_PLAIN,
             offset,
             Some(CHAIN_EXTENSION_SNIPPET),
+            indent_option,
+        )],
+    }
+}
+
+/// Add an ink! storage item.
+pub fn add_storage_item(offset: TextSize, kind: ActionKind, indent_option: Option<&str>) -> Action {
+    Action {
+        label: "Add ink! storage item.".to_string(),
+        kind,
+        range: TextRange::new(offset, offset),
+        edits: vec![insert_edit_with_snippet_and_indent(
+            STORAGE_ITEM_PLAIN,
+            offset,
+            Some(STORAGE_ITEM_SNIPPET),
             indent_option,
         )],
     }
