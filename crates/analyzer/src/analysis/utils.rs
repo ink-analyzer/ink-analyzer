@@ -1153,7 +1153,7 @@ pub fn ink_arg_and_delimiter_removal_range(
             }),
         }));
 
-    // Returns the text range for the whole attribute if the ink! attribute argument represents the entire attribute.
+    // Determines the parent attribute for the argument.
     if let Some(attr) = parent_attr_option.cloned().or(last_token_option
         .as_ref()
         .and_then(|token| {
@@ -1161,8 +1161,21 @@ pub fn ink_arg_and_delimiter_removal_range(
         })
         .and_then(InkAttribute::cast))
     {
-        if matches!(attr.kind(), InkAttributeKind::Arg(_)) && attr.args().len() == 1 {
-            return attr.syntax().text_range();
+        if attr.args().len() == 1 {
+            match attr.kind() {
+                // Returns the text range for the attribute meta (if possible) if the attribute has only a single argument.
+                InkAttributeKind::Macro(_) => {
+                    if let Some(token_tree) =
+                        attr.ast().meta().as_ref().and_then(ast::Meta::token_tree)
+                    {
+                        return token_tree.syntax().text_range();
+                    }
+                }
+                // Returns the text range for the whole attribute if the ink! attribute argument represents the entire attribute.
+                InkAttributeKind::Arg(_) => {
+                    return attr.syntax().text_range();
+                }
+            }
         }
     }
 
