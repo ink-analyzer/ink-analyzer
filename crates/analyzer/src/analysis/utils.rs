@@ -726,15 +726,7 @@ pub fn first_ink_arg_insertion_offset_and_affixes(
         .first()
         .map(|arg| {
             // Insert before the first argument (if present).
-            (
-                arg.text_range().start(),
-                None,
-                if ink_attr.args().len() > 1 {
-                    Some(", ".to_string())
-                } else {
-                    None
-                },
-            )
+            (arg.text_range().start(), None, Some(", ".to_string()))
         })
         .or(ink_attr
             .ast()

@@ -10,6 +10,7 @@ use ink_analyzer_ir::{
     InkArgValueStringKind, InkAttribute, InkAttributeKind, InkMacroKind, IsInkEntity, IsInkFn,
     IsInkImplItem, IsInkStruct, IsInkTrait,
 };
+use itertools::Itertools;
 use std::collections::HashSet;
 
 use crate::analysis::text_edit::TextEdit;
@@ -239,8 +240,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         ) {
                             results.push(Diagnostic {
                                 message: format!(
-                                    "`{}` argument should have a {} `string` (`&str`) value.",
-                                    arg_name_text,
+                                    "`{arg_name_text}` argument should have a {} `string` (`&str`) value.",
                                     if *arg.kind() == InkArgKind::KeepAttr {
                                         "comma separated"
                                     } else {
@@ -524,8 +524,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                     // Suggest that it should become the first argument.
                     results.push(Diagnostic {
                         message: format!(
-                            "`{}` should be the first argument for this ink! attribute: {}.",
-                            arg_kind,
+                            "`{arg_kind}` should be the first argument for this ink! attribute: {}.",
                             primary_ink_attr_candidate.syntax()
                         ),
                         range: if let Some(arg) = primary_arg {
@@ -548,8 +547,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                     );
                                     vec![Action {
                                         label: format!(
-                                            "Make `{}` the first argument for this ink! attribute.",
-                                            arg_kind,
+                                            "Make `{arg_kind}` the first argument for this ink! attribute.",
                                         ),
                                         kind: ActionKind::QuickFix,
                                         range,
@@ -557,9 +555,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                             // Insert a copy of the item at the specified offset.
                                             TextEdit::insert(
                                                 format!(
-                                                    "{}{}{}",
+                                                    "{}{arg}{}",
                                                     insert_prefix.as_deref().unwrap_or_default(),
-                                                    arg,
                                                     insert_suffix.as_deref().unwrap_or_default()
                                                 ),
                                                 insert_offset,
@@ -584,6 +581,112 @@ fn ensure_no_conflicting_attributes_and_arguments(
         // Suggests possible primary ink! attributes if the primary candidate is either incomplete or ambiguous or both
         // and it's also not `namespace` (which is valid on it's own).
         if !primary_attribute_kind_suggestions.is_empty() && !is_namespace {
+            // Quickfix for adding a ink! attribute of the given kind as the primary attribute (if possible).
+            let add_primary_ink_attribute = |attr_kind: &InkAttributeKind| {
+                primary_attr_insert_offset_option().map(|insert_offset| {
+                    let (insert_text, attr_desc, snippet) = match attr_kind {
+                        InkAttributeKind::Arg(arg_kind) => {
+                            let (edit, snippet) =
+                                utils::ink_arg_insertion_text(*arg_kind, None, None);
+                            (
+                                format!("#[ink({edit})]"),
+                                format!("ink! `{arg_kind}`"),
+                                snippet.map(|snippet| format!("#[ink({snippet})]")),
+                            )
+                        }
+                        InkAttributeKind::Macro(macro_kind) => (
+                            format!("#[{}]", macro_kind.path_as_str()),
+                            format!("ink! `{macro_kind}`"),
+                            None,
+                        ),
+                    };
+                    Action {
+                        label: format!(
+                            "Add an {attr_desc} as the first ink! attribute for this item."
+                        ),
+                        kind: ActionKind::QuickFix,
+                        range: primary_ink_attr_candidate.syntax().text_range(),
+                        edits: vec![TextEdit::insert_with_snippet(
+                            insert_text,
+                            insert_offset,
+                            snippet,
+                        )],
+                    }
+                })
+            };
+
+            // Computes possible quickfixes.
+            let mut possible_quickfixes =
+                primary_attribute_kind_suggestions
+                    .iter()
+                    .filter_map(|attr_kind| {
+                        match attr_kind {
+                            InkAttributeKind::Arg(arg_kind) => {
+                                let (edit, snippet) =
+                                    utils::ink_arg_insertion_text(*arg_kind, None, None);
+                                match utils::first_ink_arg_insertion_offset_and_affixes(
+                                    &primary_ink_attr_candidate,
+                                ) {
+                                    // Adds suggested primary ink! attribute argument as the first argument for the attribute.
+                                    Some((insert_offset, prefix, suffix)) => Some(Action {
+                                        label: format!(
+                                            "Add an ink! `{arg_kind}` as the first argument for the `{}` attribute.",
+                                            primary_ink_attr_candidate.syntax()
+                                        ),
+                                        kind: ActionKind::QuickFix,
+                                        range: primary_ink_attr_candidate.syntax().text_range(),
+                                        edits: vec![TextEdit::insert_with_snippet(
+                                            format!(
+                                                "{}{edit}{}",
+                                                prefix.as_deref().unwrap_or_default(),
+                                                suffix.as_deref().unwrap_or_default()
+                                            ),
+                                            insert_offset,
+                                            snippet.as_ref().map(|snippet| {
+                                                format!(
+                                                    "{}{snippet}{}",
+                                                    prefix.as_deref().unwrap_or_default(),
+                                                    suffix.as_deref().unwrap_or_default()
+                                                )
+                                            }),
+                                        )],
+                                    }),
+                                    // Defaults to adding the suggested ink! attribute argument as the first attribute.
+                                    None => add_primary_ink_attribute(attr_kind),
+                                }
+                            }
+                            InkAttributeKind::Macro(macro_kind) => {
+                                match primary_ink_attr_candidate.kind() {
+                                    // Adds the suggested ink! attribute macro to the existing ink! attribute arguments.
+                                    InkAttributeKind::Arg(_) => Some(Action {
+                                        label: format!(
+                                            "Add an ink! {macro_kind} macro to the `{}` attribute.",
+                                            primary_ink_attr_candidate.syntax()
+                                        ),
+                                        kind: ActionKind::QuickFix,
+                                        range: primary_ink_attr_candidate.syntax().text_range(),
+                                        edits: vec![TextEdit::replace(
+                                            format!(
+                                                "#[{}({})]",
+                                                macro_kind.path_as_str(),
+                                                primary_ink_attr_candidate
+                                                    .args()
+                                                    .iter()
+                                                    .map(ToString::to_string)
+                                                    .join(", ")
+                                            ),
+                                            primary_ink_attr_candidate.syntax().text_range(),
+                                        )],
+                                    }),
+                                    // Adds the suggested ink! attribute macro as the first attribute.
+                                    InkAttributeKind::Macro(_) => {
+                                        add_primary_ink_attribute(attr_kind)
+                                    }
+                                }
+                            }
+                        }
+                    });
+
             results.push(Diagnostic {
                 message: format!(
                     "An {} attribute should be the first ink! attribute for this item.",
@@ -604,41 +707,9 @@ fn ensure_no_conflicting_attributes_and_arguments(
                 ),
                 range: primary_ink_attr_candidate.syntax().text_range(),
                 severity: Severity::Error,
-                quickfixes: primary_attr_insert_offset_option().map(|insert_offset| {
-                    primary_attribute_kind_suggestions
-                        .iter()
-                        .map(|attr_kind| {
-                            let (insert_text, attr_desc, snippet) = match attr_kind {
-                                InkAttributeKind::Arg(arg_kind) => {
-                                    let (edit, snippet) =
-                                        utils::ink_arg_insertion_text(*arg_kind, None, None);
-                                    (
-                                        format!("#[ink({edit})]"),
-                                        format!("ink! `{arg_kind}`"),
-                                        snippet.map(|snippet| format!("#[ink({snippet})]")),
-                                    )
-                                }
-                                InkAttributeKind::Macro(macro_kind) => (
-                                    format!("#[{}]", macro_kind.path_as_str()),
-                                    format!("ink! `{macro_kind}`"),
-                                    None,
-                                ),
-                            };
-                            Action {
-                                label: format!(
-                                    "Add an {attr_desc} as the first ink! attribute for this item."
-                                ),
-                                kind: ActionKind::QuickFix,
-                                range: primary_ink_attr_candidate.syntax().text_range(),
-                                edits: vec![TextEdit::insert_with_snippet(
-                                    insert_text,
-                                    insert_offset,
-                                    snippet,
-                                )],
-                            }
-                        })
-                        .collect()
-                }),
+                quickfixes: possible_quickfixes
+                    .next()
+                    .map(|quickfix| [quickfix].into_iter().chain(possible_quickfixes).collect()),
             });
         }
 
@@ -2635,9 +2706,9 @@ mod tests {
                 vec![TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
-                        text: "event",
-                        start_pat: Some("<-#[ink(anonymous)]"),
-                        end_pat: Some("<-#[ink(anonymous)]"),
+                        text: "event, ",
+                        start_pat: Some("#[ink("),
+                        end_pat: Some("#[ink("),
                     }],
                 }],
             ),
@@ -2646,9 +2717,9 @@ mod tests {
                 vec![TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
-                        text: "extension",
-                        start_pat: Some("<-#[ink(handle_status=true)]"),
-                        end_pat: Some("<-#[ink(handle_status=true)]"),
+                        text: "extension = 1, ",
+                        start_pat: Some("#[ink("),
+                        end_pat: Some("#[ink("),
                     }],
                 }],
             ),
@@ -2658,17 +2729,17 @@ mod tests {
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "constructor",
-                            start_pat: Some("<-#[ink(payable, default, selector=1)]"),
-                            end_pat: Some("<-#[ink(payable, default, selector=1)]"),
+                            text: "constructor, ",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
                         }],
                     },
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "message",
-                            start_pat: Some("<-#[ink(payable, default, selector=1)]"),
-                            end_pat: Some("<-#[ink(payable, default, selector=1)]"),
+                            text: "message, ",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
                         }],
                     },
                 ],
@@ -2682,17 +2753,17 @@ mod tests {
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "constructor",
-                            start_pat: Some("<-#[ink(payable, default)]"),
-                            end_pat: Some("<-#[ink(payable, default)]"),
+                            text: "constructor, ",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
                         }],
                     },
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "message",
-                            start_pat: Some("<-#[ink(payable, default)]"),
-                            end_pat: Some("<-#[ink(payable, default)]"),
+                            text: "message, ",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
                         }],
                     },
                 ],
@@ -2703,17 +2774,17 @@ mod tests {
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "contract",
+                            text: r#"#[ink::contract(keep_attr = "foo,bar")]"#,
                             start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
-                            end_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                            end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
                         }],
                     },
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "trait_definition",
+                            text: r#"#[ink::trait_definition(keep_attr = "foo,bar")]"#,
                             start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
-                            end_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                            end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
                         }],
                     },
                 ],
