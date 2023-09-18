@@ -1,7 +1,8 @@
 //! ink! contract diagnostics.
 
+use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::meta::MetaValue;
-use ink_analyzer_ir::syntax::{SyntaxKind, SyntaxNode, SyntaxToken};
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
 use ink_analyzer_ir::{
     ast, Contract, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttributeKind,
     InkMacroKind, IsInkCallable, IsInkEntity, Selector, SelectorArg, Storage,
@@ -274,26 +275,64 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                     .map(SelectorArg::arg)
                     .and_then(InkArg::value)
                     .map(MetaValue::text_range);
+                // Gets the `fn` item (if any).
+                let fn_item_option = || ast::Fn::cast(node.clone());
+                // Gets the `fn` item's name (if any).
+                let fn_name_option = || {
+                    fn_item_option()
+                        // Quickfix for using a unique `fn` name.
+                        .as_ref()
+                        .and_then(HasName::name)
+                };
+                // Determines text range for the `fn` item declaration (if any).
+                let fn_declaration_range = || {
+                    fn_item_option().and_then(|fn_item| {
+                        analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item))
+                    })
+                };
                 results.push(Diagnostic {
-                    message: format!("Selector values must be unique across all ink! {name}s in an ink! contract."),
-                    range: value_range_option.unwrap_or(node.text_range()),
+                    message: format!(
+                        "Selector{} must be unique across all ink! {name}s in an ink! contract.",
+                        match value_range_option {
+                            Some(_) => " values",
+                            None => "s",
+                        }
+                    ),
+                    range: value_range_option
+                        .or(fn_name_option().map(|name| name.syntax().text_range()))
+                        .or(fn_declaration_range())
+                        .unwrap_or(node.text_range()),
                     severity: Severity::Error,
-                    quickfixes: value_range_option.map(|range| {
-                        let suggested_id = analysis_utils::suggest_unique_id(
-                            Some(idx as u32 + 1),
-                            &mut unavailable_ids,
-                        );
-                        vec![Action {
-                            label: "Replace with a unique selector.".to_string(),
-                            kind: ActionKind::QuickFix,
-                            range,
-                            edits: vec![TextEdit::replace_with_snippet(
-                                format!("{suggested_id}"),
+                    quickfixes: value_range_option
+                        // Quickfix for using a unique selector value.
+                        .map(|range| {
+                            let suggested_id = analysis_utils::suggest_unique_id(
+                                Some(idx as u32 + 1),
+                                &mut unavailable_ids,
+                            );
+                            vec![Action {
+                                label: "Replace with a unique selector.".to_string(),
+                                kind: ActionKind::QuickFix,
                                 range,
-                                Some(format!("${{1:{suggested_id}}}")),
-                            )],
-                        }]
-                    }),
+                                edits: vec![TextEdit::replace_with_snippet(
+                                    format!("{suggested_id}"),
+                                    range,
+                                    Some(format!("${{1:{suggested_id}}}")),
+                                )],
+                            }]
+                        })
+                        .or(fn_name_option().map(|name| {
+                            vec![Action {
+                                label: "Replace with a unique name.".to_string(),
+                                kind: ActionKind::QuickFix,
+                                range: name.syntax().text_range(),
+                                edits: vec![TextEdit::replace_with_snippet(
+                                    format!("{name}2"),
+                                    name.syntax().text_range(),
+                                    Some(format!("${{1:{name}2}}")),
+                                )],
+                            }]
+                        })),
                 });
             }
 
@@ -1290,7 +1329,11 @@ mod tests {
             // Verifies quickfixes.
             if let Some(quickfixes) = &results[0].quickfixes {
                 for fix in quickfixes {
-                    assert!(fix.label.contains("Replace") && fix.label.contains("unique selector"));
+                    assert!(
+                        fix.label.contains("Replace")
+                            && (fix.label.contains("unique selector")
+                                || fix.label.contains("unique name"))
+                    );
                 }
             }
         }
