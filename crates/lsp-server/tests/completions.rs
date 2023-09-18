@@ -21,10 +21,10 @@ fn completions_works() {
     // Iterates over all test case groups (see [`test_utils::fixtures::completions_fixtures`] doc and inline comments).
     for test_group in test_utils::fixtures::completions_fixtures() {
         // Gets the original source code.
-        let original_code = test_utils::get_source_code(test_group.source);
+        let original_code = test_utils::read_source_code(test_group.source);
 
         // Creates an LSP URI for the source file.
-        let uri = test_utils::get_source_uri(test_group.source);
+        let uri = test_utils::source_uri(test_group.source);
 
         // Iterates over all test cases.
         for (idx, test_case) in test_group.test_cases.into_iter().enumerate() {

@@ -36,14 +36,16 @@ macro_rules! quote_as_pretty_string {
 /// Reads source code from a file in the `test-fixtures` directory as a string.
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
-pub fn get_source_code(location: &str) -> String {
-    fs::read_to_string(format!("../../test-fixtures/{location}.rs")).unwrap()
+pub fn read_source_code(location: &str) -> String {
+    fs::read_to_string(format!("../../test-fixtures/{location}.rs"))
+        .unwrap()
+        .replace("\r\n", "\n")
 }
 
 /// Creates an LSP URI for a file in the `test-fixtures` directory.
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
-pub fn get_source_uri(location: &str) -> lsp_types::Url {
+pub fn source_uri(location: &str) -> lsp_types::Url {
     lsp_types::Url::from_file_path(
         fs::canonicalize(PathBuf::from(&format!("../../test-fixtures/{location}.rs"))).unwrap(),
     )

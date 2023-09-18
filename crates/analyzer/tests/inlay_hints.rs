@@ -14,7 +14,7 @@ fn inlay_hints_works() {
     // Iterates over all test case groups (see [`test_utils::fixtures::inlay_hints_fixtures`] doc and inline comments).
     for test_group in test_utils::fixtures::inlay_hints_fixtures() {
         // Gets the original source code.
-        let original_code = test_utils::get_source_code(test_group.source);
+        let original_code = test_utils::read_source_code(test_group.source);
 
         // Iterates over all test cases.
         for test_case in test_group.test_cases {
