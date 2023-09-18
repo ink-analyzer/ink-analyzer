@@ -85,7 +85,7 @@ fn do_analysis() {
 Or you can access documentation locally by running the following command from the project root
 
 ```shell
-cargo doc -p ink-analyzer-ir --open
+cargo doc -p ink-analyzer --open
 ```
 
 ## Testing
@@ -93,7 +93,7 @@ cargo doc -p ink-analyzer-ir --open
 You can run unit and integration tests for all the core functionality by running the following command from the project root
 
 ```shell
-cargo test -p ink-analyzer-ir
+cargo test -p ink-analyzer
 ```
 
 ## License
