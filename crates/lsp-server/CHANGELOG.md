@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2023-09-18
+
+- More code/intent actions for adding ink! entities (i.e. code stubs/snippets for items not just attributes).
+- "Unique selector" quickfix improvements.
+- General robustness improvements for semantic analyzer.
+
 ## [0.2.5] - 2023-09-13
 
 - Add code/intent actions for adding ink! entities (i.e. code stubs/snippets for items not just attributes).
