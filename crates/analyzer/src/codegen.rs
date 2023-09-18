@@ -33,6 +33,10 @@ pub enum Error {
     ///
     /// Ref: <https://doc.rust-lang.org/cargo/reference/manifest.html#the-name-field>.
     PackageName,
+    /// Invalid contract name.
+    ///
+    /// Ref: <https://github.com/paritytech/cargo-contract/blob/v3.2.0/crates/build/src/new.rs#L34-L52>.
+    ContractName,
 }
 
 /// Returns code stubs/snippets for creating a new ink! project given a name.
@@ -45,6 +49,17 @@ pub fn new_project(name: String) -> Result<Project, Error> {
             .all(|it| it.is_alphanumeric() || it == '_' || it == '-')
     {
         return Err(Error::PackageName);
+    }
+
+    // Validates that name is a valid ink! contract name (i.e. contract names must additionally begin with an alphabetic character).
+    // Ref: <https://github.com/paritytech/cargo-contract/blob/v3.2.0/crates/build/src/new.rs#L34-L52>.
+    if !name
+        .chars()
+        .next()
+        .map(|c| c.is_alphabetic())
+        .unwrap_or(false)
+    {
+        return Err(Error::ContractName);
     }
 
     // Generates `mod` and storage `struct` names for the contract.
@@ -78,15 +93,27 @@ mod tests {
     use crate::Analysis;
 
     // Ref: <https://doc.rust-lang.org/cargo/reference/manifest.html#the-name-field>.
+    // Ref: <https://github.com/paritytech/cargo-contract/blob/v3.2.0/crates/build/src/new.rs#L34-L52>.
     #[test]
-    fn invalid_package_name_fails() {
-        for name in ["", "hello!", "hello world", "💝"] {
-            assert_eq!(new_project(name.to_string()), Err(Error::PackageName));
+    fn invalid_project_name_fails() {
+        for (name, expected_error) in [
+            // Empty.
+            ("", Error::PackageName),
+            // Disallowed characters (i.e not alphanumeric, `-` or `_`).
+            ("hello!", Error::PackageName),
+            ("hello world", Error::PackageName),
+            ("💝", Error::PackageName),
+            // Starts with non-alphabetic character.
+            ("1hello", Error::ContractName),
+            ("-hello", Error::ContractName),
+            ("_hello", Error::ContractName),
+        ] {
+            assert_eq!(new_project(name.to_string()), Err(expected_error));
         }
     }
 
     #[test]
-    fn valid_package_name_works() {
+    fn valid_project_name_works() {
         for name in ["hello", "hello_world", "hello-world"] {
             // Generates an ink! contract project.
             let result = new_project(name.to_string());
