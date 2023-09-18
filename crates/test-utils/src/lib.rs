@@ -177,10 +177,15 @@ pub enum TestCaseParams {
 /// Variants for [`TestCase`] results.
 #[derive(Debug)]
 pub enum TestCaseResults {
+    // Vec<Vec because we iterate over actions > text edits.
     Action(Vec<Vec<TestResultTextRange>>),
     Completion(Vec<TestResultTextRange>),
     // Expected number of diagnostic errors/warnings.
-    Diagnostic(usize),
+    Diagnostic {
+        n: usize,
+        // Vec<Vec<Vec because we iterate over diagnostics > quickfixes > text edits.
+        quickfixes: Vec<Vec<Vec<TestResultTextRange>>>,
+    },
     Hover(Option<TestResultTextRange>),
     InlayHints(Vec<TestResultTextOffsetRange>),
 }
@@ -288,6 +293,27 @@ pub fn versioned_document_sync_notification(
 pub fn remove_whitespace(mut text: String) -> String {
     text.retain(|it| !it.is_whitespace());
     text
+}
+
+/// A custom string type used in test comparisons where we only want a partial match
+/// (i.e. either both strings are empty or the RHS is a substring of the LHS in comparisons)
+#[derive(Debug, Clone, Eq)]
+pub struct PartialMatchStr<'a>(&'a str);
+
+impl<'a> PartialEq for PartialMatchStr<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.0.is_empty() {
+            other.0.is_empty()
+        } else {
+            self.0.contains(other.0)
+        }
+    }
+}
+
+impl<'a> From<&'a str> for PartialMatchStr<'a> {
+    fn from(value: &'a str) -> Self {
+        Self(value)
+    }
 }
 
 #[cfg(test)]

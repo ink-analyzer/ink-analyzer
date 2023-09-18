@@ -1,7 +1,7 @@
 //! integration tests for ink! analyzer diagnostics.
 
-use ink_analyzer::Analysis;
-use test_utils::TestCaseResults;
+use ink_analyzer::{Analysis, TextRange, TextSize};
+use test_utils::{PartialMatchStr, TestCaseResults};
 
 // The high-level methodology for diagnostics test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
@@ -31,11 +31,57 @@ fn diagnostics_works() {
 
             // Verifies diagnostics results.
             let expected_results = match test_case.results {
-                TestCaseResults::Diagnostic(it) => Some(it),
+                TestCaseResults::Diagnostic { n, quickfixes } => Some((n, quickfixes)),
                 _ => None,
             }
             .unwrap();
-            assert_eq!(results.len(), expected_results);
+            assert_eq!(results.len(), expected_results.0);
+            // Verifies quickfixes.
+            for (idx, result) in results.iter().enumerate() {
+                assert_eq!(
+                    result.quickfixes.as_ref().map(Vec::len),
+                    expected_results.1.get(idx).map(Vec::len)
+                );
+                let expected_quickfixes = &expected_results.1[idx];
+                if let Some(quickfixes) = result.quickfixes.as_ref() {
+                    assert_eq!(
+                        quickfixes
+                            .iter()
+                            .map(|action| action
+                                .edits
+                                .iter()
+                                .map(|edit| (PartialMatchStr::from(edit.text.as_str()), edit.range))
+                                .collect())
+                            .collect::<Vec<Vec<(PartialMatchStr, TextRange)>>>(),
+                        expected_quickfixes
+                            .iter()
+                            .map(|expected_edits| expected_edits
+                                .iter()
+                                .map(|result| (
+                                    PartialMatchStr::from(result.text),
+                                    TextRange::new(
+                                        TextSize::from(
+                                            test_utils::parse_offset_at(
+                                                &test_code,
+                                                result.start_pat
+                                            )
+                                            .unwrap()
+                                                as u32
+                                        ),
+                                        TextSize::from(
+                                            test_utils::parse_offset_at(&test_code, result.end_pat)
+                                                .unwrap()
+                                                as u32
+                                        ),
+                                    )
+                                ))
+                                .collect())
+                            .collect::<Vec<Vec<(PartialMatchStr, TextRange)>>>(),
+                        "source: {}",
+                        test_group.source
+                    );
+                }
+            }
         }
     }
 }

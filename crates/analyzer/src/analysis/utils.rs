@@ -1237,8 +1237,14 @@ pub fn ink_arg_and_delimiter_removal_range(
 /// Returns the offset for the beginning of an item list (e.g body of an AST item - i.e `mod` e.t.c).
 pub fn item_insert_offset_start(item_list: &ast::ItemList) -> TextSize {
     item_list
-        .l_curly_token()
-        .map(|it| it.text_range().end())
+        .items()
+        // Determines position after the last `use` item in the item list.
+        .filter(|it| matches!(it, ast::Item::Use(_)))
+        .last()
+        .map(|it| it.syntax().text_range().end())
+        // Determines position after the left curly bracket.
+        .or(item_list.l_curly_token().map(|it| it.text_range().end()))
+        // Defaults to inserts before the first item in the item list.
         .or(item_list
             .items()
             .next()

@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use ink_analyzer_ir::syntax::{TextRange, TextSize};
-use test_utils::{parse_offset_at, TestResultAction};
+use test_utils::{parse_offset_at, PartialMatchStr, TestResultAction};
 
 use crate::Action;
 
@@ -23,11 +23,10 @@ pub fn verify_actions(
         assert_eq!(fix.edits.len(), expected_edits.len());
         for (idx, edit) in fix.edits.iter().enumerate() {
             // Verifies edit text.
-            if expected_edits[idx].text.is_empty() {
-                assert!(edit.text.is_empty());
-            } else {
-                assert!(edit.text.contains(expected_edits[idx].text));
-            }
+            assert_eq!(
+                PartialMatchStr::from(edit.text.as_str()),
+                PartialMatchStr::from(expected_edits[idx].text)
+            );
             // Verifies edit range.
             assert_eq!(
                 edit.range,

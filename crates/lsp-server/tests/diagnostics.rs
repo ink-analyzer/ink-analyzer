@@ -65,7 +65,7 @@ fn diagnostics_works() {
             // Verifies expected diagnostics results.
             let results = diagnostics_params.diagnostics;
             let expected_results = match test_case.results {
-                TestCaseResults::Diagnostic(it) => Some(it),
+                TestCaseResults::Diagnostic { n, .. } => Some(n),
                 _ => None,
             }
             .unwrap();

@@ -83,13 +83,22 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         .filter(|it| it.text_range().start() >= edit.range.end());
 
     if edit.text.is_empty() {
-        // Handles deletes, removes whitespace immediately following a delete if the text was surrounded by whitespace.
+        // Handles deletes.
+        // Removes whitespace immediately following a delete if the text is surrounded by whitespace,
+        // but only the token right after the whitespace is not a closing curly break
+        // (because it would otherwise break the indenting of the closing curly bracket).
         if let Some(token_after) = token_after_option {
             let token_before_is_whitespace =
                 token_before_option.as_ref().map_or(false, |token_before| {
                     token_before.kind() == SyntaxKind::WHITESPACE
                 });
-            if token_before_is_whitespace && token_after.kind() == SyntaxKind::WHITESPACE {
+            let is_at_the_end_block = token_after
+                .next_token()
+                .map_or(false, |it| it.kind() == SyntaxKind::R_CURLY);
+            if token_before_is_whitespace
+                && token_after.kind() == SyntaxKind::WHITESPACE
+                && !is_at_the_end_block
+            {
                 edit.range = TextRange::new(edit.range.start(), token_after.text_range().end());
             }
         }
@@ -102,7 +111,8 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                     (
                         // No formatting prefix.
                         None,
-                        // Adds formatting suffix only if the edit is not surrounded by whitespace (treats end of the file like whitespace)
+                        // Adds formatting suffix only if the edit is not surrounded by whitespace
+                        // (treats end of the file like whitespace)
                         // and its preceding whitespace contains a new line but doesn't end with a new line.
                         (token_after_option.as_ref().map_or(false, |token_after| {
                             token_after.kind() != SyntaxKind::WHITESPACE
@@ -130,7 +140,8 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                             )
                         }),
                         // Adds formatting suffix if the edit is followed by either a non-whitespace character
-                        // or whitespace that doesn't start with at least 2 new lines (the new lines can be interspersed with other whitespace)
+                        // or whitespace that doesn't start with at least 2 new lines
+                        // (the new lines can be interspersed with other whitespace)
                         // and the edit doesn't end with 2 new lines.
                         token_after_option.as_ref().and_then(|token_after| {
                             ((token_after.kind() != SyntaxKind::WHITESPACE

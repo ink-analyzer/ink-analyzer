@@ -1,7 +1,7 @@
 //! integration tests for ink! Language Server actions.
 
 use line_index::LineIndex;
-use test_utils::{TestCaseParams, TestCaseResults};
+use test_utils::{PartialMatchStr, TestCaseParams, TestCaseResults};
 
 mod utils;
 
@@ -123,18 +123,15 @@ fn actions_works() {
                         .and_then(|it| it.get(&uri)))
                     .map(|edits| edits
                         .into_iter()
-                        .map(|edit| (
-                            test_utils::remove_whitespace(edit.new_text.clone()),
-                            edit.range
-                        ))
+                        .map(|edit| (PartialMatchStr::from(edit.new_text.as_str()), edit.range))
                         .collect())
-                    .collect::<Vec<Vec<(String, lsp_types::Range)>>>(),
+                    .collect::<Vec<Vec<(PartialMatchStr, lsp_types::Range)>>>(),
                 expected_results
                     .into_iter()
                     .map(|expected_edits| expected_edits
                         .into_iter()
                         .map(|result| (
-                            test_utils::remove_whitespace(result.text.to_string()),
+                            PartialMatchStr::from(result.text),
                             ink_lsp_server::translator::to_lsp::range(
                                 ink_analyzer::TextRange::new(
                                     ink_analyzer::TextSize::from(
@@ -153,7 +150,7 @@ fn actions_works() {
                             .unwrap()
                         ))
                         .collect())
-                    .collect::<Vec<Vec<(String, lsp_types::Range)>>>(),
+                    .collect::<Vec<Vec<(PartialMatchStr, lsp_types::Range)>>>(),
                 "source: {}",
                 test_group.source
             );

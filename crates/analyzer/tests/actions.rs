@@ -1,7 +1,7 @@
 //! integration tests for ink! analyzer actions.
 
 use ink_analyzer::{Analysis, TextRange, TextSize};
-use test_utils::{TestCaseParams, TestCaseResults};
+use test_utils::{PartialMatchStr, TestCaseParams, TestCaseResults};
 
 // The high-level methodology for code/intent actions test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
@@ -48,19 +48,19 @@ fn actions_works() {
             .unwrap();
             assert_eq!(
                 results
-                    .into_iter()
+                    .iter()
                     .map(|action| action
                         .edits
-                        .into_iter()
-                        .map(|edit| (test_utils::remove_whitespace(edit.text.clone()), edit.range))
+                        .iter()
+                        .map(|edit| (PartialMatchStr::from(edit.text.as_str()), edit.range))
                         .collect())
-                    .collect::<Vec<Vec<(String, TextRange)>>>(),
+                    .collect::<Vec<Vec<(PartialMatchStr, TextRange)>>>(),
                 expected_results
                     .into_iter()
                     .map(|expected_edits| expected_edits
                         .into_iter()
                         .map(|result| (
-                            test_utils::remove_whitespace(result.text.to_string()),
+                            PartialMatchStr::from(result.text),
                             TextRange::new(
                                 TextSize::from(
                                     test_utils::parse_offset_at(&test_code, result.start_pat)
@@ -73,7 +73,7 @@ fn actions_works() {
                             )
                         ))
                         .collect())
-                    .collect::<Vec<Vec<(String, TextRange)>>>(),
+                    .collect::<Vec<Vec<(PartialMatchStr, TextRange)>>>(),
                 "source: {}",
                 test_group.source
             );
