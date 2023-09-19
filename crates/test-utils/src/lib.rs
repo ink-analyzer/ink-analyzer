@@ -232,7 +232,7 @@ pub struct TestResultTextOffsetRange {
     pub range_end_pat: Option<&'static str>,
 }
 
-/// Describes the expected text and range result.
+/// Describes the expected action label and text edits.
 #[derive(Debug)]
 pub struct TestResultAction {
     /// Expected label.

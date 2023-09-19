@@ -7,7 +7,7 @@ use test_utils::{parse_offset_at, PartialMatchStr, TestResultAction};
 
 use crate::Action;
 
-/// Verifies that code action results match the expected results description for a given code snippet.
+/// Verifies that code action results match the expected results description.
 pub fn verify_actions(
     code: &str,
     actual_results: &[Action],
