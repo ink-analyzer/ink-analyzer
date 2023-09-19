@@ -51,6 +51,12 @@
 //!     let inlay_hints = analysis.inlay_hints(None);
 //!     dbg!(&inlay_hints);
 //! }
+//!
+//! fn project_code_stubs() {
+//!     // Generates ink! project code stubs/snippets.
+//!     let project = ink_analyzer::new_project(String::from("hello_world"));
+//!     dbg!(&project);
+//! }
 //! ```
 
 pub use self::{
