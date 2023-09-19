@@ -4,7 +4,7 @@ use itertools::Itertools;
 use ra_ap_syntax::{ast, AstNode, AstToken, SyntaxElement, SyntaxToken, T};
 
 use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaSeparator, MetaValue};
-use crate::{InkArg, InkArgKind};
+use crate::InkArg;
 
 /// Parse ink! attribute arguments.
 pub fn parse_ink_args(attr: &ast::Attr) -> Vec<InkArg> {
@@ -15,50 +15,6 @@ pub fn parse_ink_args(attr: &ast::Attr) -> Vec<InkArg> {
             .collect()
     } else {
         Vec::new()
-    }
-}
-
-/// Sort ink! attribute arguments so that we choose the best `InkArgKind` for ink! attributes
-/// regardless of their actual ordering in source code (See [`ink_arg_kind_sort_order`] doc).
-pub fn sort_ink_args_by_kind(args: &[InkArg]) -> Vec<InkArg> {
-    let mut sorted_args = args.to_owned();
-    sorted_args.sort_by_key(|arg| ink_arg_kind_sort_order(*arg.kind()));
-    sorted_args
-}
-
-/// Assigns a sort ascending rank (i.e 0 is highest rank) to ink! attribute argument kinds
-/// so that we choose the best `InkArgKind` for ink! attributes regardless of their actual ordering in source code.
-///
-/// (e.g the kind for `#[ink(selector=1, payable, message)]` should still be `InkArgKind::Message`).
-pub fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
-    match arg_kind {
-        // Required (e.g `storage`) and/or root-level/unambiguous (e.g `event`)
-        // arguments get highest priority.
-        InkArgKind::Constructor
-        | InkArgKind::Event
-        | InkArgKind::Extension
-        | InkArgKind::Impl
-        | InkArgKind::Message
-        | InkArgKind::Storage => 0,
-        // Everything else apart from "unknown" gets the next priority level.
-        // This includes optional (e.g `anonymous`, `payable`, `selector` e.t.c) and/or non root-level (e.g `topic`)
-        // and/or ambiguous (e.g `namespace`) and/or macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c).
-        // This group is explicitly enumerated to force explicit decisions about
-        // the priority level of new `InkArgKind` additions.
-        InkArgKind::AdditionalContracts
-        | InkArgKind::Anonymous
-        | InkArgKind::Default
-        | InkArgKind::Derive
-        | InkArgKind::Env
-        | InkArgKind::Environment
-        | InkArgKind::HandleStatus
-        | InkArgKind::KeepAttr
-        | InkArgKind::Namespace
-        | InkArgKind::Payable
-        | InkArgKind::Selector
-        | InkArgKind::Topic => 1,
-        // "Unknown" gets a special priority level.
-        InkArgKind::Unknown => 10,
     }
 }
 
@@ -104,14 +60,10 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
                         .collect();
 
                     let empty = Vec::new();
-                    let arg_name = arg_item_groups.get(0).unwrap_or(&empty);
-                    let arg_eq = arg_item_groups.get(1).unwrap_or(&empty);
-                    let arg_value = arg_item_groups.get(2).unwrap_or(&empty);
-
                     Some(MetaNameValue::new(
-                        get_arg_name(arg_name),
-                        get_arg_eq(arg_eq),
-                        get_arg_value(arg_value),
+                        arg_name_meta_option(arg_item_groups.get(0).unwrap_or(&empty)),
+                        arg_eq_option(arg_item_groups.get(1).unwrap_or(&empty)),
+                        arg_value_meta_option(arg_item_groups.get(2).unwrap_or(&empty)),
                         last_separator_offset,
                     ))
                 }
@@ -127,17 +79,17 @@ fn only_non_trivia_elements(elems: &[SyntaxElement]) -> Vec<&SyntaxElement> {
         .collect()
 }
 
-fn get_token_at_index<'a>(elems: &'a [&SyntaxElement], idx: usize) -> Option<&'a SyntaxToken> {
+fn token_at_index<'a>(elems: &'a [&SyntaxElement], idx: usize) -> Option<&'a SyntaxToken> {
     elems.get(idx)?.as_token()
 }
 
-fn get_arg_name(elems: &[SyntaxElement]) -> MetaOption<MetaName> {
+fn arg_name_meta_option(elems: &[SyntaxElement]) -> MetaOption<MetaName> {
     let non_trivia_elems = only_non_trivia_elements(elems);
     match non_trivia_elems.len() {
         0 => MetaOption::None,
         1 => {
             let mut name = MetaOption::Err(elems.to_owned());
-            if let Some(token) = get_token_at_index(&non_trivia_elems, 0) {
+            if let Some(token) = token_at_index(&non_trivia_elems, 0) {
                 if let Some(meta_name) = MetaName::cast(token.clone()) {
                     name = MetaOption::Ok(meta_name);
                 }
@@ -148,13 +100,13 @@ fn get_arg_name(elems: &[SyntaxElement]) -> MetaOption<MetaName> {
     }
 }
 
-fn get_arg_eq(elems: &[SyntaxElement]) -> Option<MetaSeparator> {
+fn arg_eq_option(elems: &[SyntaxElement]) -> Option<MetaSeparator> {
     let non_trivia_elems = only_non_trivia_elements(elems);
     (non_trivia_elems.len() == 1)
-        .then(|| MetaSeparator::cast(get_token_at_index(&non_trivia_elems, 0)?.clone()))?
+        .then(|| MetaSeparator::cast(token_at_index(&non_trivia_elems, 0)?.clone()))?
 }
 
-fn get_arg_value(elems: &[SyntaxElement]) -> MetaOption<MetaValue> {
+fn arg_value_meta_option(elems: &[SyntaxElement]) -> MetaOption<MetaValue> {
     if elems.is_empty() {
         return MetaOption::None;
     }
@@ -449,14 +401,12 @@ mod tests {
         ] {
             // Parse attribute.
             let attr = parse_first_attribute(code);
-            let args = parse_ink_args(&attr);
 
             // Parse ink! attribute arguments from attribute and
             // convert to an array of ink! attribute argument kinds for easy comparisons.
-            let actual_order: Vec<InkArgKind> = sort_ink_args_by_kind(&args)
-                .iter()
-                .map(|arg| *arg.kind())
-                .collect();
+            let args = parse_ink_args(&attr);
+            let actual_order: Vec<InkArgKind> =
+                args.iter().sorted().map(|arg| *arg.kind()).collect();
 
             // actual order of argument kinds should match expected order.
             assert_eq!(actual_order, expected_order);

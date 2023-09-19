@@ -1,6 +1,7 @@
 //! ink! attribute argument IR.
 
 use ra_ap_syntax::{AstToken, TextRange};
+use std::cmp::Ordering;
 use std::fmt;
 
 use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaValue};
@@ -61,6 +62,18 @@ impl InkArg {
 impl fmt::Display for InkArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.meta.fmt(f)
+    }
+}
+
+impl Ord for InkArg {
+    fn cmp(&self, other: &Self) -> Ordering {
+        Ord::cmp(self.kind(), other.kind())
+    }
+}
+
+impl PartialOrd for InkArg {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        PartialOrd::partial_cmp(self.kind(), other.kind())
     }
 }
 
@@ -200,6 +213,57 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::Unknown => "unknown",
             }
         )
+    }
+}
+
+/// Assigns a sort ascending rank (i.e 0 is highest rank) to ink! attribute argument kinds
+/// so that we choose the best `InkArgKind` for ink! attributes regardless of their actual ordering in source code.
+///
+/// (e.g the kind for `#[ink(selector=1, payable, message)]` should still be `InkArgKind::Message`).
+fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
+    match arg_kind {
+        // Required (e.g `storage`) and/or root-level/unambiguous (e.g `event`)
+        // arguments get highest priority.
+        InkArgKind::Constructor
+        | InkArgKind::Event
+        | InkArgKind::Extension
+        | InkArgKind::Impl
+        | InkArgKind::Message
+        | InkArgKind::Storage => 0,
+        // Everything else apart from "unknown" gets the next priority level.
+        // This includes optional (e.g `anonymous`, `payable`, `selector` e.t.c) and/or non root-level (e.g `topic`)
+        // and/or ambiguous (e.g `namespace`) and/or macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c).
+        // This group is explicitly enumerated to force explicit decisions about
+        // the priority level of new `InkArgKind` additions.
+        InkArgKind::AdditionalContracts
+        | InkArgKind::Anonymous
+        | InkArgKind::Default
+        | InkArgKind::Derive
+        | InkArgKind::Env
+        | InkArgKind::Environment
+        | InkArgKind::HandleStatus
+        | InkArgKind::KeepAttr
+        | InkArgKind::Namespace
+        | InkArgKind::Payable
+        | InkArgKind::Selector
+        | InkArgKind::Topic => 1,
+        // "Unknown" gets a special priority level.
+        InkArgKind::Unknown => 10,
+    }
+}
+
+impl Ord for InkArgKind {
+    fn cmp(&self, other: &Self) -> Ordering {
+        Ord::cmp(
+            &ink_arg_kind_sort_order(*self),
+            &ink_arg_kind_sort_order(*other),
+        )
+    }
+}
+
+impl PartialOrd for InkArgKind {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(Ord::cmp(self, other))
     }
 }
 

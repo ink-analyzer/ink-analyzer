@@ -9,6 +9,7 @@ use ink_analyzer_ir::{
     InkAttribute, InkAttributeKind, InkImpl, InkMacroKind, IsInkEntity, IsInkStruct, IsInkTrait,
     Storage,
 };
+use itertools::Itertools;
 use std::collections::HashSet;
 
 use crate::utils;
@@ -305,41 +306,32 @@ pub fn valid_ink_macros_by_syntax_kind(syntax_kind: SyntaxKind) -> Vec<InkMacroK
 /// a boolean flag indicating whether its the first ink! attribute.
 ///
 /// (i.e returns either the first valid ink! attribute macro or the highest ranked ink! attribute argument,
-/// see [`ink_analyzer_ir::ink_arg_kind_sort_order`] doc for attribute argument ranking criteria).
+/// see implementation of [`Ord`] for [`InkAttributeKind`] for details).
 pub fn primary_ink_attribute_candidate(
-    attrs: impl Iterator<Item = InkAttribute>,
+    mut attrs: impl Iterator<Item = InkAttribute>,
 ) -> Option<(InkAttribute, bool)> {
-    let mut candidates: Vec<(u8, InkAttribute, bool)> = attrs
-        .enumerate()
-        .filter_map(|(idx, attr)| {
-            // Ignore unknown attributes.
-            (!matches!(
-                attr.kind(),
-                InkAttributeKind::Macro(InkMacroKind::Unknown)
-                    | InkAttributeKind::Arg(InkArgKind::Unknown)
-            ))
-            .then_some((
-                // Assigns the order of the attribute.
-                match attr.kind() {
-                    // ink! attribute macros get the highest priority.
-                    InkAttributeKind::Macro(_) => 0,
-                    // ink! attribute arguments get their priority lowered by 1 to keep macros the highest.
-                    InkAttributeKind::Arg(arg_kind) => {
-                        ink_analyzer_ir::ink_arg_kind_sort_order(*arg_kind) + 1
-                    }
-                },
-                attr,
-                // Tracks whether attribute is the first.
-                idx == 0,
-            ))
-        })
-        .collect();
-    candidates.sort_by_key(|(order, ..)| *order);
-    // Returns the best ranked ink! attribute.
-    candidates
-        .first()
-        .cloned()
-        .map(|(_, attr, is_first)| (attr, is_first))
+    attrs.next().and_then(|first_attr| {
+        let first_attr_range = first_attr.syntax().text_range();
+        [first_attr]
+            .into_iter()
+            .chain(attrs)
+            .filter(|attr| {
+                // Ignore unknown attributes.
+                !matches!(
+                    attr.kind(),
+                    InkAttributeKind::Macro(InkMacroKind::Unknown)
+                        | InkAttributeKind::Arg(InkArgKind::Unknown)
+                )
+            })
+            .sorted()
+            .next()
+            .map(|primary_candidate| {
+                // Returns the best ranked valid ink! attribute
+                // and a flag indicating whether or not its the first ink! attribute.
+                let is_first = first_attr_range == primary_candidate.syntax().text_range();
+                (primary_candidate, is_first)
+            })
+    })
 }
 
 /// Suggest primary attribute kinds in case the current one is either incomplete

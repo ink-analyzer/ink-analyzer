@@ -1,7 +1,9 @@
 //! ink! attribute IR.
 
 use ink_analyzer_macro::FromAST;
+use itertools::Itertools;
 use ra_ap_syntax::{ast, AstNode, SyntaxNode};
+use std::cmp::Ordering;
 use std::fmt;
 
 use crate::traits::{FromAST, FromSyntax};
@@ -69,11 +71,10 @@ impl InkAttribute {
                             None => InkAttributeKind::Macro(InkMacroKind::Unknown),
                         }
                     } else {
-                        // Prioritize arguments so that we choose the best `InkArgKind` for the attribute.
+                        // Sort arguments so that we choose the "primary" `InkArgKind` for the attribute.
                         // See [`utils::ink_arg_kind_sort_order`] doc.
                         // Returns a new list so we don't change the original order for later analysis.
-                        let sorted_args = utils::sort_ink_args_by_kind(&args);
-                        let primary_arg = &sorted_args[0];
+                        let primary_arg = args.iter().sorted().next().unwrap();
                         possible_ink_arg_name = primary_arg.name().cloned();
                         InkAttributeKind::Arg(*primary_arg.kind())
                     }
@@ -120,6 +121,18 @@ impl InkAttribute {
     }
 }
 
+impl Ord for InkAttribute {
+    fn cmp(&self, other: &Self) -> Ordering {
+        Ord::cmp(self.kind(), other.kind())
+    }
+}
+
+impl PartialOrd for InkAttribute {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        PartialOrd::partial_cmp(self.kind(), other.kind())
+    }
+}
+
 /// The ink! attribute kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InkAttributeKind {
@@ -127,6 +140,26 @@ pub enum InkAttributeKind {
     Macro(InkMacroKind),
     /// ink! attributes arguments e.g `#[ink(storage)]`.
     Arg(InkArgKind),
+}
+
+impl Ord for InkAttributeKind {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            // Macros have same priority.
+            (InkAttributeKind::Macro(_), InkAttributeKind::Macro(_)) => Ordering::Equal,
+            // Macros have higher priority (:- less since ascending order) than arguments.
+            (InkAttributeKind::Macro(_), InkAttributeKind::Arg(_)) => Ordering::Less,
+            (InkAttributeKind::Arg(_), InkAttributeKind::Macro(_)) => Ordering::Greater,
+            // Arguments have defined priorities.
+            (InkAttributeKind::Arg(lhs), InkAttributeKind::Arg(rhs)) => Ord::cmp(lhs, rhs),
+        }
+    }
+}
+
+impl PartialOrd for InkAttributeKind {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(Ord::cmp(self, other))
+    }
 }
 
 /// The ink! attribute macro kind.
