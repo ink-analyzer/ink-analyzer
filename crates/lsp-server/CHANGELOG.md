@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2023-09-19
+
+- Improve diagnostics and quickfixes for ambiguous attribute arguments.
+- Improve "primary" attribute and argument quickfixes.
+- General robustness improvements for semantic analyzer.
+
 ## [0.2.6] - 2023-09-18
 
 - More code/intent actions for adding ink! entities (i.e. code stubs/snippets for items not just attributes).
