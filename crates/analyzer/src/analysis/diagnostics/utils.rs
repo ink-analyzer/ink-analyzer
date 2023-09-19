@@ -33,23 +33,33 @@ pub fn run_generic_diagnostics<T: FromSyntax>(results: &mut Vec<Diagnostic>, ite
             .collect::<Vec<InkAttribute>>(),
     );
 
-    // Ensures that ink! attribute arguments are of the right format and have values are of the correct type (if any),
+    // Ensures that ink! attribute arguments are of the right format
+    // and have values are of the correct type (if any),
     // See `ensure_valid_attribute_arguments` doc.
-    for attr in item.tree().ink_attrs() {
+    for attr in item.tree().ink_attrs_in_scope() {
         ensure_valid_attribute_arguments(results, &attr);
     }
 
-    // Ensures that no duplicate ink! attributes and/or arguments, see `ensure_no_duplicate_attributes_and_arguments` doc.
-    ensure_no_duplicate_attributes_and_arguments(
-        results,
-        &item.tree().ink_attrs().collect::<Vec<InkAttribute>>(),
-    );
+    // Iterates over all ink! parent nodes in scope.
+    for ink_parent in item
+        .tree()
+        .ink_attrs_in_scope()
+        .filter_map(|attr| attr.syntax().parent())
+        .unique_by(|node| node.text_range())
+    {
+        // Gets all ink! attributes for the parent node.
+        let attrs: Vec<InkAttribute> = ink_analyzer_ir::ink_attrs(&ink_parent).collect();
 
-    // Ensures that no conflicting ink! attributes and/or arguments, see `ensure_no_conflicting_attributes_and_arguments` doc.
-    ensure_no_conflicting_attributes_and_arguments(
-        results,
-        &item.tree().ink_attrs().collect::<Vec<InkAttribute>>(),
-    );
+        if !attrs.is_empty() {
+            // Ensures that no duplicate ink! attributes and/or arguments,
+            // see `ensure_no_duplicate_attributes_and_arguments` doc.
+            ensure_no_duplicate_attributes_and_arguments(results, &attrs);
+
+            // Ensures that no conflicting ink! attributes and/or arguments,
+            // see `ensure_no_conflicting_attributes_and_arguments` doc.
+            ensure_no_conflicting_attributes_and_arguments(results, &attrs);
+        }
+    }
 }
 
 /// Returns an error diagnostic for every instance of `__ink_` prefixed identifier found.
