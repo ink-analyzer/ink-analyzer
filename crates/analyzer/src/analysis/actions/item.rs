@@ -6,6 +6,7 @@ use ink_analyzer_ir::{
     ast, ChainExtension, Contract, Event, FromInkAttribute, FromSyntax, InkArgKind, InkAttribute,
     InkAttributeKind, InkFile, InkImpl, InkMacroKind, TraitDefinition,
 };
+use itertools::Itertools;
 
 use super::entity;
 use super::{Action, ActionKind};
@@ -66,6 +67,9 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
 
                             // Suggests ink! attribute arguments based on the context.
                             ink_arg_actions(results, target, item_declaration_text_range);
+
+                            // Suggests actions for "flattening" ink! attributes (if any).
+                            flatten_attrs(results, target, item_declaration_text_range);
                         }
 
                         // Only computes ink! entity actions if the focus is on either
@@ -449,6 +453,49 @@ fn root_ink_entity_actions(results: &mut Vec<Action>, file: &InkFile, offset: Te
 
     // Adds ink! storage item.
     results.push(entity::add_storage_item(offset, ActionKind::Refactor, None));
+}
+
+/// Computes actions for "flattening" ink! attributes for the target syntax node.
+fn flatten_attrs(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRange) {
+    let mut attrs = ink_analyzer_ir::ink_attrs(target).sorted();
+    if let Some(primary_candidate) = attrs.next() {
+        // Only computes flattening actions if the item has other argument-based ink! attributes.
+        let other_arg_attrs = attrs.filter(|attr| matches!(attr.kind(), InkAttributeKind::Arg(_)));
+        if other_arg_attrs.clone().next().is_some() {
+            results.push(Action {
+                label: "Flatten ink! attribute arguments.".to_string(),
+                kind: ActionKind::Refactor,
+                range,
+                edits: [TextEdit::replace(
+                    format!(
+                        "#[{}({})]",
+                        match primary_candidate.kind() {
+                            InkAttributeKind::Macro(macro_kind) => macro_kind.path_as_str(),
+                            InkAttributeKind::Arg(_) => "ink",
+                        },
+                        // All ink! attribute arguments sorted by priority.
+                        primary_candidate
+                            .args()
+                            .iter()
+                            .cloned()
+                            .chain(
+                                other_arg_attrs
+                                    .clone()
+                                    .flat_map(|attr| attr.args().to_vec())
+                            )
+                            .sorted()
+                            .map(|arg| arg.to_string())
+                            .join(", ")
+                    ),
+                    primary_candidate.syntax().text_range(),
+                )]
+                .into_iter()
+                // Removes other argument-based ink! attributes.
+                .chain(other_arg_attrs.map(|attr| TextEdit::delete(attr.syntax().text_range())))
+                .collect(),
+            });
+        }
+    }
 }
 
 /// Determines if the selection range is in an AST item's declaration
@@ -878,6 +925,70 @@ mod tests {
                     },
                 ],
             ),
+            (
+                r#"
+                    #[ink::contract]
+                    #[ink(env=crate::Environment)]
+                    #[ink(keep_attr="foo,bar")]
+                    mod my_contract {
+                    }
+                "#,
+                Some("<-mod"),
+                vec![
+                    TestResultAction {
+                        label: "Flatten",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: r#"#[ink::contract(env = crate::Environment, keep_attr = "foo,bar")]"#,
+                                start_pat: Some("<-#[ink::contract]"),
+                                end_pat: Some("#[ink::contract]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some(r#"<-#[ink(env=crate::Environment)]"#),
+                                end_pat: Some(r#"#[ink(env=crate::Environment)]"#),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                                end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                            },
+                        ],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(storage)]",
+                            start_pat: Some("mod my_contract {"),
+                            end_pat: Some("mod my_contract {"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(event)]",
+                            start_pat: Some("mod my_contract {"),
+                            end_pat: Some("mod my_contract {"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(constructor)]",
+                            start_pat: Some("mod my_contract {"),
+                            end_pat: Some("mod my_contract {"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(message)]",
+                            start_pat: Some("mod my_contract {"),
+                            end_pat: Some("mod my_contract {"),
+                        }],
+                    },
+                ],
+            ),
             // Trait focus.
             (
                 r#"
@@ -964,6 +1075,46 @@ mod tests {
                     },
                 ],
             ),
+            (
+                r#"
+                    #[ink::trait_definition]
+                    #[ink(namespace="my_namespace")]
+                    #[ink(keep_attr="foo,bar")]
+                    pub trait MyTrait {
+                    }
+                "#,
+                Some("<-pub"),
+                vec![
+                    TestResultAction {
+                        label: "Flatten",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: r#"#[ink::trait_definition(namespace = "my_namespace", keep_attr = "foo,bar")]"#,
+                                start_pat: Some("<-#[ink::trait_definition]"),
+                                end_pat: Some("#[ink::trait_definition]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                                end_pat: Some(r#"#[ink(namespace="my_namespace")]"#),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                                end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                            },
+                        ],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(message)]",
+                            start_pat: Some("pub trait MyTrait {"),
+                            end_pat: Some("pub trait MyTrait {"),
+                        }],
+                    },
+                ],
+            ),
             // ADT focus.
             (
                 r#"
@@ -1034,6 +1185,30 @@ mod tests {
                         start_pat: Some("<-union"),
                         end_pat: Some("<-union"),
                     }],
+                }],
+            ),
+            (
+                r#"
+                    #[ink::storage_item]
+                    #[ink(derive=true)]
+                    struct MyStruct {
+                    }
+                "#,
+                Some("<-struct"),
+                vec![TestResultAction {
+                    label: "Flatten",
+                    edits: vec![
+                        TestResultTextRange {
+                            text: "#[ink::storage_item(derive = true)]",
+                            start_pat: Some("<-#[ink::storage_item]"),
+                            end_pat: Some("#[ink::storage_item]"),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(derive=true)]"),
+                            end_pat: Some("#[ink(derive=true)]"),
+                        },
+                    ],
                 }],
             ),
             // Struct field focus.
@@ -1180,6 +1355,42 @@ mod tests {
             ),
             (
                 r#"
+                    #[ink_e2e::test]
+                    #[ink(additional_contracts="")]
+                    #[ink(environment=crate::)]
+                    #[ink(keep_attr="")]
+                    fn my_fn() {
+                    }
+                "#,
+                Some("<-fn"),
+                vec![TestResultAction {
+                    label: "Flatten",
+                    edits: vec![
+                        TestResultTextRange {
+                            text: r#"#[ink_e2e::test(additional_contracts = "", environment = crate::, keep_attr = "")]"#,
+                            start_pat: Some("<-#[ink_e2e::test]"),
+                            end_pat: Some("#[ink_e2e::test]"),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some(r#"<-#[ink(additional_contracts="")]"#),
+                            end_pat: Some(r#"#[ink(additional_contracts="")]"#),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some(r#"<-#[ink(environment=crate::)]"#),
+                            end_pat: Some(r#"#[ink(environment=crate::)]"#),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some(r#"<-#[ink(keep_attr="")]"#),
+                            end_pat: Some(r#"#[ink(keep_attr="")]"#),
+                        },
+                    ],
+                }],
+            ),
+            (
+                r#"
                     #[ink(constructor)]
                     fn my_fn() {
                     }
@@ -1211,6 +1422,36 @@ mod tests {
                         }],
                     },
                 ],
+            ),
+            (
+                r#"
+                    #[ink(constructor)]
+                    #[ink(selector=1)]
+                    #[ink(default, payable)]
+                    fn my_fn() {
+                    }
+                "#,
+                Some("<-fn"),
+                vec![TestResultAction {
+                    label: "Flatten",
+                    edits: vec![
+                        TestResultTextRange {
+                            text: "#[ink(constructor, selector = 1, default, payable)]",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(selector=1)]"),
+                            end_pat: Some("#[ink(selector=1)]"),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(default, payable)]"),
+                            end_pat: Some("#[ink(default, payable)]"),
+                        },
+                    ],
+                }],
             ),
             (
                 r#"
@@ -1264,6 +1505,42 @@ mod tests {
                 "#,
                 Some("<-struct"),
                 vec![
+                    // Adds ink! topic `field`.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("my_field: u8,"),
+                            end_pat: Some("my_field: u8,"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    #[ink(anonymous)]
+                    #[ink(event)]
+                    struct MyEvent {
+                        my_field: u8,
+                    }
+                "#,
+                Some("<-struct"),
+                vec![
+                    TestResultAction {
+                        label: "Flatten",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(event, anonymous)]",
+                                start_pat: Some("<-#[ink(event)]"),
+                                end_pat: Some("#[ink(event)]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(anonymous)]"),
+                                end_pat: Some("#[ink(anonymous)]"),
+                            },
+                        ],
+                    },
                     // Adds ink! topic `field`.
                     TestResultAction {
                         label: "Add",
