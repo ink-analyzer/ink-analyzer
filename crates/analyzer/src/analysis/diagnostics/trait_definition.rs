@@ -105,10 +105,12 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                             ink_analyzer_ir::ink_attrs(fn_item.syntax()).filter_map(|attr| {
                                 (!matches!(
                                     attr.kind(),
-                                    InkAttributeKind::Arg(InkArgKind::Message)
-                                        | InkAttributeKind::Arg(InkArgKind::Default)
-                                        | InkAttributeKind::Arg(InkArgKind::Payable)
-                                        | InkAttributeKind::Arg(InkArgKind::Selector)
+                                    InkAttributeKind::Arg(
+                                        InkArgKind::Message
+                                            | InkArgKind::Default
+                                            | InkArgKind::Payable
+                                            | InkArgKind::Selector
+                                    )
                                 ))
                                 .then_some(TextEdit::delete(attr.syntax().text_range()))
                             }),
@@ -122,7 +124,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L80-L101>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L304>.
             for attr in ink_analyzer_ir::ink_attrs(fn_item.syntax()) {
-                for arg in attr.args().iter() {
+                for arg in attr.args() {
                     if let Some(value) = arg.value() {
                         if value.is_wildcard() {
                             // Edit range for quickfix.

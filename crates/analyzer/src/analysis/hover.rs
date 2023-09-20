@@ -52,7 +52,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
                             .map_or(ink_attr.syntax().text_range(), |ink_arg_name| {
                                 ink_arg_name.syntax().text_range()
                             }),
-                        _ => ink_attr
+                        InkAttributeKind::Macro(_) => ink_attr
                             .ink_macro()
                             .map_or(ink_attr.syntax().text_range(), |path_segment| {
                                 path_segment.syntax().text_range()

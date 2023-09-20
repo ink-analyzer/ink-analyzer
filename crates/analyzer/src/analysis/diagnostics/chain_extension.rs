@@ -115,15 +115,16 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                                     |attr| {
                                         (!matches!(
                                             attr.kind(),
-                                            InkAttributeKind::Arg(InkArgKind::Extension)
-                                                | InkAttributeKind::Arg(InkArgKind::HandleStatus)
+                                            InkAttributeKind::Arg(
+                                                InkArgKind::Extension | InkArgKind::HandleStatus
+                                            )
                                         ))
                                         .then_some(TextEdit::delete(attr.syntax().text_range()))
                                     },
                                 ))
                                 .collect(),
                             }]),
-                        })
+                        });
                     }
                 }
             },
@@ -141,10 +142,10 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                             .to_string(),
                         range: name_marker
                             .as_ref()
-                            .map(|it| it.syntax().text_range())
                             // Defaults to the declaration range for the chain extension.
-                            .unwrap_or(
-                                analysis_utils::ink_trait_declaration_range(chain_extension)
+                            .map_or(
+                                analysis_utils::ink_trait_declaration_range(chain_extension),
+                                |it| it.syntax().text_range(),
                             ),
                         severity: Severity::Error,
                         quickfixes: name_marker.as_ref().map(|name| {
@@ -310,7 +311,7 @@ fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &Ch
                             )],
                         }]
                     }),
-                })
+                });
             }
 
             seen_ids.insert(id);

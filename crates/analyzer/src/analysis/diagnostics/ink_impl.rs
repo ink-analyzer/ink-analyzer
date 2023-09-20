@@ -222,8 +222,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                             ),
                             range: visibility
                                 .as_ref()
-                                .map(|it| it.syntax().text_range())
-                                .unwrap_or(fn_declaration_range),
+                                .map_or(fn_declaration_range, |it| it.syntax().text_range()),
                             severity: Severity::Error,
                             quickfixes: visibility
                                 .as_ref()
@@ -233,9 +232,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                     .or(fn_item.const_token())
                                     .or(fn_item.async_token())
                                     .or(fn_item.unsafe_token())
-                                    .or(fn_item.abi().and_then(|abi| {
-                                        abi.syntax().first_token()
-                                    }))
+                                    .or(fn_item.abi().and_then(|abi| abi.syntax().first_token()))
                                     .or(fn_item.fn_token())
                                     .map(|it| {
                                         TextRange::new(
@@ -249,8 +246,9 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                         kind: ActionKind::QuickFix,
                                         range: visibility
                                             .as_ref()
-                                            .map(|it| it.syntax().text_range())
-                                            .unwrap_or(fn_declaration_range),
+                                            .map_or(fn_declaration_range, |it| {
+                                                it.syntax().text_range()
+                                            }),
                                         edits: vec![TextEdit::replace(
                                             format!(
                                                 "pub{}",

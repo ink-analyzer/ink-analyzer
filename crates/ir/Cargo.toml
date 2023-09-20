@@ -15,8 +15,8 @@ categories = ["development-tools"]
 [dependencies]
 blake2 = "0.10.6"
 ink-analyzer-macro = { version = "0.6", path = "../macro" }
-itertools = "0.10.5"
-ra_ap_syntax = "0.0.149"
+itertools = "0.11.0"
+ra_ap_syntax = "0.0.173"
 
 [dev-dependencies]
 quote = "1.0.26"

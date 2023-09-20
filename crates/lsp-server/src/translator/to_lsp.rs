@@ -122,7 +122,7 @@ pub fn code_action(
         let snippets: Vec<(String, String)> = edits
             .iter()
             .filter_map(|(text, _, snippet)| {
-                snippet.map(|snippet| (text.to_string(), snippet.to_string()))
+                snippet.map(|snippet| ((*text).to_string(), snippet.to_string()))
             })
             .collect();
 

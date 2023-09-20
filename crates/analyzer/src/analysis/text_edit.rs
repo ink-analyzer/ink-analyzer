@@ -55,7 +55,7 @@ impl TextEdit {
     /// Creates a text edit for deleting the specified range.
     pub fn delete(range: TextRange) -> Self {
         Self {
-            text: "".to_string(),
+            text: String::new(),
             range,
             snippet: None,
         }

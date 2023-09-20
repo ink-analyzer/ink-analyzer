@@ -34,7 +34,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
 
     // Runs ink! storage diagnostics, see `storage::diagnostics` doc.
     for item in ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax()) {
-        storage::diagnostics(results, &item)
+        storage::diagnostics(results, &item);
     }
 
     // Runs ink! event diagnostics, see `event::diagnostics` doc.
@@ -114,8 +114,7 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
             // Edit range for quickfix.
             let quickfix_range = semicolon_token
                 .as_ref()
-                .map(SyntaxToken::text_range)
-                .unwrap_or(contract.syntax().text_range());
+                .map_or(contract.syntax().text_range(), SyntaxToken::text_range);
             Diagnostic {
                 message: "The content of an ink! contract's `mod` item must be defined inline."
                     .to_string(),
@@ -488,7 +487,7 @@ fn ensure_impl_parent_for_callables(results: &mut Vec<Diagnostic>, contract: &Co
                 .filter_map(|item| utils::ensure_impl_parent(item, "message")),
         )
     {
-        results.push(diagnostic)
+        results.push(diagnostic);
     }
 }
 

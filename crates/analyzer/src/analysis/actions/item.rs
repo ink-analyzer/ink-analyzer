@@ -165,7 +165,7 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
     // (i.e either no valid ink! attribute macro or only ink! attribute arguments).
     if primary_ink_attr_candidate.is_none()
         || !matches!(
-            primary_ink_attr_candidate.as_ref().map(|attr| attr.kind()),
+            primary_ink_attr_candidate.as_ref().map(InkAttribute::kind),
             Some(InkAttributeKind::Macro(_))
         )
     {

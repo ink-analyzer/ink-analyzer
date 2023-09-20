@@ -15,7 +15,7 @@ pub fn impl_from_ink_attribute(ast: &syn::DeriveInput) -> syn::Result<TokenStrea
         let mut field_values: Vec<TokenStream> = Vec::new();
         let mut field_errors: Option<syn::Error> = None;
 
-        for field in fields.named.iter() {
+        for field in &fields.named {
             if let Some(ident) = &field.ident {
                 if let Some(field_config) = FieldConfig::build(field) {
                     if ident == "ink_attr" {

@@ -565,9 +565,8 @@ pub fn ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
         // Finds the first non-(attribute/rustdoc/trivia) token for the item.
         .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
         .as_ref()
-        .map(SyntaxToken::text_range)
         // Defaults to the start of the node.
-        .unwrap_or(node.text_range())
+        .map_or(node.text_range(), SyntaxToken::text_range)
         .start()
 }
 
@@ -857,42 +856,30 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
             .map(|it| {
                 it.l_curly_token()
                     .as_ref()
-                    .map(SyntaxToken::text_range)
-                    .unwrap_or(it.syntax().text_range())
+                    .map_or(it.syntax().text_range(), SyntaxToken::text_range)
             })
             .or(module
                 .semicolon_token()
                 .as_ref()
                 .map(SyntaxToken::text_range)),
-        ast::Item::Trait(trait_item) => trait_item
-            .assoc_item_list()
-            .map(|it| {
-                it.l_curly_token()
-                    .as_ref()
-                    .map(SyntaxToken::text_range)
-                    .unwrap_or(it.syntax().text_range())
-            })
-            .or(trait_item
-                .semicolon_token()
+        ast::Item::Trait(trait_item) => trait_item.assoc_item_list().map(|it| {
+            it.l_curly_token()
                 .as_ref()
-                .map(SyntaxToken::text_range)),
+                .map_or(it.syntax().text_range(), SyntaxToken::text_range)
+        }),
         ast::Item::Impl(impl_item) => impl_item.assoc_item_list().map(|it| {
             it.l_curly_token()
                 .as_ref()
-                .map(SyntaxToken::text_range)
-                .unwrap_or(it.syntax().text_range())
+                .map_or(it.syntax().text_range(), SyntaxToken::text_range)
         }),
         ast::Item::Fn(fn_item) => fn_item
             .body()
             .map(|it| {
-                it.stmt_list()
-                    .map(|it| {
-                        it.l_curly_token()
-                            .as_ref()
-                            .map(SyntaxToken::text_range)
-                            .unwrap_or(it.syntax().text_range())
-                    })
-                    .unwrap_or(it.syntax().text_range())
+                it.stmt_list().map_or(it.syntax().text_range(), |it| {
+                    it.l_curly_token()
+                        .as_ref()
+                        .map_or(it.syntax().text_range(), SyntaxToken::text_range)
+                })
             })
             .or(fn_item
                 .semicolon_token()
@@ -901,8 +888,7 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
         ast::Item::Enum(enum_item) => enum_item.variant_list().map(|it| {
             it.l_curly_token()
                 .as_ref()
-                .map(SyntaxToken::text_range)
-                .unwrap_or(it.syntax().text_range())
+                .map_or(it.syntax().text_range(), SyntaxToken::text_range)
         }),
         ast::Item::Struct(struct_item) => struct_item
             .field_list()
@@ -931,8 +917,7 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
         ast::Item::Union(union_item) => union_item.record_field_list().map(|it| {
             it.l_curly_token()
                 .as_ref()
-                .map(SyntaxToken::text_range)
-                .unwrap_or(it.syntax().text_range())
+                .map_or(it.syntax().text_range(), SyntaxToken::text_range)
         }),
         ast::Item::TypeAlias(type_alias) => type_alias
             .semicolon_token()
@@ -959,9 +944,8 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
             // Finds the first non-(attribute/rustdoc/trivia) token for the item.
             .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
             .as_ref()
-            .map(SyntaxToken::text_range)
             // Defaults to the start of the item.
-            .unwrap_or(item.syntax().text_range())
+            .map_or(item.syntax().text_range(), SyntaxToken::text_range)
             .start();
 
         // Returns the text range for the item's "declaration".
@@ -978,8 +962,7 @@ pub fn ast_item_terminal_token(item: &ast::Item) -> Option<SyntaxToken> {
             .or(module.semicolon_token()),
         ast::Item::Trait(trait_item) => trait_item
             .assoc_item_list()
-            .and_then(|it| it.r_curly_token())
-            .or(trait_item.semicolon_token()),
+            .and_then(|it| it.r_curly_token()),
         ast::Item::Impl(impl_item) => impl_item
             .assoc_item_list()
             .and_then(|it| it.r_curly_token()),
@@ -1015,7 +998,7 @@ pub fn token_and_trivia_range(token: &SyntaxToken) -> TextRange {
     TextRange::new(
         token.text_range().start(),
         // Either the start of the next non-trivia token or the end of the target token.
-        ink_analyzer_ir::closest_non_trivia_token(token, |subject| subject.next_token())
+        ink_analyzer_ir::closest_non_trivia_token(token, SyntaxToken::next_token)
             .map_or(token.text_range().end(), |it| it.text_range().start()),
     )
 }
@@ -1037,7 +1020,7 @@ pub fn token_and_delimiter_range(token: &SyntaxToken, delimiter: SyntaxKind) -> 
     // Gets the next delimiter (if any).
     let next_delimiter = ink_analyzer_ir::closest_item_which(
         token,
-        |subject| subject.next_token(),
+        SyntaxToken::next_token,
         |subject| subject.kind() == delimiter,
         |subject| !subject.kind().is_trivia(),
     );
@@ -1050,7 +1033,7 @@ pub fn token_and_delimiter_range(token: &SyntaxToken, delimiter: SyntaxKind) -> 
                 // Returns the previous delimiter token (if any).
                 ink_analyzer_ir::closest_item_which(
                     token,
-                    |subject| subject.prev_token(),
+                    SyntaxToken::prev_token,
                     |subject| subject.kind() == delimiter,
                     |subject| !subject.kind().is_trivia(),
                 )
@@ -1074,8 +1057,9 @@ pub fn node_and_delimiter_range(node: &SyntaxNode, delimiter: SyntaxKind) -> Tex
     let end = node
         .last_token()
         .as_ref()
-        .map(|token| token_and_delimiter_range(token, delimiter))
-        .unwrap_or(node.text_range())
+        .map_or(node.text_range(), |token| {
+            token_and_delimiter_range(token, delimiter)
+        })
         .end();
     TextRange::new(
         // Either the start of the previous delimiter token (if any and there's no next delimiter)
@@ -1158,8 +1142,9 @@ pub fn ink_arg_and_delimiter_removal_range(
     // Gets the end position.
     let end = last_token_option
         .as_ref()
-        .map(|token| token_and_delimiter_range(token, SyntaxKind::COMMA))
-        .unwrap_or(arg.text_range())
+        .map_or(arg.text_range(), |token| {
+            token_and_delimiter_range(token, SyntaxKind::COMMA)
+        })
         .end();
 
     // Returns the text range of attribute argument + delimiter (if any) .
@@ -1202,8 +1187,9 @@ pub fn ink_arg_and_delimiter_removal_range(
             // Returns a text range including previous delimiter token (if any).
             // Previous is implied because we know there's no next delimiter
             // because `end == arg.text_range().end()`.
-            .map(|token| token_and_delimiter_range(token, SyntaxKind::COMMA))
-            .unwrap_or(arg.text_range())
+            .map_or(arg.text_range(), |token| {
+                token_and_delimiter_range(token, SyntaxKind::COMMA)
+            })
             .start(),
         // Either the end of the next delimiter token or the end of the ink! attribute argument.
         end,
@@ -1234,9 +1220,10 @@ pub fn item_insert_offset_end(item_list: &ast::ItemList) -> TextSize {
         // Determines position after the last item in the item list.
         .items()
         .last()
-        .map(|it| it.syntax().text_range().end())
         // Defaults to the start if item list is empty because it's easier to apply additional formatting that way.
-        .unwrap_or(item_insert_offset_start(item_list))
+        .map_or(item_insert_offset_start(item_list), |it| {
+            it.syntax().text_range().end()
+        })
 }
 
 /// Returns the offset after the end of the last `struct` (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c).
@@ -1246,8 +1233,9 @@ pub fn item_insert_offset_after_last_struct_or_start(item_list: &ast::ItemList) 
         .items()
         .filter(|it| matches!(it, ast::Item::Struct(_)))
         .last()
-        .map(|it| it.syntax().text_range().end())
-        .unwrap_or(item_insert_offset_start(item_list))
+        .map_or(item_insert_offset_start(item_list), |it| {
+            it.syntax().text_range().end()
+        })
 }
 
 /// Returns the offset after the end of the last `impl` (if any), or the end of the last `struct` (if any),
@@ -1310,9 +1298,10 @@ pub fn assoc_item_insert_offset_end(assoc_item_list: &ast::AssocItemList) -> Tex
         // Determines position after the last item in the associated item list.
         .assoc_items()
         .last()
-        .map(|it| it.syntax().text_range().end())
         // Defaults to the start if associated item list is empty because it's easier to apply additional formatting that way.
-        .unwrap_or(assoc_item_insert_offset_start(assoc_item_list))
+        .map_or(assoc_item_insert_offset_start(assoc_item_list), |it| {
+            it.syntax().text_range().end()
+        })
 }
 
 /// Returns the offset for the beginning of a field list and affixes (prefix and suffix).
@@ -1359,7 +1348,7 @@ pub fn field_insert_offset_end_and_affixes(
             .and_then(|token| {
                 ink_analyzer_ir::closest_item_which(
                     &token,
-                    |subject| subject.next_token(),
+                    SyntaxToken::next_token,
                     |subject| subject.kind() == SyntaxKind::COMMA,
                     |subject| !subject.kind().is_trivia(),
                 )
@@ -1488,7 +1477,9 @@ pub fn resolve_contract_name(contract: &Contract) -> Option<String> {
 
 /// Applies indenting to a snippet.
 pub fn apply_indenting(input: &str, indent: &str) -> String {
-    if !indent.is_empty() {
+    if indent.is_empty() {
+        input.to_string()
+    } else {
         let mut output = String::new();
         for (idx, line) in input.lines().enumerate() {
             if idx > 0 {
@@ -1500,14 +1491,14 @@ pub fn apply_indenting(input: &str, indent: &str) -> String {
             }
         }
         output
-    } else {
-        input.to_string()
     }
 }
 
 /// Reduces indenting for a snippet.
 pub fn reduce_indenting(input: &str, indent: &str) -> String {
-    if !indent.is_empty() {
+    if indent.is_empty() {
+        input.to_string()
+    } else {
         let mut output = String::new();
         for (idx, line) in input.lines().enumerate() {
             if idx > 0 {
@@ -1519,8 +1510,6 @@ pub fn reduce_indenting(input: &str, indent: &str) -> String {
             }
         }
         output
-    } else {
-        input.to_string()
     }
 }
 

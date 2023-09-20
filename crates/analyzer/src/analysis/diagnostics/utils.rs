@@ -45,7 +45,7 @@ pub fn run_generic_diagnostics<T: FromSyntax>(results: &mut Vec<Diagnostic>, ite
         .tree()
         .ink_attrs_in_scope()
         .filter_map(|attr| attr.syntax().parent())
-        .unique_by(|node| node.text_range())
+        .unique_by(SyntaxNode::text_range)
     {
         // Gets all ink! attributes for the parent node.
         let attrs: Vec<InkAttribute> = ink_analyzer_ir::ink_attrs(&ink_parent).collect();
@@ -170,7 +170,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         range,
                         edits: vec![TextEdit::delete(range)],
                     }]),
-                })
+                });
             }
             arg_kind => {
                 let arg_value_type = InkArgValueKind::from(*arg_kind);
@@ -1036,8 +1036,10 @@ where
         let range = TextRange::new(
             item.colon_token()
                 .as_ref()
-                .map(SyntaxToken::text_range)
-                .unwrap_or(type_bound_list.syntax().text_range())
+                .map_or(
+                    type_bound_list.syntax().text_range(),
+                    SyntaxToken::text_range,
+                )
                 .start(),
             type_bound_list.syntax().text_range().end(),
         );
@@ -1416,7 +1418,7 @@ where
         quickfixes: ink_analyzer_ir::ink_ancestors::<Contract>(item.syntax())
             .next()
             .as_ref()
-            .and_then(|it| it.module())
+            .and_then(Contract::module)
             .and_then(|mod_item| Some(mod_item).zip(mod_item.item_list()))
             .map(|(mod_item, item_list)| {
                 vec![Action::move_item(
