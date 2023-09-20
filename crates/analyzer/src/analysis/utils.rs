@@ -582,15 +582,7 @@ pub fn ink_arg_insertion_offset_and_affixes(
 ) -> Option<(TextSize, &str, &str)> {
     // Determines if its a "primary" attribute argument
     // as those get inserted at the beginning of the argument list while everything else gets inserted at the end.
-    let is_primary_argument = matches!(
-        arg_kind,
-        InkArgKind::Constructor
-            | InkArgKind::Event
-            | InkArgKind::Extension
-            | InkArgKind::Impl
-            | InkArgKind::Message
-            | InkArgKind::Storage
-    );
+    let is_primary_argument = arg_kind.is_entity_type();
 
     // Only computes insertion context for closed attributes because
     // unclosed attributes are too tricky for useful contextual edits.

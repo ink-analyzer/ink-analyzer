@@ -222,17 +222,19 @@ impl fmt::Display for InkArgKind {
 /// (e.g the kind for `#[ink(selector=1, payable, message)]` should still be `InkArgKind::Message`).
 fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
     match arg_kind {
-        // Required (e.g `storage`) and/or root-level/unambiguous (e.g `event`)
-        // arguments get highest priority.
+        // Entity-type arguments get highest priority.
+        // (i.e. `storage`, `event`, `impl`, `constructor`, `message`, `extension` e.t.c).
         InkArgKind::Constructor
         | InkArgKind::Event
         | InkArgKind::Extension
         | InkArgKind::Impl
         | InkArgKind::Message
-        | InkArgKind::Storage => 0,
-        // Everything else apart from "unknown" gets the next priority level.
-        // This includes optional (e.g `anonymous`, `payable`, `selector` e.t.c) and/or non root-level (e.g `topic`)
-        // and/or ambiguous (e.g `namespace`) and/or macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c).
+        | InkArgKind::Storage
+        | InkArgKind::Topic => 0,
+        // Complimentary arguments (i.e. everything else excluding "unknown") get the next priority level.
+        // This includes complimentary/optional arguments for
+        // entity-level arguments (e.g. `anonymous`, `payable`, `selector` e.t.c),
+        // macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c) and ambiguous arguments (e.g `namespace`).
         // This group is explicitly enumerated to force explicit decisions about
         // the priority level of new `InkArgKind` additions.
         InkArgKind::AdditionalContracts
@@ -245,10 +247,27 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         | InkArgKind::KeepAttr
         | InkArgKind::Namespace
         | InkArgKind::Payable
-        | InkArgKind::Selector
-        | InkArgKind::Topic => 1,
+        | InkArgKind::Selector => 1,
         // "Unknown" gets a special priority level.
         InkArgKind::Unknown => 10,
+    }
+}
+
+impl InkArgKind {
+    /// Returns true if the ink! argument kind is an "entity type"
+    /// (i.e. `storage`, `event`, `impl`, `constructor`, `message`, `extension` e.t.c).
+    pub fn is_entity_type(&self) -> bool {
+        ink_arg_kind_sort_order(*self) == 0
+    }
+
+    /// Returns true if the ink! argument kind is "complementary".
+    ///
+    /// This includes optional arguments that complement entity-level arguments
+    /// (e.g. `anonymous`, `payable`, `selector` e.t.c),
+    /// macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c) and
+    /// ambiguous arguments (e.g `namespace`).
+    pub fn is_complementary(&self) -> bool {
+        ink_arg_kind_sort_order(*self) == 1
     }
 }
 
