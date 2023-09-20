@@ -769,7 +769,46 @@ fn ensure_no_conflicting_attributes_and_arguments(
                     ),
                     range: attr.syntax().text_range(),
                     severity: Severity::Error,
-                    quickfixes: Some(vec![Action::remove_attribute(attr)]),
+                    quickfixes: Some(vec![
+                        match (primary_ink_attr_candidate.kind(), attr.kind()) {
+                            // Removes only conflicting arguments (or entire attribute if necessary).
+                            (InkAttributeKind::Arg(_), InkAttributeKind::Arg(_)) => {
+                                let conflicting_args: Vec<&InkArg> = attr
+                                    .args()
+                                    .iter()
+                                    .filter(|arg| !valid_sibling_args.contains(arg.kind()))
+                                    .collect();
+                                if conflicting_args.len() == attr.args().len() {
+                                    Action::remove_attribute(attr)
+                                } else {
+                                    Action {
+                                        label: format!(
+                                            "Remove conflicting ink! attribute arguments: `{}`",
+                                            conflicting_args
+                                                .iter()
+                                                .map(ToString::to_string)
+                                                .join(", ")
+                                        ),
+                                        kind: ActionKind::QuickFix,
+                                        range: attr.syntax().text_range(),
+                                        edits: conflicting_args
+                                            .iter()
+                                            .map(|arg| {
+                                                TextEdit::delete(
+                                                    utils::ink_arg_and_delimiter_removal_range(
+                                                        arg,
+                                                        Some(attr),
+                                                    ),
+                                                )
+                                            })
+                                            .collect(),
+                                    }
+                                }
+                            }
+                            // Otherwise remove entire attribute.
+                            _ => Action::remove_attribute(attr),
+                        },
+                    ]),
                 });
             } else {
                 // Handle argument level conflicts if the top level attribute kind doesn't conflict.
