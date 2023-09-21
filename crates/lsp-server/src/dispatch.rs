@@ -134,7 +134,7 @@ impl<'a> Dispatcher<'a> {
     fn publish_diagnostics(&mut self, changes: &HashSet<lsp_types::Url>) -> anyhow::Result<()> {
         // Composes `PublishDiagnostics` notification parameters for documents with changes.
         if let Some(params_list) =
-            actions::publish_diagnostics(changes, &mut self.memory, &self.client_capabilities)?
+            actions::publish_diagnostics(changes, &self.memory, &self.client_capabilities)?
         {
             // Composes and sends `PublishDiagnostics` notifications for all documents with changes.
             for params in params_list {

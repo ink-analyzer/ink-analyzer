@@ -129,7 +129,7 @@ impl Ord for InkAttribute {
 
 impl PartialOrd for InkAttribute {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        PartialOrd::partial_cmp(self.kind(), other.kind())
+        Some(self.cmp(other))
     }
 }
 
@@ -158,7 +158,7 @@ impl Ord for InkAttributeKind {
 
 impl PartialOrd for InkAttributeKind {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(Ord::cmp(self, other))
+        Some(self.cmp(other))
     }
 }
 

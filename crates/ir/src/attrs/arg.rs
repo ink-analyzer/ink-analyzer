@@ -73,7 +73,7 @@ impl Ord for InkArg {
 
 impl PartialOrd for InkArg {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        PartialOrd::partial_cmp(self.kind(), other.kind())
+        Some(self.cmp(other))
     }
 }
 
@@ -263,7 +263,7 @@ impl Ord for InkArgKind {
 
 impl PartialOrd for InkArgKind {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(Ord::cmp(self, other))
+        Some(self.cmp(other))
     }
 }
 

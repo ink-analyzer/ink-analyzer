@@ -108,12 +108,12 @@ pub fn ink_args(node: &SyntaxNode) -> impl Iterator<Item = InkArg> {
 /// Returns ink! arguments of a specific kind (if any) for the syntax node.
 pub fn ink_args_by_kind(node: &SyntaxNode, kind: InkArgKind) -> impl Iterator<Item = InkArg> {
     ink_attrs(node)
-        .filter_map(move |attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
+        .filter_map(move |attr| attr.args().iter().find(|arg| *arg.kind() == kind).cloned())
 }
 
 /// Returns ink! argument of a specific kind (if any) for the syntax node.
 pub fn ink_arg_by_kind(node: &SyntaxNode, kind: InkArgKind) -> Option<InkArg> {
-    ink_attrs(node).find_map(|attr| attr.args().iter().cloned().find(|arg| *arg.kind() == kind))
+    ink_attrs(node).find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == kind).cloned())
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T`.

@@ -75,7 +75,7 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
 fn only_non_trivia_elements(elems: &[SyntaxElement]) -> Vec<&SyntaxElement> {
     elems
         .iter()
-        .filter_map(|elem| (!elem.kind().is_trivia()).then_some(elem))
+        .filter(|elem| !elem.kind().is_trivia())
         .collect()
 }
 

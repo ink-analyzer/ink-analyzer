@@ -11,7 +11,7 @@ use crate::{translator, utils};
 /// Composes `PublishDiagnostics` notification parameters for a set of documents with changes.
 pub fn publish_diagnostics(
     changes: &HashSet<lsp_types::Url>,
-    memory: &mut Memory,
+    memory: &Memory,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<Vec<lsp_types::PublishDiagnosticsParams>>> {
     // Iterates over all documents with changes and compose diagnostics parameters.
