@@ -1,9 +1,7 @@
 //! ink! attribute argument inlay hints.
 
 use ink_analyzer_ir::syntax::{AstToken, TextRange, TextSize};
-use ink_analyzer_ir::{
-    InkArgValueKind, InkArgValuePathKind, InkArgValueStringKind, InkFile, IsInkEntity,
-};
+use ink_analyzer_ir::{InkArgValueKind, InkFile, IsInkEntity};
 
 /// An ink! attribute argument inlay hint.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,40 +33,18 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>) -> Vec<InlayHint> {
                             Some(true)
                         ))
                     .then(|| {
-                        // Creates inlay hint labels for ink! attribute arguments without values.
+                        // Creates inlay hint if a non-empty label is defined for the ink! attribute argument.
                         let arg_value_kind = InkArgValueKind::from(*arg.kind());
-                        let label = match arg_value_kind {
-                            InkArgValueKind::None => "",
-                            InkArgValueKind::U32 => "u32",
-                            InkArgValueKind::U32OrWildcard => "u32 | _",
-                            InkArgValueKind::String(_) => "&str",
-                            InkArgValueKind::Bool => "bool",
-                            InkArgValueKind::Path(path_kind) => match path_kind {
-                                InkArgValuePathKind::Environment => "impl Environment",
-                                _ => "Path",
-                            },
-                        };
-                        // Creates inlay hint if a label was defined for the ink! attribute argument.
+                        let label = arg_value_kind.to_string();
                         (!label.is_empty()).then_some(InlayHint {
-                            label: label.to_string(),
+                            label,
                             position: arg.name().map_or(arg.text_range().end(), |name| {
                                 name.syntax().text_range().end()
                             }),
                             range: arg
                                 .name()
                                 .map_or(arg.text_range(), |name| name.syntax().text_range()),
-                            detail: match arg_value_kind {
-                                InkArgValueKind::String(InkArgValueStringKind::CommaList) => {
-                                    Some("A comma separated/delimited list".to_string())
-                                }
-                                InkArgValueKind::String(InkArgValueStringKind::Identifier) => {
-                                    Some("A valid Rust identifier".to_string())
-                                }
-                                InkArgValueKind::String(InkArgValueStringKind::SpaceList) => {
-                                    Some("A space delimited list".to_string())
-                                }
-                                _ => None,
-                            },
+                            detail: arg_value_kind.detail(),
                         })
                     })?
                 })
@@ -85,10 +61,10 @@ mod tests {
     #[test]
     fn inlay_hints_works() {
         for (code, selection_range_pat, expected_results) in [
-            // (code, Option<(target_pat_start, target_pat_end)>, [(label, detail, pos_pat, (range_pat_start, range_pat_end))]) where:
+            // (code, Option<(selection_pat_start, selection_pat_end)>, [(label, detail, pos_pat, (range_pat_start, range_pat_end))]) where:
             // code = source code,
-            // range_pat_start = substring used to find the start of the selection range (see `test_utils::parse_offset_at` doc),
-            // range_pat_end = substring used to find the end of the range the selection range (see `test_utils::parse_offset_at` doc).
+            // selection_pat_start = substring used to find the start of the selection range (see `test_utils::parse_offset_at` doc),
+            // selection_pat_end = substring used to find the end of the range the selection range (see `test_utils::parse_offset_at` doc).
             // label = the label text for the inlay hint,
             // detail = the optional detail text for the inlay hint,
             // pos_pat = substring used to find the cursor offset for the inlay hint (see `test_utils::parse_offset_at` doc),
@@ -99,11 +75,11 @@ mod tests {
             ("// Nothing", None, vec![]),
             (
                 r#"
-                mod my_mod {
-                    fn my_fn(a: bool, b: u8) {
+                    mod my_mod {
+                        fn my_fn(a: bool, b: u8) {
+                        }
                     }
-                }
-            "#,
+                "#,
                 None,
                 vec![],
             ),
@@ -258,7 +234,6 @@ mod tests {
                     TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32),
                 )
             });
-
             let results = inlay_hints(&InkFile::parse(code), range);
 
             assert_eq!(

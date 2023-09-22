@@ -61,7 +61,8 @@
 
 pub use self::{
     analysis::{
-        Action, ActionKind, Analysis, Completion, Diagnostic, Hover, InlayHint, Severity, TextEdit,
+        Action, ActionKind, Analysis, Completion, Diagnostic, Hover, InlayHint, Severity,
+        SignatureHelp, TextEdit,
     },
     codegen::{new_project, Error, Project, ProjectFile},
 };

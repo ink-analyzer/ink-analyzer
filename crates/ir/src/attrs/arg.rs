@@ -342,3 +342,51 @@ impl From<InkArgKind> for InkArgValueKind {
         }
     }
 }
+
+impl fmt::Display for InkArgValueKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                InkArgValueKind::None => "",
+                InkArgValueKind::U32 => "u32",
+                InkArgValueKind::U32OrWildcard => "u32 | _",
+                InkArgValueKind::String(_) => "&str",
+                InkArgValueKind::Bool => "bool",
+                InkArgValueKind::Path(path_kind) => match path_kind {
+                    InkArgValuePathKind::Environment => "impl Environment",
+                    _ => "Path",
+                },
+            }
+        )
+    }
+}
+
+impl InkArgValueKind {
+    /// Returns extra details/docs about the ink! attribute argument value kind.
+    ///
+    /// (e.g details about further validation is applied for the value kind).
+    ///
+    /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L879-L1023>.
+    ///
+    /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
+    ///
+    /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
+    ///
+    /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L85>.
+    pub fn detail(&self) -> Option<String> {
+        match self {
+            InkArgValueKind::String(InkArgValueStringKind::CommaList) => {
+                Some("A comma separated/delimited list.".to_string())
+            }
+            InkArgValueKind::String(InkArgValueStringKind::Identifier) => {
+                Some("A valid Rust identifier.".to_string())
+            }
+            InkArgValueKind::String(InkArgValueStringKind::SpaceList) => {
+                Some("A space separated/delimited list.".to_string())
+            }
+            _ => None,
+        }
+    }
+}

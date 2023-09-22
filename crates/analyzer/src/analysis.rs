@@ -9,6 +9,7 @@ pub use completions::Completion;
 pub use diagnostics::{Diagnostic, Severity};
 pub use hover::Hover;
 pub use inlay_hints::InlayHint;
+pub use signature_help::SignatureHelp;
 pub use text_edit::TextEdit;
 
 mod actions;
@@ -16,6 +17,7 @@ mod completions;
 mod diagnostics;
 mod hover;
 mod inlay_hints;
+mod signature_help;
 mod text_edit;
 mod utils;
 
@@ -67,7 +69,7 @@ impl Analysis {
             .collect()
     }
 
-    /// Returns descriptive/informational text for the ink! attribute at the given position (if any).
+    /// Returns descriptive/informational text for the ink! attribute at the given text range (if any).
     pub fn hover(&self, range: TextRange) -> Option<Hover> {
         hover::hover(&self.file, range)
     }
@@ -75,5 +77,10 @@ impl Analysis {
     /// Computes ink! attribute argument inlay hints for the given text range (if any).
     pub fn inlay_hints(&self, range: Option<TextRange>) -> Vec<InlayHint> {
         inlay_hints::inlay_hints(&self.file, range)
+    }
+
+    /// Computes ink! attribute signature help for the given position.
+    pub fn signature_help(&self, position: TextSize) -> Vec<SignatureHelp> {
+        signature_help::signature_help(&self.file, position)
     }
 }
