@@ -2,7 +2,8 @@
 
 use crate::{
     TestCase, TestCaseModification, TestCaseParams, TestCaseResults, TestGroup,
-    TestParamsOffsetOnly, TestParamsRangeOnly, TestResultTextOffsetRange, TestResultTextRange,
+    TestParamsOffsetOnly, TestParamsRangeOnly, TestResultSignatureHelp, TestResultSignatureParam,
+    TestResultTextOffsetRange, TestResultTextRange,
 };
 
 /// Describes a collection of diagnostics tests to run against
@@ -3016,6 +3017,345 @@ pub fn inlay_hints_fixtures() -> Vec<TestGroup> {
                     ]),
                 },
             ],
+        },
+    ]
+}
+
+/// Describes a collection of signature help tests to run against
+/// optionally modified ink! smart contract code in the `test-fixtures` directory in the project root.
+pub fn signature_help_fixtures() -> Vec<TestGroup> {
+    vec![
+        // Contracts.
+        TestGroup {
+            // Reads source code from the `erc20.rs` contract in `test-fixtures/contracts` directory.
+            source: "contracts/erc20",
+            // Defines test cases for the ink! entity file.
+            test_cases: vec![
+                TestCase {
+                    // Replaces `#[ink::contract]` with `#[ink::contract()]` in the source code.
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                        replacement: "#[ink::contract()]",
+                    }]),
+                    // Set the offset position at the end of the `#[ink::contract(` substring.
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink::contract("),
+                    })),
+                    // Describes the expected signature help.
+                    results: TestCaseResults::SignatureHelp(vec![
+                        // Declares expected signature help text as `env: impl Environment, keep_attr: &str`,
+                        // applied to the text range whose starting and end offset is
+                        // the position at the beginning of the `#[ink::contract(` substring.
+                        TestResultSignatureHelp {
+                            label: "env: impl Environment, keep_attr: &str",
+                            start_pat: Some("#[ink::contract("),
+                            end_pat: Some("#[ink::contract("),
+                            params: vec![
+                                TestResultSignatureParam {
+                                    start_pat: Some("<-env"),
+                                    end_pat: Some("impl Environment"),
+                                },
+                                TestResultSignatureParam {
+                                    start_pat: Some("<-keep_attr"),
+                                    end_pat: Some("&str"),
+                                },
+                            ],
+                            active_param: Some(0),
+                        },
+                    ]),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink(storage"),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "storage",
+                        start_pat: Some("<-storage)]"),
+                        end_pat: Some("#[ink(storage"),
+                        params: vec![TestResultSignatureParam {
+                            start_pat: Some("<-storage"),
+                            end_pat: Some("storage"),
+                        }],
+                        active_param: Some(0),
+                    }]),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink(event"),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "event, anonymous",
+                        start_pat: Some("<-event)]"),
+                        end_pat: Some("#[ink(event"),
+                        params: vec![
+                            TestResultSignatureParam {
+                                start_pat: Some("<-event"),
+                                end_pat: Some("event"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-anonymous"),
+                                end_pat: Some("anonymous"),
+                            },
+                        ],
+                        active_param: Some(0),
+                    }]),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink(constructor"),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "constructor, default, payable, selector: u32 | _",
+                        start_pat: Some("<-constructor)]"),
+                        end_pat: Some("#[ink(constructor"),
+                        params: vec![
+                            TestResultSignatureParam {
+                                start_pat: Some("<-constructor"),
+                                end_pat: Some("constructor"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-default"),
+                                end_pat: Some("default"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-payable"),
+                                end_pat: Some("payable"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-selector"),
+                                end_pat: Some("u32 | _"),
+                            },
+                        ],
+                        active_param: Some(0),
+                    }]),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink(message"),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "message, default, payable, selector: u32 | _",
+                        start_pat: Some("<-message)]"),
+                        end_pat: Some("#[ink(message"),
+                        params: vec![
+                            TestResultSignatureParam {
+                                start_pat: Some("<-message"),
+                                end_pat: Some("message"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-default"),
+                                end_pat: Some("default"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-payable"),
+                                end_pat: Some("payable"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-selector"),
+                                end_pat: Some("u32 | _"),
+                            },
+                        ],
+                        active_param: Some(0),
+                    }]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::test]"),
+                        end_pat: Some("#[ink::test]"),
+                        replacement: "#[ink::test()]",
+                    }]),
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink::test("),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink_e2e::test]"),
+                        end_pat: Some("#[ink_e2e::test]"),
+                        replacement: "#[ink_e2e::test()]",
+                    }]),
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink_e2e::test("),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "additional_contracts: &str, environment: impl Environment, keep_attr: &str",
+                        start_pat: Some("#[ink_e2e::test("),
+                        end_pat: Some("#[ink_e2e::test("),
+                        params: vec![
+                            TestResultSignatureParam {
+                                start_pat: Some("<-additional_contracts"),
+                                end_pat: Some("additional_contracts: &str"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-environment"),
+                                end_pat: Some("impl Environment"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-keep_attr"),
+                                end_pat: Some("keep_attr: &str"),
+                            },
+                        ],
+                        active_param: Some(0),
+                    }]),
+                },
+            ],
+        },
+        // Trait definitions.
+        TestGroup {
+            source: "trait_definitions/erc20_trait",
+            test_cases: vec![
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::trait_definition]"),
+                        end_pat: Some("#[ink::trait_definition]"),
+                        replacement: "#[ink::trait_definition()]",
+                    }]),
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink::trait_definition("),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "keep_attr: &str, namespace: &str",
+                        start_pat: Some("#[ink::trait_definition("),
+                        end_pat: Some("#[ink::trait_definition("),
+                        params: vec![
+                            TestResultSignatureParam {
+                                start_pat: Some("<-keep_attr"),
+                                end_pat: Some("keep_attr: &str"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-namespace"),
+                                end_pat: Some("namespace: &str"),
+                            },
+                        ],
+                        active_param: Some(0),
+                    }]),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink(message"),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "message, default, payable, selector: u32 | _",
+                        start_pat: Some("<-message)]"),
+                        end_pat: Some("#[ink(message"),
+                        params: vec![
+                            TestResultSignatureParam {
+                                start_pat: Some("<-message"),
+                                end_pat: Some("message"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-default"),
+                                end_pat: Some("default"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-payable"),
+                                end_pat: Some("payable"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-selector"),
+                                end_pat: Some("u32 | _"),
+                            },
+                        ],
+                        active_param: Some(0),
+                    }]),
+                },
+            ],
+        },
+        // Chain extensions.
+        TestGroup {
+            source: "chain_extensions/psp22_extension",
+            test_cases: vec![
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::chain_extension]"),
+                        end_pat: Some("#[ink::chain_extension]"),
+                        replacement: "#[ink::chain_extension()]",
+                    }]),
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("#[ink::chain_extension("),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![]),
+                },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("<-extension = 0x3d26"),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "extension: u32, handle_status: bool",
+                        start_pat: Some("<-extension = 0x3d26"),
+                        end_pat: Some("extension = 0x3d26"),
+                        params: vec![
+                            TestResultSignatureParam {
+                                start_pat: Some("<-extension"),
+                                end_pat: Some("u32"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-handle_status"),
+                                end_pat: Some("bool"),
+                            },
+                        ],
+                        active_param: Some(0),
+                    }]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(extension = 0x3d26)]"),
+                        end_pat: Some("#[ink(extension = 0x3d26)]"),
+                        replacement: "#[ink(extension = 0x3d26, handle_status = true)]",
+                    }]),
+                    params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                        pat: Some("handle_status"),
+                    })),
+                    results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                        label: "extension: u32, handle_status: bool",
+                        start_pat: Some("<-extension = 0x3d26"),
+                        end_pat: Some("handle_status = true"),
+                        params: vec![
+                            TestResultSignatureParam {
+                                start_pat: Some("<-extension"),
+                                end_pat: Some("u32"),
+                            },
+                            TestResultSignatureParam {
+                                start_pat: Some("<-handle_status"),
+                                end_pat: Some("bool"),
+                            },
+                        ],
+                        active_param: Some(1),
+                    }]),
+                },
+            ],
+        },
+        // Storage items.
+        TestGroup {
+            source: "storage_items/non_packed_tuple_struct",
+            test_cases: vec![TestCase {
+                modifications: Some(vec![TestCaseModification {
+                    start_pat: Some("<-#[ink::storage_item]"),
+                    end_pat: Some("#[ink::storage_item]"),
+                    replacement: "#[ink::storage_item()]",
+                }]),
+                params: Some(TestCaseParams::SignatureHelp(TestParamsOffsetOnly {
+                    pat: Some("#[ink::storage_item("),
+                })),
+                results: TestCaseResults::SignatureHelp(vec![TestResultSignatureHelp {
+                    label: "derive: bool",
+                    start_pat: Some("#[ink::storage_item("),
+                    end_pat: Some("#[ink::storage_item("),
+                    params: vec![TestResultSignatureParam {
+                        start_pat: Some("<-derive"),
+                        end_pat: Some("bool"),
+                    }],
+                    active_param: Some(0),
+                }]),
+            }],
         },
     ]
 }

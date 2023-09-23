@@ -174,6 +174,7 @@ pub enum TestCaseParams {
     Completion(TestParamsOffsetOnly),
     Hover(TestParamsRangeOnly),
     InlayHints(Option<TestParamsRangeOnly>),
+    SignatureHelp(TestParamsOffsetOnly),
 }
 
 /// Variants for [`TestCase`] results.
@@ -190,6 +191,7 @@ pub enum TestCaseResults {
     },
     Hover(Option<TestResultTextRange>),
     InlayHints(Vec<TestResultTextOffsetRange>),
+    SignatureHelp(Vec<TestResultSignatureHelp>),
 }
 
 /// Test parameters for offset-based tests.
@@ -239,6 +241,30 @@ pub struct TestResultAction {
     pub label: &'static str,
     /// Expected edits.
     pub edits: Vec<TestResultTextRange>,
+}
+
+/// Describes the expected signature help.
+#[derive(Debug)]
+pub struct TestResultSignatureHelp {
+    /// Expected label.
+    pub label: &'static str,
+    /// Substring used to find the start of the offset of the expected result (see [`parse_offset_at`] doc).
+    pub start_pat: Option<&'static str>,
+    /// Substring used to find the end of the offset of the expected result (see [`parse_offset_at`] doc).
+    pub end_pat: Option<&'static str>,
+    /// Expected parameters.
+    pub params: Vec<TestResultSignatureParam>,
+    /// Expected active parameter.
+    pub active_param: Option<usize>,
+}
+
+/// Describes the expected signature parameter.
+#[derive(Debug)]
+pub struct TestResultSignatureParam {
+    /// Substring used to find the start of the offset of the expected result (see [`parse_offset_at`] doc).
+    pub start_pat: Option<&'static str>,
+    /// Substring used to find the end of the offset of the expected result (see [`parse_offset_at`] doc).
+    pub end_pat: Option<&'static str>,
 }
 
 /// Applies the test case modifications to the source code.
