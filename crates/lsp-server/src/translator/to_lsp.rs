@@ -241,8 +241,9 @@ pub fn signature_help(
                         value: doc.clone(),
                     })
                 }),
-                parameters: signature.parameters.as_ref().map(|params| {
-                    params
+                parameters: (!signature.parameters.is_empty()).then_some(
+                    signature
+                        .parameters
                         .iter()
                         .map(|param| lsp_types::ParameterInformation {
                             label: if signature_support.label_offset_support {
@@ -266,8 +267,8 @@ pub fn signature_help(
                                 })
                             }),
                         })
-                        .collect()
-                }),
+                        .collect(),
+                ),
                 active_parameter: signature_support
                     .active_parameter_support
                     .then_some(signature.active_parameter.map(|idx| idx as u32))

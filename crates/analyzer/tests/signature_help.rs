@@ -53,11 +53,12 @@ fn signature_help_works() {
                         signature_help.range,
                         signature_help
                             .parameters
-                            .as_ref()
-                            .map(|params| params.iter().map(|param| param.range).collect()),
+                            .iter()
+                            .map(|param| param.range)
+                            .collect(),
                         signature_help.active_parameter
                     ))
-                    .collect::<Vec<(String, TextRange, Option<Vec<TextRange>>, Option<usize>)>>(),
+                    .collect::<Vec<(String, TextRange, Vec<TextRange>, Option<usize>)>>(),
                 expected_results
                     .into_iter()
                     .map(|expected_result| (
@@ -72,35 +73,31 @@ fn signature_help_works() {
                                     .unwrap() as u32
                             )
                         ),
-                        (!expected_result.params.is_empty()).then_some(
-                            expected_result
-                                .params
-                                .iter()
-                                .map(|expected_param| {
-                                    TextRange::new(
-                                        TextSize::from(
-                                            test_utils::parse_offset_at(
-                                                expected_result.label,
-                                                expected_param.start_pat,
-                                            )
-                                            .unwrap()
-                                                as u32,
-                                        ),
-                                        TextSize::from(
-                                            test_utils::parse_offset_at(
-                                                expected_result.label,
-                                                expected_param.end_pat,
-                                            )
-                                            .unwrap()
-                                                as u32,
-                                        ),
-                                    )
-                                })
-                                .collect()
-                        ),
+                        expected_result
+                            .params
+                            .iter()
+                            .map(|expected_param| {
+                                TextRange::new(
+                                    TextSize::from(
+                                        test_utils::parse_offset_at(
+                                            expected_result.label,
+                                            expected_param.start_pat,
+                                        )
+                                        .unwrap() as u32,
+                                    ),
+                                    TextSize::from(
+                                        test_utils::parse_offset_at(
+                                            expected_result.label,
+                                            expected_param.end_pat,
+                                        )
+                                        .unwrap() as u32,
+                                    ),
+                                )
+                            })
+                            .collect(),
                         expected_result.active_param
                     ))
-                    .collect::<Vec<(String, TextRange, Option<Vec<TextRange>>, Option<usize>)>>(),
+                    .collect::<Vec<(String, TextRange, Vec<TextRange>, Option<usize>)>>(),
                 "source: {}",
                 test_group.source
             );

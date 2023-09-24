@@ -16,7 +16,7 @@ pub struct SignatureHelp {
     /// Range where the signature applies.
     pub range: TextRange,
     /// Parameters of the signature.
-    pub parameters: Option<Vec<SignatureParameter>>,
+    pub parameters: Vec<SignatureParameter>,
     /// Index of the active parameter.
     pub active_parameter: Option<usize>,
     /// Extra details about the signature.
@@ -240,14 +240,12 @@ fn add_signature(
     }
 
     // Adds signature to results (if non-empty).
-    if !signature.is_empty() {
-        active_param = active_param
-            .or(active_param_by_prefix)
-            .or((!params.is_empty()).then_some(0));
+    if !signature.is_empty() && !params.is_empty() {
+        active_param = active_param.or(active_param_by_prefix).or(Some(0));
         results.push(SignatureHelp {
             label: signature,
             range,
-            parameters: (!params.is_empty()).then_some(params),
+            parameters: params,
             active_parameter: active_param,
             detail: None,
         });
@@ -631,27 +629,20 @@ mod tests {
                 // Verifies parameter ranges (and extra details - if any).
                 let expected_params = &expected_results[idx].2;
                 let expected_active_param = &expected_results[idx].3;
-                assert_eq!(
-                    result.parameters.as_ref().map_or(0, |params| params.len()),
-                    expected_params.len()
-                );
-                if let Some(params) = result.parameters.as_ref() {
-                    for (idx, param) in params.iter().enumerate() {
-                        let (start_pat, end_pat) = expected_params[idx];
-                        // Verifies parameter range.
-                        assert_eq!(
-                            param.range,
-                            TextRange::new(
-                                TextSize::from(
-                                    parse_offset_at(expected_label, start_pat).unwrap() as u32
-                                ),
-                                TextSize::from(
-                                    parse_offset_at(expected_label, end_pat).unwrap() as u32
-                                )
+                assert_eq!(result.parameters.len(), expected_params.len());
+                for (idx, param) in result.parameters.iter().enumerate() {
+                    let (start_pat, end_pat) = expected_params[idx];
+                    // Verifies parameter range.
+                    assert_eq!(
+                        param.range,
+                        TextRange::new(
+                            TextSize::from(
+                                parse_offset_at(expected_label, start_pat).unwrap() as u32
                             ),
-                            "code: {code}"
-                        );
-                    }
+                            TextSize::from(parse_offset_at(expected_label, end_pat).unwrap() as u32)
+                        ),
+                        "code: {code}"
+                    );
                 }
                 // Verifies active parameter (if any).
                 assert_eq!(
