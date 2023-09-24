@@ -119,7 +119,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                     ink_macro_suggestions =
                         match item_at_offset.normalized_parent_ast_item_keyword() {
                             // Returns suggestions based on the AST item type keyword.
-                            Some((ast_item_keyword, _, _)) => {
+                            Some((ast_item_keyword, ..)) => {
                                 utils::valid_ink_macros_by_syntax_kind(ast_item_keyword.kind())
                             }
                             // Handles the case where the AST item type is unknown.
@@ -296,7 +296,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     | InkAttributeKind::Arg(InkArgKind::Unknown) => {
                         match item_at_offset.normalized_parent_ast_item_keyword() {
                             // Returns suggestions based on the AST item type keyword.
-                            Some((ast_item_keyword, _, _)) => {
+                            Some((ast_item_keyword, ..)) => {
                                 utils::valid_ink_args_by_syntax_kind(ast_item_keyword.kind())
                             }
                             // Handles cases where either the AST item type is unknown or
@@ -317,7 +317,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                                 }) {
                                     // Returns ink! topic suggestions for struct fields.
                                     Some(_) => vec![InkArgKind::Topic],
-                                    // Returns all attribute arguments that are capable of being standalone
+                                    // Returns all attribute arguments that don't require a macro
                                     // if the AST item type is unknown.
                                     None => vec![
                                         InkArgKind::Anonymous,
@@ -333,8 +333,6 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                                         InkArgKind::Selector,
                                         InkArgKind::Storage,
                                         InkArgKind::Topic,
-                                        // See `utils::valid_ink_ink_args_by_syntax_kind` docs for
-                                        // rationale for omitting `derive`, `env`, `keep_attr` from this list.
                                     ],
                                 }
                             }

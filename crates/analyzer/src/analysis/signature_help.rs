@@ -2,9 +2,9 @@
 
 use ink_analyzer_ir::syntax::{AstNode, TextRange, TextSize};
 use ink_analyzer_ir::{
-    FromAST, InkArgKind, InkArgValueKind, InkAttributeKind, InkFile, IsInkEntity,
+    FromAST, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkFile, IsInkEntity,
 };
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 
 use crate::analysis::utils;
 
@@ -54,25 +54,6 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                 && is_after_left_paren
                 && is_before_right_paren;
             if is_focused_on_arguments {
-                // Determines the required and optional args for the attribute (if any).
-                let (required_args, optional_args): (Vec<InkArgKind>, Vec<InkArgKind>) =
-                    utils::valid_sibling_ink_args(*attr.kind())
-                        .into_iter()
-                        .chain(match attr.kind() {
-                            InkAttributeKind::Arg(arg_kind) => {
-                                (*arg_kind != InkArgKind::Unknown).then_some(*arg_kind)
-                            }
-                            InkAttributeKind::Macro(_) => None,
-                        })
-                        .sorted()
-                        .partition_map(|arg_kind| {
-                            if arg_kind.is_entity_type() {
-                                Either::Left(arg_kind)
-                            } else {
-                                Either::Right(arg_kind)
-                            }
-                        });
-
                 // Determines the range where the signature help applies.
                 let range = TextRange::new(
                     token_tree
@@ -93,117 +74,226 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                     .iter()
                     .find(|arg| arg.text_range().contains_inclusive(offset));
 
-                // Computes signature help.
-                let mut impl_signature_help =
-                    |primary_arg_option: Option<&InkArgKind>, optional_args: &[InkArgKind]| {
-                        let mut signature = String::new();
-                        let mut params = Vec::new();
-                        let mut active_param = None;
-                        let mut active_param_by_prefix = None;
-                        let param_separator = ", ";
-
-                        // Adds a parameter to the signature.
-                        let mut add_param_to_signature = |arg_kind: &InkArgKind| {
-                            let arg_value_kind = InkArgValueKind::from(*arg_kind);
-                            let param = format!(
-                                "{arg_kind}{}{arg_value_kind}",
-                                if arg_value_kind == InkArgValueKind::None {
-                                    ""
-                                } else {
-                                    ": "
-                                }
-                            );
-
-                            let mut start_offset = signature.len() as u32;
-                            if !signature.is_empty() {
-                                // Accounts the separator applied before the parameter.
-                                start_offset += param_separator.len() as u32;
-                            }
-
-                            // Adds parameter to signature (including the parameter separator if necessary).
-                            signature.push_str(&format!(
-                                "{}{param}",
-                                if !signature.is_empty() {
-                                    param_separator
-                                } else {
-                                    ""
-                                }
-                            ));
-
-                            let doc = [arg_value_kind.detail(), arg_kind.detail()]
-                                .iter()
-                                .filter(|it| !it.is_empty())
-                                .join("\n\n");
-                            params.push(SignatureParameter {
-                                range: TextRange::new(
-                                    TextSize::from(start_offset),
-                                    TextSize::from(start_offset + param.len() as u32),
-                                ),
-                                detail: (!doc.is_empty()).then_some(doc),
-                            });
-
-                            if active_param.is_none() {
-                                let idx = params.len() - 1;
-
-                                if focused_arg.map_or(false, |arg| arg.kind() == arg_kind) {
-                                    active_param = Some(idx);
-                                } else if active_param_by_prefix.is_none()
-                                    && focused_arg.map_or(false, |arg| {
-                                        arg.name().map_or(false, |name| {
-                                            arg_kind.to_string().starts_with(&name.to_string())
+                // Computes signatures based on the attribute kind.
+                match attr.kind() {
+                    // Computes signatures based on attribute arguments.
+                    InkAttributeKind::Arg(arg_kind) => {
+                        if arg_kind.is_entity_type() {
+                            // Computes signature based on primary argument.
+                            anchor_signature(&mut results, arg_kind, focused_arg, range);
+                        } else if arg_kind.is_complementary() {
+                            // Computes signature based on complementary argument.
+                            complementary_signature(&mut results, arg_kind, focused_arg, range);
+                        } else if let Some((ast_item_keyword, ..)) =
+                            item_at_offset.normalized_parent_ast_item_keyword()
+                        {
+                            // Determines possible args by prefix or parent AST item kind.
+                            for possible_arg_kind in
+                                utils::valid_ink_args_by_syntax_kind(ast_item_keyword.kind())
+                                    .iter()
+                                    .filter(|arg_kind| {
+                                        focused_arg.map_or(true, |arg| {
+                                            arg.name().map_or(true, |arg_name| {
+                                                let name = arg_name.to_string();
+                                                name.is_empty()
+                                                    || arg_kind.to_string().starts_with(&name)
+                                            })
                                         })
                                     })
-                                {
-                                    active_param_by_prefix = Some(idx);
+                                    // Replaces complementary arguments with primary arguments (if possible).
+                                    // Useful for easier deduplication.
+                                    .flat_map(|arg_kind| {
+                                        if arg_kind.is_entity_type() {
+                                            vec![*arg_kind]
+                                        } else {
+                                            let primary_args: Vec<InkArgKind> = [*arg_kind]
+                                                .into_iter()
+                                                .chain(utils::valid_sibling_ink_args(
+                                                    InkAttributeKind::Arg(*arg_kind),
+                                                ))
+                                                .filter(|arg_kind| arg_kind.is_entity_type())
+                                                .collect();
+                                            if primary_args.is_empty() {
+                                                vec![*arg_kind]
+                                            } else {
+                                                primary_args
+                                            }
+                                        }
+                                    })
+                                    .sorted()
+                                    // Deduplicates arguments by lite signature equivalence.
+                                    .unique_by(|arg_kind| {
+                                        utils::valid_sibling_ink_args(InkAttributeKind::Arg(
+                                            *arg_kind,
+                                        ))
+                                        .iter()
+                                        .chain([arg_kind])
+                                        .map(ToString::to_string)
+                                        .sorted()
+                                        .join(",")
+                                    })
+                            {
+                                if possible_arg_kind.is_entity_type() {
+                                    // Computes signature based on possible primary argument.
+                                    anchor_signature(
+                                        &mut results,
+                                        &possible_arg_kind,
+                                        focused_arg,
+                                        range,
+                                    );
+                                } else if possible_arg_kind.is_complementary() {
+                                    // Computes signature based on possible complementary argument.
+                                    complementary_signature(
+                                        &mut results,
+                                        &possible_arg_kind,
+                                        focused_arg,
+                                        range,
+                                    );
                                 }
                             }
-                        };
-
-                        // Adds primary argument.
-                        if let Some(primary_arg) = primary_arg_option {
-                            add_param_to_signature(primary_arg);
                         }
-
-                        // Adds valid optional argument.
-                        let valid_siblings_options = primary_arg_option.map(|arg_kind| {
-                            utils::valid_sibling_ink_args(InkAttributeKind::Arg(*arg_kind))
-                        });
-                        for optional_arg in optional_args.iter().filter(|arg_kind| {
-                            // Filters out invalid optional arguments for the given primary argument (if any).
-                            match valid_siblings_options.as_ref() {
-                                Some(valid_args) => valid_args.contains(arg_kind),
-                                None => true,
-                            }
-                        }) {
-                            add_param_to_signature(optional_arg);
-                        }
-
-                        // Adds signature to results (if non-empty).
-                        if !signature.is_empty() {
-                            active_param = active_param
-                                .or(active_param_by_prefix)
-                                .or((!params.is_empty()).then_some(0));
-                            results.push(SignatureHelp {
-                                label: signature,
-                                range,
-                                parameters: (!params.is_empty()).then_some(params),
-                                active_parameter: active_param,
-                                detail: None,
-                            });
-                        }
-                    };
-                if !required_args.is_empty() {
-                    for required_arg in required_args {
-                        impl_signature_help(Some(&required_arg), &optional_args);
                     }
-                } else if !optional_args.is_empty() {
-                    impl_signature_help(None, &optional_args);
+                    // Computes signatures based on attribute macros.
+                    InkAttributeKind::Macro(_) => {
+                        let optional_args = utils::valid_sibling_ink_args(*attr.kind());
+                        if !optional_args.is_empty() {
+                            add_signature(&mut results, &optional_args, focused_arg, range);
+                        }
+                    }
                 }
             }
         }
     }
 
     results
+}
+
+/// Computes signature and updates the accumulator given a list of arguments.
+fn add_signature(
+    results: &mut Vec<SignatureHelp>,
+    args: &[InkArgKind],
+    focused_arg: Option<&InkArg>,
+    range: TextRange,
+) {
+    let mut signature = String::new();
+    let mut params = Vec::new();
+    let mut active_param = None;
+    let mut active_param_by_prefix = None;
+    let param_separator = ", ";
+
+    // Adds arguments to signature.
+    for arg_kind in args.iter().sorted() {
+        let arg_value_kind = InkArgValueKind::from(*arg_kind);
+        let param = format!(
+            "{arg_kind}{}{arg_value_kind}",
+            if arg_value_kind == InkArgValueKind::None {
+                ""
+            } else {
+                ": "
+            }
+        );
+
+        let mut start_offset = signature.len() as u32;
+        if !signature.is_empty() {
+            // Accounts the separator applied before the parameter.
+            start_offset += param_separator.len() as u32;
+        }
+
+        // Adds parameter to signature (including the parameter separator if necessary).
+        signature.push_str(&format!(
+            "{}{param}",
+            if !signature.is_empty() {
+                param_separator
+            } else {
+                ""
+            }
+        ));
+
+        let doc = [arg_value_kind.detail(), arg_kind.detail()]
+            .iter()
+            .filter(|it| !it.is_empty())
+            .join("\n\n");
+        params.push(SignatureParameter {
+            range: TextRange::new(
+                TextSize::from(start_offset),
+                TextSize::from(start_offset + param.len() as u32),
+            ),
+            detail: (!doc.is_empty()).then_some(doc),
+        });
+
+        if active_param.is_none() {
+            let idx = params.len() - 1;
+
+            if focused_arg.map_or(false, |arg| arg.kind() == arg_kind) {
+                active_param = Some(idx);
+            } else if active_param_by_prefix.is_none()
+                && focused_arg.map_or(false, |arg| {
+                    arg.name().map_or(false, |arg_name| {
+                        let name = arg_name.to_string();
+                        !name.is_empty() && arg_kind.to_string().starts_with(&name)
+                    })
+                })
+            {
+                active_param_by_prefix = Some(idx);
+            }
+        }
+    }
+
+    // Adds signature to results (if non-empty).
+    if !signature.is_empty() {
+        active_param = active_param
+            .or(active_param_by_prefix)
+            .or((!params.is_empty()).then_some(0));
+        results.push(SignatureHelp {
+            label: signature,
+            range,
+            parameters: (!params.is_empty()).then_some(params),
+            active_parameter: active_param,
+            detail: None,
+        });
+    }
+}
+
+/// Computes signature based on a single "anchor" argument.
+fn anchor_signature(
+    results: &mut Vec<SignatureHelp>,
+    anchor_arg: &InkArgKind,
+    focused_arg: Option<&InkArg>,
+    range: TextRange,
+) {
+    // Adds valid sibling arguments and computes signature help.
+    let args: Vec<InkArgKind> = [*anchor_arg]
+        .into_iter()
+        .chain(utils::valid_sibling_ink_args(InkAttributeKind::Arg(
+            *anchor_arg,
+        )))
+        .collect();
+    add_signature(results, &args, focused_arg, range);
+}
+
+/// Computes signature based on a single complementary argument.
+fn complementary_signature(
+    results: &mut Vec<SignatureHelp>,
+    arg_kind: &InkArgKind,
+    focused_arg: Option<&InkArg>,
+    range: TextRange,
+) {
+    // Determines the complementary argument's related primary arguments (if any).
+    let mut primary_args = [*arg_kind]
+        .into_iter()
+        .chain(utils::valid_sibling_ink_args(InkAttributeKind::Arg(
+            *arg_kind,
+        )))
+        .filter(|arg_kind| arg_kind.is_entity_type());
+    if let Some(first_arg) = primary_args.next() {
+        // Computes signature based on the complementary argument's related primary argument(s).
+        for primary_arg in [first_arg].into_iter().chain(primary_args) {
+            anchor_signature(results, &primary_arg, focused_arg, range);
+        }
+    } else {
+        // Computes signature directly based on only the complementary argument.
+        anchor_signature(results, arg_kind, focused_arg, range);
+    }
 }
 
 #[cfg(test)]
@@ -477,6 +567,46 @@ mod tests {
                     ],
                     1,
                 )],
+            ),
+            (
+                r#"
+                #[ink()]
+                fn my_fn() {}
+                "#,
+                Some("ink("),
+                vec![
+                    (
+                        "constructor, default, payable, selector: u32 | _",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-constructor"), Some("constructor")),
+                            (Some("<-default"), Some("default")),
+                            (Some("<-payable"), Some("payable")),
+                            (Some("<-selector"), Some("u32 | _")),
+                        ],
+                        0,
+                    ),
+                    (
+                        "message, default, payable, selector: u32 | _",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-message"), Some("message")),
+                            (Some("<-default"), Some("default")),
+                            (Some("<-payable"), Some("payable")),
+                            (Some("<-selector"), Some("u32 | _")),
+                        ],
+                        0,
+                    ),
+                    (
+                        "extension: u32, handle_status: bool",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-extension"), Some("u32")),
+                            (Some("<-handle_status"), Some("bool")),
+                        ],
+                        0,
+                    ),
+                ],
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
