@@ -269,6 +269,33 @@ impl InkArgKind {
     pub fn is_complementary(&self) -> bool {
         ink_arg_kind_sort_order(*self) == 1
     }
+
+    /// Returns extra details/docs about the ink! attribute argument kind.
+    pub fn detail(&self) -> &str {
+        match self {
+            InkArgKind::AdditionalContracts => "Tells the ink! e2e test runner which additional contracts to build before executing the test.",
+            InkArgKind::Anonymous => "Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.",
+            InkArgKind::Constructor => "Flags a function for the ink! storage `struct` as a constructor making it available to the API for instantiating the contract.",
+            InkArgKind::Default => "Tells UI to treat the ink! message or ink! constructor as the default choice in selection widgets (e.g dropdowns).",
+            InkArgKind::Derive => "A configuration parameter used to enable/disable auto deriving of all required storage traits.",
+            InkArgKind::Env => "Tells the ink! code generator which environment to use for the ink! smart contract.",
+            InkArgKind::Environment => "Tells the ink! code generator which environment to use for the ink! smart contract.",
+            InkArgKind::Event => "Defines an ink! event.",
+            InkArgKind::Extension => "Determines the unique function ID of the chain extension function.",
+            InkArgKind::HandleStatus => "Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.",
+            InkArgKind::Impl => "Tells the ink! codegen that some implementation block shall be granted access to ink! internals even without it containing any ink! messages or ink! constructors.",
+            InkArgKind::KeepAttr => "Tells the ink! code generator which attributes should be passed to call builders.",
+            InkArgKind::Message => "Flags a method for the ink! storage `struct` as a message making it available to the API for calling the contract.",
+            InkArgKind::Namespace => "Changes the resulting selectors of all the ink! messages and ink! constructors within the trait implementation.",
+            InkArgKind::Payable => "Allows receiving value as part of the call of the ink! message.",
+            InkArgKind::Selector => "The `u32` variant specifies a concrete dispatch selector for the flagged entity, \
+            which allows a contract author to precisely control the selectors of their APIs making it possible to rename their API without breakage.\n\n\
+            While the `_` variant specifies a fallback message that is invoked if no other ink! message matches a selector.",
+            InkArgKind::Storage => "Defines the ink! storage `struct`.",
+            InkArgKind::Topic => "Tells the ink! codegen to provide a topic hash for the given field.",
+            InkArgKind::Unknown => "",
+        }
+    }
 }
 
 impl Ord for InkArgKind {
@@ -375,18 +402,14 @@ impl InkArgValueKind {
     /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
     ///
     /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L85>.
-    pub fn detail(&self) -> Option<String> {
+    pub fn detail(&self) -> &str {
         match self {
-            InkArgValueKind::String(InkArgValueStringKind::CommaList) => {
-                Some("A comma separated/delimited list.".to_string())
-            }
+            InkArgValueKind::String(InkArgValueStringKind::CommaList) => "A comma separated list.",
             InkArgValueKind::String(InkArgValueStringKind::Identifier) => {
-                Some("A valid Rust identifier.".to_string())
+                "A valid Rust identifier."
             }
-            InkArgValueKind::String(InkArgValueStringKind::SpaceList) => {
-                Some("A space separated/delimited list.".to_string())
-            }
-            _ => None,
+            InkArgValueKind::String(InkArgValueStringKind::SpaceList) => "A space separated list.",
+            _ => "",
         }
     }
 }

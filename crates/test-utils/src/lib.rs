@@ -132,6 +132,19 @@ pub fn simple_client_config() -> lsp_types::ClientCapabilities {
             ]),
             ..Default::default()
         }),
+        text_document: Some(lsp_types::TextDocumentClientCapabilities {
+            signature_help: Some(lsp_types::SignatureHelpClientCapabilities {
+                signature_information: Some(lsp_types::SignatureInformationSettings {
+                    parameter_information: Some(lsp_types::ParameterInformationSettings {
+                        label_offset_support: Some(true),
+                    }),
+                    active_parameter_support: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
         ..Default::default()
     }
 }

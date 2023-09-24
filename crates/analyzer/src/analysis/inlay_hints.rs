@@ -36,6 +36,7 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>) -> Vec<InlayHint> {
                         // Creates inlay hint if a non-empty label is defined for the ink! attribute argument.
                         let arg_value_kind = InkArgValueKind::from(*arg.kind());
                         let label = arg_value_kind.to_string();
+                        let doc = arg_value_kind.detail();
                         (!label.is_empty()).then_some(InlayHint {
                             label,
                             position: arg.name().map_or(arg.text_range().end(), |name| {
@@ -44,7 +45,7 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>) -> Vec<InlayHint> {
                             range: arg
                                 .name()
                                 .map_or(arg.text_range(), |name| name.syntax().text_range()),
-                            detail: arg_value_kind.detail(),
+                            detail: (!doc.is_empty()).then_some(doc.to_string()),
                         })
                     })?
                 })

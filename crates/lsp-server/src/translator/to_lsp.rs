@@ -4,6 +4,7 @@ use line_index::WideEncoding;
 use std::collections::HashMap;
 
 use crate::translator::PositionTranslationContext;
+use crate::utils::SignatureSupport;
 
 /// Translates ink! analyzer offset to LSP position.
 pub fn position(
@@ -178,6 +179,105 @@ pub fn inlay_hint(
         padding_left: Some(true),
         padding_right: None,
         data: None,
+    })
+}
+
+/// Translates ink! analyzer offset to LSP offset.
+pub fn offset(
+    offset: ink_analyzer::TextSize,
+    encoding: &lsp_types::PositionEncodingKind,
+    text: &str,
+) -> u32 {
+    if u32::from(offset) > 0
+        && (*encoding == lsp_types::PositionEncodingKind::UTF16
+            || *encoding == lsp_types::PositionEncodingKind::UTF32)
+    {
+        // Handles non-zero offsets for wide encodings (i.e. UTF-16 and UTF-32).
+        let wide_encoding = if *encoding == lsp_types::PositionEncodingKind::UTF32 {
+            WideEncoding::Utf32
+        } else {
+            WideEncoding::Utf16
+        };
+        let subject = &text[0..offset.into()];
+        wide_encoding.measure(subject) as u32
+    } else {
+        // Handles other encodings (i.e. UTF-8) or the zero offset.
+        offset.into()
+    }
+}
+
+/// Translates ink! analyzer signature help to LSP signature help.
+pub fn signature_help(
+    signatures: &[ink_analyzer::SignatureHelp],
+    signature_support: &SignatureSupport,
+    prev_signature_help: Option<&lsp_types::SignatureHelp>,
+    context: &PositionTranslationContext,
+) -> Option<lsp_types::SignatureHelp> {
+    // Determines the active signature based on the previous signature help (if any)
+    // or defaults to the first signature.
+    let active_signature = prev_signature_help
+        .and_then(|prev_signatures| {
+            prev_signatures
+                .active_signature
+                .and_then(|idx| prev_signatures.signatures.get(idx as usize))
+        })
+        .and_then(|prev_active_signature| {
+            signatures
+                .iter()
+                .enumerate()
+                .find(|(_, signature)| signature.label == prev_active_signature.label)
+        })
+        .or(signatures.get(0).map(|signature| (0, signature)));
+
+    // Returns LSP signature help (if any).
+    (!signatures.is_empty()).then_some(lsp_types::SignatureHelp {
+        signatures: signatures
+            .iter()
+            .map(|signature| lsp_types::SignatureInformation {
+                label: signature.label.clone(),
+                documentation: signature.detail.as_ref().map(|doc| {
+                    lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {
+                        kind: lsp_types::MarkupKind::Markdown,
+                        value: doc.clone(),
+                    })
+                }),
+                parameters: signature.parameters.as_ref().map(|params| {
+                    params
+                        .iter()
+                        .map(|param| lsp_types::ParameterInformation {
+                            label: if signature_support.label_offset_support {
+                                lsp_types::ParameterLabel::LabelOffsets([
+                                    offset(
+                                        param.range.start(),
+                                        &context.encoding,
+                                        &signature.label,
+                                    ),
+                                    offset(param.range.end(), &context.encoding, &signature.label),
+                                ])
+                            } else {
+                                let param_text = &signature.label
+                                    [param.range.start().into()..param.range.end().into()];
+                                lsp_types::ParameterLabel::Simple(param_text.to_string())
+                            },
+                            documentation: param.detail.as_ref().map(|doc| {
+                                lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {
+                                    kind: lsp_types::MarkupKind::Markdown,
+                                    value: doc.clone(),
+                                })
+                            }),
+                        })
+                        .collect()
+                }),
+                active_parameter: signature_support
+                    .active_parameter_support
+                    .then_some(signature.active_parameter.map(|idx| idx as u32))
+                    .flatten(),
+            })
+            .collect(),
+        active_signature: active_signature.map(|(idx, _)| idx as u32),
+        active_parameter: active_signature
+            .and_then(|(_, signature)| signature.active_parameter)
+            .map(|idx| idx as u32),
     })
 }
 

@@ -64,6 +64,36 @@ pub fn snippet_support(client_capabilities: &ClientCapabilities) -> bool {
         .unwrap_or(false)
 }
 
+/// Information about supported signature information features.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SignatureSupport {
+    pub active_parameter_support: bool,
+    pub label_offset_support: bool,
+}
+
+/// Returns information about supported signature information features based on the LSP client's capabilities.
+pub fn signature_support(client_capabilities: &ClientCapabilities) -> SignatureSupport {
+    client_capabilities
+        .text_document
+        .as_ref()
+        .and_then(|it| it.signature_help.as_ref())
+        .and_then(|it| it.signature_information.as_ref())
+        .map_or(
+            SignatureSupport {
+                active_parameter_support: false,
+                label_offset_support: false,
+            },
+            |it| SignatureSupport {
+                active_parameter_support: it.active_parameter_support.unwrap_or(false),
+                label_offset_support: it
+                    .parameter_information
+                    .as_ref()
+                    .and_then(|it| it.label_offset_support)
+                    .unwrap_or(false),
+            },
+        )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,7 +101,8 @@ mod tests {
     use lsp_types::{
         CodeActionClientCapabilities, CodeActionKindLiteralSupport, CodeActionLiteralSupport,
         CompletionClientCapabilities, CompletionItemCapability, GeneralClientCapabilities,
-        TextDocumentClientCapabilities,
+        ParameterInformationSettings, SignatureHelpClientCapabilities,
+        SignatureInformationSettings, TextDocumentClientCapabilities,
     };
 
     fn config_with_encodings(encodings: Option<Vec<PositionEncodingKind>>) -> ClientCapabilities {
@@ -110,6 +141,28 @@ mod tests {
                 completion: Some(CompletionClientCapabilities {
                     completion_item: Some(CompletionItemCapability {
                         snippet_support,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn config_with_signature_support(
+        active_parameter_support: Option<bool>,
+        label_offset_support: Option<bool>,
+    ) -> ClientCapabilities {
+        ClientCapabilities {
+            text_document: Some(TextDocumentClientCapabilities {
+                signature_help: Some(SignatureHelpClientCapabilities {
+                    signature_information: Some(SignatureInformationSettings {
+                        parameter_information: Some(ParameterInformationSettings {
+                            label_offset_support,
+                        }),
+                        active_parameter_support,
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -247,6 +300,60 @@ mod tests {
         ] {
             // Verifies the snippet support is parsed properly based on client capabilities.
             assert_eq!(snippet_support(&client_capabilities), expected_result);
+        }
+    }
+
+    #[test]
+    fn signature_support_works() {
+        for (client_capabilities, expected_result) in [
+            // Default is `false`.
+            (
+                ClientCapabilities::default(),
+                SignatureSupport {
+                    active_parameter_support: false,
+                    label_offset_support: false,
+                },
+            ),
+            // None is `false`.
+            (
+                config_with_signature_support(None, None),
+                SignatureSupport {
+                    active_parameter_support: false,
+                    label_offset_support: false,
+                },
+            ),
+            // Set flag is properly parsed.
+            (
+                config_with_signature_support(Some(true), Some(true)),
+                SignatureSupport {
+                    active_parameter_support: true,
+                    label_offset_support: true,
+                },
+            ),
+            (
+                config_with_signature_support(Some(true), Some(false)),
+                SignatureSupport {
+                    active_parameter_support: true,
+                    label_offset_support: false,
+                },
+            ),
+            (
+                config_with_signature_support(Some(false), Some(true)),
+                SignatureSupport {
+                    active_parameter_support: false,
+                    label_offset_support: true,
+                },
+            ),
+            (
+                config_with_signature_support(Some(false), Some(false)),
+                SignatureSupport {
+                    active_parameter_support: false,
+                    label_offset_support: false,
+                },
+            ),
+        ] {
+            // Verifies the signature support is parsed properly based on client capabilities.
+            assert_eq!(signature_support(&client_capabilities), expected_result);
         }
     }
 }

@@ -59,7 +59,9 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                     utils::valid_sibling_ink_args(*attr.kind())
                         .into_iter()
                         .chain(match attr.kind() {
-                            InkAttributeKind::Arg(arg_kind) => Some(*arg_kind),
+                            InkAttributeKind::Arg(arg_kind) => {
+                                (*arg_kind != InkArgKind::Unknown).then_some(*arg_kind)
+                            }
                             InkAttributeKind::Macro(_) => None,
                         })
                         .sorted()
@@ -89,14 +91,15 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                 let focused_arg = attr
                     .args()
                     .iter()
-                    .find(|arg| arg.text_range().contains(offset));
+                    .find(|arg| arg.text_range().contains_inclusive(offset));
 
                 // Computes signature help.
                 let mut impl_signature_help =
                     |primary_arg_option: Option<&InkArgKind>, optional_args: &[InkArgKind]| {
                         let mut signature = String::new();
                         let mut params = Vec::new();
-                        let mut active_parameter = None;
+                        let mut active_param = None;
+                        let mut active_param_by_prefix = None;
                         let param_separator = ", ";
 
                         // Adds a parameter to the signature.
@@ -127,18 +130,32 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                                 }
                             ));
 
+                            let doc = [arg_value_kind.detail(), arg_kind.detail()]
+                                .iter()
+                                .filter(|it| !it.is_empty())
+                                .join("\n\n");
                             params.push(SignatureParameter {
                                 range: TextRange::new(
                                     TextSize::from(start_offset),
                                     TextSize::from(start_offset + param.len() as u32),
                                 ),
-                                detail: arg_value_kind.detail(),
+                                detail: (!doc.is_empty()).then_some(doc),
                             });
 
-                            if active_parameter.is_none()
-                                && focused_arg.map_or(false, |arg| arg.kind() == arg_kind)
-                            {
-                                active_parameter = Some(params.len() - 1);
+                            if active_param.is_none() {
+                                let idx = params.len() - 1;
+
+                                if focused_arg.map_or(false, |arg| arg.kind() == arg_kind) {
+                                    active_param = Some(idx);
+                                } else if active_param_by_prefix.is_none()
+                                    && focused_arg.map_or(false, |arg| {
+                                        arg.name().map_or(false, |name| {
+                                            arg_kind.to_string().starts_with(&name.to_string())
+                                        })
+                                    })
+                                {
+                                    active_param_by_prefix = Some(idx);
+                                }
                             }
                         };
 
@@ -163,13 +180,14 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
 
                         // Adds signature to results (if non-empty).
                         if !signature.is_empty() {
-                            active_parameter =
-                                active_parameter.or((!params.is_empty()).then_some(0));
+                            active_param = active_param
+                                .or(active_param_by_prefix)
+                                .or((!params.is_empty()).then_some(0));
                             results.push(SignatureHelp {
                                 label: signature,
                                 range,
                                 parameters: (!params.is_empty()).then_some(params),
-                                active_parameter,
+                                active_parameter: active_param,
                                 detail: None,
                             });
                         }

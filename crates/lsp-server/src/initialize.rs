@@ -82,6 +82,11 @@ pub fn server_capabilities(
                 resolve_provider: None,
             }),
         )),
+        signature_help_provider: Some(lsp_types::SignatureHelpOptions {
+            trigger_characters: Some(vec!["(".to_string(), ",".to_string()]),
+            retrigger_characters: None,
+            work_done_progress_options: Default::default(),
+        }),
         ..Default::default()
     }
 }
@@ -130,9 +135,9 @@ mod tests {
         let server_capabilities = server_capabilities(&Default::default());
 
         // Verifies the expected default server capabilities.
-        // NOTE: See `translator` module for unit tests for the `utils::position_encoding` and `utils::code_actions_kinds` utilities
-        // which are used to generate the `position_encoding` and `code_action_provider` server capabilities,
-        // and are currently the only server capabilities fields that aren't statically defined (i.e change based on the client capabilities).
+        // NOTE: See the `utils` module for utilities for "reactive" server capabilities (i.e. change based on the client capabilities)
+        // and their unit tests
+        // (e.g. position_encoding, code action kinds, snippet support, signature information active parameter and label offset support e.t.c).
         assert_eq!(
             server_capabilities.position_encoding,
             Some(lsp_types::PositionEncodingKind::UTF16)

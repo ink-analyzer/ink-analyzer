@@ -169,6 +169,46 @@ pub fn handle_inlay_hint(
     }
 }
 
+/// Handles signature help request.
+pub fn handle_signature_help(
+    params: lsp_types::SignatureHelpParams,
+    memory: &mut Memory,
+    client_capabilities: &lsp_types::ClientCapabilities,
+) -> anyhow::Result<Option<lsp_types::SignatureHelp>> {
+    // Gets document uri and retrieves document from memory.
+    let uri = params.text_document_position_params.text_document.uri;
+    let id = uri.to_string();
+    match memory.get(&id) {
+        Some(doc) => {
+            // Composes translation context.
+            let translation_context = PositionTranslationContext {
+                encoding: utils::position_encoding(client_capabilities),
+                line_index: LineIndex::new(&doc.content),
+            };
+
+            // Converts LSP position to ink! analyzer offset.
+            let offset = translator::from_lsp::offset(
+                params.text_document_position_params.position,
+                &translation_context,
+            )
+            .ok_or(anyhow::format_err!("Invalid offset."))?;
+
+            // Computes ink! analyzer signature help and translates it to LSP signature help.
+            Ok(translator::to_lsp::signature_help(
+                &Analysis::new(&doc.content).signature_help(offset),
+                &utils::signature_support(client_capabilities),
+                params
+                    .context
+                    .as_ref()
+                    .and_then(|ctx| ctx.active_signature_help.as_ref()),
+                &translation_context,
+            ))
+        }
+        // Empty response for missing documents.
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -336,5 +376,55 @@ mod tests {
         }
         .unwrap()
         .contains("comma separated"));
+    }
+
+    #[test]
+    fn handle_signature_help_works() {
+        // Initializes memory.
+        let mut memory = Memory::new();
+
+        // Creates test document.
+        let uri = document("#[ink::contract()]".to_string(), &mut memory);
+
+        // Calls handler and verifies that the expected signature help is returned.
+        let result = handle_signature_help(
+            lsp_types::SignatureHelpParams {
+                text_document_position_params: lsp_types::TextDocumentPositionParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri },
+                    position: lsp_types::Position {
+                        line: 0,
+                        character: 16,
+                    },
+                },
+                work_done_progress_params: Default::default(),
+                context: None,
+            },
+            &mut memory,
+            &simple_client_config(),
+        );
+        assert!(result.is_ok());
+        let signature_help = result.unwrap().unwrap();
+        let signature_label = &signature_help.signatures[0].label;
+        assert_eq!(
+            &signature_help.signatures[0].label,
+            "env: impl Environment, keep_attr: &str"
+        );
+        let params: Vec<[u32; 2]> = signature_help.signatures[0]
+            .parameters
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|param| match &param.label {
+                lsp_types::ParameterLabel::LabelOffsets(offsets) => [offsets[0], offsets[1]],
+                lsp_types::ParameterLabel::Simple(label) => {
+                    let end_offset =
+                        test_utils::parse_offset_at(signature_label, Some(label)).unwrap() as u32;
+                    let start_offset = end_offset - label.len() as u32;
+                    [start_offset, end_offset]
+                }
+            })
+            .collect();
+        assert_eq!(params, vec![[0, 21], [23, 38]]);
+        assert_eq!(signature_help.active_parameter.unwrap(), 0);
     }
 }

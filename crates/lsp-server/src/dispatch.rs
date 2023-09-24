@@ -78,6 +78,9 @@ impl<'a> Dispatcher<'a> {
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
             .process::<lsp_types::request::InlayHintRequest>(handlers::request::handle_inlay_hint)
+            .process::<lsp_types::request::SignatureHelpRequest>(
+                handlers::request::handle_signature_help,
+            )
             .finish();
 
         // Sends response (if any).

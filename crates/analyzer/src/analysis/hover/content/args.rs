@@ -87,7 +87,7 @@ pub const CONSTRUCTOR_DOC: &str = r#"
 
 # Description
 
-Flags a function for the ink! storage `struct` as constructor making it available to the API for instantiating the contract.
+Flags a function for the ink! storage `struct` as a constructor making it available to the API for instantiating the contract.
 
 # Usage
 
@@ -493,7 +493,7 @@ pub const MESSAGE_DOC: &str = r#"
 
 # Description
 
-Flags a method for the ink! storage `struct` as message making it available to the API for calling the contract.
+Flags a method for the ink! storage `struct` as a message making it available to the API for calling the contract.
 
 # Usage
 
