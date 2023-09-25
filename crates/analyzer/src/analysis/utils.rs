@@ -435,6 +435,28 @@ pub fn remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
     }
 }
 
+/// Filters out duplicate, conflicting and invalidly scoped ink! arguments.
+/// (See `remove_duplicate_ink_arg_suggestions`, `remove_conflicting_ink_arg_suggestions` and
+/// `remove_invalid_ink_arg_suggestions_for_parent_ink_scope` docs for details)
+pub fn remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
+    suggestions: &mut Vec<InkArgKind>,
+    ink_attr: &InkAttribute,
+) {
+    if let Some(attr_parent) = ink_attr.syntax().parent() {
+        // Filters out duplicate ink! attribute argument suggestions.
+        remove_duplicate_ink_arg_suggestions(suggestions, &attr_parent);
+
+        // Filters out conflicting ink! attribute argument actions.
+        remove_conflicting_ink_arg_suggestions(suggestions, &attr_parent);
+
+        // Filters out invalid (based on parent ink! scope) ink! attribute argument actions,
+        // Doesn't apply to ink! attribute macros as their arguments are not influenced by the parent scope.
+        if let InkAttributeKind::Arg(_) = ink_attr.kind() {
+            remove_invalid_ink_arg_suggestions_for_parent_ink_scope(suggestions, &attr_parent);
+        }
+    }
+}
+
 /// Filters out invalid ink! macros from suggestions based on parent ink! scope.
 pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
     suggestions: &mut Vec<InkMacroKind>,
@@ -454,6 +476,56 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
                 && parent_ink_scope_valid_ink_macros.contains(macro_kind)
         });
     }
+}
+
+/// Filters out invalid ink! macros from suggestions based on parent `cfg` scope.
+pub fn remove_invalid_ink_macro_suggestions_for_parent_cfg_scope(
+    suggestions: &mut Vec<InkMacroKind>,
+    attr_parent: &SyntaxNode,
+) {
+    // Only suggest ink! test and ink! e2e test inside a "cfg test" scopes
+    // (also check for an extra "e2e-tests" feature condition for ink! e2e test attributes).
+    if suggestions
+        .iter()
+        .any(|macro_kind| matches!(macro_kind, InkMacroKind::Test | InkMacroKind::E2ETest))
+    {
+        let has_cfg_test_ancestors = attr_parent
+            .ancestors()
+            .filter(|ancestor| ancestor != attr_parent)
+            .any(|node| ink_analyzer_ir::attrs(&node).any(|attr| is_cfg_test_attr(&attr)));
+        let has_cfg_e2e_test_ancestors = has_cfg_test_ancestors
+            && attr_parent
+                .ancestors()
+                .filter(|ancestor| ancestor != attr_parent)
+                .any(|node| ink_analyzer_ir::attrs(&node).any(|attr| is_cfg_e2e_tests_attr(&attr)));
+
+        suggestions.retain(|macro_kind| {
+            !matches!(macro_kind, InkMacroKind::Test | InkMacroKind::E2ETest)
+                || (*macro_kind == InkMacroKind::Test && has_cfg_test_ancestors)
+                || (*macro_kind == InkMacroKind::E2ETest && has_cfg_e2e_test_ancestors)
+        });
+    }
+}
+
+/// Returns true if the attribute is a conditional compilation flag for test builds.
+pub fn is_cfg_test_attr(attr: &ast::Attr) -> bool {
+    attr.path().map_or(false, |path| path.to_string() == "cfg")
+        && attr.token_tree().map_or(false, |token_tree| {
+            let mut meta = token_tree.syntax().to_string();
+            meta.retain(|it| !it.is_whitespace());
+            meta.contains("(test") || meta.contains(",test")
+        })
+}
+
+/// Returns true if the attribute is a conditional compilation flag for test builds
+/// with an additional `e2e-tests` feature condition.
+pub fn is_cfg_e2e_tests_attr(attr: &ast::Attr) -> bool {
+    is_cfg_test_attr(attr)
+        && attr.token_tree().map_or(false, |token_tree| {
+            let mut meta = token_tree.syntax().to_string();
+            meta.retain(|it| !it.is_whitespace());
+            meta.contains(r#"feature="e2e-tests""#)
+        })
 }
 
 /// Returns the insertion text and snippet (if appropriate) for ink! attribute argument including

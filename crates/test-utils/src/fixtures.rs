@@ -1933,16 +1933,6 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     })),
                     results: TestCaseResults::Action(vec![
                         vec![TestResultTextRange {
-                            text: "#[ink::test]",
-                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
-                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        }],
-                        vec![TestResultTextRange {
-                            text: "#[ink_e2e::test]",
-                            start_pat: Some("<-pub fn new(total_supply: Balance)"),
-                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                        }],
-                        vec![TestResultTextRange {
                             text: "#[ink(constructor)]",
                             start_pat: Some("<-pub fn new(total_supply: Balance)"),
                             end_pat: Some("<-pub fn new(total_supply: Balance)"),
@@ -2002,16 +1992,6 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         pat: Some("<-pub fn total_supply(&self)"),
                     })),
                     results: TestCaseResults::Action(vec![
-                        vec![TestResultTextRange {
-                            text: "#[ink::test]",
-                            start_pat: Some("<-pub fn total_supply(&self)"),
-                            end_pat: Some("<-pub fn total_supply(&self)"),
-                        }],
-                        vec![TestResultTextRange {
-                            text: "#[ink_e2e::test]",
-                            start_pat: Some("<-pub fn total_supply(&self)"),
-                            end_pat: Some("<-pub fn total_supply(&self)"),
-                        }],
                         vec![TestResultTextRange {
                             text: "#[ink(constructor)]",
                             start_pat: Some("<-pub fn total_supply(&self)"),

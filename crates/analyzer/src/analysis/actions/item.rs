@@ -124,6 +124,10 @@ fn ink_macro_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: Text
             &mut ink_macro_suggestions,
             target,
         );
+        utils::remove_invalid_ink_macro_suggestions_for_parent_cfg_scope(
+            &mut ink_macro_suggestions,
+            target,
+        );
 
         if !ink_macro_suggestions.is_empty() {
             // Determines the insertion offset and affixes for the action.
@@ -310,15 +314,7 @@ fn item_ink_entity_actions(
                     ));
                 }
                 None => {
-                    let is_cfg_test = module.attrs().any(|attr| {
-                        attr.path().map_or(false, |path| path.to_string() == "cfg")
-                            && attr.token_tree().map_or(false, |token_tree| {
-                                let mut meta = token_tree.syntax().to_string();
-                                meta.retain(|it| !it.is_whitespace());
-                                meta.contains("(test")
-                                    || token_tree.syntax().to_string().contains(",test")
-                            })
-                    });
+                    let is_cfg_test = module.attrs().any(|attr| utils::is_cfg_test_attr(&attr));
                     if is_cfg_test {
                         // Adds ink! test.
                         add_result(entity::add_ink_test(
@@ -326,24 +322,18 @@ fn item_ink_entity_actions(
                             ActionKind::Refactor,
                             insert_offset_option,
                         ));
+                    }
 
-                        let is_cfg_e2e_tests = module.attrs().any(|attr| {
-                            attr.path().map_or(false, |path| path.to_string() == "cfg")
-                                && attr.token_tree().map_or(false, |token_tree| {
-                                    let mut meta = token_tree.syntax().to_string();
-                                    meta.retain(|it| !it.is_whitespace());
-                                    meta.contains(r#"feature="e2e-tests""#)
-                                })
-                        });
-
-                        if is_cfg_e2e_tests {
-                            // Adds ink! e2e test.
-                            add_result(entity::add_ink_e2e_test(
-                                module,
-                                ActionKind::Refactor,
-                                insert_offset_option,
-                            ));
-                        }
+                    let is_cfg_e2e_tests = module
+                        .attrs()
+                        .any(|attr| utils::is_cfg_e2e_tests_attr(&attr));
+                    if is_cfg_e2e_tests {
+                        // Adds ink! e2e test.
+                        add_result(entity::add_ink_e2e_test(
+                            module,
+                            ActionKind::Refactor,
+                            insert_offset_option,
+                        ));
                     }
                 }
             }
@@ -1232,6 +1222,150 @@ mod tests {
             (
                 r#"
                     fn my_fn() {
+                    }
+                "#,
+                Some("<-fn"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(constructor)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(default)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(extension = 1)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(handle_status = true)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(message)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(payable)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(selector = 1)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    #[cfg(test)]
+                    mod my_mod {
+                        fn my_fn() {
+                        }
+                    }
+                "#,
+                Some("<-fn"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::test]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(constructor)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(default)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(extension = 1)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(handle_status = true)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(message)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(payable)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(selector = 1)]",
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    #[cfg(all(test, feature="e2e-tests"))]
+                    mod my_mod {
+                        fn my_fn() {
+                        }
                     }
                 "#,
                 Some("<-fn"),

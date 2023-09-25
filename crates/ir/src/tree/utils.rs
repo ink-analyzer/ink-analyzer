@@ -11,11 +11,16 @@ use crate::{
     InkMacroKind, Message,
 };
 
+/// Returns attributes for the syntax node.
+pub fn attrs(node: &SyntaxNode) -> impl Iterator<Item = ast::Attr> {
+    // attributes are children of the current syntax node.
+    node.children().filter_map(ast::Attr::cast)
+}
+
 /// Returns ink! attributes for the syntax node.
 pub fn ink_attrs(node: &SyntaxNode) -> impl Iterator<Item = InkAttribute> {
     // ink! attributes are children of the current syntax node.
-    node.children()
-        .filter_map(|node| ast::Attr::cast(node).and_then(InkAttribute::cast))
+    attrs(node).filter_map(InkAttribute::cast)
 }
 
 /// Returns ink! attributes for all the syntax node's descendants.

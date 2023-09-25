@@ -41,7 +41,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
     // Only computes completions if a focused token can be determined.
     if let Some(focused_token) = item_at_offset.focused_token() {
         // Only computes completions for attributes.
-        if let Some((attr, _, _)) = item_at_offset.normalized_parent_attr() {
+        if let Some((attr, ..)) = item_at_offset.normalized_parent_attr() {
             let focused_token_is_left_bracket = focused_token.kind() == SyntaxKind::L_BRACK;
             let prev_token_is_left_bracket = matches!(
                 item_at_offset
@@ -102,18 +102,16 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
 
                 // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
                 let mut ink_macro_suggestions = Vec::new();
-                let has_other_ink_siblings = ink_analyzer_ir::parent_ast_item(attr.syntax())
-                    .map_or(false, |item| {
-                        ink_analyzer_ir::ink_attrs(item.syntax())
-                            .any(|it| it.syntax() != attr.syntax())
-                    });
-                let has_other_ink_macro_siblings = ink_analyzer_ir::parent_ast_item(attr.syntax())
-                    .map_or(false, |item| {
-                        ink_analyzer_ir::ink_attrs(item.syntax()).any(|it| {
-                            it.syntax() != attr.syntax()
-                                && matches!(it.kind(), InkAttributeKind::Macro(_))
-                        })
-                    });
+                let ast_item_option = ink_analyzer_ir::parent_ast_item(attr.syntax());
+                let has_other_ink_siblings = ast_item_option.as_ref().map_or(false, |item| {
+                    ink_analyzer_ir::ink_attrs(item.syntax()).any(|it| it.syntax() != attr.syntax())
+                });
+                let has_other_ink_macro_siblings = ast_item_option.as_ref().map_or(false, |item| {
+                    ink_analyzer_ir::ink_attrs(item.syntax()).any(|it| {
+                        it.syntax() != attr.syntax()
+                            && matches!(it.kind(), InkAttributeKind::Macro(_))
+                    })
+                });
                 if !has_other_ink_siblings {
                     // Suggests ink! attribute macros based on the context (if any).
                     ink_macro_suggestions =
@@ -256,7 +254,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
     // Only computes completions if a focused token can be determined.
     if let Some(focused_token) = item_at_offset.focused_token() {
         // Only computes completions for ink! attributes.
-        if let Some((ink_attr, _, _)) = item_at_offset.normalized_parent_ink_attr() {
+        if let Some((ink_attr, ..)) = item_at_offset.normalized_parent_ink_attr() {
             let focused_token_is_left_parenthesis = focused_token.kind() == SyntaxKind::L_PAREN;
             let prev_non_trivia_token_is_left_parenthesis = matches!(
                 item_at_offset
@@ -342,28 +340,11 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     kind => utils::valid_sibling_ink_args(*kind),
                 };
 
-                if let Some(attr_parent) = ink_attr.syntax().parent() {
-                    // Filters out duplicate ink! attribute argument suggestions.
-                    utils::remove_duplicate_ink_arg_suggestions(
-                        &mut ink_arg_suggestions,
-                        &attr_parent,
-                    );
-
-                    // Filters out conflicting ink! attribute argument actions.
-                    utils::remove_conflicting_ink_arg_suggestions(
-                        &mut ink_arg_suggestions,
-                        &attr_parent,
-                    );
-
-                    // Filters out invalid (based on parent ink! scope) ink! attribute argument actions,
-                    // Doesn't apply to ink! attribute macros as their arguments are not influenced by the parent scope.
-                    if let InkAttributeKind::Arg(_) = ink_attr.kind() {
-                        utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
-                            &mut ink_arg_suggestions,
-                            &attr_parent,
-                        );
-                    }
-                }
+                // Filters out duplicates, conflicting and invalidly scoped ink! arguments.
+                utils::remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
+                    &mut ink_arg_suggestions,
+                    &ink_attr,
+                );
 
                 // Filters suggestions by the focused prefix if the focused token is not a delimiter.
                 if !focused_token_is_left_parenthesis && !focused_token_is_comma {

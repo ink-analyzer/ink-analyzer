@@ -2,7 +2,7 @@
 
 use crate::{ActionKind, TextEdit};
 use ink_analyzer_ir::syntax::TextRange;
-use ink_analyzer_ir::{FromAST, FromSyntax, InkAttributeKind, InkFile};
+use ink_analyzer_ir::{FromAST, FromSyntax, InkFile};
 
 use super::Action;
 use crate::analysis::utils;
@@ -17,25 +17,11 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
             // Suggests ink! attribute arguments based on the context.
             let mut ink_arg_suggestions = utils::valid_sibling_ink_args(*ink_attr.kind());
 
-            if let Some(attr_parent) = ink_attr.syntax().parent() {
-                // Filters out duplicate ink! attribute argument actions.
-                utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, &attr_parent);
-
-                // Filters out conflicting ink! attribute argument actions.
-                utils::remove_conflicting_ink_arg_suggestions(
-                    &mut ink_arg_suggestions,
-                    &attr_parent,
-                );
-
-                // Filters out invalid (based on parent ink! scope) ink! attribute argument actions,
-                // Doesn't apply to ink! attribute macros as their arguments are not influenced by the parent scope.
-                if let InkAttributeKind::Arg(_) = ink_attr.kind() {
-                    utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
-                        &mut ink_arg_suggestions,
-                        &attr_parent,
-                    );
-                }
-            }
+            // Filters out duplicates, conflicting and invalidly scoped ink! arguments.
+            utils::remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
+                &mut ink_arg_suggestions,
+                &ink_attr,
+            );
 
             // Adds ink! attribute argument actions to accumulator.
             for arg_kind in ink_arg_suggestions {

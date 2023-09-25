@@ -14,18 +14,22 @@ pub fn verify_actions(
     expected_results: &[TestResultAction],
 ) {
     // Verifies actions.
-    assert_eq!(actual_results.len(), expected_results.len());
+    assert_eq!(actual_results.len(), expected_results.len(), "code: {code}");
     for (idx, fix) in actual_results.iter().enumerate() {
         // Verifies action label.
-        assert!(fix.label.contains(expected_results[idx].label));
+        assert!(
+            fix.label.contains(expected_results[idx].label),
+            "code: {code}"
+        );
         let expected_edits = &expected_results[idx].edits;
         // Verifies edits.
-        assert_eq!(fix.edits.len(), expected_edits.len());
+        assert_eq!(fix.edits.len(), expected_edits.len(), "code: {code}");
         for (idx, edit) in fix.edits.iter().enumerate() {
             // Verifies edit text.
             assert_eq!(
                 PartialMatchStr::from(edit.text.as_str()),
-                PartialMatchStr::from(expected_edits[idx].text)
+                PartialMatchStr::from(expected_edits[idx].text),
+                "code: {code}"
             );
             // Verifies edit range.
             assert_eq!(
@@ -37,7 +41,8 @@ pub fn verify_actions(
                     TextSize::from(
                         parse_offset_at(code, expected_edits[idx].end_pat).unwrap() as u32
                     )
-                )
+                ),
+                "code: {code}"
             );
         }
     }
