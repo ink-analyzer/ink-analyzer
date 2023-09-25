@@ -7,7 +7,7 @@ use ink_analyzer_ir::syntax::{
 use ink_analyzer_ir::{
     ast, Contract, FromAST, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
     InkAttribute, InkAttributeKind, InkImpl, InkMacroKind, IsInkEntity, IsInkStruct, IsInkTrait,
-    Storage,
+    ItemAtOffset, Storage,
 };
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -436,8 +436,8 @@ pub fn remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
 }
 
 /// Filters out duplicate, conflicting and invalidly scoped ink! arguments.
-/// (See `remove_duplicate_ink_arg_suggestions`, `remove_conflicting_ink_arg_suggestions` and
-/// `remove_invalid_ink_arg_suggestions_for_parent_ink_scope` docs for details)
+/// (See [`remove_duplicate_ink_arg_suggestions`], [`remove_conflicting_ink_arg_suggestions`] and
+/// [`remove_invalid_ink_arg_suggestions_for_parent_ink_scope`] docs).
 pub fn remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
     suggestions: &mut Vec<InkArgKind>,
     ink_attr: &InkAttribute,
@@ -1628,4 +1628,40 @@ where
         .trait_item()
         .and_then(|it| ast_item_declaration_range(&ast::Item::Trait(it.clone())))
         .unwrap_or(ink_trait_item.syntax().text_range())
+}
+
+/// Returns the syntax kind for the "normalized parent item".
+/// (See [`ItemAtOffset::normalized_parent_ast_item_keyword`] doc for details about "normalization" in this context).
+pub fn normalized_parent_item_syntax_kind(item_at_offset: &ItemAtOffset) -> Option<SyntaxKind> {
+    match item_at_offset.normalized_parent_ast_item_keyword() {
+        // Returns syntax kind based on the AST item type keyword.
+        Some((ast_item_keyword, ..)) => Some(ast_item_keyword.kind()),
+        // Handles cases where either the AST item type is unknown or
+        // the ink! attribute is not applied to an AST item (e.g. ink! topic).
+        None => {
+            // Checks whether the parent is a struct `RecordField`.
+            // `RecordFieldList` is also matched for cases where the ink! attribute is
+            // unclosed and so the field is parsed as if it's part of the attribute.
+            item_at_offset
+                .normalized_parent_ink_attr()
+                .and_then(|(ink_attr, ..)| {
+                    ink_attr.syntax().parent().and_then(|parent| {
+                        (matches!(
+                            parent.kind(),
+                            SyntaxKind::RECORD_FIELD | SyntaxKind::RECORD_FIELD_LIST
+                        ) && matches!(
+                            ink_analyzer_ir::parent_ast_item(&parent),
+                            Some(ast::Item::Struct(_))
+                        ))
+                        .then_some(
+                            if ink_attr.ast().r_brack_token().is_some() {
+                                parent.kind()
+                            } else {
+                                SyntaxKind::RECORD_FIELD
+                            },
+                        )
+                    })
+                })
+        }
+    }
 }

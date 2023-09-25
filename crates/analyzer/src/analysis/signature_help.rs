@@ -38,10 +38,10 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
     let item_at_offset = file.item_at_offset(offset);
 
     // Only computes signature help for ink! attributes.
-    if let Some((attr, ..)) = item_at_offset.normalized_parent_ink_attr() {
+    if let Some((ink_attr, ..)) = item_at_offset.normalized_parent_ink_attr() {
         // Only computes signature help if the cursor is positioned inside a token tree,
         // after the opening parenthesis (i.e. `(`) and before the closing parenthesis (i.e. `)`) (if any).
-        if let Some(token_tree) = attr.ast().token_tree() {
+        if let Some(token_tree) = ink_attr.ast().token_tree() {
             // Opening parenthesis is required.
             let is_after_left_paren = token_tree
                 .l_paren_token()
@@ -69,27 +69,50 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                 );
 
                 // Determines the current argument in focus if any.
-                let focused_arg = attr
+                let focused_arg = ink_attr
                     .args()
                     .iter()
                     .find(|arg| arg.text_range().contains_inclusive(offset));
 
                 // Computes signatures based on the attribute kind.
-                match attr.kind() {
+                match ink_attr.kind() {
                     // Computes signatures based on attribute arguments.
                     InkAttributeKind::Arg(arg_kind) => {
                         if arg_kind.is_entity_type() {
                             // Computes signature based on primary argument.
                             anchor_signature(&mut results, arg_kind, focused_arg, range);
-                        } else if arg_kind.is_complementary() {
+                        } else if let Some(separate_entity_arg_kind) = item_at_offset
+                            .parent_ast_item()
+                            // Finds separate primary ink! attribute.
+                            .and_then(|item| {
+                                utils::primary_ink_attribute_candidate(ink_analyzer_ir::ink_attrs(
+                                    item.syntax(),
+                                ))
+                            })
+                            // Ignores separate ink! attribute macros and non-entity level arguments.
+                            .and_then(|(attr, _)| match attr.kind() {
+                                InkAttributeKind::Arg(arg_kind) => {
+                                    arg_kind.is_entity_type().then_some(*arg_kind)
+                                }
+                                InkAttributeKind::Macro(_) => None,
+                            })
+                        {
+                            // Computes signature based on separate primary ink! argument.
+                            anchor_signature(
+                                &mut results,
+                                &separate_entity_arg_kind,
+                                focused_arg,
+                                range,
+                            );
+                        } else if *arg_kind != InkArgKind::Unknown {
                             // Computes signature based on complementary argument.
                             complementary_signature(&mut results, arg_kind, focused_arg, range);
-                        } else if let Some((ast_item_keyword, ..)) =
-                            item_at_offset.normalized_parent_ast_item_keyword()
+                        } else if let Some(parent_item_kind) =
+                            utils::normalized_parent_item_syntax_kind(&item_at_offset)
                         {
-                            // Determines possible args by prefix or parent AST item kind.
+                            // Determines possible args by prefix or parent item kind.
                             for possible_arg_kind in
-                                utils::valid_ink_args_by_syntax_kind(ast_item_keyword.kind())
+                                utils::valid_ink_args_by_syntax_kind(parent_item_kind)
                                     .iter()
                                     .filter(|arg_kind| {
                                         focused_arg.map_or(true, |arg| {
@@ -155,7 +178,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                     }
                     // Computes signatures based on attribute macros.
                     InkAttributeKind::Macro(_) => {
-                        let optional_args = utils::valid_sibling_ink_args(*attr.kind());
+                        let optional_args = utils::valid_sibling_ink_args(*ink_attr.kind());
                         if !optional_args.is_empty() {
                             add_signature(&mut results, &optional_args, focused_arg, range);
                         }
@@ -457,6 +480,16 @@ mod tests {
                 )],
             ),
             (
+                "#[ink(topic)]",
+                Some("ink("),
+                vec![(
+                    "topic",
+                    (Some("("), Some("<-)")),
+                    vec![(Some("<-topic"), Some("topic"))],
+                    0,
+                )],
+            ),
+            (
                 "#[ink(constructor)]",
                 Some("ink("),
                 vec![(
@@ -564,6 +597,119 @@ mod tests {
                         (Some("<-namespace"), Some("&str")),
                     ],
                     1,
+                )],
+            ),
+            // multiple ink! attributes.
+            (
+                r#"
+                #[ink(event)]
+                #[ink(anonymous)]
+                struct MyStruct {}
+                "#,
+                Some("ink(->"),
+                vec![(
+                    "event, anonymous",
+                    (Some("(->"), Some("<-)->")),
+                    vec![
+                        (Some("<-event"), Some("event")),
+                        (Some("<-anonymous"), Some("anonymous")),
+                    ],
+                    1,
+                )],
+            ),
+            (
+                r#"
+                #[ink(constructor)]
+                #[ink(selector=1)]
+                fn my_fn() {}
+                "#,
+                Some("ink(->"),
+                vec![(
+                    "constructor, default, payable, selector: u32 | _",
+                    (Some("ink(->"), Some("<-)]->")),
+                    vec![
+                        (Some("<-constructor"), Some("constructor")),
+                        (Some("<-default"), Some("default")),
+                        (Some("<-payable"), Some("payable")),
+                        (Some("<-selector"), Some("u32 | _")),
+                    ],
+                    3,
+                )],
+            ),
+            (
+                r#"
+                #[ink(message)]
+                #[ink(payable)]
+                fn my_fn() {}
+                "#,
+                Some("ink(->"),
+                vec![(
+                    "message, default, payable, selector: u32 | _",
+                    (Some("ink(->"), Some("<-)]->")),
+                    vec![
+                        (Some("<-message"), Some("message")),
+                        (Some("<-default"), Some("default")),
+                        (Some("<-payable"), Some("payable")),
+                        (Some("<-selector"), Some("u32 | _")),
+                    ],
+                    2,
+                )],
+            ),
+            (
+                r#"
+                #[ink(extension=1)]
+                #[ink(handle_status=true)]
+                fn my_fn() {}
+                "#,
+                Some("ink(->"),
+                vec![(
+                    "extension: u32, handle_status: bool",
+                    (Some("ink(->"), Some("<-)]->")),
+                    vec![
+                        (Some("<-extension"), Some("u32")),
+                        (Some("<-handle_status"), Some("bool")),
+                    ],
+                    1,
+                )],
+            ),
+            // incomplete ink! attribute arguments.
+            (
+                r#"
+                #[ink()]
+                struct MyStruct {}
+                "#,
+                Some("ink("),
+                vec![
+                    (
+                        "event, anonymous",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-event"), Some("event")),
+                            (Some("<-anonymous"), Some("anonymous")),
+                        ],
+                        0,
+                    ),
+                    (
+                        "storage",
+                        (Some("("), Some("<-)")),
+                        vec![(Some("<-storage"), Some("storage"))],
+                        0,
+                    ),
+                ],
+            ),
+            (
+                r#"
+                struct MyStruct {
+                    #[ink()]
+                    field: bool,
+                }
+                "#,
+                Some("ink("),
+                vec![(
+                    "topic",
+                    (Some("("), Some("<-)")),
+                    vec![(Some("<-topic"), Some("topic"))],
+                    0,
                 )],
             ),
             (

@@ -3,7 +3,7 @@
 use crate::analysis::text_edit::TextEdit;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{
-    ast, FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
+    FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
 };
 
 use super::utils;
@@ -289,51 +289,32 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
 
                 // Suggests ink! attribute arguments based on the context (if any).
                 let mut ink_arg_suggestions = match ink_attr.kind() {
-                    // For unknown ink! attributes, suggestions are based on the AST item (if any).
+                    // For unknown ink! attributes, suggestions are based on the parent item (if any).
                     InkAttributeKind::Macro(InkMacroKind::Unknown)
                     | InkAttributeKind::Arg(InkArgKind::Unknown) => {
-                        match item_at_offset.normalized_parent_ast_item_keyword() {
-                            // Returns suggestions based on the AST item type keyword.
-                            Some((ast_item_keyword, ..)) => {
-                                utils::valid_ink_args_by_syntax_kind(ast_item_keyword.kind())
+                        match utils::normalized_parent_item_syntax_kind(&item_at_offset) {
+                            // Returns suggestions based on the parent item kind.
+                            Some(parent_item_kind) => {
+                                utils::valid_ink_args_by_syntax_kind(parent_item_kind)
                             }
-                            // Handles cases where either the AST item type is unknown or
-                            // the ink! attribute is not applied to an AST item (e.g. ink! topic).
-                            None => {
-                                // Checks whether the parent is a struct `RecordField`.
-                                // `RecordFieldList` is also matched for cases where the ink! attribute is
-                                // unclosed and so the field is parsed as if it's part of the attribute.
-                                match ink_attr.syntax().parent().and_then(|attr_parent| {
-                                    (matches!(
-                                        attr_parent.kind(),
-                                        SyntaxKind::RECORD_FIELD | SyntaxKind::RECORD_FIELD_LIST
-                                    ) && matches!(
-                                        ink_analyzer_ir::parent_ast_item(&attr_parent),
-                                        Some(ast::Item::Struct(_))
-                                    ))
-                                    .then_some(attr_parent)
-                                }) {
-                                    // Returns ink! topic suggestions for struct fields.
-                                    Some(_) => vec![InkArgKind::Topic],
-                                    // Returns all attribute arguments that don't require a macro
-                                    // if the AST item type is unknown.
-                                    None => vec![
-                                        InkArgKind::Anonymous,
-                                        InkArgKind::Constructor,
-                                        InkArgKind::Default,
-                                        InkArgKind::Event,
-                                        InkArgKind::Extension,
-                                        InkArgKind::HandleStatus,
-                                        InkArgKind::Impl,
-                                        InkArgKind::Message,
-                                        InkArgKind::Namespace,
-                                        InkArgKind::Payable,
-                                        InkArgKind::Selector,
-                                        InkArgKind::Storage,
-                                        InkArgKind::Topic,
-                                    ],
-                                }
-                            }
+                            // Handles cases where either the parent item kind is unknown.
+                            // Returns all attribute arguments that don't require a macro
+                            // if the AST item type is unknown.
+                            None => vec![
+                                InkArgKind::Anonymous,
+                                InkArgKind::Constructor,
+                                InkArgKind::Default,
+                                InkArgKind::Event,
+                                InkArgKind::Extension,
+                                InkArgKind::HandleStatus,
+                                InkArgKind::Impl,
+                                InkArgKind::Message,
+                                InkArgKind::Namespace,
+                                InkArgKind::Payable,
+                                InkArgKind::Selector,
+                                InkArgKind::Storage,
+                                InkArgKind::Topic,
+                            ],
                         }
                     }
                     // For known/valid primary ink! attribute kinds, only suggest valid ink! attribute siblings.
