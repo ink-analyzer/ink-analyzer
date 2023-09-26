@@ -299,6 +299,15 @@ fn complementary_signature(
     focused_arg: Option<&InkArg>,
     range: TextRange,
 ) {
+    // Namespace is not entity-level but it can be used alone,
+    // or be used with ink! impl argument and ink! trait definition macro.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L301-L315>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/config.rs#L60-L85>.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L597-L643>.
+    if *arg_kind == InkArgKind::Namespace {
+        add_signature(results, &[*arg_kind], focused_arg, range);
+    }
+
     // Determines the complementary argument's related primary arguments (if any).
     let mut primary_args = [*arg_kind]
         .into_iter()
@@ -589,15 +598,23 @@ mod tests {
             (
                 r#"#[ink(namespace="my_namespace")]"#,
                 Some("ink("),
-                vec![(
-                    "impl, namespace: &str",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-impl"), Some("impl")),
-                        (Some("<-namespace"), Some("&str")),
-                    ],
-                    1,
-                )],
+                vec![
+                    (
+                        "namespace: &str",
+                        (Some("("), Some("<-)")),
+                        vec![(Some("<-namespace"), Some("&str"))],
+                        0,
+                    ),
+                    (
+                        "impl, namespace: &str",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-impl"), Some("impl")),
+                            (Some("<-namespace"), Some("&str")),
+                        ],
+                        1,
+                    ),
+                ],
             ),
             // multiple ink! attributes.
             (
