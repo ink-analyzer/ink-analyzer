@@ -168,9 +168,10 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
     utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, target);
     // Filters out conflicting ink! attribute argument actions.
     utils::remove_conflicting_ink_arg_suggestions(&mut ink_arg_suggestions, target);
+    // Filters out invalid ink! arguments from suggestions based on parent item's invariants.
+    utils::remove_invalid_ink_arg_suggestions_for_parent_item(&mut ink_arg_suggestions, target);
     // Filters out invalid ink! attribute argument actions based on parent ink! scope
-    // if there's either no valid ink! attribute macro (not argument) applied to the item
-    // (i.e either no valid ink! attribute macro or only ink! attribute arguments).
+    // if there's either no valid ink! attribute macro or only ink! attribute arguments applied to the item.
     if primary_ink_attr_candidate.is_none()
         || !matches!(
             primary_ink_attr_candidate.as_ref().map(InkAttribute::kind),
@@ -339,12 +340,13 @@ fn item_ink_entity_actions(
             }
         }
         ast::Item::Impl(impl_item) => {
-            // Only computes ink! entities if impl item either:
+            // Only computes ink! entities if impl item is not a trait `impl` and additionally either:
             // - has an ink! `impl` attribute.
             // - contains at least one ink! constructor or ink! message.
             // - has an ink! contract as the direct parent.
-            if InkImpl::can_cast(impl_item.syntax())
-                || ink_analyzer_ir::ink_parent::<Contract>(impl_item.syntax()).is_some()
+            if impl_item.trait_().is_none()
+                && (InkImpl::can_cast(impl_item.syntax())
+                    || ink_analyzer_ir::ink_parent::<Contract>(impl_item.syntax()).is_some())
             {
                 // Adds ink! constructor.
                 add_result(entity::add_constructor_to_impl(
@@ -1201,6 +1203,105 @@ mod tests {
                     ],
                 }],
             ),
+            (
+                r#"
+                    #[ink(event)]
+                    struct MyEvent {
+                    }
+                "#,
+                Some("<-struct"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", anonymous",
+                            start_pat: Some("#[ink(event"),
+                            end_pat: Some("#[ink(event"),
+                        }],
+                    },
+                    // Adds ink! topic `field`.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("struct MyEvent {"),
+                            end_pat: Some("struct MyEvent {"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    #[ink(anonymous)]
+                    struct MyEvent {
+                    }
+                "#,
+                Some("<-struct"),
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "event, ",
+                        start_pat: Some("#[ink("),
+                        end_pat: Some("#[ink("),
+                    }],
+                }],
+            ),
+            (
+                r#"
+                    #[ink(event, anonymous)]
+                    struct MyEvent {
+                        my_field: u8,
+                    }
+                "#,
+                Some("<-struct"),
+                vec![
+                    // Adds ink! topic `field`.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("my_field: u8,"),
+                            end_pat: Some("my_field: u8,"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    #[ink(anonymous)]
+                    #[ink(event)]
+                    struct MyEvent {
+                        my_field: u8,
+                    }
+                "#,
+                Some("<-struct"),
+                vec![
+                    TestResultAction {
+                        label: "Flatten",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(event, anonymous)]",
+                                start_pat: Some("<-#[ink(event)]"),
+                                end_pat: Some("#[ink(event)]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(anonymous)]"),
+                                end_pat: Some("#[ink(anonymous)]"),
+                            },
+                        ],
+                    },
+                    // Adds ink! topic `field`.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("my_field: u8,"),
+                            end_pat: Some("my_field: u8,"),
+                        }],
+                    },
+                ],
+            ),
             // Struct field focus.
             (
                 r#"
@@ -1217,6 +1318,26 @@ mod tests {
                         end_pat: Some("<-value"),
                     }],
                 }],
+            ),
+            (
+                r#"
+                    #[ink(event, anonymous)]
+                    struct MyEvent {
+                        my_field: u8,
+                    }
+                "#,
+                Some("<-my_field"),
+                vec![
+                    // Adds ink! topic attribute argument.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("<-my_field"),
+                            end_pat: Some("<-my_field"),
+                        }],
+                    },
+                ],
             ),
             // Fn focus.
             (
@@ -1587,121 +1708,164 @@ mod tests {
                     ],
                 }],
             ),
+            // impl focus.
             (
                 r#"
-                    #[ink(event)]
-                    struct MyEvent {
+                    impl MyContract {
                     }
                 "#,
-                Some("<-struct"),
+                Some("<-impl MyContract {"),
                 vec![
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: ", anonymous",
-                            start_pat: Some("#[ink(event"),
-                            end_pat: Some("#[ink(event"),
+                            text: "#[ink(impl)]",
+                            start_pat: Some("<-impl MyContract {"),
+                            end_pat: Some("<-impl MyContract {"),
                         }],
                     },
-                    // Adds ink! topic `field`.
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "#[ink(topic)]",
-                            start_pat: Some("struct MyEvent {"),
-                            end_pat: Some("struct MyEvent {"),
+                            text: r#"#[ink(namespace = "my_namespace")]"#,
+                            start_pat: Some("<-impl MyContract {"),
+                            end_pat: Some("<-impl MyContract {"),
                         }],
                     },
                 ],
             ),
             (
                 r#"
-                    #[ink(anonymous)]
-                    struct MyEvent {
+                    #[ink(impl)]
+                    impl MyContract {
                     }
                 "#,
-                Some("<-struct"),
+                Some("<-impl MyContract {"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#", namespace = "my_namespace""#,
+                            start_pat: Some("#[ink(impl"),
+                            end_pat: Some("#[ink(impl"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(constructor)]",
+                            start_pat: Some("impl MyContract {"),
+                            end_pat: Some("impl MyContract {"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(message)]",
+                            start_pat: Some("impl MyContract {"),
+                            end_pat: Some("impl MyContract {"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    impl MyContract {
+                        #[ink(constructor)]
+                        pub fn new() -> Self {}
+                    }
+                "#,
+                Some("<-impl MyContract {"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(impl)]",
+                            start_pat: Some("<-impl MyContract {"),
+                            end_pat: Some("<-impl MyContract {"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#"#[ink(namespace = "my_namespace")]"#,
+                            start_pat: Some("<-impl MyContract {"),
+                            end_pat: Some("<-impl MyContract {"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(constructor)]",
+                            start_pat: Some("pub fn new() -> Self {}"),
+                            end_pat: Some("pub fn new() -> Self {}"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(message)]",
+                            start_pat: Some("pub fn new() -> Self {}"),
+                            end_pat: Some("pub fn new() -> Self {}"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    impl MyTrait for MyContract {
+                        #[ink(constructor)]
+                        pub fn new() -> Self {}
+                    }
+                "#,
+                Some("<-impl MyTrait for MyContract {"),
                 vec![TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
-                        text: "event, ",
-                        start_pat: Some("#[ink("),
-                        end_pat: Some("#[ink("),
+                        text: "#[ink(impl)]",
+                        start_pat: Some("<-impl MyTrait for MyContract {"),
+                        end_pat: Some("<-impl MyTrait for MyContract {"),
                     }],
                 }],
             ),
             (
                 r#"
-                    #[ink(event, anonymous)]
-                    struct MyEvent {
-                        my_field: u8,
+                    #[ink(impl)]
+                    #[ink(namespace="my_namespace")]
+                    impl MyContract {
                     }
                 "#,
-                Some("<-struct"),
-                vec![
-                    // Adds ink! topic `field`.
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(topic)]",
-                            start_pat: Some("my_field: u8,"),
-                            end_pat: Some("my_field: u8,"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
-                    #[ink(anonymous)]
-                    #[ink(event)]
-                    struct MyEvent {
-                        my_field: u8,
-                    }
-                "#,
-                Some("<-struct"),
+                Some("<-impl MyContract {"),
                 vec![
                     TestResultAction {
                         label: "Flatten",
                         edits: vec![
                             TestResultTextRange {
-                                text: "#[ink(event, anonymous)]",
-                                start_pat: Some("<-#[ink(event)]"),
-                                end_pat: Some("#[ink(event)]"),
+                                text: r#"#[ink(impl, namespace = "my_namespace")]"#,
+                                start_pat: Some("<-#[ink(impl)]"),
+                                end_pat: Some("#[ink(impl)]"),
                             },
                             TestResultTextRange {
                                 text: "",
-                                start_pat: Some("<-#[ink(anonymous)]"),
-                                end_pat: Some("#[ink(anonymous)]"),
+                                start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                                end_pat: Some(r#"#[ink(namespace="my_namespace")]"#),
                             },
                         ],
                     },
-                    // Adds ink! topic `field`.
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "#[ink(topic)]",
-                            start_pat: Some("my_field: u8,"),
-                            end_pat: Some("my_field: u8,"),
+                            text: "#[ink(constructor)]",
+                            start_pat: Some("impl MyContract {"),
+                            end_pat: Some("impl MyContract {"),
                         }],
                     },
-                ],
-            ),
-            (
-                r#"
-                    #[ink(event, anonymous)]
-                    struct MyEvent {
-                        my_field: u8,
-                    }
-                "#,
-                Some("<-my_field"),
-                vec![
-                    // Adds ink! topic attribute argument.
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "#[ink(topic)]",
-                            start_pat: Some("<-my_field"),
-                            end_pat: Some("<-my_field"),
+                            text: "#[ink(message)]",
+                            start_pat: Some("impl MyContract {"),
+                            end_pat: Some("impl MyContract {"),
                         }],
                     },
                 ],

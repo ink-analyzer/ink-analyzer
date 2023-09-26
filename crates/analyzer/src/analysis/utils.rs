@@ -416,6 +416,24 @@ pub fn remove_conflicting_ink_arg_suggestions(
     }
 }
 
+/// Filters out invalid ink! arguments from suggestions based on parent item's invariants.
+///
+/// (e.g ink! namespace arguments can't be applied to trait `impl` blocks).
+pub fn remove_invalid_ink_arg_suggestions_for_parent_item(
+    suggestions: &mut Vec<InkArgKind>,
+    attr_parent: &SyntaxNode,
+) {
+    // Removes namespace suggestions for trait `impl` blocks.
+    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L316-L320>.
+    if ast::Impl::can_cast(attr_parent.kind()) {
+        let impl_item =
+            ast::Impl::cast(attr_parent.clone()).expect("Should be able to cast to `impl` item.");
+        if impl_item.trait_().is_some() {
+            suggestions.retain(|arg_kind| *arg_kind != InkArgKind::Namespace);
+        }
+    }
+}
+
 /// Filters out invalid ink! arguments from suggestions based on parent ink! scope.
 pub fn remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
     suggestions: &mut Vec<InkArgKind>,
