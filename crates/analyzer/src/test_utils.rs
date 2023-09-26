@@ -17,8 +17,9 @@ pub fn verify_actions(
     assert_eq!(actual_results.len(), expected_results.len(), "code: {code}");
     for (idx, fix) in actual_results.iter().enumerate() {
         // Verifies action label.
-        assert!(
-            fix.label.contains(expected_results[idx].label),
+        assert_eq!(
+            PartialMatchStr::from(fix.label.as_str()),
+            PartialMatchStr::from(expected_results[idx].label),
             "code: {code}"
         );
         let expected_edits = &expected_results[idx].edits;

@@ -60,7 +60,7 @@ fn signature_help_works() {
                     ))
                     .collect::<Vec<(String, TextRange, Vec<TextRange>, Option<usize>)>>(),
                 expected_results
-                    .into_iter()
+                    .iter()
                     .map(|expected_result| (
                         expected_result.label.to_string(),
                         TextRange::new(

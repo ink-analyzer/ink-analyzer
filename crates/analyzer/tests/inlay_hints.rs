@@ -57,7 +57,7 @@ fn inlay_hints_works() {
                     .map(|item| (item.label, item.position, item.range))
                     .collect::<Vec<(String, TextSize, TextRange)>>(),
                 expected_results
-                    .into_iter()
+                    .iter()
                     .map(|result| (
                         result.text.to_string(),
                         TextSize::from(

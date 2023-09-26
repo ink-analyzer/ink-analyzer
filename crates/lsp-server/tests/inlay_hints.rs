@@ -117,7 +117,7 @@ fn inlay_hints_works() {
                     ))
                     .collect::<Vec<(String, lsp_types::Position)>>(),
                 expected_results
-                    .into_iter()
+                    .iter()
                     .map(|result| (
                         format!(": {}", result.text),
                         ink_lsp_server::translator::to_lsp::position(

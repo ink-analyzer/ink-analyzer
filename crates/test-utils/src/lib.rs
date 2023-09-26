@@ -193,8 +193,7 @@ pub enum TestCaseParams {
 /// Variants for [`TestCase`] results.
 #[derive(Debug)]
 pub enum TestCaseResults {
-    // Vec<Vec because we iterate over actions > text edits.
-    Action(Vec<Vec<TestResultTextRange>>),
+    Action(Vec<TestResultAction>),
     Completion(Vec<TestResultTextRange>),
     // Expected number of diagnostic errors/warnings.
     Diagnostic {

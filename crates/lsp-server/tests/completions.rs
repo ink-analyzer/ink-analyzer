@@ -130,7 +130,7 @@ fn completions_works() {
                             )))
                         .collect::<Vec<(String, lsp_types::Range)>>(),
                     expected_results
-                        .into_iter()
+                        .iter()
                         .map(|result| (
                             test_utils::remove_whitespace(result.text.to_string()),
                             ink_lsp_server::translator::to_lsp::range(

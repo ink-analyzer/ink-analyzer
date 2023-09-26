@@ -54,7 +54,7 @@ fn completions_works() {
                     ))
                     .collect::<Vec<(String, TextRange)>>(),
                 expected_results
-                    .into_iter()
+                    .iter()
                     .map(|result| (
                         test_utils::remove_whitespace(result.text.to_string()),
                         TextRange::new(

@@ -120,37 +120,55 @@ fn actions_works() {
                         .edit
                         .as_ref()
                         .and_then(|it| it.changes.as_ref())
-                        .and_then(|it| it.get(&uri)))
-                    .map(|edits| edits
-                        .into_iter()
-                        .map(|edit| (PartialMatchStr::from(edit.new_text.as_str()), edit.range))
-                        .collect())
-                    .collect::<Vec<Vec<(PartialMatchStr, lsp_types::Range)>>>(),
+                        .and_then(|it| it.get(&uri))
+                        .map(|edits| (
+                            PartialMatchStr::from(code_action.title.as_str()),
+                            edits
+                                .into_iter()
+                                .map(|edit| (
+                                    PartialMatchStr::from(edit.new_text.as_str()),
+                                    edit.range
+                                ))
+                                .collect::<Vec<(PartialMatchStr, lsp_types::Range)>>()
+                        )))
+                    .collect::<Vec<(PartialMatchStr, Vec<(PartialMatchStr, lsp_types::Range)>)>>(),
                 expected_results
-                    .into_iter()
-                    .map(|expected_edits| expected_edits
-                        .into_iter()
-                        .map(|result| (
-                            PartialMatchStr::from(result.text),
-                            ink_lsp_server::translator::to_lsp::range(
-                                ink_analyzer::TextRange::new(
-                                    ink_analyzer::TextSize::from(
-                                        test_utils::parse_offset_at(&test_code, result.start_pat)
-                                            .unwrap()
-                                            as u32
-                                    ),
-                                    ink_analyzer::TextSize::from(
-                                        test_utils::parse_offset_at(&test_code, result.end_pat)
-                                            .unwrap()
-                                            as u32
-                                    ),
-                                ),
-                                &translation_context
-                            )
-                            .unwrap()
-                        ))
-                        .collect())
-                    .collect::<Vec<Vec<(PartialMatchStr, lsp_types::Range)>>>(),
+                    .iter()
+                    .map(|expected_action| (
+                        PartialMatchStr::from(expected_action.label),
+                        expected_action
+                            .edits
+                            .iter()
+                            .map(|result| {
+                                (
+                                    PartialMatchStr::from(result.text),
+                                    ink_lsp_server::translator::to_lsp::range(
+                                        ink_analyzer::TextRange::new(
+                                            ink_analyzer::TextSize::from(
+                                                test_utils::parse_offset_at(
+                                                    &test_code,
+                                                    result.start_pat,
+                                                )
+                                                .unwrap()
+                                                    as u32,
+                                            ),
+                                            ink_analyzer::TextSize::from(
+                                                test_utils::parse_offset_at(
+                                                    &test_code,
+                                                    result.end_pat,
+                                                )
+                                                .unwrap()
+                                                    as u32,
+                                            ),
+                                        ),
+                                        &translation_context,
+                                    )
+                                    .unwrap(),
+                                )
+                            })
+                            .collect::<Vec<(PartialMatchStr, lsp_types::Range)>>()
+                    ))
+                    .collect::<Vec<(PartialMatchStr, Vec<(PartialMatchStr, lsp_types::Range)>)>>(),
                 "source: {}",
                 test_group.source
             );

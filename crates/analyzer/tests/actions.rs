@@ -49,31 +49,45 @@ fn actions_works() {
             assert_eq!(
                 results
                     .iter()
-                    .map(|action| action
-                        .edits
-                        .iter()
-                        .map(|edit| (PartialMatchStr::from(edit.text.as_str()), edit.range))
-                        .collect())
-                    .collect::<Vec<Vec<(PartialMatchStr, TextRange)>>>(),
+                    .map(|action| (
+                        PartialMatchStr::from(action.label.as_str()),
+                        action
+                            .edits
+                            .iter()
+                            .map(|edit| (PartialMatchStr::from(edit.text.as_str()), edit.range))
+                            .collect::<Vec<(PartialMatchStr, TextRange)>>()
+                    ))
+                    .collect::<Vec<(PartialMatchStr, Vec<(PartialMatchStr, TextRange)>)>>(),
                 expected_results
-                    .into_iter()
-                    .map(|expected_edits| expected_edits
-                        .into_iter()
-                        .map(|result| (
-                            PartialMatchStr::from(result.text),
-                            TextRange::new(
-                                TextSize::from(
-                                    test_utils::parse_offset_at(&test_code, result.start_pat)
-                                        .unwrap() as u32
-                                ),
-                                TextSize::from(
-                                    test_utils::parse_offset_at(&test_code, result.end_pat).unwrap()
-                                        as u32
-                                ),
-                            )
-                        ))
-                        .collect())
-                    .collect::<Vec<Vec<(PartialMatchStr, TextRange)>>>(),
+                    .iter()
+                    .map(|expected_action| (
+                        PartialMatchStr::from(expected_action.label),
+                        expected_action
+                            .edits
+                            .iter()
+                            .map(|result| {
+                                (
+                                    PartialMatchStr::from(result.text),
+                                    TextRange::new(
+                                        TextSize::from(
+                                            test_utils::parse_offset_at(
+                                                &test_code,
+                                                result.start_pat,
+                                            )
+                                            .unwrap()
+                                                as u32,
+                                        ),
+                                        TextSize::from(
+                                            test_utils::parse_offset_at(&test_code, result.end_pat)
+                                                .unwrap()
+                                                as u32,
+                                        ),
+                                    ),
+                                )
+                            })
+                            .collect::<Vec<(PartialMatchStr, TextRange)>>(),
+                    ))
+                    .collect::<Vec<(PartialMatchStr, Vec<(PartialMatchStr, TextRange)>)>>(),
                 "source: {}",
                 test_group.source
             );
