@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9] - 2023-09-29
+
+- Signature help improvements.
+- Improvements to code actions for trait `impl` blocks.
+- General robustness improvements for semantic analyzer.
+
 ## [0.2.8] - 2023-09-25
 
 - Add signature help for ink! attribute arguments.

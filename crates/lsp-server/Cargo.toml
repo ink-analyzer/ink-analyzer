@@ -1,6 +1,6 @@
 [package]
 name = "ink-lsp-server"
-version = "0.2.8"
+version = "0.2.9"
 edition = "2021"
 description = "A Language Server Protocol (LSP) implementation for the ink! smart contract programming language."
 license = "MIT OR Apache-2.0"
