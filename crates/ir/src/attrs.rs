@@ -162,6 +162,21 @@ impl PartialOrd for InkAttributeKind {
     }
 }
 
+impl InkAttributeKind {
+    /// Returns true if an ink! attribute's "primary" kind is unknown.
+    ///
+    /// (i.e. either an unknown macro with or without known arguments
+    /// - e.g. `#[ink::xyz]` or `#[ink::xyz(payable)]` -
+    /// or an unknown argument - e.g. `#[ink(xyz)]`).
+    pub fn is_unknown(&self) -> bool {
+        matches!(
+            self,
+            InkAttributeKind::Macro(InkMacroKind::Unknown)
+                | InkAttributeKind::Arg(InkArgKind::Unknown)
+        )
+    }
+}
+
 /// The ink! attribute macro kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]

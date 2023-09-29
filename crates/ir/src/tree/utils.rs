@@ -182,8 +182,9 @@ pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = I
         // `impl` children.
         .map(|item| item.syntax().clone())
         .chain(ink_attrs_closest_descendants(node).filter_map(|attr| {
-            // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
             if is_possible_callable_ancestor(&attr) {
+                // ink! impl annotated closest descendants or
+                // an `impl` item annotated with ink! namespace or an unknown (likely incomplete) ink! attribute.
                 ast_ext::parent_ast_item(attr.syntax()).map(|item| item.syntax().clone())
             } else if Constructor::can_cast(&attr) {
                 // impl parent of ink! constructor closest descendant.
@@ -222,12 +223,13 @@ where
 /// Returns true if the ink! attribute can be a quasi-direct parent for an ink! callable entity
 /// (i.e ink! constructor or ink! message).
 fn is_possible_callable_ancestor(attr: &InkAttribute) -> bool {
-    // ink! impl annotated closest descendants or an `impl` item annotated with ink! namespace.
+    // ink! impl annotated closest descendants or
+    // an `impl` item annotated with ink! namespace or an unknown (likely incomplete) ink! attribute.
     *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl)
-        || (*attr.kind() == InkAttributeKind::Arg(InkArgKind::Namespace)
+        || ((*attr.kind() == InkAttributeKind::Arg(InkArgKind::Namespace)
+            || attr.kind().is_unknown())
             && ast_ext::parent_ast_item(attr.syntax())
-                .and_then(|item| ast::Impl::cast(item.syntax().clone()))
-                .is_some())
+                .map_or(false, |item| matches!(item, ast::Item::Impl(_))))
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
