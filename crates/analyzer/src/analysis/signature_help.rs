@@ -126,7 +126,10 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                                     // Replaces complementary arguments with primary arguments (if possible).
                                     // Useful for easier deduplication.
                                     .flat_map(|arg_kind| {
-                                        if arg_kind.is_entity_type() {
+                                        if arg_kind.is_entity_type()
+                                            || *arg_kind == InkArgKind::Namespace
+                                        {
+                                            // Namespace is special (see `complementary_signature` inline docs).
                                             vec![*arg_kind]
                                         } else {
                                             let primary_args: Vec<InkArgKind> = [*arg_kind]
@@ -189,6 +192,10 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
     }
 
     results
+        .into_iter()
+        // Deduplicate by label and range.
+        .unique_by(|item| (item.label.clone(), item.range))
+        .collect()
 }
 
 /// Computes signature and updates the accumulator given a list of arguments.

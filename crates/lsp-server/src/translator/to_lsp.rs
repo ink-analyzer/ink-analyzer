@@ -219,6 +219,8 @@ pub fn signature_help(
         .and_then(|prev_signatures| {
             prev_signatures
                 .active_signature
+                // Only retains the last active signature if it was user selected.
+                .filter(|idx| *idx > 0)
                 .and_then(|idx| prev_signatures.signatures.get(idx as usize))
         })
         .and_then(|prev_active_signature| {
