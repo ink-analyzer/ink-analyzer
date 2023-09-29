@@ -2417,6 +2417,20 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         },
                     ]),
                 },
+                TestCase {
+                    modifications: None,
+                    params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                        pat: Some("<-impl BaseErc20 for Erc20 {"),
+                    })),
+                    results: TestCaseResults::Action(vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(impl)]",
+                            start_pat: Some("<-impl BaseErc20 for Erc20 {"),
+                            end_pat: Some("<-impl BaseErc20 for Erc20 {"),
+                        }],
+                    }]),
+                },
             ],
         },
         // Chain extensions.
