@@ -27,10 +27,10 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
             for arg_kind in ink_arg_suggestions {
                 // Determines the insertion offset and affixes for the action.
                 if let Some((insert_offset, insert_prefix, insert_suffix)) =
-                    utils::ink_arg_insertion_offset_and_affixes(arg_kind, &ink_attr)
+                    utils::ink_arg_insert_offset_and_affixes(&ink_attr, Some(arg_kind))
                 {
                     // Adds ink! attribute argument action to accumulator.
-                    let (edit, snippet) = utils::ink_arg_insertion_text(
+                    let (edit, snippet) = utils::ink_arg_insert_text(
                         arg_kind,
                         Some(insert_offset),
                         Some(ink_attr.syntax()),
@@ -40,10 +40,19 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                         kind: ActionKind::Refactor,
                         range: ink_attr.syntax().text_range(),
                         edits: vec![TextEdit::insert_with_snippet(
-                            format!("{insert_prefix}{edit}{insert_suffix}"),
+                            format!(
+                                "{}{edit}{}",
+                                insert_prefix.unwrap_or_default(),
+                                insert_suffix.unwrap_or_default()
+                            ),
                             insert_offset,
-                            snippet
-                                .map(|snippet| format!("{insert_prefix}{snippet}{insert_suffix}")),
+                            snippet.map(|snippet| {
+                                format!(
+                                    "{}{snippet}{}",
+                                    insert_prefix.unwrap_or_default(),
+                                    insert_suffix.unwrap_or_default()
+                                )
+                            }),
                         )],
                     });
                 }

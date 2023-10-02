@@ -345,7 +345,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     } else {
                         ""
                     };
-                    let (edit, snippet) = utils::ink_arg_insertion_text(
+                    let (edit, snippet) = utils::ink_arg_insert_text(
                         arg_kind,
                         Some(edit_range.end()),
                         Some(ink_attr.syntax()),

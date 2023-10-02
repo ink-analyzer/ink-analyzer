@@ -545,7 +545,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                         severity: Severity::Error,
                         quickfixes: primary_arg.and_then(|arg| {
                             // Determines the insertion offset and affixes for the quickfix.
-                            utils::first_ink_arg_insertion_offset_and_affixes(
+                            utils::first_ink_arg_insert_offset_and_affixes(
                                 &primary_ink_attr_candidate,
                             )
                             .map(
@@ -566,8 +566,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                             TextEdit::insert(
                                                 format!(
                                                     "{}{arg}{}",
-                                                    insert_prefix.as_deref().unwrap_or_default(),
-                                                    insert_suffix.as_deref().unwrap_or_default()
+                                                    insert_prefix.unwrap_or_default(),
+                                                    insert_suffix.unwrap_or_default()
                                                 ),
                                                 insert_offset,
                                             ),
@@ -596,8 +596,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                 primary_attr_insert_offset_option().map(|insert_offset| {
                     let (insert_text, attr_desc, snippet) = match attr_kind {
                         InkAttributeKind::Arg(arg_kind) => {
-                            let (edit, snippet) =
-                                utils::ink_arg_insertion_text(*arg_kind, None, None);
+                            let (edit, snippet) = utils::ink_arg_insert_text(*arg_kind, None, None);
                             (
                                 format!("#[ink({edit})]"),
                                 format!("ink! `{arg_kind}`"),
@@ -633,8 +632,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
                         match attr_kind {
                             InkAttributeKind::Arg(arg_kind) => {
                                 let (edit, snippet) =
-                                    utils::ink_arg_insertion_text(*arg_kind, None, None);
-                                match utils::first_ink_arg_insertion_offset_and_affixes(
+                                    utils::ink_arg_insert_text(*arg_kind, None, None);
+                                match utils::first_ink_arg_insert_offset_and_affixes(
                                     &primary_ink_attr_candidate,
                                 ) {
                                     // Adds suggested primary ink! attribute argument as the first argument for the attribute.
@@ -648,15 +647,15 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                         edits: vec![TextEdit::insert_with_snippet(
                                             format!(
                                                 "{}{edit}{}",
-                                                prefix.as_deref().unwrap_or_default(),
-                                                suffix.as_deref().unwrap_or_default()
+                                                prefix.unwrap_or_default(),
+                                                suffix.unwrap_or_default()
                                             ),
                                             insert_offset,
                                             snippet.as_ref().map(|snippet| {
                                                 format!(
                                                     "{}{snippet}{}",
-                                                    prefix.as_deref().unwrap_or_default(),
-                                                    suffix.as_deref().unwrap_or_default()
+                                                    prefix.unwrap_or_default(),
+                                                    suffix.unwrap_or_default()
                                                 )
                                             }),
                                         )],

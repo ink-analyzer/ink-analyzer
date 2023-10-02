@@ -193,16 +193,9 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
                     .as_ref()
                     .and_then(|ink_attr| {
                         // Try to extend an existing attribute (if possible).
-                        utils::ink_arg_insertion_offset_and_affixes(arg_kind, ink_attr).map(
+                        utils::ink_arg_insert_offset_and_affixes(ink_attr, Some(arg_kind)).map(
                             |(insert_offset, insert_prefix, insert_suffix)| {
-                                (
-                                    (
-                                        insert_offset,
-                                        Some(insert_prefix.to_string()),
-                                        Some(insert_suffix.to_string()),
-                                    ),
-                                    true,
-                                )
+                                ((insert_offset, insert_prefix, insert_suffix), true)
                             },
                         )
                     })
@@ -213,7 +206,7 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
                     ));
 
             // Adds ink! attribute argument action to accumulator.
-            let (edit, snippet) = utils::ink_arg_insertion_text(
+            let (edit, snippet) = utils::ink_arg_insert_text(
                 arg_kind,
                 Some(insert_offset),
                 is_extending
@@ -238,25 +231,25 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
                 edits: vec![TextEdit::insert_with_snippet(
                     format!(
                         "{}{}{}",
-                        insert_prefix.as_deref().unwrap_or_default(),
+                        insert_prefix.unwrap_or_default(),
                         if is_extending {
                             edit
                         } else {
                             format!("#[ink({edit})]")
                         },
-                        insert_suffix.as_deref().unwrap_or_default(),
+                        insert_suffix.unwrap_or_default(),
                     ),
                     insert_offset,
                     snippet.map(|snippet| {
                         format!(
                             "{}{}{}",
-                            insert_prefix.as_deref().unwrap_or_default(),
+                            insert_prefix.unwrap_or_default(),
                             if is_extending {
                                 snippet
                             } else {
                                 format!("#[ink({snippet})]")
                             },
-                            insert_suffix.as_deref().unwrap_or_default(),
+                            insert_suffix.unwrap_or_default(),
                         )
                     }),
                 )],

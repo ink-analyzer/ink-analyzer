@@ -546,11 +546,11 @@ pub fn is_cfg_e2e_tests_attr(attr: &ast::Attr) -> bool {
         })
 }
 
-/// Returns the insertion text and snippet (if appropriate) for ink! attribute argument including
+/// Returns the insert text and snippet (if appropriate) for ink! attribute argument including
 /// the `=` symbol after the ink! attribute argument name if necessary.
 ///
 /// (i.e for `selector`, we return `"selector="` while for `payable`, we simply return `"payable"`)
-pub fn ink_arg_insertion_text(
+pub fn ink_arg_insert_text(
     arg_kind: InkArgKind,
     insert_offset_option: Option<TextSize>,
     parent_attr_option: Option<&SyntaxNode>,
@@ -560,7 +560,7 @@ pub fn ink_arg_insertion_text(
         // No `=` symbol is inserted after ink! attribute arguments that should not have a value.
         InkArgValueKind::None => false,
         // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
-        // the next closest non-trivia token after the insertion offset.
+        // the next closest non-trivia token after the insert offset.
         _ => parent_attr_option
             .zip(insert_offset_option)
             .and_then(|(parent_node, insert_offset)| {
@@ -632,7 +632,7 @@ pub fn ink_arg_insertion_text(
     (text, snippet)
 }
 
-/// Returns the insertion offset for an ink! attribute.
+/// Returns the insert offset for an ink! attribute.
 pub fn ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
     ink_analyzer_ir::ink_attrs(node)
         // Finds the last ink! attribute.
@@ -660,28 +660,30 @@ pub fn ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
         .start()
 }
 
-/// Returns the insertion offset and affixes (i.e whitespace and delimiters e.g `(`, `,` and `)`) for an ink! attribute argument .
+/// Returns the insert offset and affixes (i.e whitespace and delimiters e.g `(`, `,` and `)`) for an ink! attribute argument .
 ///
 /// **NOTE**: For attributes that have values (e.g `selector = 1`), the equal symbol (`=`)
-/// and the value are considered part of the attribute arguments (not suffixes),
-/// so they're not handled by this function. See [`ink_arg_insertion_text`] doc instead.
-pub fn ink_arg_insertion_offset_and_affixes(
-    arg_kind: InkArgKind,
+/// and the value are considered part of the attribute argument (not suffixes),
+/// so they're not handled by this function. See [`ink_arg_insert_text`] doc instead.
+pub fn ink_arg_insert_offset_and_affixes(
     ink_attr: &InkAttribute,
-) -> Option<(TextSize, &str, &str)> {
+    arg_kind_option: Option<InkArgKind>,
+) -> Option<(TextSize, Option<&str>, Option<&str>)> {
     // Determines if its a "primary" attribute argument
     // as those get inserted at the beginning of the argument list while everything else gets inserted at the end.
-    let is_primary_argument = arg_kind.is_entity_type();
+    let is_primary = arg_kind_option
+        .as_ref()
+        .map_or(false, InkArgKind::is_entity_type);
 
-    // Only computes insertion context for closed attributes because
+    // Only computes insert context for closed attributes because
     // unclosed attributes are too tricky for useful contextual edits.
     ink_attr.ast().r_brack_token().map(|r_bracket| {
         ink_attr.ast().token_tree().as_ref().map_or(
-            (r_bracket.text_range().start(), "(", ")"),
+            (r_bracket.text_range().start(), Some("("), Some(")")),
             |token_tree| {
                 (
-                    // Computes the insertion offset.
-                    if is_primary_argument {
+                    // Computes the insert offset.
+                    if is_primary {
                         // "Primary" attribute argument get inserted at the beginning of the argument list.
                         token_tree
                             .l_paren_token()
@@ -701,78 +703,76 @@ pub fn ink_arg_insertion_offset_and_affixes(
                     // Determines the prefix to insert before the ink! attribute argument text.
                     match token_tree.l_paren_token() {
                         Some(_) => {
-                            if is_primary_argument {
+                            if is_primary {
                                 // No prefix for "primary" attribute arguments that already have a left parenthesis before them.
-                                ""
+                                None
                             } else {
                                 // Determines prefix for "non-primary" attribute arguments that already have a left parenthesis before them.
                                 token_tree
                                     .r_paren_token()
                                     .and_then(|r_paren| {
-                                        r_paren.prev_token().map(|penultimate_token| {
+                                        r_paren.prev_token().and_then(|penultimate_token| {
                                             match penultimate_token.kind() {
-                                                SyntaxKind::COMMA | SyntaxKind::L_PAREN => "",
+                                                SyntaxKind::COMMA | SyntaxKind::L_PAREN => None,
                                                 // Adds a comma if the token before the right parenthesis is
                                                 // neither a comma nor the left parenthesis.
-                                                _ => ", ",
+                                                _ => Some(", "),
                                             }
                                         })
                                     })
-                                    .unwrap_or(match token_tree.syntax().last_token() {
-                                        Some(last_token) => match last_token.kind() {
+                                    .or(token_tree.syntax().last_token().and_then(|last_token| {
+                                        match last_token.kind() {
                                             SyntaxKind::COMMA
                                             | SyntaxKind::L_PAREN
-                                            | SyntaxKind::R_PAREN => "",
+                                            | SyntaxKind::R_PAREN => None,
                                             // Adds a comma if there is no right parenthesis and the last token is
                                             // neither a comma nor the left parenthesis
                                             // (the right parenthesis in the pattern above will likely never match anything,
                                             // but parsers are weird :-) so we leave it for robustness? and clarity).
-                                            _ => ", ",
-                                        },
-                                        None => "",
-                                    })
+                                            _ => Some(", "),
+                                        }
+                                    }))
                             }
                         }
                         // Adds a left parenthesis if none already exists.
-                        None => "(",
+                        None => Some("("),
                     },
                     // Determines the suffix to insert after the ink! attribute argument text.
                     match token_tree.r_paren_token() {
                         Some(_) => {
-                            if is_primary_argument {
+                            if is_primary {
                                 // Determines suffix for "primary" attribute arguments that already have a right parenthesis after them.
                                 token_tree
                                     .l_paren_token()
                                     .and_then(|l_paren| {
-                                        l_paren.next_token().map(|first_token| {
+                                        l_paren.next_token().and_then(|first_token| {
                                             match first_token.kind() {
-                                                SyntaxKind::COMMA | SyntaxKind::R_PAREN => "",
+                                                SyntaxKind::COMMA | SyntaxKind::R_PAREN => None,
                                                 // Adds a comma if the token after the left parenthesis is
                                                 // neither a comma nor the right parenthesis.
-                                                _ => ", ",
+                                                _ => Some(", "),
                                             }
                                         })
                                     })
-                                    .unwrap_or(match token_tree.syntax().first_token() {
-                                        Some(first_token) => match first_token.kind() {
+                                    .or(token_tree.syntax().first_token().and_then(|first_token| {
+                                        match first_token.kind() {
                                             SyntaxKind::COMMA
                                             | SyntaxKind::L_PAREN
-                                            | SyntaxKind::R_PAREN => "",
+                                            | SyntaxKind::R_PAREN => None,
                                             // Adds a comma if there is no left parenthesis and the first token is
                                             // neither a comma nor the right parenthesis
                                             // (the left parenthesis in the pattern above will likely never match anything,
                                             // but parsers are weird :-) so we leave it for robustness? and clarity).
-                                            _ => ", ",
-                                        },
-                                        None => "",
-                                    })
+                                            _ => Some(", "),
+                                        }
+                                    }))
                             } else {
                                 // No suffix for "non-primary" attribute arguments that already have a right parenthesis after them.
-                                ""
+                                None
                             }
                         }
                         // Adds a right parenthesis if none already exists.
-                        None => ")",
+                        None => Some(")"),
                     },
                 )
             },
@@ -780,7 +780,7 @@ pub fn ink_arg_insertion_offset_and_affixes(
     })
 }
 
-/// Returns the insertion offset for the first ink! attribute.
+/// Returns the insert offset for the first ink! attribute.
 pub fn first_ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
     ink_analyzer_ir::ink_attrs(node)
         // Finds the first ink! attribute.
@@ -790,16 +790,16 @@ pub fn first_ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
         })
 }
 
-/// Returns the insertion offset and affixes (e.g whitespace to preserve formatting) for the first ink! attribute argument.
-pub fn first_ink_arg_insertion_offset_and_affixes(
+/// Returns the insert offset and affixes (e.g whitespace to preserve formatting) for the first ink! attribute argument.
+pub fn first_ink_arg_insert_offset_and_affixes(
     ink_attr: &InkAttribute,
-) -> Option<(TextSize, Option<String>, Option<String>)> {
+) -> Option<(TextSize, Option<&str>, Option<&str>)> {
     ink_attr
         .args()
         .first()
         .map(|arg| {
             // Insert before the first argument (if present).
-            (arg.text_range().start(), None, Some(", ".to_string()))
+            (arg.text_range().start(), None, Some(", "))
         })
         .or(ink_attr
             .ast()
@@ -813,7 +813,7 @@ pub fn first_ink_arg_insertion_offset_and_affixes(
                     None,
                     match token_tree.r_paren_token() {
                         Some(_) => None,
-                        None => Some(")".to_string()),
+                        None => Some(")"),
                     },
                 )
             }))
@@ -828,18 +828,14 @@ pub fn first_ink_arg_insertion_offset_and_affixes(
                     r_paren.text_range().start(),
                     match token_tree.l_paren_token() {
                         Some(_) => None,
-                        None => Some("(".to_string()),
+                        None => Some("("),
                     },
                     None,
                 )
             }))
         .or(ink_attr.ast().r_brack_token().map(|r_bracket| {
             // Otherwise, insert before right bracket (if present).
-            (
-                r_bracket.text_range().start(),
-                Some("(".to_string()),
-                Some(")".to_string()),
-            )
+            (r_bracket.text_range().start(), Some("("), Some(")"))
         }))
 }
 
