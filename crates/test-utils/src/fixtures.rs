@@ -1899,6 +1899,65 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 },
                 TestCase {
                     modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract]"),
+                        end_pat: Some("#[ink::contract]"),
+                        replacement: "#[ink::contract]\n#[ink(env=crate::Environment)]",
+                    }]),
+                    params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                        pat: Some("<-mod erc20"),
+                    })),
+                    results: TestCaseResults::Action(vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"(keep_attr = "")"#,
+                                start_pat: Some("#[ink::contract"),
+                                end_pat: Some("#[ink::contract"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink::contract(env = crate::Environment)]",
+                                    start_pat: Some("<-#[ink::contract]"),
+                                    end_pat: Some("#[ink::contract]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink(env=crate::Environment)]"),
+                                    end_pat: Some("#[ink(env=crate::Environment)]\n"),
+                                },
+                            ],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(event)]",
+                                start_pat: Some("<-\n\n    /// The ERC-20 error types."),
+                                end_pat: Some("<-\n\n    /// The ERC-20 error types."),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(constructor)]",
+                                start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                            }],
+                        },
+                    ]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
                         start_pat: Some("<-#[ink(storage)]"),
                         end_pat: Some("#[ink(storage)]"),
                         replacement: "",
@@ -2005,6 +2064,41 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                             end_pat: Some("#[ink(event"),
                         }],
                     }]),
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("#[ink(event)]"),
+                        replacement: "#[ink(event)]\n    #[ink(anonymous)]",
+                    }]),
+                    params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                        pat: Some("<-pub struct Transfer"),
+                    })),
+                    results: TestCaseResults::Action(vec![
+                        TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink(event, anonymous)]",
+                                    start_pat: Some("<-#[ink(event)]"),
+                                    end_pat: Some("#[ink(event)]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink(anonymous)]"),
+                                    end_pat: Some("<-pub struct Transfer"),
+                                },
+                            ],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(topic)]",
+                                start_pat: Some("value: Balance,"),
+                                end_pat: Some("value: Balance,"),
+                            }],
+                        },
+                    ]),
                 },
                 TestCase {
                     modifications: None,

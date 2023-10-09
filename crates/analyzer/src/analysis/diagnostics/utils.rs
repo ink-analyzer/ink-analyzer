@@ -1497,7 +1497,19 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
                 | InkAttributeKind::Arg(InkArgKind::Unknown)
         )
     }) {
-        if !is_valid_quasi_direct_descendant(&attr) {
+        // Only show ink! scope diagnostics for the "primary" ink! attribute for it's parent item.
+        let is_primary_attribute = [attr.clone()]
+            .into_iter()
+            .chain(attr.siblings())
+            // Sort in order of appearance first.
+            .sorted_by_key(|attr| attr.syntax().text_range().start())
+            // Then sort in order of attribute kind ranking.
+            .sorted()
+            .next()
+            .map_or(false, |primary_attr| {
+                primary_attr.syntax().text_range() == attr.syntax().text_range()
+            });
+        if is_primary_attribute && !is_valid_quasi_direct_descendant(&attr) {
             results.push(Diagnostic {
                 message: format!("Invalid scope for an `{}` item.", attr.syntax()),
                 range: attr.syntax().text_range(),

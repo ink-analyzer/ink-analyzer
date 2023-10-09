@@ -2,7 +2,7 @@
 
 use ink_analyzer_macro::FromAST;
 use itertools::Itertools;
-use ra_ap_syntax::{ast, AstNode, SyntaxNode};
+use ra_ap_syntax::{ast, AstNode, Direction, SyntaxNode};
 use std::cmp::Ordering;
 use std::fmt;
 
@@ -118,6 +118,16 @@ impl InkAttribute {
     /// Returns the ink! argument name (if any) from which the attribute argument kind is derived.
     pub fn ink_arg_name(&self) -> Option<&MetaName> {
         self.ink_arg_name.as_ref()
+    }
+
+    /// Returns sibling ink! attributes (if any).
+    pub fn siblings(&self) -> impl Iterator<Item = Self> + '_ {
+        self.syntax()
+            .siblings(Direction::Prev)
+            .chain(self.syntax().siblings(Direction::Next))
+            .filter(|it| it.text_range() != self.syntax().text_range())
+            .filter_map(ast::Attr::cast)
+            .filter_map(Self::cast)
     }
 }
 
