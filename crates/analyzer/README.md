@@ -76,6 +76,10 @@ fn do_analysis() {
     // Computes inlay hints.
     let inlay_hints = analysis.inlay_hints(None);
     dbg!(&inlay_hints);
+
+    // Computes signature help.
+    let signature_help = analysis.signature_help(TextSize::from(71));
+    dbg!(&signature_help);
 }
 
 fn project_code_stubs() {
