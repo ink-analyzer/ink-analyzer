@@ -108,7 +108,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                             // Computes signature based on complementary argument.
                             complementary_signature(&mut results, arg_kind, focused_arg, range);
                         } else if let Some(parent_item_kind) =
-                            utils::normalized_parent_item_syntax_kind(&item_at_offset)
+                            item_at_offset.normalized_parent_item_syntax_kind()
                         {
                             // Determines possible args by prefix or parent item kind.
                             for possible_arg_kind in

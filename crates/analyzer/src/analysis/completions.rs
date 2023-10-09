@@ -292,7 +292,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     // For unknown ink! attributes, suggestions are based on the parent item (if any).
                     InkAttributeKind::Macro(InkMacroKind::Unknown)
                     | InkAttributeKind::Arg(InkArgKind::Unknown) => {
-                        match utils::normalized_parent_item_syntax_kind(&item_at_offset) {
+                        match item_at_offset.normalized_parent_item_syntax_kind() {
                             // Returns suggestions based on the parent item kind.
                             Some(parent_item_kind) => {
                                 utils::valid_ink_args_by_syntax_kind(parent_item_kind)

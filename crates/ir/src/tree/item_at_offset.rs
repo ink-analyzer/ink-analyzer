@@ -2,8 +2,9 @@
 
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextSize, TokenAtOffset};
 
-use super::ast_ext;
-use crate::InkAttribute;
+use crate::attrs::InkAttribute;
+use crate::traits::{FromAST, FromSyntax};
+use crate::tree::ast_ext;
 
 /// A wrapper for offset-based ink! entity tree traversal methods.
 #[derive(Debug, Clone)]
@@ -259,6 +260,41 @@ impl ItemAtOffset {
             None => self
                 .probable_parent_ast_item_keyword()
                 .map(|(keyword, is_covered)| (keyword, false, is_covered)),
+        }
+    }
+
+    /// Returns the syntax kind for the "normalized parent item".
+    /// (See [`ItemAtOffset::normalized_parent_ast_item_keyword`] doc for details about "normalization" in this context).
+    pub fn normalized_parent_item_syntax_kind(&self) -> Option<SyntaxKind> {
+        match self.normalized_parent_ast_item_keyword() {
+            // Returns syntax kind based on the AST item type keyword.
+            Some((ast_item_keyword, ..)) => Some(ast_item_keyword.kind()),
+            // Handles cases where either the AST item type is unknown or
+            // the ink! attribute is not applied to an AST item (e.g. ink! topic).
+            None => {
+                // Checks whether the parent is a struct `RecordField`.
+                // `RecordFieldList` is also matched for cases where the ink! attribute is
+                // unclosed and so the field is parsed as if it's part of the attribute.
+                self.normalized_parent_ink_attr()
+                    .and_then(|(ink_attr, ..)| {
+                        ink_attr.syntax().parent().and_then(|parent| {
+                            (matches!(
+                                parent.kind(),
+                                SyntaxKind::RECORD_FIELD | SyntaxKind::RECORD_FIELD_LIST
+                            ) && matches!(
+                                ast_ext::parent_ast_item(&parent),
+                                Some(ast::Item::Struct(_))
+                            ))
+                            .then_some(
+                                if ink_attr.ast().r_brack_token().is_some() {
+                                    parent.kind()
+                                } else {
+                                    SyntaxKind::RECORD_FIELD
+                                },
+                            )
+                        })
+                    })
+            }
         }
     }
 }
