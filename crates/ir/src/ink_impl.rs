@@ -1,11 +1,14 @@
 //! ink! impl IR.
 
 use ink_analyzer_macro::FromSyntax;
+use ra_ap_syntax::ast::HasName;
 use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 
-use crate::traits::{FromSyntax, IsInkEntity};
+use crate::traits::{FromInkAttribute, FromSyntax, IsInkEntity};
 use crate::tree::utils;
-use crate::{Constructor, InkArg, InkArgKind, InkAttribute, InkAttributeKind, Message};
+use crate::{
+    Constructor, InkArg, InkArgKind, InkAttribute, InkAttributeKind, Message, TraitDefinition,
+};
 
 /// An ink! impl block.
 #[derive(Debug, Clone, PartialEq, Eq, FromSyntax)]
@@ -56,6 +59,34 @@ impl InkImpl {
         self.impl_item().and_then(|impl_item| impl_item.trait_())
     }
 
+    /// Returns the ink! trait definition (if any) for the ink! impl.
+    pub fn trait_definition(&self) -> Option<TraitDefinition> {
+        self.trait_type()
+            .and_then(|trait_type| match trait_type {
+                ast::Type::PathType(path_type) => path_type.path(),
+                _ => None,
+            })
+            .and_then(|path| {
+                path.segment()
+                    .and_then(|path_segment| path_segment.name_ref())
+            })
+            .zip(self.syntax().ancestors().last())
+            .and_then(|(name_ref, source)| {
+                source.children().find_map(|child| {
+                    ast::Trait::cast(child.clone())
+                        .filter(|trait_item| {
+                            trait_item
+                                .name()
+                                .map_or(false, |trait_name| trait_name.text() == name_ref.text())
+                        })
+                        .and_then(|trait_item| {
+                            utils::ink_attrs(trait_item.syntax())
+                                .find_map(|attr| TraitDefinition::cast(attr.clone()))
+                        })
+                })
+            })
+    }
+
     /// Returns the ink! impl attribute (if any).
     pub fn impl_attr(&self) -> Option<InkAttribute> {
         self.tree()
@@ -96,7 +127,14 @@ mod tests {
 
     #[test]
     fn cast_works() {
-        for (code, has_impl_attr, has_namespace, n_constructors, n_messages) in [
+        for (
+            code,
+            has_impl_attr,
+            has_namespace,
+            n_constructors,
+            n_messages,
+            has_trait_definition,
+        ) in [
             (
                 quote_as_str! {
                     impl MyContract {
@@ -111,51 +149,52 @@ mod tests {
                 false,
                 1,
                 1,
+                false,
             ),
             (
                 quote_as_str! {
-                    impl MyTrait for MyContract {
-                        #[ink(constructor, payable, default, selector=1)]
-                        fn my_constructor() -> Self {}
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, payable, default, selector=1)]
+                        fn my_message(&self);
+                    }
 
+                    impl MyTrait for MyContract {
                         #[ink(message, payable, default, selector=1)]
                         fn my_message(&self) {}
                     }
                 },
                 false,
                 false,
+                0,
                 1,
-                1,
+                true,
             ),
             (
                 quote_as_str! {
                     impl ::my_full::long_path::MyTrait for MyContract {
-                        #[ink(constructor, payable, default, selector=0x2)]
-                        fn my_constructor() -> Self {}
-
                         #[ink(message, payable, default, selector=0x2)]
                         fn my_message(&self) {}
                     }
                 },
                 false,
                 false,
+                0,
                 1,
-                1,
+                false,
             ),
             (
                 quote_as_str! {
                     impl relative_path::MyTrait for MyContract {
-                        #[ink(constructor)]
-                        fn my_constructor() -> Self {}
-
                         #[ink(message)]
                         fn my_message(&self) {}
                     }
                 },
                 false,
                 false,
+                0,
                 1,
-                1,
+                false,
             ),
             (
                 quote_as_str! {
@@ -172,6 +211,7 @@ mod tests {
                 true,
                 1,
                 1,
+                false,
             ),
             (
                 quote_as_str! {
@@ -188,6 +228,7 @@ mod tests {
                 false,
                 1,
                 1,
+                false,
             ),
             (
                 quote_as_str! {
@@ -204,6 +245,7 @@ mod tests {
                 true,
                 1,
                 1,
+                false,
             ),
             (
                 quote_as_str! {
@@ -215,6 +257,7 @@ mod tests {
                 false,
                 0,
                 0,
+                false,
             ),
         ] {
             let impl_item = parse_first_impl_item(code);
@@ -235,6 +278,9 @@ mod tests {
 
             // `impl` item exists.
             assert!(ink_impl.impl_item().is_some());
+
+            // ink! trait definition for `impl` item exists.
+            assert_eq!(ink_impl.trait_definition().is_some(), has_trait_definition);
         }
     }
 }

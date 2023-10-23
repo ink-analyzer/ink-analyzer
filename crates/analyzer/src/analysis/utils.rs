@@ -1643,3 +1643,13 @@ where
         .and_then(|it| ast_item_declaration_range(&ast::Item::Trait(it.clone())))
         .unwrap_or(ink_trait_item.syntax().text_range())
 }
+
+/// Compares two node for equality while ignoring trivia (i.e. whitespace and comments).
+pub fn is_trivia_insensitive_eq(a: &SyntaxNode, b: &SyntaxNode) -> bool {
+    let strip_trivia = |node: &SyntaxNode| {
+        node.children_with_tokens()
+            .filter(|node| !node.kind().is_trivia())
+            .join("")
+    };
+    strip_trivia(a) == strip_trivia(b)
+}

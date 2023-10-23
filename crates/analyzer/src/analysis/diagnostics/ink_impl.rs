@@ -1,10 +1,13 @@
 //! ink! impl diagnostics.
 
-use ink_analyzer_ir::ast::{AstNode, HasVisibility};
-use ink_analyzer_ir::syntax::TextRange;
+use ink_analyzer_ir::ast::{AstNode, HasName, HasVisibility, Trait};
+use ink_analyzer_ir::syntax::{SyntaxNode, TextRange};
 use ink_analyzer_ir::{
-    ast, FromSyntax, InkArgKind, InkAttributeKind, InkImpl, IsInkFn, IsInkImplItem,
+    ast, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkImpl, IsInkFn,
+    IsInkImplItem, IsInkTrait, Message,
 };
+use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
 
 use super::{constructor, message, utils};
 use crate::analysis::actions::entity as entity_actions;
@@ -64,6 +67,9 @@ pub fn diagnostics(
     if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, IMPL_SCOPE_NAME) {
         results.push(diagnostic);
     }
+
+    // Ensures that `impl` satisfies all invariants of the ink! trait definition it implements (if any).
+    ensure_trait_definition_impl_invariants(results, ink_impl);
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
@@ -348,6 +354,544 @@ fn ensure_callables_in_root(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
     );
 }
 
+/// Ensures that `impl` satisfies all invariants of the ink! trait definition it implements (if any).
+///
+/// (i.e. ink! trait definition `impl` block must implement all associated methods (with expected signatures)
+/// and have no other associated items).
+fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
+    if let Some((impl_item, trait_definition)) =
+        ink_impl.impl_item().zip(ink_impl.trait_definition())
+    {
+        // Maps message name to declaration.
+        let message_index: HashMap<String, &Message> = trait_definition
+            .messages()
+            .iter()
+            .filter_map(|message| {
+                message
+                    .fn_item()
+                    .and_then(HasName::name)
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .and_then(|name| (!name.is_empty()).then_some((name, message)))
+            })
+            .collect();
+        let method_names = trait_definition
+            .trait_item()
+            .and_then(Trait::assoc_item_list)
+            .map(|item_list| {
+                item_list
+                    .assoc_items()
+                    .filter_map(|item| match item {
+                        ast::AssocItem::Fn(fn_item) => {
+                            fn_item.name().as_ref().map(ToString::to_string)
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or(HashSet::new());
+        let mut seen_messages: HashSet<String> = HashSet::new();
+
+        if let Some(assoc_item_list) = impl_item.assoc_item_list() {
+            for item in assoc_item_list.assoc_items() {
+                match &item {
+                    // Handles associated methods.
+                    ast::AssocItem::Fn(fn_item) => {
+                        if let Some(fn_name) = fn_item.name() {
+                            let fn_name_text = fn_name.to_string();
+                            match message_index.get(&fn_name_text) {
+                                // Handles unexpected methods.
+                                None => {
+                                    if !method_names.contains(&fn_name_text) {
+                                        results.push(Diagnostic {
+                                            message: format!("A `{fn_name_text}` method isn't declared in the ink! trait definition."),
+                                            range: item.syntax().text_range(),
+                                            severity: Severity::Error,
+                                            quickfixes: Some(vec![Action::remove_item(item.syntax())]),
+                                        });
+                                    }
+                                }
+                                // Verifies that method signatures and ink! attribute arguments match the declaration.
+                                Some(message_declaration) => {
+                                    seen_messages.insert(fn_name_text);
+
+                                    // Verifies that `fn` item has attributes that match the equivalent ink! trait definition method.
+                                    ensure_trait_definition_impl_message_args(
+                                        results,
+                                        fn_item,
+                                        message_declaration,
+                                    );
+
+                                    if let Some(fn_declaration) = message_declaration.fn_item() {
+                                        // Verifies that param list matches the declaration.
+                                        let diagnostic_range = fn_item
+                                            .param_list()
+                                            .map_or(fn_name.syntax().text_range(), |it| {
+                                                it.syntax().text_range()
+                                            });
+                                        let replace_range = fn_item.param_list().map_or(
+                                            TextRange::new(
+                                                fn_name.syntax().text_range().end(),
+                                                fn_name.syntax().text_range().end(),
+                                            ),
+                                            |it| it.syntax().text_range(),
+                                        );
+                                        verify_signature_part_match(
+                                            results,
+                                            fn_declaration
+                                                .param_list()
+                                                .as_ref()
+                                                .map(|it| it.syntax()),
+                                            fn_item.param_list().as_ref().map(|it| it.syntax()),
+                                            diagnostic_range,
+                                            replace_range,
+                                            "parameter list",
+                                            Some("parameters"),
+                                        );
+
+                                        // Verifies that return type matches the declaration.
+                                        let fallback_insert_offset = fn_item
+                                            .param_list()
+                                            .map_or(fn_name.syntax().text_range(), |it| {
+                                                it.syntax().text_range()
+                                            })
+                                            .end();
+                                        let diagnostic_range = fn_item.param_list().map_or(
+                                            TextRange::new(
+                                                fn_name.syntax().text_range().start(),
+                                                fallback_insert_offset,
+                                            ),
+                                            |it| it.syntax().text_range(),
+                                        );
+                                        let replace_range = fn_item.ret_type().map_or(
+                                            TextRange::new(
+                                                fallback_insert_offset,
+                                                fallback_insert_offset,
+                                            ),
+                                            |it| it.syntax().text_range(),
+                                        );
+                                        verify_signature_part_match(
+                                            results,
+                                            fn_declaration
+                                                .ret_type()
+                                                .as_ref()
+                                                .map(|it| it.syntax()),
+                                            fn_item.ret_type().as_ref().map(|it| it.syntax()),
+                                            diagnostic_range,
+                                            replace_range,
+                                            "return type",
+                                            None,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Handles all other associated item types.
+                    _ => {
+                        results.push(Diagnostic {
+                            message: "An ink! trait definition's implementation \
+                            can only contain ink! messages."
+                                .to_string(),
+                            range: item.syntax().text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action::remove_item(item.syntax())]),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Computes diagnostic for missing messages (if any).
+        let (insert_offset, indent_option, prefix_option, suffix_option) =
+            impl_item.assoc_item_list().map_or(
+                (
+                    impl_item.syntax().text_range().end(),
+                    Some(analysis_utils::item_children_indenting(impl_item.syntax())),
+                    Some(" {"),
+                    Some(format!(
+                        "{}}}",
+                        analysis_utils::item_indenting(impl_item.syntax())
+                            .as_deref()
+                            .unwrap_or_default()
+                    )),
+                ),
+                |assoc_item_list| {
+                    (
+                        analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
+                        None,
+                        None,
+                        None,
+                    )
+                },
+            );
+        // Determines missing messages (with valid names).
+        let mut missing_messages = message_index.values().filter_map(|message| {
+            message.fn_item().and_then(|fn_item| {
+                fn_item
+                    .name()
+                    .map_or(false, |name| {
+                        let name_text = name.to_string();
+                        !name_text.is_empty() && !seen_messages.contains(&name_text)
+                    })
+                    .then_some(fn_item)
+            })
+        });
+        if let Some(fn_item) = missing_messages.next() {
+            let range = analysis_utils::ink_impl_declaration_range(ink_impl);
+            let mut edit = String::new();
+            let mut snippet = String::new();
+            let mut snippet_idx = 1;
+            for (idx, fn_item) in [fn_item].into_iter().chain(missing_messages).enumerate() {
+                if idx > 0 {
+                    edit.push_str("\n\n");
+                    snippet.push_str("\n\n");
+                }
+
+                let fn_text = fn_item.to_string();
+                let fn_prefix = fn_text.strip_suffix(';').unwrap_or(fn_text.as_str()).trim();
+
+                edit.push_str(fn_prefix);
+                snippet.push_str(fn_prefix);
+
+                if fn_item.body().is_none() {
+                    edit.push_str(" {\n    todo!()\n}");
+                    snippet.push_str(&format!(" {{\n${{    {snippet_idx}:todo!()}}\n}}"));
+                    snippet_idx += 1;
+                }
+            }
+            results.push(Diagnostic {
+                message: "Missing message(s) for ink! trait definition implementation.".to_string(),
+                range,
+                severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: "Add missing message(s) to ink! trait definition implementation."
+                        .to_string(),
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: vec![TextEdit::insert_with_snippet(
+                        format!(
+                            "{}{}{}",
+                            prefix_option.unwrap_or_default(),
+                            indent_option.as_ref().map_or(edit.clone(), |indent| {
+                                analysis_utils::apply_indenting(&edit, indent)
+                            }),
+                            suffix_option.as_deref().unwrap_or_default()
+                        ),
+                        insert_offset,
+                        Some(format!(
+                            "{}{}{}",
+                            prefix_option.unwrap_or_default(),
+                            indent_option.as_ref().map_or(snippet.clone(), |indent| {
+                                analysis_utils::apply_indenting(&snippet, indent)
+                            }),
+                            suffix_option.as_deref().unwrap_or_default()
+                        )),
+                    )],
+                }]),
+            })
+        }
+    }
+}
+
+/// Verifies that two signature parts "match" or creates an appropriate diagnostic and quickfix.
+fn verify_signature_part_match(
+    results: &mut Vec<Diagnostic>,
+    declared_option: Option<&SyntaxNode>,
+    implemented_option: Option<&SyntaxNode>,
+    diagnostic_range: TextRange,
+    replace_range: TextRange,
+    replace_label: &str,
+    remove_label_option: Option<&str>,
+) {
+    match (declared_option, implemented_option) {
+        // Handles all cases with a declared option.
+        (Some(declared), _) => {
+            if implemented_option.map_or(true, |implemented| {
+                !analysis_utils::is_trivia_insensitive_eq(implemented, declared)
+            }) {
+                results.push(Diagnostic {
+                    message: format!(
+                        "The {replace_label} for this method doesn't match \
+                        the ink! trait definition declaration for the method."
+                    ),
+                    range: diagnostic_range,
+                    severity: Severity::Error,
+                    quickfixes: Some(vec![Action {
+                        label: format!(
+                            "Change {replace_label} to match the \
+                            ink! trait definition declaration for the method."
+                        ),
+                        kind: ActionKind::QuickFix,
+                        range: diagnostic_range,
+                        edits: vec![TextEdit::replace(declared.to_string(), replace_range)],
+                    }]),
+                });
+            }
+        }
+        // Handles cases with no declared option and an implemented option.
+        (None, Some(implemented)) => {
+            let range = implemented.text_range();
+            let remove_label = remove_label_option.unwrap_or(replace_label);
+            results.push(Diagnostic {
+                message: format!(
+                    "No {remove_label} {} declared on \
+                    the ink! trait definition declaration for the method.",
+                    if remove_label.ends_with('s') {
+                        "are"
+                    } else {
+                        "is"
+                    }
+                ),
+                range,
+                severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: format!(
+                        "Remove {remove_label} to match \
+                        the ink! trait definition declaration for the method."
+                    ),
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: vec![TextEdit::delete(range)],
+                }]),
+            });
+        }
+        // Only other case is a match of no option in both the declaration and implementation.
+        (None, None) => (),
+    }
+}
+
+/// Ensures that `fn` item has attributes that match the equivalent ink! trait definition method.
+fn ensure_trait_definition_impl_message_args(
+    results: &mut Vec<Diagnostic>,
+    fn_item: &ast::Fn,
+    message_declaration: &Message,
+) {
+    // Only ink! message (and it's complementary arguments) are allowed.
+    let allowed_arg_kinds: HashSet<InkArgKind> = [InkArgKind::Message]
+        .into_iter()
+        .chain(analysis_utils::valid_sibling_ink_args(
+            InkAttributeKind::Arg(InkArgKind::Message),
+        ))
+        .collect();
+
+    // Verifies that `fn` item has attributes that match the equivalent ink! trait definition method.
+    let ink_arg_index: HashMap<InkArgKind, InkArg> =
+        ink_analyzer_ir::ink_args(message_declaration.syntax())
+            .filter_map(|arg| (*arg.kind() != InkArgKind::Unknown).then_some((*arg.kind(), arg)))
+            .collect();
+    let mut seen_arg_kinds: HashSet<InkArgKind> = HashSet::new();
+    for attr in ink_analyzer_ir::ink_attrs(fn_item.syntax()) {
+        let is_macro_attr = matches!(attr.kind(), InkAttributeKind::Macro(_));
+        if is_macro_attr {
+            results.push(Diagnostic {
+                message: "An ink! trait definition's implementation \
+                                            can only contain ink! messages."
+                    .to_string(),
+                range: attr.syntax().text_range(),
+                severity: Severity::Error,
+                quickfixes: Some(vec![Action::remove_attribute(&attr)]),
+            });
+        }
+
+        for arg in attr.args() {
+            if let Some(arg_declaration) = ink_arg_index.get(arg.kind()) {
+                seen_arg_kinds.insert(*arg.kind());
+
+                // Verifies the argument value (if any or expected).
+                // NOTE: This doesn't do generic argument value validation
+                // (that's done by `utils::run_generic_diagnostics`),
+                // it only checks that the argument value for the implementation matches the declaration
+                // if a value is expected for the attribute kind.
+                if let Some(value_declaration) = arg_declaration.value() {
+                    if InkArgValueKind::from(*arg.kind()) != InkArgValueKind::None {
+                        match arg.value() {
+                            // Adds missing value.
+                            None => {
+                                results.push(Diagnostic {
+                                    message: format!(
+                                        "Missing ink! {} argument value: {value_declaration}, \
+                                    based on the trait definition declaration for this method.",
+                                        arg.kind()
+                                    ),
+                                    range: arg.text_range(),
+                                    severity: Severity::Error,
+                                    quickfixes: Some(vec![Action {
+                                        label: format!("Add missing value: {value_declaration}."),
+                                        kind: ActionKind::QuickFix,
+                                        range: arg.text_range(),
+                                        edits: vec![TextEdit::replace(
+                                            arg_declaration.to_string(),
+                                            arg.text_range(),
+                                        )],
+                                    }]),
+                                });
+                            }
+                            // Replaces value that doesn't match declaration.
+                            Some(value) => {
+                                if !analysis_utils::is_trivia_insensitive_eq(
+                                    value.as_expr_with_inaccurate_text_range().syntax(),
+                                    value_declaration
+                                        .as_expr_with_inaccurate_text_range()
+                                        .syntax(),
+                                ) {
+                                    results.push(Diagnostic {
+                                        message: format!("ink! {} argument value mismatch: {value} vs {value_declaration}, \
+                                        based on the trait definition declaration for this method.", arg.kind()),
+                                        range: arg.text_range(),
+                                        severity: Severity::Error,
+                                        quickfixes: Some(vec![
+                                            Action {
+                                                label: format!("Replace missing value (i.e. changes {value} to {value_declaration}."),
+                                                kind: ActionKind::QuickFix,
+                                                range: arg.text_range(),
+                                                edits: vec![
+                                                    TextEdit::replace(arg_declaration.to_string(), arg.text_range())
+                                                ],
+                                            }
+                                        ]),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if !is_macro_attr {
+                // Edit range for quickfix.
+                let range = analysis_utils::ink_arg_and_delimiter_removal_range(arg, Some(&attr));
+
+                results.push(Diagnostic {
+                    message: format!(
+                        "The ink! trait definition declaration \
+                        for this method doesn't have a `{}` argument.",
+                        arg
+                    ),
+                    range: arg.text_range(),
+                    severity: Severity::Error,
+                    quickfixes: Some(vec![Action {
+                        label: format!("Remove `{}` argument.", arg),
+                        kind: ActionKind::QuickFix,
+                        range,
+                        edits: vec![TextEdit::delete(range)],
+                    }]),
+                });
+            }
+        }
+    }
+
+    // Computes diagnostic for missing "allowed" attribute arguments (if any).
+    let mut missing_args = ink_arg_index
+        .values()
+        .filter(|arg| {
+            !seen_arg_kinds.contains(arg.kind()) && allowed_arg_kinds.contains(arg.kind())
+        })
+        .sorted();
+    if let Some(first_arg) = missing_args.next() {
+        // Determines a "valid" attribute to extend (if possible).
+        let ink_attr_option = ink_analyzer_ir::ink_attrs(fn_item.syntax())
+            .filter(|attr| match attr.kind() {
+                InkAttributeKind::Arg(arg_kind) => allowed_arg_kinds.contains(arg_kind),
+                InkAttributeKind::Macro(_) => false,
+            })
+            .sorted()
+            .next();
+
+        let missing_args_help = [first_arg]
+            .into_iter()
+            .chain(missing_args.clone())
+            .map(|arg| format!("`{arg}`"))
+            .join(", ");
+        let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+            .unwrap_or(fn_item.syntax().text_range());
+        let missing_arg_edits = ink_attr_option
+            .and_then(|attr| match first_arg.kind() {
+                InkArgKind::Message => analysis_utils::first_ink_arg_insert_offset_and_affixes(
+                    &attr,
+                )
+                .map(|(insert_offset, prefix, suffix)| {
+                    let message_arg_edit = TextEdit::insert(
+                        format!(
+                            "{}{first_arg}{}",
+                            prefix.unwrap_or_default(),
+                            suffix.unwrap_or_default(),
+                        ),
+                        insert_offset,
+                    );
+                    let other_args = missing_args.join(", ");
+                    if other_args.is_empty() {
+                        vec![message_arg_edit]
+                    } else {
+                        analysis_utils::ink_arg_insert_offset_and_affixes(&attr, None)
+                            .map(|(other_insert_offset, other_prefix, other_suffix)| {
+                                vec![
+                                    message_arg_edit,
+                                    TextEdit::insert(
+                                        format!(
+                                            "{}{other_args}{}",
+                                            other_prefix.unwrap_or_default(),
+                                            other_suffix.unwrap_or_default(),
+                                        ),
+                                        other_insert_offset,
+                                    ),
+                                ]
+                            })
+                            .unwrap_or(vec![TextEdit::insert(
+                                format!(
+                                    "{}{}{}",
+                                    prefix.unwrap_or_default(),
+                                    [first_arg.to_string(), other_args].join(", "),
+                                    suffix.unwrap_or_default(),
+                                ),
+                                insert_offset,
+                            )])
+                    }
+                }),
+                _ => analysis_utils::ink_arg_insert_offset_and_affixes(&attr, None).map(
+                    |(insert_offset, prefix, suffix)| {
+                        vec![TextEdit::insert(
+                            format!(
+                                "{}{}{}",
+                                prefix.unwrap_or_default(),
+                                [first_arg]
+                                    .into_iter()
+                                    .chain(missing_args.clone())
+                                    .join(", "),
+                                suffix.unwrap_or_default(),
+                            ),
+                            insert_offset,
+                        )]
+                    },
+                ),
+            })
+            .unwrap_or(vec![TextEdit::insert(
+                format!(
+                    "#[ink({})]",
+                    [first_arg].into_iter().chain(missing_args).join(", ")
+                ),
+                match first_arg.kind() {
+                    InkArgKind::Message => {
+                        analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax())
+                    }
+                    _ => analysis_utils::ink_attribute_insert_offset(fn_item.syntax()),
+                },
+            )]);
+        results.push(Diagnostic {
+            message: format!(
+                "Missing ink! argument(s): {missing_args_help}, \
+                which are present ink! trait definition declaration for this method.",
+            ),
+            range,
+            severity: Severity::Error,
+            quickfixes: (!missing_arg_edits.is_empty()).then_some(vec![Action {
+                label: format!("Add missing ink! argument(s): {missing_args_help}."),
+                kind: ActionKind::QuickFix,
+                range,
+                edits: missing_arg_edits,
+            }]),
+        });
+    }
+}
+
 /// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/impl_item.rs#L62-L106>.
@@ -465,62 +1009,54 @@ mod tests {
             .chain(
                 [
                     // Traits.
-                    quote! {
-                        impl MyTrait for MyContract {
-                            #[ink(constructor)]
-                            fn new() -> Self {}
+                    (
+                        quote! {
+                            #[ink::trait_definition]
+                            pub trait MyTrait {
+                                #[ink(message)]
+                                fn minimal_message(&self);
+                            }
+                        },
+                        quote! {
+                            impl MyTrait for MyContract {
+                                #[ink(message)]
+                                fn minimal_message(&self) {}
+                            }
                         }
-                    },
-                    quote! {
-                        impl MyTrait for MyContract {
-                            #[ink(message)]
-                            fn minimal_message(&self) {}
-                        }
-                    },
-                    quote! {
-                        impl MyTrait for MyContract {
-                            #[ink(constructor)]
-                            fn new() -> Self {}
-
-                            #[ink(message)]
-                            fn minimal_message(&self) {}
-                        }
-                    },
+                    ),
                     // Traits + Args.
-                    quote! {
-                        impl MyTrait for MyContract {
-                            #[ink(constructor, payable, default, selector=1)]
-                            fn new() -> Self {}
+                    (
+                        quote! {
+                        #[ink::trait_definition]
+                            pub trait MyTrait {
+                                #[ink(message, payable, default, selector=1)]
+                                fn minimal_message(&self);
+                            }
+                        },
+                        quote! {
+                            impl MyTrait for MyContract {
+                                #[ink(message, payable, default, selector=1)]
+                                fn minimal_message(&self) {}
+                            }
                         }
-                    },
-                    quote! {
-                        impl MyTrait for MyContract {
-                            #[ink(message, payable, default, selector=1)]
-                            fn minimal_message(&self) {}
-                        }
-                    },
-                    quote! {
-                        impl MyTrait for MyContract {
-                            #[ink(constructor, payable, default, selector=1)]
-                            fn new() -> Self {}
-
-                            #[ink(message, payable, default, selector=1)]
-                            fn minimal_message(&self) {}
-                        }
-                    },
+                    ),
                 ]
                 .iter()
-                .flat_map(|code| {
+                .flat_map(|(trait_code, impl_code)| {
                     // Namespace shouldn't be used for trait implementations.
                     [
                         // Simple.
                         quote! {
-                            #code
+                            #trait_code
+
+                            #impl_code
                         },
                         // Impl attribute.
                         quote! {
+                            #trait_code
+
                             #[ink(impl)]
-                            #code
+                            #impl_code
                         },
                     ]
                 }).chain(
@@ -944,6 +1480,250 @@ mod tests {
                 let quickfixes = item.quickfixes.as_ref().unwrap();
                 verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
             }
+        }
+    }
+
+    #[test]
+    fn valid_trait_definition_impl_works() {
+        for code in valid_ink_impls!() {
+            let ink_impl = parse_first_ink_impl(quote_as_str! {
+                #code
+            });
+
+            let mut results = Vec::new();
+            ensure_trait_definition_impl_invariants(&mut results, &ink_impl);
+            assert!(results.is_empty(), "impl: {code}");
+        }
+    }
+
+    #[test]
+    fn invalid_trait_definition_impl_fails() {
+        for (code, expected_quickfixes) in [
+            // Missing methods.
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message)]
+                        fn my_message(&self);
+                    }
+
+                    #[ink(impl)] // needed for this to be parsed as an ink! impl without messages and constructors.
+                    impl MyTrait for MyContract {}
+                },
+                vec![TestResultAction {
+                    label: "missing message",
+                    edits: vec![TestResultTextRange {
+                        text: "fn my_message(&self) {",
+                        start_pat: Some("impl MyTrait for MyContract {"),
+                        end_pat: Some("impl MyTrait for MyContract {"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message)]
+                        fn my_message(&self);
+
+                        #[ink(message)]
+                        fn my_message_2(&self);
+                    }
+
+                    impl MyTrait for MyContract {
+                        #[ink(message)]
+                        fn my_message(&self) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "missing message",
+                    edits: vec![TestResultTextRange {
+                        text: "fn my_message_2(&self) {",
+                        start_pat: Some("fn my_message(&self) {}"),
+                        end_pat: Some("fn my_message(&self) {}"),
+                    }],
+                }],
+            ),
+            // Undeclared method.
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message)]
+                        fn my_message(&self);
+                    }
+
+                    impl MyTrait for MyContract {
+                        #[ink(message)]
+                        fn my_message(&self) {}
+
+                        #[ink(message)]
+                        fn my_message_2(&self) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(message)]->"),
+                        end_pat: Some("fn my_message_2(&self) {}"),
+                    }],
+                }],
+            ),
+            // Mismatching parameter list.
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message)]
+                        fn my_message(&self, a: u8);
+                    }
+
+                    impl MyTrait for MyContract {
+                        #[ink(message)]
+                        fn my_message(&self) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "parameter list",
+                    edits: vec![TestResultTextRange {
+                        text: "(&self, a: u8)",
+                        start_pat: Some("<-(&self)"),
+                        end_pat: Some("(&self)"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message)]
+                        fn my_message(&self);
+                    }
+
+                    impl MyTrait for MyContract {
+                        #[ink(message)]
+                        fn my_message(&self, a: u8) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "parameter list",
+                    edits: vec![TestResultTextRange {
+                        text: "(&self)",
+                        start_pat: Some("<-(&self, a: u8)"),
+                        end_pat: Some("(&self, a: u8)"),
+                    }],
+                }],
+            ),
+            // Mismatching return type.
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message)]
+                        fn my_message(&self) -> u8;
+                    }
+
+                    impl MyTrait for MyContract {
+                        #[ink(message)]
+                        fn my_message(&self) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "return type",
+                    edits: vec![TestResultTextRange {
+                        text: "-> u8",
+                        start_pat: Some("(&self)->"),
+                        end_pat: Some("(&self)->"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message)]
+                        fn my_message(&self);
+                    }
+
+                    impl MyTrait for MyContract {
+                        #[ink(message)]
+                        fn my_message(&self) -> u8 {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "return type",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<--> u8"),
+                        end_pat: Some(" -> u8"),
+                    }],
+                }],
+            ),
+            // Mismatching ink! attribute arguments.
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, payable)]
+                        fn my_message(&self);
+                    }
+
+                    impl MyTrait for MyContract {
+                        #[ink(message)]
+                        fn my_message(&self) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "missing ink! argument",
+                    edits: vec![TestResultTextRange {
+                        text: ", payable",
+                        start_pat: Some("#[ink(message->"),
+                        end_pat: Some("#[ink(message->"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message)]
+                        fn my_message(&self);
+                    }
+
+                    impl MyTrait for MyContract {
+                        #[ink(message, selector = 0xA)]
+                        fn my_message(&self) {}
+                    }
+                },
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-, selector = 0xA"),
+                        end_pat: Some("selector = 0xA"),
+                    }],
+                }],
+            ),
+        ] {
+            let code = quote_as_pretty_string! {
+                #code
+            };
+            let ink_impl = parse_first_ink_impl(&code);
+
+            let mut results = Vec::new();
+            ensure_trait_definition_impl_invariants(&mut results, &ink_impl);
+
+            // Verifies diagnostics.
+            assert_eq!(results.len(), 1, "impl: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "impl: {code}");
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
+            );
         }
     }
 
