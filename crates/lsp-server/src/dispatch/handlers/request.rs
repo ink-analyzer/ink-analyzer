@@ -2,6 +2,8 @@
 
 use ink_analyzer::Analysis;
 use line_index::LineIndex;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::memory::Memory;
 use crate::translator::PositionTranslationContext;
@@ -206,6 +208,78 @@ pub fn handle_signature_help(
         }
         // Empty response for missing documents.
         None => Ok(None),
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateProjectResponse {
+    pub name: String,
+    pub uri: lsp_types::Url,
+    pub files: HashMap<lsp_types::Url, String>,
+}
+
+/// Handles execute command request.
+pub fn handle_execute_command(
+    params: lsp_types::ExecuteCommandParams,
+    _memory: &mut Memory,
+    _client_capabilities: &lsp_types::ClientCapabilities,
+) -> anyhow::Result<Option<serde_json::Value>> {
+    // Handles create project command.
+    if params.command == "createProject" {
+        let args = params
+            .arguments
+            .first()
+            .and_then(serde_json::Value::as_object)
+            .and_then(|arg| {
+                arg.get("name").and_then(|it| it.as_str()).zip(
+                    arg.get("root").and_then(|it| it.as_str()).and_then(|it| {
+                        lsp_types::Url::parse(&format!(
+                            "{it}{}",
+                            if it.ends_with('/') { "" } else { "/" }
+                        ))
+                        .ok()
+                    }),
+                )
+            });
+
+        match args {
+            Some((name, root)) => {
+                let uris = root
+                    .clone()
+                    .join("lib.rs")
+                    .ok()
+                    .zip(root.join("Cargo.toml").ok());
+                match uris {
+                    Some((lib_uri, cargo_uri)) => match ink_analyzer::new_project(name.to_string())
+                    {
+                        Ok(project) => {
+                            // Returns create project edits.
+                            Ok(serde_json::to_value(CreateProjectResponse {
+                                name: name.to_owned(),
+                                uri: root,
+                                files: HashMap::from([
+                                    (lib_uri, project.lib.plain),
+                                    (cargo_uri, project.cargo.plain),
+                                ]),
+                            })
+                            .ok())
+                        }
+                        Err(_) => Err(anyhow::format_err!(
+                            "Failed to create ink! project: {name}\n\
+                            ink! project names must begin with an alphabetic character, \
+                            and only contain alphanumeric characters, underscores and hyphens"
+                        )),
+                    },
+                    None => Err(anyhow::format_err!("Failed to create ink! project: {name}")),
+                }
+            }
+            // Error for missing or invalid args.
+            None => Err(anyhow::format_err!(
+                "The name and root arguments are required!"
+            )),
+        }
+    } else {
+        Err(anyhow::format_err!("Unknown command: {}!", params.command))
     }
 }
 

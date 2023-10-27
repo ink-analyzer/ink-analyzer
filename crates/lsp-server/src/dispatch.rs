@@ -1,10 +1,13 @@
 //! LSP server main loop for dispatching requests, notifications and handling responses.
 
 use crossbeam_channel::Sender;
+use lsp_types::request::Request;
 use std::collections::HashSet;
 
 use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
+use crate::utils;
+use handlers::request::CreateProjectResponse;
 
 mod actions;
 mod handlers;
@@ -41,8 +44,8 @@ pub fn main_loop(
                 // Handles all other notifications using the dispatcher.
                 dispatcher.handle_notification(not)?;
             }
-            // We don't currently initiate any requests, so all responses are ignored.
-            lsp_server::Message::Response(_) => (),
+            // Handles responses to requests initiated by the server (e.g workspace edits).
+            lsp_server::Message::Response(resp) => dispatcher.handle_response(resp)?,
         }
     }
 
@@ -55,6 +58,9 @@ struct Dispatcher<'a> {
     client_capabilities: lsp_types::ClientCapabilities,
     memory: Memory,
 }
+
+const INITIALIZE_PROJECT_ID_PREFIX: &str = "initialize-project::";
+const SHOW_DOCUMENT_ID_PREFIX: &str = "show-document::";
 
 impl<'a> Dispatcher<'a> {
     /// Creates a dispatcher for an LSP server connection.
@@ -72,6 +78,7 @@ impl<'a> Dispatcher<'a> {
     /// Handles LSP requests and sends responses (if any) as appropriate.
     fn handle_request(&mut self, req: lsp_server::Request) -> anyhow::Result<()> {
         // Computes request response (if any).
+        let is_execute_command = req.method == lsp_types::request::ExecuteCommand::METHOD;
         let mut router = RequestRouter::new(req, &mut self.memory, &self.client_capabilities);
         let result = router
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
@@ -81,11 +88,71 @@ impl<'a> Dispatcher<'a> {
             .process::<lsp_types::request::SignatureHelpRequest>(
                 handlers::request::handle_signature_help,
             )
+            .process::<lsp_types::request::ExecuteCommand>(
+                handlers::request::handle_execute_command,
+            )
             .finish();
 
         // Sends response (if any).
-        if let Some(resp) = result {
-            self.send(resp.into())?;
+        if let Some(mut resp) = result {
+            // Intercept non-empty `createProject` responses and create the project as a workspace edit.
+            if let Some(project) = is_execute_command
+                .then_some(resp.result.as_ref())
+                .flatten()
+                .and_then(|value| {
+                    serde_json::from_value::<CreateProjectResponse>(value.clone()).ok()
+                })
+            {
+                // Return an empty response.
+                resp.result = Some(serde_json::Value::Null);
+                self.send(resp.into())?;
+
+                // Create project files using a workspace edit.
+                let doc_changes = project
+                    .files
+                    .iter()
+                    .flat_map(|(uri, content)| {
+                        vec![
+                            lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Create(
+                                lsp_types::CreateFile {
+                                    uri: uri.clone(),
+                                    options: None,
+                                    annotation_id: None,
+                                },
+                            )),
+                            lsp_types::DocumentChangeOperation::Edit(lsp_types::TextDocumentEdit {
+                                text_document: lsp_types::OptionalVersionedTextDocumentIdentifier {
+                                    uri: uri.clone(),
+                                    version: None,
+                                },
+                                edits: vec![lsp_types::OneOf::Left(lsp_types::TextEdit {
+                                    range: lsp_types::Range::default(),
+                                    new_text: content.to_owned(),
+                                })],
+                            }),
+                        ]
+                    })
+                    .collect();
+                let params = lsp_types::ApplyWorkspaceEditParams {
+                    label: Some("new ink! project".to_string()),
+                    edit: lsp_types::WorkspaceEdit {
+                        document_changes: Some(lsp_types::DocumentChanges::Operations(doc_changes)),
+                        ..Default::default()
+                    },
+                };
+                let req = lsp_server::Request::new(
+                    lsp_server::RequestId::from(format!(
+                        "{INITIALIZE_PROJECT_ID_PREFIX}{}",
+                        project.uri
+                    )),
+                    lsp_types::request::ApplyWorkspaceEdit::METHOD.to_string(),
+                    params,
+                );
+                self.send(req.into())?;
+            } else {
+                // Otherwise return response.
+                self.send(resp.into())?;
+            }
         }
 
         // Process memory changes (if any) made by request handlers.
@@ -112,6 +179,39 @@ impl<'a> Dispatcher<'a> {
 
         // Process memory changes (if any) made by notification handlers.
         self.process_changes()?;
+
+        Ok(())
+    }
+
+    /// Handles LSP responses.
+    fn handle_response(&mut self, resp: lsp_server::Response) -> anyhow::Result<()> {
+        // Open `lib.rs` after project initialization.
+        if let Some(resp_id) = utils::request_id_as_str(resp.id) {
+            if resp_id.starts_with(INITIALIZE_PROJECT_ID_PREFIX) {
+                if let Some(project_uri) = resp_id
+                    .strip_prefix(INITIALIZE_PROJECT_ID_PREFIX)
+                    .and_then(|suffix| lsp_types::Url::parse(suffix).ok())
+                {
+                    if let Ok(lib_uri) = project_uri.join("lib.rs") {
+                        let params = lsp_types::ShowDocumentParams {
+                            uri: lib_uri.clone(),
+                            external: None,
+                            take_focus: Some(true),
+                            selection: None,
+                        };
+                        let req = lsp_server::Request::new(
+                            lsp_server::RequestId::from(format!(
+                                "{SHOW_DOCUMENT_ID_PREFIX}{}",
+                                lib_uri
+                            )),
+                            lsp_types::request::ShowDocument::METHOD.to_string(),
+                            params,
+                        );
+                        self.send(req.into())?;
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
@@ -216,7 +316,6 @@ mod tests {
 
         // Verifies that LSP requests (from client to server) get appropriate LSP responses (from server to client).
         // Creates LSP completion request.
-        use lsp_types::request::Request;
         let completion_request_id = lsp_server::RequestId::from(1);
         let completion_request = lsp_server::Request {
             id: completion_request_id.clone(),

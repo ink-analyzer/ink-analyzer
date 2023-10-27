@@ -77,7 +77,7 @@ pub const CONTRACT_PLAIN: &str = r#"#![cfg_attr(not(feature = "std"), no_std)]
 #[ink::contract]
 pub mod my_contract {
     #[ink(storage)]
-    pub struct Storage {}
+    pub struct MyContract {}
 
     impl MyContract {
         #[ink(constructor)]

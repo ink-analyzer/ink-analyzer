@@ -1,5 +1,6 @@
 //! ink! Language Server utilities.
 
+use lsp_server::RequestId;
 use lsp_types::{ClientCapabilities, CodeActionKind, PositionEncodingKind};
 use std::collections::HashSet;
 
@@ -94,6 +95,14 @@ pub fn signature_support(client_capabilities: &ClientCapabilities) -> SignatureS
         )
 }
 
+/// Returns a string representation of the request id
+/// but only if its internal representation is a `String` else returns None.
+pub fn request_id_as_str(id: RequestId) -> Option<String> {
+    id.to_string()
+        .strip_prefix('\"')
+        .and_then(|it| it.strip_suffix('\"'))
+        .map(ToString::to_string)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
