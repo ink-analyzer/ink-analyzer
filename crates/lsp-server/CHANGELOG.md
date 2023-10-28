@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.11] - 2023-10-28
+
+- Add create project command.
+- Add diagnostics and quickfixes for ink! trait definition implementations.
+
 ## [0.2.10] - 2023-10-09
 
 - General robustness improvements for semantic analyzer.

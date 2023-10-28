@@ -103,6 +103,7 @@ pub fn request_id_as_str(id: RequestId) -> Option<String> {
         .and_then(|it| it.strip_suffix('\"'))
         .map(ToString::to_string)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
