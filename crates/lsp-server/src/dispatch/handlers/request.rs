@@ -501,4 +501,42 @@ mod tests {
         assert_eq!(params, vec![[0, 21], [23, 38]]);
         assert_eq!(signature_help.active_parameter.unwrap(), 0);
     }
+
+    #[test]
+    fn handle_execute_command_new_project_works() {
+        // Initializes memory.
+        let mut memory = Memory::new();
+
+        // Creates test project.
+        let project_name = "hello_ink";
+        let project_uri = lsp_types::Url::parse("file:///tmp/hello_ink/").unwrap();
+
+        // Calls handler and verifies that the expected response is returned.
+        let result = handle_execute_command(
+            lsp_types::ExecuteCommandParams {
+                command: "createProject".to_string(),
+                arguments: vec![serde_json::json!({
+                    "name": project_name,
+                    "root": project_uri
+                })],
+                work_done_progress_params: Default::default(),
+            },
+            &mut memory,
+            &simple_client_config(),
+        );
+        assert!(result.is_ok());
+        let resp: CreateProjectResponse = serde_json::from_value(result.unwrap().unwrap()).unwrap();
+        // Verifies project metadata.
+        assert_eq!(resp.name, project_name);
+        assert_eq!(resp.uri, project_uri);
+        // Verifies project files and their contents.
+        let lib_uri = project_uri.clone().join("lib.rs").unwrap();
+        let cargo_uri = project_uri.clone().join("Cargo.toml").unwrap();
+        let lib_content = resp.files.get(&lib_uri).unwrap();
+        let cargo_content = resp.files.get(&cargo_uri).unwrap();
+        assert!(resp.files.contains_key(&lib_uri));
+        assert!(resp.files.contains_key(&cargo_uri));
+        assert!(lib_content.contains("#[ink::contract]\npub mod hello_ink {"));
+        assert!(cargo_content.contains(r#"name = "hello_ink""#));
+    }
 }
