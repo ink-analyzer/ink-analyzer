@@ -87,6 +87,10 @@ pub fn server_capabilities(
             retrigger_characters: None,
             work_done_progress_options: Default::default(),
         }),
+        execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
+            commands: vec!["createProject".to_string()],
+            work_done_progress_options: Default::default(),
+        }),
         ..Default::default()
     }
 }

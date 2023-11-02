@@ -145,6 +145,19 @@ pub fn simple_client_config() -> lsp_types::ClientCapabilities {
             }),
             ..Default::default()
         }),
+        workspace: Some(lsp_types::WorkspaceClientCapabilities {
+            apply_edit: Some(true),
+            workspace_edit: Some(lsp_types::WorkspaceEditClientCapabilities {
+                document_changes: Some(true),
+                resource_operations: Some(vec![
+                    lsp_types::ResourceOperationKind::Create,
+                    lsp_types::ResourceOperationKind::Delete,
+                    lsp_types::ResourceOperationKind::Rename,
+                ]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
         ..Default::default()
     }
 }

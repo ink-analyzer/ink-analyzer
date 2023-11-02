@@ -95,13 +95,13 @@ impl<'a> Dispatcher<'a> {
 
         // Sends response (if any).
         if let Some(mut resp) = result {
-            // Intercept non-empty `createProject` responses and create the project as a workspace edit.
-            if let Some(project) = is_execute_command
-                .then_some(resp.result.as_ref())
-                .flatten()
-                .and_then(|value| {
-                    serde_json::from_value::<CreateProjectResponse>(value.clone()).ok()
-                })
+            // Intercept non-empty `createProject` responses and create the project as a workspace edit
+            // (only if the client supports the resource operations and document changes).
+            if let Some(project) = (is_execute_command
+                && utils::can_create_project_via_workspace_edit(&self.client_capabilities))
+            .then_some(resp.result.as_ref())
+            .flatten()
+            .and_then(|value| serde_json::from_value::<CreateProjectResponse>(value.clone()).ok())
             {
                 // Return an empty response.
                 resp.result = Some(serde_json::Value::Null);

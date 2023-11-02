@@ -104,6 +104,22 @@ pub fn request_id_as_str(id: RequestId) -> Option<String> {
         .map(ToString::to_string)
 }
 
+/// Returns true if the LSP client advertises capabilities needed to create new projects via workspace edit, or false otherwise.
+pub fn can_create_project_via_workspace_edit(client_capabilities: &ClientCapabilities) -> bool {
+    client_capabilities.workspace.as_ref().map_or(false, |it| {
+        // Checks support for workspace/applyEdit requests.
+        it.apply_edit.unwrap_or(false)
+            && it.workspace_edit.as_ref().map_or(false, |it| {
+                // Checks support for versioned document changes.
+                it.document_changes.unwrap_or(false)
+                    // Checks support for create file operation.
+                    && it.resource_operations.as_ref().map_or(false, |it| {
+                        it.contains(&lsp_types::ResourceOperationKind::Create)
+                    })
+            })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,8 +127,9 @@ mod tests {
     use lsp_types::{
         CodeActionClientCapabilities, CodeActionKindLiteralSupport, CodeActionLiteralSupport,
         CompletionClientCapabilities, CompletionItemCapability, GeneralClientCapabilities,
-        ParameterInformationSettings, SignatureHelpClientCapabilities,
-        SignatureInformationSettings, TextDocumentClientCapabilities,
+        ParameterInformationSettings, ResourceOperationKind, SignatureHelpClientCapabilities,
+        SignatureInformationSettings, TextDocumentClientCapabilities, WorkspaceClientCapabilities,
+        WorkspaceEditClientCapabilities,
     };
 
     fn config_with_encodings(encodings: Option<Vec<PositionEncodingKind>>) -> ClientCapabilities {
@@ -175,6 +192,25 @@ mod tests {
                         active_parameter_support,
                         ..Default::default()
                     }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn config_with_workspace_edit_capabilities(
+        apply_edit: Option<bool>,
+        document_changes: Option<bool>,
+        resource_operations: Option<Vec<ResourceOperationKind>>,
+    ) -> ClientCapabilities {
+        ClientCapabilities {
+            workspace: Some(WorkspaceClientCapabilities {
+                apply_edit,
+                workspace_edit: Some(WorkspaceEditClientCapabilities {
+                    document_changes,
+                    resource_operations,
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -364,6 +400,63 @@ mod tests {
         ] {
             // Verifies the signature support is parsed properly based on client capabilities.
             assert_eq!(signature_support(&client_capabilities), expected_result);
+        }
+    }
+
+    #[test]
+    fn can_create_project_via_workspace_edit_works() {
+        for (client_capabilities, expected_result) in [
+            // Default is `false`.
+            (ClientCapabilities::default(), false),
+            // None is `false`.
+            (
+                config_with_workspace_edit_capabilities(None, None, None),
+                false,
+            ),
+            // Partial support for some conditions fails.
+            (
+                config_with_workspace_edit_capabilities(Some(true), None, None),
+                false,
+            ),
+            (
+                config_with_workspace_edit_capabilities(None, Some(true), None),
+                false,
+            ),
+            (
+                config_with_workspace_edit_capabilities(
+                    None,
+                    None,
+                    Some(vec![ResourceOperationKind::Create]),
+                ),
+                false,
+            ),
+            (
+                config_with_workspace_edit_capabilities(
+                    Some(true),
+                    Some(true),
+                    // Missing create operation.
+                    Some(vec![
+                        ResourceOperationKind::Delete,
+                        ResourceOperationKind::Rename,
+                    ]),
+                ),
+                false,
+            ),
+            // Full support for all conditions works.
+            (
+                config_with_workspace_edit_capabilities(
+                    Some(true),
+                    Some(true),
+                    Some(vec![ResourceOperationKind::Create]),
+                ),
+                true,
+            ),
+        ] {
+            // Verifies the expected result based on client capabilities.
+            assert_eq!(
+                can_create_project_via_workspace_edit(&client_capabilities),
+                expected_result
+            );
         }
     }
 }
