@@ -2,7 +2,8 @@
 
 use ink_analyzer_ir::syntax::{AstNode, TextRange, TextSize};
 use ink_analyzer_ir::{
-    FromAST, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkFile, IsInkEntity,
+    FromAST, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkFile,
+    IsInkEntity,
 };
 use itertools::Itertools;
 
@@ -110,54 +111,64 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                         } else if let Some(parent_item_kind) =
                             item_at_offset.normalized_parent_item_syntax_kind()
                         {
-                            // Determines possible args by prefix or parent item kind.
-                            for possible_arg_kind in
-                                utils::valid_ink_args_by_syntax_kind(parent_item_kind)
-                                    .iter()
-                                    .filter(|arg_kind| {
-                                        focused_arg.map_or(true, |arg| {
-                                            arg.name().map_or(true, |arg_name| {
-                                                let name = arg_name.to_string();
-                                                name.is_empty()
-                                                    || arg_kind.to_string().starts_with(&name)
-                                            })
+                            // Determines possible args by prefix or parent item kind
+                            // (also accounts for parent scope).
+                            let mut possible_args =
+                                utils::valid_ink_args_by_syntax_kind(parent_item_kind);
+                            if let Some(attr_parent) = ink_attr
+                                .syntax()
+                                .parent()
+                                .filter(|it| it.kind() == parent_item_kind)
+                            {
+                                utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
+                                    &mut possible_args,
+                                    &attr_parent,
+                                );
+                            }
+                            for possible_arg_kind in possible_args
+                                .iter()
+                                .filter(|arg_kind| {
+                                    focused_arg.map_or(true, |arg| {
+                                        arg.name().map_or(true, |arg_name| {
+                                            let name = arg_name.to_string();
+                                            name.is_empty()
+                                                || arg_kind.to_string().starts_with(&name)
                                         })
                                     })
-                                    // Replaces complementary arguments with primary arguments (if possible).
-                                    // Useful for easier deduplication.
-                                    .flat_map(|arg_kind| {
-                                        if arg_kind.is_entity_type()
-                                            || *arg_kind == InkArgKind::Namespace
-                                        {
-                                            // Namespace is special (see `complementary_signature` inline docs).
+                                })
+                                // Replaces complementary arguments with primary arguments (if possible).
+                                // Useful for easier deduplication.
+                                .flat_map(|arg_kind| {
+                                    if arg_kind.is_entity_type()
+                                        || *arg_kind == InkArgKind::Namespace
+                                    {
+                                        // Namespace is special (see `complementary_signature` inline docs).
+                                        vec![*arg_kind]
+                                    } else {
+                                        let primary_args: Vec<InkArgKind> = [*arg_kind]
+                                            .into_iter()
+                                            .chain(utils::valid_sibling_ink_args(
+                                                InkAttributeKind::Arg(*arg_kind),
+                                            ))
+                                            .filter(|arg_kind| arg_kind.is_entity_type())
+                                            .collect();
+                                        if primary_args.is_empty() {
                                             vec![*arg_kind]
                                         } else {
-                                            let primary_args: Vec<InkArgKind> = [*arg_kind]
-                                                .into_iter()
-                                                .chain(utils::valid_sibling_ink_args(
-                                                    InkAttributeKind::Arg(*arg_kind),
-                                                ))
-                                                .filter(|arg_kind| arg_kind.is_entity_type())
-                                                .collect();
-                                            if primary_args.is_empty() {
-                                                vec![*arg_kind]
-                                            } else {
-                                                primary_args
-                                            }
+                                            primary_args
                                         }
-                                    })
-                                    .sorted()
-                                    // Deduplicates arguments by lite signature equivalence.
-                                    .unique_by(|arg_kind| {
-                                        utils::valid_sibling_ink_args(InkAttributeKind::Arg(
-                                            *arg_kind,
-                                        ))
+                                    }
+                                })
+                                .sorted()
+                                // Deduplicates arguments by lite signature equivalence.
+                                .unique_by(|arg_kind| {
+                                    utils::valid_sibling_ink_args(InkAttributeKind::Arg(*arg_kind))
                                         .iter()
                                         .chain([arg_kind])
                                         .map(ToString::to_string)
                                         .sorted()
                                         .join(",")
-                                    })
+                                })
                             {
                                 if possible_arg_kind.is_entity_type() {
                                     // Computes signature based on possible primary argument.
