@@ -1,7 +1,15 @@
-//! integration tests for ink! Language Server create project command.
+//! integration tests for ink! Language Server commands.
 
 mod utils;
 
+// Tests the create new project command.
+// The high-level methodology for the "creatProject" command test is:
+// - Send an LSP execute command request for "createProject" from client to server including a project name and uri.
+// - Retrieve the LSP execute command response sent from the server to the client
+//   (which should be an empty result that simply signifies that the server received the request).
+// - Retrieve the LSP workspace/applyEdit request sent from the server to the client which is triggered by the "createProject" command.
+// - Verify that the workspace edit creates the expected files and contents.
+// See inline comments for more details.
 #[test]
 fn create_project_command_works() {
     // Creates an in-memory connection to an initialized LSP server.

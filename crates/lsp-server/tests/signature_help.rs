@@ -8,7 +8,7 @@ mod utils;
 // The high-level methodology for signature help test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
 // - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
-// - Send the the modified source code from client to server via a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.
+// - Send the modified source code from client to server via a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.
 // - Send an LSP signature help request from client to server for the test case.
 // - Retrieve the LSP signature help response sent from the server to the client.
 // - Verify that the signature help response results match the expected results.
