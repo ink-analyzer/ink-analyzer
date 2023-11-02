@@ -161,6 +161,14 @@ impl MetaValue {
             value
         })
     }
+
+    /// Converts the value if it's a path expression into a `Path` with an inaccurate text range.
+    pub fn as_path_with_inaccurate_text_range(&self) -> Option<ast::Path> {
+        match &self.expr {
+            ast::Expr::PathExpr(path) => path.path(),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for MetaValue {

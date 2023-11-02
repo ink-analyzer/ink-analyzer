@@ -136,7 +136,7 @@ pub struct SelectorArg {
 }
 
 impl SelectorArg {
-    /// Returns true if the syntax node can be converted into an ink! impl item.
+    /// Returns true if the ink! argument can be converted into an ink! selector.
     pub fn can_cast(arg: &InkArg) -> bool {
         *arg.kind() == InkArgKind::Selector
     }
