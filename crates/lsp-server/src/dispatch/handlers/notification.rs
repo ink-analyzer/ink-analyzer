@@ -88,10 +88,11 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(
             memory.get(uri.as_ref()),
-            Some(&Document {
+            Some(Document {
                 content: content.clone(),
                 version
             })
+            .as_ref()
         );
 
         // Re-initializes memory, calls handler with parameters for an open NON-rust file and verifies that the file is NOT added to memory.
@@ -144,10 +145,11 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(
             memory.get(uri.as_ref()),
-            Some(&Document {
+            Some(Document {
                 content: updated_content,
                 version: updated_version
             })
+            .as_ref()
         );
     }
 

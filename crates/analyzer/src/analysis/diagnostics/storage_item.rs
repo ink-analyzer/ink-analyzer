@@ -130,7 +130,7 @@ mod tests {
             // Verifies quickfixes.
             let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
             assert!(fix.label.contains("Remove `#[ink::storage_item]`"));
-            assert_eq!(&fix.edits[0].text, "");
+            assert!(fix.edits[0].text.is_empty());
             assert_eq!(
                 fix.edits[0].range,
                 TextRange::new(

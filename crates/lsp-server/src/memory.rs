@@ -91,10 +91,11 @@ mod tests {
         // Retrieves document and verifies contents.
         assert_eq!(
             memory.get("1"),
-            Some(&Document {
+            Some(Document {
                 content: "A".to_string(),
                 version: 0
             })
+            .as_ref()
         );
         // Tries to retrieve non-existent document.
         assert_eq!(memory.get("0"), None);
@@ -103,10 +104,11 @@ mod tests {
         assert!(memory.update("1", "A1".to_string(), 1));
         assert_eq!(
             memory.get("1"),
-            Some(&Document {
+            Some(Document {
                 content: "A1".to_string(),
                 version: 1
             })
+            .as_ref()
         );
         // Verifies changes.
         assert_eq!(

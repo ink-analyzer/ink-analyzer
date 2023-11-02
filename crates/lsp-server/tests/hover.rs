@@ -97,7 +97,7 @@ fn hover_works() {
                 })
                 .unwrap();
             // Verifies that the hover response are for the current request.
-            assert_eq!(&resp.id, &req_id);
+            assert_eq!(resp.id, req_id);
 
             // Verifies expected hover content results.
             let expected_results = match test_case.results {

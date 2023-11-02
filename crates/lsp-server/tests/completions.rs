@@ -95,7 +95,7 @@ fn completions_works() {
                 })
                 .unwrap();
             // Verifies that the completion response is for the current request.
-            assert_eq!(&resp.id, &req_id);
+            assert_eq!(resp.id, req_id);
 
             // Verifies expected completion results.
             let expected_results = match test_case.results {

@@ -150,7 +150,7 @@ mod tests {
             .finish();
         assert!(result.is_some());
         let response = result.unwrap();
-        assert_eq!(&response.id, &req_id);
+        assert_eq!(response.id, req_id);
         assert!(response.result.is_some());
         assert!(response.error.is_none());
 
@@ -163,9 +163,9 @@ mod tests {
             .finish();
         assert!(result.is_some());
         let response = result.unwrap();
-        assert_eq!(&response.id, &req_id);
-        assert!(&response.result.is_none());
-        assert!(&response.error.is_some());
+        assert_eq!(response.id, req_id);
+        assert!(response.result.is_none());
+        assert!(response.error.is_some());
         let message = response.error.as_ref().unwrap().message.to_lowercase();
         assert!(message.contains("unknown") || message.contains("unsupported"));
 
@@ -181,9 +181,9 @@ mod tests {
             .finish();
         assert!(result.is_some());
         let response = result.unwrap();
-        assert_eq!(&response.id, &req_id_invalid);
-        assert!(&response.result.is_none());
-        assert!(&response.error.is_some());
+        assert_eq!(response.id, req_id_invalid);
+        assert!(response.result.is_none());
+        assert!(response.error.is_some());
         let message = response.error.as_ref().unwrap().message.to_lowercase();
         assert!(message.contains("invalid") && message.contains("parameters"));
     }

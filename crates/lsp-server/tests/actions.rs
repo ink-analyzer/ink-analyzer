@@ -96,7 +96,7 @@ fn actions_works() {
                 })
                 .unwrap();
             // Verifies that the code action response is for the current request.
-            assert_eq!(&resp.id, &req_id);
+            assert_eq!(resp.id, req_id);
 
             // Verifies expected code actions results.
             let code_action_response: lsp_types::CodeActionResponse =

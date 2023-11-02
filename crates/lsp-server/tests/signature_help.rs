@@ -94,7 +94,7 @@ fn signature_help_works() {
                 })
                 .unwrap();
             // Verifies that the signature help response is for the current request.
-            assert_eq!(&resp.id, &req_id);
+            assert_eq!(resp.id, req_id);
 
             // Verifies expected signature help results.
             let expected_results = match test_case.results {

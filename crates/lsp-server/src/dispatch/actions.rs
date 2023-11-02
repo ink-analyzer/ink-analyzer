@@ -92,7 +92,7 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.as_ref().unwrap().is_some());
         let params = &result.as_ref().unwrap().as_ref().unwrap()[0];
-        assert_eq!(&params.uri, &uri);
+        assert_eq!(params.uri, uri);
         // 3 Expected diagnostics for missing storage, constructor and message.
         assert_eq!(params.diagnostics.len(), 3);
     }

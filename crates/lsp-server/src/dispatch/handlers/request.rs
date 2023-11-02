@@ -480,7 +480,7 @@ mod tests {
         let signature_help = result.unwrap().unwrap();
         let signature_label = &signature_help.signatures[0].label;
         assert_eq!(
-            &signature_help.signatures[0].label,
+            signature_help.signatures[0].label,
             "env: impl Environment, keep_attr: &str"
         );
         let params: Vec<[u32; 2]> = signature_help.signatures[0]

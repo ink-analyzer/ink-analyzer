@@ -60,7 +60,7 @@ fn diagnostics_works() {
             // Verifies that the diagnostics response is for the current source file and modified version.
             let diagnostics_params: lsp_types::PublishDiagnosticsParams =
                 serde_json::from_value(diagnostics_notification.params).unwrap();
-            assert_eq!(&diagnostics_params.uri, &uri);
+            assert_eq!(diagnostics_params.uri, uri);
             assert_eq!(diagnostics_params.version.unwrap(), version);
             // Verifies expected diagnostics results.
             let results = diagnostics_params.diagnostics;

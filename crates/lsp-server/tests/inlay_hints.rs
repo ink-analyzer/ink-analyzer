@@ -94,7 +94,7 @@ fn inlay_hints_works() {
                 })
                 .unwrap();
             // Verifies that the inlay hints response is for the current request.
-            assert_eq!(&resp.id, &req_id);
+            assert_eq!(resp.id, req_id);
 
             // Verifies expected inlay hints results.
             let results: Vec<lsp_types::InlayHint> =

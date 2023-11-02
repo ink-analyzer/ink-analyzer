@@ -122,11 +122,11 @@ mod tests {
             _ => None,
         }
         .unwrap();
-        assert_eq!(&init_result_resp.id, &init_req_id);
+        assert_eq!(init_result_resp.id, init_req_id);
         // Verifies that an initialization result is created with the expected server name.
         let init_result: lsp_types::InitializeResult =
             serde_json::from_value(init_result_resp.result.unwrap()).unwrap();
-        assert_eq!(&init_result.server_info.unwrap().name, "ink-analyzer");
+        assert_eq!(init_result.server_info.unwrap().name, "ink-analyzer");
     }
 
     #[test]

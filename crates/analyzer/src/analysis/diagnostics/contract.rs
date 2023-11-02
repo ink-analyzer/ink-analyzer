@@ -1117,7 +1117,7 @@ mod tests {
                 let fix = &item.quickfixes.as_ref().unwrap()[0];
                 assert!(fix.label.contains("Remove"));
                 for edit in &fix.edits {
-                    assert_eq!(&edit.text, "");
+                    assert!(edit.text.is_empty());
                 }
             }
         }

@@ -310,7 +310,7 @@ mod tests {
         }
         .unwrap();
         assert_eq!(
-            &publish_diagnostics_notification.method,
+            publish_diagnostics_notification.method,
             lsp_types::notification::PublishDiagnostics::METHOD
         );
 
@@ -343,6 +343,6 @@ mod tests {
             _ => None,
         }
         .unwrap();
-        assert_eq!(&completion_response.id, &completion_request_id);
+        assert_eq!(completion_response.id, completion_request_id);
     }
 }
