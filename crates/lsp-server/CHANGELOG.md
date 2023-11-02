@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.12] - 2023-11-02
+
+- Signature help improvements.
+- Advertise server command capabilities and account for workspace edit client capabilities.
+- General robustness improvements for semantic analyzer.
+
 ## [0.2.11] - 2023-10-28
 
 - Add create project command.
