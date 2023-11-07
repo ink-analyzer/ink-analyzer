@@ -1,5 +1,5 @@
 # Base image.
-FROM rust:1.69-slim-bullseye
+FROM rust:1-slim-bullseye
 
 # Create app working directory.
 WORKDIR /app
