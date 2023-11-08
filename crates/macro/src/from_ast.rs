@@ -12,10 +12,9 @@ pub fn impl_from_ast(ast: &syn::DeriveInput) -> syn::Result<TokenStream> {
         if let Some(ast_field) = utils::find_field(fields, "ast") {
             let ir_crate_path = utils::get_normalized_ir_crate_path();
             let ast_field_type = &ast_field.ty;
-            let ast_type = if ast_field_type
-                .to_token_stream()
-                .to_string()
-                .starts_with("ast ::")
+            let ast_field_type_string = ast_field_type.to_token_stream().to_string();
+            let ast_type = if ast_field_type_string.starts_with("ast::")
+                || ast_field_type_string.starts_with("ast ::")
             {
                 quote! { #ast_field_type }
             } else {
