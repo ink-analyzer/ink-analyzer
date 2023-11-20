@@ -3,8 +3,8 @@
 use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, Event, FromInkAttribute, FromSyntax, InkArgKind, InkAttribute,
-    InkAttributeKind, InkFile, InkImpl, InkMacroKind, TraitDefinition,
+    ast, ChainExtension, Contract, Event, InkArgKind, InkAttribute, InkAttributeKind, InkEntity,
+    InkFile, InkImpl, InkMacroKind, TraitDefinition,
 };
 use itertools::Itertools;
 
@@ -274,7 +274,7 @@ fn item_ink_entity_actions(
         ast::Item::Module(module) => {
             match ink_analyzer_ir::ink_attrs(module.syntax())
                 .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::Contract))
-                .and_then(Contract::cast)
+                .and_then(ink_analyzer_ir::ink_attr_to_entity::<Contract>)
             {
                 Some(contract) => {
                     // Adds ink! storage if it doesn't exist.
@@ -363,7 +363,9 @@ fn item_ink_entity_actions(
                 if let InkAttributeKind::Macro(macro_kind) = attr.kind() {
                     match macro_kind {
                         InkMacroKind::ChainExtension => {
-                            if let Some(chain_extension) = ChainExtension::cast(attr) {
+                            if let Some(chain_extension) =
+                                ink_analyzer_ir::ink_attr_to_entity::<ChainExtension>(attr)
+                            {
                                 // Add `ErrorCode` if it doesn't exist.
                                 if chain_extension.error_code().is_none() {
                                     add_result(entity::add_error_code(
@@ -382,7 +384,9 @@ fn item_ink_entity_actions(
                             }
                         }
                         InkMacroKind::TraitDefinition => {
-                            if let Some(trait_definition) = TraitDefinition::cast(attr) {
+                            if let Some(trait_definition) =
+                                ink_analyzer_ir::ink_attr_to_entity::<TraitDefinition>(attr)
+                            {
                                 // Adds ink! message declaration.
                                 add_result(entity::add_message_to_trait_definition(
                                     &trait_definition,
@@ -400,7 +404,7 @@ fn item_ink_entity_actions(
         ast::Item::Struct(struct_item) => {
             if let Some(event) = ink_analyzer_ir::ink_attrs(struct_item.syntax())
                 .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
-                .and_then(Event::cast)
+                .and_then(ink_analyzer_ir::ink_attr_to_entity::<Event>)
             {
                 // Adds ink! topic.
                 add_result(entity::add_topic(
@@ -517,7 +521,7 @@ mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
     use ink_analyzer_ir::syntax::TextSize;
-    use ink_analyzer_ir::FromSyntax;
+    use ink_analyzer_ir::InkEntity;
     use test_utils::{parse_offset_at, TestResultAction, TestResultTextRange};
 
     #[test]

@@ -1,35 +1,28 @@
 //! ink! chain extension IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 use ra_ap_syntax::ast::HasName;
 
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkTrait};
-use crate::{Extension, InkAttrData, InkAttribute};
+use crate::traits::IsInkTrait;
+use crate::Extension;
 
 /// An ink! chain extension.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(macro_kind = ChainExtension)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChainExtension {
-    /// ink! attribute IR data.
-    #[macro_kind(ChainExtension)]
-    ink_attr: InkAttrData<ast::Trait>,
-    /// ink! extensions.
-    #[arg_kind(Extension)]
+    // ASTNode type.
+    ast: ast::Trait,
+    // ink! extensions.
     extensions: Vec<Extension>,
 }
 
 impl IsInkTrait for ChainExtension {
     fn trait_item(&self) -> Option<&ast::Trait> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 }
 
 impl ChainExtension {
-    /// Returns the ink! extensions for the ink! chain extension.
-    pub fn extensions(&self) -> &[Extension] {
-        &self.extensions
-    }
-
     /// Returns the `ErrorCode` associated types for the ink! chain extension.
     pub fn error_code(&self) -> Option<ast::TypeAlias> {
         self.trait_item()?
@@ -52,11 +45,12 @@ impl ChainExtension {
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::traits::InkEntity;
     use test_utils::quote_as_str;
 
     #[test]
     fn cast_works() {
-        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+        let node = parse_first_syntax_node(quote_as_str! {
             #[ink::chain_extension]
             pub trait MyChainExtension {
                 type ErrorCode = ();
@@ -69,7 +63,7 @@ mod tests {
             }
         });
 
-        let chain_extension = ChainExtension::cast(ink_attr).unwrap();
+        let chain_extension = ChainExtension::cast(node).unwrap();
 
         // 1 error code.
         assert!(chain_extension.error_code().is_some());

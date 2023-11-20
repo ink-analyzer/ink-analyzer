@@ -4,8 +4,8 @@ use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
 use ink_analyzer_ir::{
-    ast, Contract, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkAttributeKind,
-    InkMacroKind, IsInkCallable, IsInkEntity, Selector, SelectorArg, Storage,
+    ast, Contract, InkArg, InkArgKind, InkAttributeKind, InkEntity, InkMacroKind, IsInkCallable,
+    Selector, SelectorArg, Storage,
 };
 use std::collections::HashSet;
 
@@ -135,14 +135,21 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
             message: "ink! contracts must be inline `mod` items".to_string(),
             range: declaration_range,
             severity: Severity::Error,
-            quickfixes: Some(if contract.syntax().kind() == SyntaxKind::ITEM_LIST {
-                vec![Action::remove_attribute(contract.ink_attr())]
+            quickfixes: if contract.syntax().kind() == SyntaxKind::ITEM_LIST {
+                contract
+                    .ink_attr()
+                    .map(|attr| vec![Action::remove_attribute(attr)])
             } else {
-                vec![
-                    Action::remove_attribute(contract.ink_attr()),
-                    Action::remove_item(contract.syntax()),
-                ]
-            }),
+                contract
+                    .ink_attr()
+                    .map(|attr| {
+                        vec![
+                            Action::remove_attribute(attr),
+                            Action::remove_item(contract.syntax()),
+                        ]
+                    })
+                    .or(Some(vec![Action::remove_item(contract.syntax())]))
+            },
         }),
     }
 }
@@ -343,7 +350,7 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
 /// Returns all ink! selector arguments for a list of ink! callable entities.
 fn get_selector_args<T>(items: &[T]) -> Vec<SelectorArg>
 where
-    T: IsInkEntity,
+    T: InkEntity,
 {
     items
         .iter()
@@ -403,7 +410,7 @@ fn ensure_parent_contract<T>(
     ink_scope_name: &str,
 ) -> Option<Diagnostic>
 where
-    T: FromSyntax,
+    T: InkEntity,
 {
     let is_parent = match ink_analyzer_ir::ink_parent::<Contract>(item.syntax()) {
         Some(parent_contract) => parent_contract.syntax() == contract.syntax(),
@@ -523,9 +530,8 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, cont
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::verify_actions;
+    use crate::test_utils::*;
     use ink_analyzer_ir::syntax::{TextRange, TextSize};
-    use ink_analyzer_ir::InkFile;
     use quote::{format_ident, quote};
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -533,7 +539,7 @@ mod tests {
     };
 
     fn parse_first_contract(code: &str) -> Contract {
-        InkFile::parse(code).contracts().to_owned()[0].clone()
+        parse_first_ink_entity_of_type(code)
     }
 
     // List of valid minimal ink! contracts used for positive(`works`) tests for ink! contract verifying utilities.

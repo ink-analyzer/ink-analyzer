@@ -1,10 +1,7 @@
 //! ink! attribute signature help.
 
 use ink_analyzer_ir::syntax::{AstNode, TextRange, TextSize};
-use ink_analyzer_ir::{
-    FromAST, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkFile,
-    IsInkEntity,
-};
+use ink_analyzer_ir::{InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkEntity, InkFile};
 use itertools::Itertools;
 
 use crate::analysis::utils;

@@ -2,8 +2,7 @@
 
 use ink_analyzer_ir::ast::AstNode;
 use ink_analyzer_ir::{
-    ast, FromInkAttribute, FromSyntax, InkArgKind, InkAttributeKind, IsInkTrait, Message,
-    TraitDefinition,
+    ast, InkArgKind, InkAttributeKind, InkEntity, IsInkTrait, Message, TraitDefinition,
 };
 
 use super::{message, utils};
@@ -75,8 +74,8 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L210-L288>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L298-L322>.
             // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L290-L296>.
-            if let Some(message_item) =
-                ink_analyzer_ir::ink_attrs(fn_item.syntax()).find_map(Message::cast)
+            if let Some(message_item) = ink_analyzer_ir::ink_attrs(fn_item.syntax())
+                .find_map(ink_analyzer_ir::ink_attr_to_entity::<Message>)
             {
                 // Runs ink! message diagnostics, see `message::diagnostics` doc.
                 message::diagnostics(results, &message_item);
@@ -221,9 +220,8 @@ fn ensure_valid_quasi_direct_ink_descendants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::verify_actions;
+    use crate::test_utils::*;
     use ink_analyzer_ir::syntax::{TextRange, TextSize};
-    use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity};
     use quote::{format_ident, quote};
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -231,14 +229,7 @@ mod tests {
     };
 
     fn parse_first_trait_definition(code: &str) -> TraitDefinition {
-        TraitDefinition::cast(
-            InkFile::parse(code)
-                .tree()
-                .ink_attrs_in_scope()
-                .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::TraitDefinition))
-                .unwrap(),
-        )
-        .unwrap()
+        parse_first_ink_entity_of_type(code)
     }
 
     // List of valid minimal ink! trait definitions used for positive(`works`) tests for ink! trait definition verifying utilities.

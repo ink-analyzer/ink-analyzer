@@ -1,7 +1,7 @@
 //! A text edit.
 
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, TextRange, TextSize};
-use ink_analyzer_ir::{FromSyntax, InkFile};
+use ink_analyzer_ir::{InkEntity, InkFile};
 use once_cell::sync::Lazy;
 use regex::Regex;
 

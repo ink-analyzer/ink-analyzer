@@ -5,9 +5,8 @@ use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 use ink_analyzer_ir::{
-    ast, Contract, FromAST, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
-    InkAttribute, InkAttributeKind, InkImpl, InkMacroKind, IsInkEntity, IsInkStruct, IsInkTrait,
-    Storage,
+    ast, Contract, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind, InkAttribute,
+    InkAttributeKind, InkEntity, InkImpl, InkMacroKind, IsInkStruct, IsInkTrait, Storage,
 };
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -866,7 +865,7 @@ pub fn item_children_indenting(node: &SyntaxNode) -> String {
 }
 
 /// Returns the deepest syntax element that fully covers text range (if any).
-pub fn focused_element<T: FromSyntax>(item: &T, range: TextRange) -> Option<SyntaxElement> {
+pub fn focused_element<T: InkEntity>(item: &T, range: TextRange) -> Option<SyntaxElement> {
     if range.is_empty() {
         // Uses item at offset utility if the range start and end are equal.
         item.item_at_offset(range.start())
@@ -886,7 +885,7 @@ pub fn focused_element<T: FromSyntax>(item: &T, range: TextRange) -> Option<Synt
 }
 
 /// Returns the covering attribute for the text range (if any).
-pub fn covering_attribute<T: FromSyntax>(item: &T, range: TextRange) -> Option<ast::Attr> {
+pub fn covering_attribute<T: InkEntity>(item: &T, range: TextRange) -> Option<ast::Attr> {
     if range.is_empty() {
         // Uses item at offset utility if the range start and end are equal.
         // This way we keep some of the guarantees about parent AST items for unclosed attributes that
@@ -909,12 +908,12 @@ pub fn covering_attribute<T: FromSyntax>(item: &T, range: TextRange) -> Option<a
 }
 
 /// Returns the covering ink! attribute for the text range (if any).
-pub fn covering_ink_attribute<T: FromSyntax>(item: &T, range: TextRange) -> Option<InkAttribute> {
+pub fn covering_ink_attribute<T: InkEntity>(item: &T, range: TextRange) -> Option<InkAttribute> {
     covering_attribute(item, range).and_then(InkAttribute::cast)
 }
 
 /// Returns the parent AST item for the text range (if any).
-pub fn parent_ast_item<T: FromSyntax>(item: &T, range: TextRange) -> Option<ast::Item> {
+pub fn parent_ast_item<T: InkEntity>(item: &T, range: TextRange) -> Option<ast::Item> {
     if range.is_empty() {
         // Uses item at offset utility if the range start and end are equal.
         // This way we keep some of the guarantees about parent AST items for unclosed attributes that
@@ -1490,13 +1489,13 @@ pub fn callable_insert_offset_indent_and_affixes(
                 _ => None,
             })
         })
+        .as_ref()
         // Gets the first non-trait ink! `impl` block (if any).
         .or(contract
             .impls()
             .iter()
             .find(|it| it.trait_type().is_none())
             .and_then(InkImpl::impl_item))
-        .as_ref()
         .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
         .map(|(impl_item, assoc_item_list)| {
             // Sets insert offset at the end of the associated items list, insert indent based on `impl` block with no affixes.
@@ -1636,7 +1635,7 @@ pub fn ink_impl_declaration_range(ink_impl: &InkImpl) -> TextRange {
 /// (i.e tokens between meta - attributes/rustdoc - and the start of the item list) for a trait-based ink! entity.
 pub fn ink_trait_declaration_range<T>(ink_trait_item: &T) -> TextRange
 where
-    T: FromSyntax + IsInkTrait,
+    T: InkEntity + IsInkTrait,
 {
     ink_trait_item
         .trait_item()

@@ -15,22 +15,19 @@ cargo add ink-analyzer-macro
 ## Usage
 
 ### Example:
-Using custom derive macros for the `FromInkAttribute` and `FromSyntax` traits to create a `Contract` type.
+Using `ink_analyzer_macro::entity` proc-macro to create a `Contract` type.
 
 ```rust
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-use ink_analyzer_ir::{Event, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Message, Storage};
+use ink_analyzer_ir::{Event, Message, Storage};
 use ink_analyzer_ir::ast;
 
-#[derive(FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(macro_kind = Contract)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Contract {
-    #[macro_kind(Contract)]
-    ink_attr: InkAttrData<ast::Module>,
-    #[arg_kind(Storage)]
+    ast: ast::Module,
     storage: Option<Storage>,
-    #[arg_kind(Event)]
     events: Vec<Event>,
-    #[arg_kind(Message)]
+    #[initializer(call = ink_analyzer_ir::ink_callable_closest_descendants)]
     messages: Vec<Message>,
     // --snip--
 }

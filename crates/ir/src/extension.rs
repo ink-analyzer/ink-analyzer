@@ -1,23 +1,22 @@
 //! ink! extension IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkFn};
+use crate::traits::{InkEntity, IsInkFn};
 use crate::tree::utils;
-use crate::{InkArg, InkArgKind, InkAttrData, InkAttribute};
+use crate::{InkArg, InkArgKind};
 
 /// An ink! extension.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(arg_kind = Extension)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Extension {
-    /// ink! attribute IR data.
-    #[arg_kind(Extension)]
-    ink_attr: InkAttrData<ast::Fn>,
+    // ASTNode type.
+    ast: ast::Fn,
 }
 
 impl IsInkFn for Extension {
     fn fn_item(&self) -> Option<&ast::Fn> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 }
 
@@ -77,9 +76,9 @@ mod tests {
                 true,
             ),
         ] {
-            let ink_attr = parse_first_ink_attribute(code);
+            let node = parse_first_syntax_node(code);
 
-            let extension = Extension::cast(ink_attr).unwrap();
+            let extension = Extension::cast(node).unwrap();
 
             // `extension_arg` argument exists.
             assert!(extension.extension_arg().is_some());

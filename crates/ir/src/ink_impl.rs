@@ -1,62 +1,62 @@
 //! ink! impl IR.
 
-use ink_analyzer_macro::FromSyntax;
 use ra_ap_syntax::ast::HasName;
 use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkEntity};
+use crate::traits::InkEntity;
 use crate::tree::utils;
 use crate::{
     Constructor, InkArg, InkArgKind, InkAttribute, InkAttributeKind, Message, TraitDefinition,
 };
 
 /// An ink! impl block.
-#[derive(Debug, Clone, PartialEq, Eq, FromSyntax)]
+#[ink_analyzer_macro::entity(call = self::can_cast)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InkImpl {
-    /// ink! constructors.
+    // ASTNode type.
+    ast: ast::Impl,
+    // ink! constructors.
     constructors: Vec<Constructor>,
-    /// ink! messages.
+    // ink! messages.
     messages: Vec<Message>,
-    /// Syntax node for ink! impl.
-    syntax: SyntaxNode,
+}
+
+// Returns true if the syntax node can be converted into an ink! impl item.
+//
+// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
+fn can_cast(node: &SyntaxNode) -> bool {
+    // Has ink! impl attribute.
+    utils::ink_attrs(node)
+        .any(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
+        // Is an `impl` item and has any ink! constructor or ink! message annotated descendants.
+        || (ast::Impl::can_cast(node.kind())
+        && utils::ink_attrs_closest_descendants(node)
+        .any(|attr| {
+            matches!(attr.kind(), InkAttributeKind::Arg(InkArgKind::Constructor | InkArgKind::Message))
+        }))
 }
 
 impl InkImpl {
-    /// Returns true if the syntax node can be converted into an ink! impl item.
-    ///
-    /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
-    pub fn can_cast(node: &SyntaxNode) -> bool {
-        // Has ink! impl attribute.
-        utils::ink_attrs(node)
-            .any(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
-            // Is an `impl` item and has any ink! constructor or ink! message annotated descendants.
-            || (ast::Impl::can_cast(node.kind())
-                && utils::ink_attrs_closest_descendants(node)
-                    .any(|attr| {
-                        matches!(
-                            attr.kind(),
-                            InkAttributeKind::Arg(InkArgKind::Constructor | InkArgKind::Message)
-                        )
-                    }))
-    }
-
-    /// Converts a syntax node into an ink! impl item (if possible).
-    pub fn cast(node: SyntaxNode) -> Option<Self> {
-        Self::can_cast(&node).then_some(Self {
-            constructors: utils::ink_closest_descendants(&node).collect(),
-            messages: utils::ink_closest_descendants(&node).collect(),
-            syntax: node,
-        })
-    }
-
     /// Returns the `impl` item (if any) for the ink! impl.
-    pub fn impl_item(&self) -> Option<ast::Impl> {
-        ast::Impl::cast(self.syntax.clone())
+    pub fn impl_item(&self) -> Option<&ast::Impl> {
+        self.ast.as_ref()
     }
 
     /// Returns the trait type (if any) for the ink! impl.
     pub fn trait_type(&self) -> Option<ast::Type> {
         self.impl_item().and_then(|impl_item| impl_item.trait_())
+    }
+
+    /// Returns the ink! impl attribute (if any).
+    pub fn impl_attr(&self) -> Option<InkAttribute> {
+        self.tree()
+            .ink_attrs()
+            .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
+    }
+
+    /// Returns the ink! impl namespace argument (if any).
+    pub fn namespace_arg(&self) -> Option<InkArg> {
+        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Namespace)
     }
 
     /// Returns the ink! trait definition (if any) for the ink! impl.
@@ -81,49 +81,18 @@ impl InkImpl {
                         })
                         .and_then(|trait_item| {
                             utils::ink_attrs(trait_item.syntax())
-                                .find_map(|attr| TraitDefinition::cast(attr.clone()))
+                                .find_map(|attr| TraitDefinition::cast(attr.syntax().clone()))
                         })
                 })
             })
-    }
-
-    /// Returns the ink! impl attribute (if any).
-    pub fn impl_attr(&self) -> Option<InkAttribute> {
-        self.tree()
-            .ink_attrs()
-            .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
-    }
-
-    /// Returns the ink! impl namespace argument (if any).
-    pub fn namespace_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(&self.syntax, InkArgKind::Namespace)
-    }
-
-    /// Returns the ink! constructors for the ink! impl.
-    pub fn constructors(&self) -> &[Constructor] {
-        &self.constructors
-    }
-
-    /// Returns the ink! messages for the ink! impl.
-    pub fn messages(&self) -> &[Message] {
-        &self.messages
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ra_ap_syntax::SourceFile;
+    use crate::test_utils::parse_first_ast_node_of_type;
     use test_utils::quote_as_str;
-
-    pub fn parse_first_impl_item(code: &str) -> ast::Impl {
-        SourceFile::parse(code)
-            .tree()
-            .syntax()
-            .descendants()
-            .find_map(ast::Impl::cast)
-            .unwrap()
-    }
 
     #[test]
     fn cast_works() {
@@ -260,7 +229,7 @@ mod tests {
                 false,
             ),
         ] {
-            let impl_item = parse_first_impl_item(code);
+            let impl_item: ast::Impl = parse_first_ast_node_of_type(code);
 
             let ink_impl = InkImpl::cast(impl_item.syntax().clone()).unwrap();
 

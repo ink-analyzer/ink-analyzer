@@ -6,9 +6,8 @@ use ink_analyzer_ir::syntax::{
     SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
 };
 use ink_analyzer_ir::{
-    ast, Contract, FromInkAttribute, FromSyntax, InkArg, InkArgKind, InkArgValueKind,
-    InkArgValueStringKind, InkAttribute, InkAttributeKind, InkMacroKind, IsInkEntity, IsInkFn,
-    IsInkImplItem, IsInkStruct, IsInkTrait,
+    ast, Contract, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind, InkAttribute,
+    InkAttributeKind, InkEntity, InkMacroKind, IsInkFn, IsInkImplItem, IsInkStruct, IsInkTrait,
 };
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -20,7 +19,7 @@ use crate::{Action, ActionKind, Diagnostic, Severity};
 /// Runs generic diagnostics that apply to all ink! entities.
 /// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
 /// `ensure_no_duplicate_attributes_and_arguments`, `ensure_valid_attribute_arguments`).
-pub fn run_generic_diagnostics<T: FromSyntax>(results: &mut Vec<Diagnostic>, item: &T) {
+pub fn run_generic_diagnostics<T: InkEntity>(results: &mut Vec<Diagnostic>, item: &T) {
     // Ensures that no `__ink_` prefixed identifiers, see `ensure_no_ink_identifiers` doc.
     ensure_no_ink_identifiers(results, item);
 
@@ -65,7 +64,7 @@ pub fn run_generic_diagnostics<T: FromSyntax>(results: &mut Vec<Diagnostic>, ite
 /// Returns an error diagnostic for every instance of `__ink_` prefixed identifier found.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/idents_lint.rs#L20>.
-fn ensure_no_ink_identifiers<T: FromSyntax>(results: &mut Vec<Diagnostic>, item: &T) {
+fn ensure_no_ink_identifiers<T: InkEntity>(results: &mut Vec<Diagnostic>, item: &T) {
     for elem in item.syntax().descendants_with_tokens() {
         if let Some(ident) = elem.into_token().and_then(ast::Ident::cast) {
             let name = ident.to_string();
@@ -880,7 +879,7 @@ pub fn ensure_exactly_one_item<T>(
     error_too_many: &str,
     severity_too_many: Severity,
 ) where
-    T: FromSyntax + FromInkAttribute,
+    T: InkEntity,
 {
     if items.is_empty() {
         results.push(empty_diagnostic);
@@ -896,7 +895,7 @@ pub fn ensure_at_most_one_item<T>(
     message: &str,
     severity: Severity,
 ) where
-    T: FromSyntax + FromInkAttribute,
+    T: InkEntity,
 {
     if items.len() > 1 {
         for item in &items[1..] {
@@ -904,10 +903,15 @@ pub fn ensure_at_most_one_item<T>(
                 message: message.to_string(),
                 range: item.syntax().text_range(),
                 severity,
-                quickfixes: Some(vec![
-                    Action::remove_attribute(item.ink_attr()),
-                    Action::remove_item(item.syntax()),
-                ]),
+                quickfixes: Some(item.ink_attr().map_or(
+                    vec![Action::remove_item(item.syntax())],
+                    |attr| {
+                        vec![
+                            Action::remove_attribute(attr),
+                            Action::remove_item(item.syntax()),
+                        ]
+                    },
+                )),
             });
         }
     }
@@ -916,7 +920,7 @@ pub fn ensure_at_most_one_item<T>(
 /// Ensures that ink! entity is a `struct` with `pub` visibility.
 pub fn ensure_pub_struct<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + FromInkAttribute + IsInkStruct,
+    T: InkEntity + IsInkStruct,
 {
     match item.struct_item() {
         Some(struct_item) => {
@@ -955,7 +959,9 @@ where
             message: format!("ink! {ink_scope_name} must be a `struct` item.",),
             range: item.syntax().text_range(),
             severity: Severity::Error,
-            quickfixes: Some(vec![Action::remove_attribute(item.ink_attr())]),
+            quickfixes: item
+                .ink_attr()
+                .map(|attr| vec![Action::remove_attribute(attr)]),
         }),
     }
 }
@@ -963,26 +969,30 @@ where
 /// Ensures that ink! entity is an `fn` item.
 pub fn ensure_fn<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + FromInkAttribute + IsInkFn,
+    T: InkEntity + IsInkFn,
 {
     item.fn_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be an `fn` item.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
-        quickfixes: Some(vec![Action::remove_attribute(item.ink_attr())]),
+        quickfixes: item
+            .ink_attr()
+            .map(|attr| vec![Action::remove_attribute(attr)]),
     })
 }
 
 /// Ensures that ink! entity is a `trait` item.
 pub fn ensure_trait<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + FromInkAttribute + IsInkTrait,
+    T: InkEntity + IsInkTrait,
 {
     item.trait_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be a `trait` item.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
-        quickfixes: Some(vec![Action::remove_attribute(item.ink_attr())]),
+        quickfixes: item
+            .ink_attr()
+            .map(|attr| vec![Action::remove_attribute(attr)]),
     })
 }
 
@@ -1404,7 +1414,7 @@ pub fn ensure_trait_item_invariants<F, G>(
 /// Ensures that item is defined in the root of an ink! contract.
 pub fn ensure_contract_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax,
+    T: InkEntity,
 {
     let has_contract_parent = ink_analyzer_ir::ink_parent::<Contract>(item.syntax()).is_some();
     (!has_contract_parent).then_some(Diagnostic {
@@ -1433,7 +1443,7 @@ where
 /// Ensures that item is defined in the root of an `impl` item.
 pub fn ensure_impl_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: FromSyntax + IsInkImplItem,
+    T: InkEntity + IsInkImplItem,
 {
     item.impl_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be defined in the root of an `impl` block."),
@@ -1487,7 +1497,7 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
     item: &T,
     is_valid_quasi_direct_descendant: F,
 ) where
-    T: FromSyntax,
+    T: InkEntity,
     F: Fn(&InkAttribute) -> bool,
 {
     for attr in item.tree().ink_attrs_closest_descendants().filter(|it| {
@@ -1531,7 +1541,7 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
 /// Ensures that no ink! descendants in the item's scope.
 pub fn ensure_no_ink_descendants<T>(results: &mut Vec<Diagnostic>, item: &T, ink_scope_name: &str)
 where
-    T: FromSyntax,
+    T: InkEntity,
 {
     for attr in item.tree().ink_attrs_descendants().filter(|it| {
         !matches!(

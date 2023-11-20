@@ -3,7 +3,7 @@
 use ink_analyzer_ir::ast::{AstNode, HasName, HasVisibility, Trait};
 use ink_analyzer_ir::syntax::{SyntaxNode, TextRange};
 use ink_analyzer_ir::{
-    ast, FromSyntax, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkImpl, IsInkFn,
+    ast, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkEntity, InkImpl, IsInkFn,
     IsInkImplItem, IsInkTrait, Message,
 };
 use itertools::Itertools;
@@ -129,7 +129,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             });
         }
 
-        if let Some(diagnostic) = utils::ensure_no_generics(&impl_item, IMPL_SCOPE_NAME) {
+        if let Some(diagnostic) = utils::ensure_no_generics(impl_item, IMPL_SCOPE_NAME) {
             results.push(diagnostic);
         }
 
@@ -303,7 +303,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
 /// Ensures that item is defined in the root of this specific `impl` item.
 fn ensure_parent_impl<T>(ink_impl: &InkImpl, item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: IsInkImplItem + IsInkFn + FromSyntax,
+    T: IsInkImplItem + IsInkFn + InkEntity,
 {
     let is_parent = item.impl_item().map_or(false, |parent_impl_item| {
         parent_impl_item.syntax() == ink_impl.syntax()
@@ -913,7 +913,7 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, ink_
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::verify_actions;
+    use crate::test_utils::*;
     use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::InkFile;
     use quote::quote;
@@ -923,11 +923,7 @@ mod tests {
     };
 
     fn parse_first_ink_impl(code: &str) -> InkImpl {
-        InkFile::parse(code)
-            .syntax()
-            .descendants()
-            .find_map(InkImpl::cast)
-            .unwrap()
+        parse_first_ink_entity_of_type(code)
     }
 
     // List of valid minimal ink! impls used for positive(`works`) tests for ink! impl verifying utilities.

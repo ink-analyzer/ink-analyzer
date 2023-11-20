@@ -127,20 +127,12 @@ fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::verify_actions;
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
+    use crate::test_utils::*;
     use quote::quote;
     use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
     fn parse_first_message(code: &str) -> Message {
-        Message::cast(
-            InkFile::parse(code)
-                .tree()
-                .ink_attrs_in_scope()
-                .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Message))
-                .unwrap(),
-        )
-        .unwrap()
+        parse_first_ink_entity_of_type(code)
     }
 
     // List of valid minimal ink! messages used for positive(`works`) tests for ink! message verifying utilities.

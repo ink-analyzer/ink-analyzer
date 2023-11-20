@@ -3,8 +3,7 @@
 use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::{
-    ast, ChainExtension, Extension, FromInkAttribute, FromSyntax, InkArg, InkArgKind,
-    InkAttributeKind, IsInkTrait,
+    ast, ChainExtension, Extension, InkArg, InkArgKind, InkAttributeKind, InkEntity, IsInkTrait,
 };
 use std::collections::HashSet;
 
@@ -80,7 +79,9 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                 // All trait functions should be ink! extensions.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L447-L464>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L501>.
-                match ink_analyzer_ir::ink_attrs(fn_item.syntax()).find_map(Extension::cast) {
+                match ink_analyzer_ir::ink_attrs(fn_item.syntax())
+                    .find_map(ink_analyzer_ir::ink_attr_to_entity::<Extension>)
+                {
                     // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
                     Some(extension_item) => extension::diagnostics(results, &extension_item),
                     // Add diagnostic if function isn't an ink! extension.
@@ -285,15 +286,20 @@ fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &Ch
                 // Determines text range for the argument value.
                 let value_range_option = extension
                     .ink_attr()
-                    .args()
-                    .iter()
-                    .find(|it| *it.kind() == InkArgKind::Extension)
+                    .and_then(|attr| {
+                        attr.args()
+                            .iter()
+                            .find(|it| *it.kind() == InkArgKind::Extension)
+                    })
                     .and_then(InkArg::value)
                     .map(MetaValue::text_range);
                 results.push(Diagnostic {
-                    message: "Extension ids must be unique across all ink! extensions in an ink! chain extension."
+                    message: "Extension ids must be unique across all ink! extensions \
+                    in an ink! chain extension."
                         .to_string(),
-                    range: value_range_option.unwrap_or(extension.ink_attr().syntax().text_range()),
+                    range: value_range_option
+                        .or(extension.ink_attr().map(|attr| attr.syntax().text_range()))
+                        .unwrap_or(extension.syntax().text_range()),
                     severity: Severity::Error,
                     quickfixes: value_range_option.map(|range| {
                         let suggested_id = analysis_utils::suggest_unique_id(
@@ -346,9 +352,9 @@ fn init_unavailable_ids(chain_extension: &ChainExtension) -> HashSet<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::verify_actions;
+    use crate::test_utils::*;
     use ink_analyzer_ir::syntax::{TextRange, TextSize};
-    use ink_analyzer_ir::{InkFile, InkMacroKind, IsInkEntity, IsInkTrait};
+    use ink_analyzer_ir::IsInkTrait;
     use quote::quote;
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -356,14 +362,7 @@ mod tests {
     };
 
     fn parse_first_chain_extension(code: &str) -> ChainExtension {
-        ChainExtension::cast(
-            InkFile::parse(code)
-                .tree()
-                .ink_attrs_in_scope()
-                .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::ChainExtension))
-                .unwrap(),
-        )
-        .unwrap()
+        parse_first_ink_entity_of_type(code)
     }
 
     // List of valid minimal ink! chain extensions used for positive(`works`) tests for ink! chain extension verifying utilities.

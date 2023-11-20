@@ -41,7 +41,7 @@
 pub use self::{
     attrs::{
         meta, InkArg, InkArgKind, InkArgValueKind, InkArgValuePathKind, InkArgValueStringKind,
-        InkAttrData, InkAttribute, InkAttributeKind, InkMacroKind,
+        InkAttribute, InkAttributeKind, InkMacroKind,
     },
     chain_extension::ChainExtension,
     constructor::Constructor,
@@ -58,19 +58,16 @@ pub use self::{
     storage_item::StorageItem,
     topic::Topic,
     trait_definition::TraitDefinition,
-    traits::{
-        FromAST, FromInkAttribute, FromSyntax, IsInkCallable, IsInkEntity, IsInkFn, IsInkImplItem,
-        IsInkStruct, IsInkTrait, IsSyntax,
-    },
+    traits::{InkEntity, IsInkCallable, IsInkFn, IsInkImplItem, IsInkStruct, IsInkTrait, IsSyntax},
     tree::ast_ext::{
         closest_ancestor_ast_type, closest_item_which, closest_non_trivia_token, parent_ast_item,
     },
     tree::utils::{
-        attrs, ink_ancestors, ink_arg_by_kind, ink_args, ink_args_by_kind, ink_attrs,
-        ink_attrs_ancestors, ink_attrs_closest_ancestors, ink_attrs_closest_descendants,
+        attrs, ink_ancestors, ink_arg_by_kind, ink_args, ink_args_by_kind, ink_attr_to_entity,
+        ink_attrs, ink_attrs_ancestors, ink_attrs_closest_ancestors, ink_attrs_closest_descendants,
         ink_attrs_descendants, ink_attrs_in_scope, ink_callable_closest_descendants,
         ink_closest_ancestors, ink_closest_descendants, ink_descendants,
-        ink_impl_closest_descendants, ink_parent,
+        ink_impl_closest_descendants, ink_parent, ink_peekable_quasi_closest_descendants,
     },
     tree::{InkTree, ItemAtOffset},
 };
@@ -99,6 +96,7 @@ mod trait_definition;
 
 mod iter;
 mod selector;
-mod test_utils;
 mod traits;
 mod tree;
+
+mod test_utils;

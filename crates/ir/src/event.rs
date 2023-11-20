@@ -1,26 +1,24 @@
 //! ink! event IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkStruct};
+use crate::traits::{InkEntity, IsInkStruct};
 use crate::tree::utils;
-use crate::{InkArg, InkArgKind, InkAttrData, InkAttribute, Topic};
+use crate::{InkArg, InkArgKind, Topic};
 
 /// An ink! event.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(arg_kind = Event)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
-    /// ink! attribute IR data.
-    #[arg_kind(Event)]
-    ink_attr: InkAttrData<ast::Struct>,
-    /// ink! topics.
-    #[arg_kind(Topic)]
+    // ASTNode type.
+    ast: ast::Struct,
+    // ink! topics.
     topics: Vec<Topic>,
 }
 
 impl IsInkStruct for Event {
     fn struct_item(&self) -> Option<&ast::Struct> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 }
 
@@ -28,11 +26,6 @@ impl Event {
     /// Returns the ink! anonymous argument (if any) for the ink! event.
     pub fn anonymous_arg(&self) -> Option<InkArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::Anonymous)
-    }
-
-    /// Returns the ink! topic fields for the ink! event.
-    pub fn topics(&self) -> &[Topic] {
-        &self.topics
     }
 }
 
@@ -95,9 +88,9 @@ mod tests {
                 2,
             ),
         ] {
-            let ink_attr = parse_first_ink_attribute(code);
+            let node = parse_first_syntax_node(code);
 
-            let event = Event::cast(ink_attr).unwrap();
+            let event = Event::cast(node).unwrap();
 
             // `anonymous` argument exists.
             assert_eq!(event.anonymous_arg().is_some(), is_anonymous);

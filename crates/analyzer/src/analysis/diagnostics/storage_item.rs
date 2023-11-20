@@ -1,6 +1,6 @@
 //! ink! storage item diagnostics.
 
-use ink_analyzer_ir::{FromInkAttribute, FromSyntax, StorageItem};
+use ink_analyzer_ir::{InkEntity, StorageItem};
 
 use super::utils;
 use crate::{Action, Diagnostic, Severity};
@@ -40,20 +40,21 @@ fn ensure_adt(storage_item: &StorageItem) -> Option<Diagnostic> {
     storage_item.adt().is_none().then_some(Diagnostic {
         message: format!(
             "`{}` can only be applied to an `enum`, `struct` or `union` item.",
-            storage_item.ink_attr().syntax()
+            storage_item.ink_attr()?.syntax()
         ),
         range: storage_item.syntax().text_range(),
         severity: Severity::Error,
-        quickfixes: Some(vec![Action::remove_attribute(storage_item.ink_attr())]),
+        quickfixes: storage_item
+            .ink_attr()
+            .map(|attr| vec![Action::remove_attribute(attr)]),
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::verify_actions;
+    use crate::test_utils::*;
     use ink_analyzer_ir::syntax::{TextRange, TextSize};
-    use ink_analyzer_ir::{InkAttributeKind, InkFile, InkMacroKind, IsInkEntity};
     use quote::quote;
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -61,14 +62,7 @@ mod tests {
     };
 
     fn parse_first_storage_item(code: &str) -> StorageItem {
-        StorageItem::cast(
-            InkFile::parse(code)
-                .tree()
-                .ink_attrs_in_scope()
-                .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem))
-                .unwrap(),
-        )
-        .unwrap()
+        parse_first_ink_entity_of_type(code)
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::syntax::{AstNode, TextRange, TextSize};
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, Event, FromSyntax, IsInkStruct, IsInkTrait, TraitDefinition,
+    ast, ChainExtension, Contract, Event, InkEntity, IsInkStruct, IsInkTrait, TraitDefinition,
 };
 
 use super::{Action, ActionKind};

@@ -5,11 +5,8 @@ use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use super::ast_ext;
 use crate::iter::IterSuccessors;
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkImplItem};
-use crate::{
-    Constructor, InkArg, InkArgKind, InkAttrData, InkAttribute, InkAttributeKind, InkImpl,
-    InkMacroKind, Message,
-};
+use crate::traits::{InkEntity, IsInkImplItem};
+use crate::{Constructor, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkImpl, Message};
 
 /// Returns attributes for the syntax node.
 pub fn attrs(node: &SyntaxNode) -> impl Iterator<Item = ast::Attr> {
@@ -121,53 +118,62 @@ pub fn ink_arg_by_kind(node: &SyntaxNode, kind: InkArgKind) -> Option<InkArg> {
     ink_attrs(node).find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == kind).cloned())
 }
 
+/// Converts an ink attribute to an ink! entity (if possible).
+pub fn ink_attr_to_entity<T>(attr: InkAttribute) -> Option<T>
+where
+    T: InkEntity,
+{
+    T::cast(attr.syntax().clone())
+}
+
 /// Returns the syntax node's descendant ink! entities of IR type `T`.
 pub fn ink_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
-    T: FromInkAttribute,
+    T: InkEntity,
 {
-    ink_attrs_descendants(node).filter_map(T::cast)
+    ink_attrs_descendants(node).filter_map(ink_attr_to_entity)
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T` that don't have any
 /// ink! ancestor between them and the current node.
 pub fn ink_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
-    T: FromInkAttribute,
+    T: InkEntity,
 {
-    ink_attrs_closest_descendants(node).filter_map(T::cast)
+    ink_attrs_closest_descendants(node).filter_map(ink_attr_to_entity)
 }
 
 /// Returns the syntax node's parent ink! entity of IR type `T` (if any).
 pub fn ink_parent<T>(node: &SyntaxNode) -> Option<T>
 where
-    T: FromInkAttribute,
+    T: InkEntity,
 {
-    ast_ext::parent_ast_item(node).and_then(|parent| ink_attrs(parent.syntax()).find_map(T::cast))
+    ast_ext::parent_ast_item(node)
+        .and_then(|parent| ink_attrs(parent.syntax()).find_map(ink_attr_to_entity))
 }
 
 /// Returns the syntax node's ancestor ink! entities of IR type `T`.
 pub fn ink_ancestors<'a, T>(node: &'a SyntaxNode) -> impl Iterator<Item = T> + 'a
 where
-    T: FromInkAttribute + 'a,
+    T: InkEntity + 'a,
 {
-    ink_attrs_ancestors(node).filter_map(T::cast)
+    ink_attrs_ancestors(node).filter_map(ink_attr_to_entity)
 }
 
 /// Returns the syntax node's ancestor ink! entities of IR type `T` that don't have any
 /// ink! descendant between them and the current node.
 pub fn ink_closest_ancestors<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
-    T: FromInkAttribute,
+    T: InkEntity,
 {
-    ink_attrs_closest_ancestors(node).filter_map(T::cast)
+    ink_attrs_closest_ancestors(node).filter_map(ink_attr_to_entity)
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
 /// ink! ancestor or only have an ink! impl entity between them and the current node.
 pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
-    T: FromSyntax + FromInkAttribute + IsInkImplItem,
+    T: InkEntity + IsInkImplItem,
 {
     ink_peekable_quasi_closest_descendants(node, is_possible_callable_ancestor)
 }
@@ -186,15 +192,15 @@ pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = I
                 // ink! impl annotated closest descendants or
                 // an `impl` item annotated with ink! namespace or an unknown (likely incomplete) ink! attribute.
                 ast_ext::parent_ast_item(attr.syntax()).map(|item| item.syntax().clone())
-            } else if Constructor::can_cast(&attr) {
+            } else if Constructor::can_cast(attr.syntax()) {
                 // impl parent of ink! constructor closest descendant.
-                Constructor::cast(attr)
+                Constructor::cast(attr.syntax().clone())
                     .expect("Should be able to cast")
                     .impl_item()
                     .map(|item| item.syntax().clone())
-            } else if Message::can_cast(&attr) {
+            } else if Message::can_cast(attr.syntax()) {
                 // impl parent of ink! message closest descendant.
-                Message::cast(attr)
+                Message::cast(attr.syntax().clone())
                     .expect("Should be able to cast")
                     .impl_item()
                     .map(|item| item.syntax().clone())
@@ -205,19 +211,6 @@ pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = I
         .filter_map(InkImpl::cast)
         // Deduplicate by wrapped syntax node.
         .unique_by(|item| item.syntax().clone())
-}
-
-/// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
-/// ink! ancestor or only have an ink! contract entity between them and the current node.
-pub fn ink_contract_peekable_quasi_closest_descendants<T>(
-    node: &SyntaxNode,
-) -> impl Iterator<Item = T>
-where
-    T: FromSyntax + FromInkAttribute,
-{
-    ink_peekable_quasi_closest_descendants(node, |attr| {
-        *attr.kind() == InkAttributeKind::Macro(InkMacroKind::Contract)
-    })
 }
 
 /// Returns true if the ink! attribute can be a quasi-direct parent for an ink! callable entity
@@ -234,27 +227,29 @@ fn is_possible_callable_ancestor(attr: &InkAttribute) -> bool {
 
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any
 /// ink! ancestor or only have ink! entities that satisfy a "peekable" predicate between them and the current node.
-fn ink_peekable_quasi_closest_descendants<T, F>(
+pub fn ink_peekable_quasi_closest_descendants<T, F>(
     node: &SyntaxNode,
     is_peekable_ancestor: F,
 ) -> impl Iterator<Item = T>
 where
-    T: FromSyntax + FromInkAttribute,
+    T: InkEntity,
     F: Fn(&InkAttribute) -> bool,
 {
     ink_attrs_closest_descendants(node)
         .flat_map(move |attr| {
-            if T::can_cast(&attr) {
-                vec![T::cast(attr).expect("Should be able to cast")]
-            } else if is_peekable_ancestor(&attr) {
-                ink_attrs_closest_descendants(
-                    <InkAttrData<ast::Impl> as From<_>>::from(attr).parent_syntax(),
-                )
-                .filter_map(T::cast)
-                .collect()
-            } else {
-                Vec::new()
+            if T::can_cast(attr.syntax()) {
+                return vec![T::cast(attr.syntax().clone()).expect("Should be able to cast")];
             }
+
+            if is_peekable_ancestor(&attr) {
+                if let Some(item) = attr.syntax().parent() {
+                    return ink_attrs_closest_descendants(&item)
+                        .filter_map(ink_attr_to_entity)
+                        .collect();
+                }
+            }
+
+            Vec::new()
         })
         // Deduplicate by wrapped syntax node.
         .unique_by(|item| item.syntax().clone())

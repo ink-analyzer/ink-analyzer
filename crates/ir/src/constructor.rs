@@ -1,22 +1,20 @@
 //! ink! constructor IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkCallable, IsInkFn};
-use crate::{InkAttrData, InkAttribute};
+use crate::traits::{IsInkCallable, IsInkFn};
 
 /// An ink! constructor.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(arg_kind = Constructor)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Constructor {
-    /// ink! attribute IR data.
-    #[arg_kind(Constructor)]
-    ink_attr: InkAttrData<ast::Fn>,
+    // ASTNode type.
+    ast: ast::Fn,
 }
 
 impl IsInkFn for Constructor {
     fn fn_item(&self) -> Option<&ast::Fn> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 }
 
@@ -26,6 +24,7 @@ impl IsInkCallable for Constructor {}
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::traits::InkEntity;
     use test_utils::quote_as_str;
 
     #[test]
@@ -90,9 +89,9 @@ mod tests {
                 false,
             ),
         ] {
-            let ink_attr = parse_first_ink_attribute(code);
+            let node = parse_first_syntax_node(code);
 
-            let constructor = Constructor::cast(ink_attr).unwrap();
+            let constructor = Constructor::cast(node).unwrap();
 
             // `payable` argument exists.
             assert_eq!(constructor.payable_arg().is_some(), is_payable);

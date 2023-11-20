@@ -1,7 +1,7 @@
 //! ink! attribute hover content.
 
 use ink_analyzer_ir::syntax::{AstNode, AstToken, TextRange};
-use ink_analyzer_ir::{FromSyntax, InkAttributeKind, InkFile};
+use ink_analyzer_ir::{InkAttributeKind, InkFile};
 
 use crate::analysis::utils;
 

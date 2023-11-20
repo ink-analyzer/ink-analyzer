@@ -1,48 +1,42 @@
 //! ink! contract IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::traits::{FromInkAttribute, FromSyntax};
+use crate::traits::InkEntity;
 use crate::tree::utils;
 use crate::{
-    Constructor, Event, InkArg, InkArgKind, InkAttrData, InkAttribute, InkE2ETest, InkImpl,
-    InkTest, Message, Storage,
+    Constructor, Event, InkArg, InkArgKind, InkE2ETest, InkImpl, InkTest, Message, Storage,
 };
 
 /// An ink! contract.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(macro_kind = Contract)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Contract {
-    /// ink! attribute IR data.
-    #[macro_kind(Contract)]
-    ink_attr: InkAttrData<ast::Module>,
-    /// ink! storage definition.
-    #[arg_kind(Storage)]
+    // ASTNode type.
+    ast: ast::Module,
+    // ink! storage.
     storage: Option<Storage>,
-    /// ink! events.
-    #[arg_kind(Event)]
+    // ink! events.
     events: Vec<Event>,
-    /// ink! impl items.
-    #[arg_kind(Impl)]
+    // ink! impl items.
+    #[initializer(call = crate::tree::utils::ink_impl_closest_descendants)]
     impls: Vec<InkImpl>,
-    /// ink! constructors.
-    #[arg_kind(Constructor)]
+    // ink! constructors.
+    #[initializer(call = crate::tree::utils::ink_callable_closest_descendants)]
     constructors: Vec<Constructor>,
-    /// ink! messages.
-    #[arg_kind(Message)]
+    // ink! messages.
+    #[initializer(call = crate::tree::utils::ink_callable_closest_descendants)]
     messages: Vec<Message>,
-    /// ink! tests.
-    #[macro_kind(Test)]
+    // ink! tests.
     tests: Vec<InkTest>,
-    /// ink! e2e tests.
-    #[macro_kind(E2ETest)]
+    // ink! e2e tests.
     e2e_tests: Vec<InkE2ETest>,
 }
 
 impl Contract {
     /// Returns the `mod` item (if any) for the ink! contract.
     pub fn module(&self) -> Option<&ast::Module> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 
     /// Returns the ink! env argument (if any) for the ink! contract.
@@ -54,41 +48,6 @@ impl Contract {
     pub fn keep_attr_arg(&self) -> Option<InkArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::KeepAttr)
     }
-
-    /// Returns the ink! storage definition for the ink! contract.
-    pub fn storage(&self) -> Option<&Storage> {
-        self.storage.as_ref()
-    }
-
-    /// Returns the ink! events for the ink! contract.
-    pub fn events(&self) -> &[Event] {
-        &self.events
-    }
-
-    /// Returns the ink! impl blocks for the ink! contract.
-    pub fn impls(&self) -> &[InkImpl] {
-        &self.impls
-    }
-
-    /// Returns the ink! constructors for the ink! contract.
-    pub fn constructors(&self) -> &[Constructor] {
-        &self.constructors
-    }
-
-    /// Returns the ink! messages for the ink! contract.
-    pub fn messages(&self) -> &[Message] {
-        &self.messages
-    }
-
-    /// Returns the ink! tests for the ink! contract.
-    pub fn tests(&self) -> &[InkTest] {
-        &self.tests
-    }
-
-    /// Returns the ink! e2e tests for the ink! contract.
-    pub fn e2e_tests(&self) -> &[InkE2ETest] {
-        &self.e2e_tests
-    }
 }
 
 #[cfg(test)]
@@ -99,7 +58,7 @@ mod tests {
 
     #[test]
     fn cast_works() {
-        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+        let node = parse_first_syntax_node(quote_as_str! {
             #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
             mod MyContract {
                 #[ink(storage)]
@@ -189,7 +148,7 @@ mod tests {
             }
         });
 
-        let contract = Contract::cast(ink_attr).unwrap();
+        let contract = Contract::cast(node).unwrap();
 
         // `env` argument exists.
         assert!(contract.env_arg().is_some());

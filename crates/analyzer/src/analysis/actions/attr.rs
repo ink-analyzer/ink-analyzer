@@ -2,7 +2,7 @@
 
 use crate::{ActionKind, TextEdit};
 use ink_analyzer_ir::syntax::TextRange;
-use ink_analyzer_ir::{FromAST, FromSyntax, InkFile};
+use ink_analyzer_ir::InkFile;
 
 use super::Action;
 use crate::analysis::utils;

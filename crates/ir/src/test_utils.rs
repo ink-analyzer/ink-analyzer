@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use crate::InkAttribute;
-use ra_ap_syntax::ast;
+use ra_ap_syntax::{ast, NodeOrToken, SyntaxKind, SyntaxNode};
 use ra_ap_syntax::{AstNode, SourceFile, SyntaxElement, SyntaxToken};
 
 /// Returns the first syntax token in the code snippet.
@@ -12,7 +12,17 @@ pub fn parse_first_syntax_token(code: &str) -> SyntaxToken {
         .tree()
         .syntax()
         .descendants_with_tokens()
-        .find_map(|elem| elem.into_token())
+        .find_map(NodeOrToken::into_token)
+        .unwrap()
+}
+
+/// Returns the first syntax node in the code snippet.
+pub fn parse_first_syntax_node(code: &str) -> SyntaxNode {
+    SourceFile::parse(code)
+        .tree()
+        .syntax()
+        .descendants()
+        .find(|node| node.kind() != SyntaxKind::SOURCE_FILE)
         .unwrap()
 }
 

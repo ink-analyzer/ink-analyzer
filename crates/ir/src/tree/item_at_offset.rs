@@ -3,7 +3,6 @@
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextSize, TokenAtOffset};
 
 use crate::attrs::InkAttribute;
-use crate::traits::{FromAST, FromSyntax};
 use crate::tree::ast_ext;
 
 /// A wrapper for offset-based ink! entity tree traversal methods.

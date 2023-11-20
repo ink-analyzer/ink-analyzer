@@ -1,22 +1,20 @@
 //! ink! storage IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkStruct};
-use crate::{InkAttrData, InkAttribute};
+use crate::traits::IsInkStruct;
 
 /// An ink! storage definition.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(arg_kind = Storage)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Storage {
-    /// ink! attribute IR data.
-    #[arg_kind(Storage)]
-    ink_attr: InkAttrData<ast::Struct>,
+    // ASTNode type.
+    ast: ast::Struct,
 }
 
 impl IsInkStruct for Storage {
     fn struct_item(&self) -> Option<&ast::Struct> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 }
 
@@ -24,16 +22,17 @@ impl IsInkStruct for Storage {
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::traits::InkEntity;
     use test_utils::quote_as_str;
 
     #[test]
     fn cast_works() {
-        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+        let node = parse_first_syntax_node(quote_as_str! {
             #[ink(storage)]
             pub struct MyContract {}
         });
 
-        let storage = Storage::cast(ink_attr).unwrap();
+        let storage = Storage::cast(node).unwrap();
 
         // `struct` item exists.
         assert!(storage.struct_item().is_some());

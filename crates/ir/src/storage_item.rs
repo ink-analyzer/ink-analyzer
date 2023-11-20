@@ -1,18 +1,17 @@
 //! ink! storage item IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::traits::{FromInkAttribute, FromSyntax};
+use crate::traits::InkEntity;
 use crate::tree::utils;
-use crate::{InkArg, InkArgKind, InkAttrData, InkAttribute};
+use crate::{InkArg, InkArgKind};
 
 /// An ink! storage item.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(macro_kind = StorageItem)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorageItem {
-    /// ink! attribute IR data.
-    #[macro_kind(StorageItem)]
-    ink_attr: InkAttrData<ast::Adt>,
+    // ASTNode type.
+    ast: ast::Adt,
 }
 
 impl StorageItem {
@@ -23,7 +22,7 @@ impl StorageItem {
 
     /// Returns the `adt` (i.e `enum`, `struct` or `union`) item (if any) for the ink! storage item.
     pub fn adt(&self) -> Option<&ast::Adt> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 }
 
@@ -50,12 +49,12 @@ mod tests {
                 }
             },
         ] {
-            let ink_attr = parse_first_ink_attribute(quote_as_str! {
+            let node = parse_first_syntax_node(quote_as_str! {
                 #[ink::storage_item(derive=false)]
                 #code
             });
 
-            let storage_item = StorageItem::cast(ink_attr).unwrap();
+            let storage_item = StorageItem::cast(node).unwrap();
 
             // 1 `derive` argument exists.
             assert!(storage_item.derive_arg().is_some());

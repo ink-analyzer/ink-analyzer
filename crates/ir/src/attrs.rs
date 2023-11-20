@@ -1,12 +1,9 @@
 //! ink! attribute IR.
 
-use ink_analyzer_macro::FromAST;
 use itertools::Itertools;
 use ra_ap_syntax::{ast, AstNode, Direction, SyntaxNode};
 use std::cmp::Ordering;
 use std::fmt;
-
-use crate::traits::{FromAST, FromSyntax};
 
 use crate::meta::MetaName;
 pub use arg::{InkArg, InkArgKind, InkArgValueKind, InkArgValuePathKind, InkArgValueStringKind};
@@ -16,7 +13,7 @@ pub mod meta;
 pub mod utils;
 
 /// An ink! specific attribute.
-#[derive(Debug, Clone, PartialEq, Eq, FromAST)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InkAttribute {
     /// The kind of the ink! attribute e.g attribute macro like `#[ink::contract]`
     /// or attribute argument like `#[ink(storage)]`.
@@ -35,15 +32,23 @@ pub struct InkAttribute {
 }
 
 impl InkAttribute {
-    /// Converts an AST attribute (`Attr`) into an `InkAttribute` IR type.
+    /// Returns true if the attribute can be converted into an ink! attribute.
+    pub fn can_cast(attr: &ast::Attr) -> bool {
+        attr.path()
+            .and_then(|path| path.segments().next())
+            .map_or(false, |segment| {
+                matches!(segment.to_string().as_str(), "ink" | "ink_e2e")
+            })
+    }
+
+    /// Converts an attribute into an ink! attribute.
     pub fn cast(attr: ast::Attr) -> Option<Self> {
-        // Get attribute path segments.
-        let mut path_segments = attr.path()?.segments();
+        if Self::can_cast(&attr) {
+            let mut path_segments = attr.path()?.segments();
 
-        let ink_crate_segment = path_segments.next()?;
-        let ink_crate_name = ink_crate_segment.to_string();
+            let ink_crate_segment = path_segments.next()?;
+            let ink_crate_name = ink_crate_segment.to_string();
 
-        (matches!(ink_crate_name.as_str(), "ink" | "ink_e2e")).then(|| {
             let args = utils::parse_ink_args(&attr);
             let possible_ink_macro_segment = path_segments.next();
             let mut possible_ink_arg_name: Option<MetaName> = None;
@@ -81,15 +86,17 @@ impl InkAttribute {
                 }
             };
 
-            Self {
+            Some(Self {
                 ast: attr,
                 kind: ink_attr_kind,
                 args,
                 ink: ink_crate_segment,
                 ink_macro: possible_ink_macro_segment,
                 ink_arg_name: possible_ink_arg_name,
-            }
-        })
+            })
+        } else {
+            None
+        }
     }
 
     /// Returns the ink! attribute kind.
@@ -128,6 +135,16 @@ impl InkAttribute {
             .filter(|it| it.text_range() != self.syntax().text_range())
             .filter_map(ast::Attr::cast)
             .filter_map(Self::cast)
+    }
+
+    /// Returns the AST node for the ink! attribute.
+    pub fn ast(&self) -> &ast::Attr {
+        &self.ast
+    }
+
+    /// Returns the syntax node for the ink! attribute.
+    pub fn syntax(&self) -> &SyntaxNode {
+        self.ast().syntax()
     }
 }
 
@@ -323,47 +340,6 @@ impl InkMacroKind {
             // unknown ink! attribute path (i.e unknown ink! attribute macro).
             _ => "",
         }
-    }
-}
-
-/// Standard data for an IR item derived from an ink! attribute.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InkAttrData<T: AstNode> {
-    /// ink! contract attributes.
-    attr: InkAttribute,
-    /// Annotated module (if any).
-    ast: Option<T>,
-    /// Syntax node for ink! contract.
-    syntax: SyntaxNode,
-}
-
-impl<T: AstNode> From<InkAttribute> for InkAttrData<T> {
-    fn from(attr: InkAttribute) -> Self {
-        Self {
-            ast: attr.syntax().parent().and_then(T::cast),
-            syntax: attr
-                .syntax()
-                .parent()
-                .expect("An attribute should always have a parent."),
-            attr,
-        }
-    }
-}
-
-impl<T: AstNode> InkAttrData<T> {
-    /// Returns the ink! attribute.
-    pub fn attr(&self) -> &InkAttribute {
-        &self.attr
-    }
-
-    /// Returns the ink! attribute's parent `ASTNode`.
-    pub fn parent_ast(&self) -> Option<&T> {
-        self.ast.as_ref()
-    }
-
-    /// Returns the ink! attribute's parent `SyntaxNode`.
-    pub fn parent_syntax(&self) -> &SyntaxNode {
-        &self.syntax
     }
 }
 

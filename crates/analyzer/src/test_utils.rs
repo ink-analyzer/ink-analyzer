@@ -3,6 +3,7 @@
 #![cfg(test)]
 
 use ink_analyzer_ir::syntax::{TextRange, TextSize};
+use ink_analyzer_ir::{InkEntity, InkFile};
 use test_utils::{parse_offset_at, PartialMatchStr, TestResultAction};
 
 use crate::Action;
@@ -47,4 +48,16 @@ pub fn verify_actions(
             );
         }
     }
+}
+
+/// Returns the first ink! entity of the generic type in the code snippet.
+pub fn parse_first_ink_entity_of_type<T>(code: &str) -> T
+where
+    T: InkEntity,
+{
+    InkFile::parse(code)
+        .syntax()
+        .descendants()
+        .find_map(T::cast)
+        .unwrap()
 }

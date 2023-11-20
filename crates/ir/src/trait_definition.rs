@@ -1,26 +1,24 @@
 //! ink! trait definition IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkTrait};
+use crate::traits::{InkEntity, IsInkTrait};
 use crate::tree::utils;
-use crate::{InkArg, InkArgKind, InkAttrData, InkAttribute, Message};
+use crate::{InkArg, InkArgKind, Message};
 
 /// An ink! trait definition.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(macro_kind = TraitDefinition)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitDefinition {
-    /// ink! attribute IR data.
-    #[macro_kind(TraitDefinition)]
-    ink_attr: InkAttrData<ast::Trait>,
-    /// ink! messages.
-    #[arg_kind(Message)]
+    // ASTNode type.
+    ast: ast::Trait,
+    // ink! messages.
     messages: Vec<Message>,
 }
 
 impl IsInkTrait for TraitDefinition {
     fn trait_item(&self) -> Option<&ast::Trait> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 }
 
@@ -34,11 +32,6 @@ impl TraitDefinition {
     pub fn keep_attr_arg(&self) -> Option<InkArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::KeepAttr)
     }
-
-    /// Returns the ink! messages for the ink! trait definition.
-    pub fn messages(&self) -> &[Message] {
-        &self.messages
-    }
 }
 
 #[cfg(test)]
@@ -49,7 +42,7 @@ mod tests {
 
     #[test]
     fn cast_works() {
-        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+        let node = parse_first_syntax_node(quote_as_str! {
             #[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]
             pub trait MyTrait {
                 #[ink(message)]
@@ -60,7 +53,7 @@ mod tests {
             }
         });
 
-        let trait_definition = TraitDefinition::cast(ink_attr).unwrap();
+        let trait_definition = TraitDefinition::cast(node).unwrap();
 
         // `namespace` argument exists.
         assert!(trait_definition.namespace_arg().is_some());

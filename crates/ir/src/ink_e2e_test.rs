@@ -1,22 +1,20 @@
 //! ink! e2e test IR.
 
-use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
 use ra_ap_syntax::ast;
 
-use crate::traits::{FromInkAttribute, FromSyntax, IsInkFn};
-use crate::{InkAttrData, InkAttribute};
+use crate::traits::IsInkFn;
 
 /// An ink! e2e test.
-#[derive(Debug, Clone, PartialEq, Eq, FromInkAttribute, FromSyntax)]
+#[ink_analyzer_macro::entity(macro_kind = E2ETest)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InkE2ETest {
-    /// ink! attribute IR data.
-    #[macro_kind(E2ETest)]
-    ink_attr: InkAttrData<ast::Fn>,
+    // ASTNode type.
+    ast: ast::Fn,
 }
 
 impl IsInkFn for InkE2ETest {
     fn fn_item(&self) -> Option<&ast::Fn> {
-        self.ink_attr.parent_ast()
+        self.ast.as_ref()
     }
 }
 
@@ -24,11 +22,13 @@ impl IsInkFn for InkE2ETest {
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::traits::InkEntity;
+    use ra_ap_syntax::AstNode;
     use test_utils::quote_as_str;
 
     #[test]
     fn cast_works() {
-        let ink_attr = parse_first_ink_attribute(quote_as_str! {
+        let node: ast::Fn = parse_first_ast_node_of_type(quote_as_str! {
             type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
             #[ink_e2e::test]
@@ -36,7 +36,7 @@ mod tests {
             }
         });
 
-        let ink_e2e_test = InkE2ETest::cast(ink_attr).unwrap();
+        let ink_e2e_test = InkE2ETest::cast(node.syntax().clone()).unwrap();
 
         // `fn` item exists.
         assert!(ink_e2e_test.fn_item().is_some());

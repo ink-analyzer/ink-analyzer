@@ -31,10 +31,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_test: &InkTest) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::verify_actions;
+    use crate::test_utils::*;
     use crate::Severity;
     use ink_analyzer_ir::syntax::{TextRange, TextSize};
-    use ink_analyzer_ir::{FromInkAttribute, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity};
     use quote::quote;
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -42,14 +41,7 @@ mod tests {
     };
 
     fn parse_first_ink_test(code: &str) -> InkTest {
-        InkTest::cast(
-            InkFile::parse(code)
-                .tree()
-                .ink_attrs_in_scope()
-                .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::Test))
-                .unwrap(),
-        )
-        .unwrap()
+        parse_first_ink_entity_of_type(code)
     }
 
     #[test]

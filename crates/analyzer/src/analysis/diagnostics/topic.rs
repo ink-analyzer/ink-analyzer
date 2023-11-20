@@ -1,6 +1,6 @@
 //! ink! topic diagnostics.
 
-use ink_analyzer_ir::{FromInkAttribute, FromSyntax, Topic};
+use ink_analyzer_ir::{InkEntity, Topic};
 
 use super::utils;
 use crate::{Action, Diagnostic, Severity};
@@ -29,7 +29,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, topic: &Topic) {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L106-L140>.
 fn ensure_struct_field(topic: &Topic) -> Option<Diagnostic> {
-    let ink_attr = topic.ink_attr();
+    let ink_attr = topic.ink_attr()?;
     topic.field().is_none().then_some(Diagnostic {
         message: format!(
             "`{}` can only be applied to a `struct` field.",
@@ -44,20 +44,13 @@ fn ensure_struct_field(topic: &Topic) -> Option<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
     use ink_analyzer_ir::syntax::{TextRange, TextSize};
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
     use test_utils::{parse_offset_at, quote_as_pretty_string, quote_as_str};
 
     fn parse_first_topic_field(code: &str) -> Topic {
-        Topic::cast(
-            InkFile::parse(code)
-                .tree()
-                .ink_attrs_in_scope()
-                .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Topic))
-                .unwrap(),
-        )
-        .unwrap()
+        parse_first_ink_entity_of_type(code)
     }
 
     #[test]

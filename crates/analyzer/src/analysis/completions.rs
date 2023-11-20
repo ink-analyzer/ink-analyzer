@@ -2,9 +2,7 @@
 
 use crate::analysis::text_edit::TextEdit;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
-use ink_analyzer_ir::{
-    FromSyntax, InkArgKind, InkAttributeKind, InkFile, InkMacroKind, IsInkEntity,
-};
+use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
 
 use super::utils;
 

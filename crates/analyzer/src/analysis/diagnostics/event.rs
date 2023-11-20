@@ -1,9 +1,7 @@
 //! ink! event diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasAttrs, HasGenericParams};
-use ink_analyzer_ir::{
-    ast, Event, FromSyntax, InkArgKind, InkAttributeKind, IsInkEntity, IsInkStruct,
-};
+use ink_analyzer_ir::{ast, Event, InkArgKind, InkAttributeKind, InkEntity, IsInkStruct};
 
 use super::{topic, utils};
 use crate::analysis::text_edit::TextEdit;
@@ -121,10 +119,9 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::verify_actions;
+    use crate::test_utils::*;
     use crate::Severity;
     use ink_analyzer_ir::syntax::{TextRange, TextSize};
-    use ink_analyzer_ir::{FromInkAttribute, InkArgKind, InkAttributeKind, InkFile, IsInkEntity};
     use quote::quote;
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -132,14 +129,7 @@ mod tests {
     };
 
     fn parse_first_event(code: &str) -> Event {
-        Event::cast(
-            InkFile::parse(code)
-                .tree()
-                .ink_attrs_in_scope()
-                .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
-                .unwrap(),
-        )
-        .unwrap()
+        parse_first_ink_entity_of_type(code)
     }
 
     // List of valid minimal ink! events used for positive(`works`) tests for ink! event verifying utilities.

@@ -1,22 +1,19 @@
 //! Procedural macros for [ink! analyzer](https://docs.rs/ink-analyzer/latest/ink_analyzer/).
 //!
 //! # Example
-//! Using custom derive macros for the `FromInkAttribute` and `FromSyntax` traits to create a `Contract` type.
+//! Using `ink_analyzer_macro::entity` proc-macro to create a `Contract` type.
 //!
 //! ```
-//! use ink_analyzer_macro::{FromInkAttribute, FromSyntax};
-//! use ink_analyzer_ir::{Event, FromInkAttribute, FromSyntax, InkAttrData, InkAttribute, Message, Storage};
+//! use ink_analyzer_ir::{Event, Message, Storage};
 //! use ink_analyzer_ir::ast;
 //!
-//! #[derive(FromInkAttribute, FromSyntax)]
+//! #[ink_analyzer_macro::entity(macro_kind = Contract)]
+//! #[derive(Debug, Clone, PartialEq, Eq)]
 //! struct Contract {
-//!     #[macro_kind(Contract)]
-//!     ink_attr: InkAttrData<ast::Module>,
-//!     #[arg_kind(Storage)]
+//!     ast: ast::Module,
 //!     storage: Option<Storage>,
-//!     #[arg_kind(Event)]
 //!     events: Vec<Event>,
-//!     #[arg_kind(Message)]
+//!     #[initializer(call = ink_analyzer_ir::ink_callable_closest_descendants)]
 //!     messages: Vec<Message>,
 //!     // --snip--
 //! }
@@ -24,90 +21,77 @@
 
 use proc_macro::TokenStream;
 
-mod from_ast;
-mod from_ink_attribute;
-mod from_syntax;
+mod entity;
+mod error;
 mod utils;
 
-/// Derive macro that implements the `FromAST` trait for any `struct` with an `ast` field.
+/// proc-macro that implements the `InkEntity` trait for any `struct` with an `ast` field,
+/// where the type for `ast` is `T: ASTNode`.
 ///
-/// # Example
-/// ```
-/// use ink_analyzer_macro::FromAST;
-/// use ink_analyzer_ir::FromAST;
-/// use ink_analyzer_ir::ast::Attr;
+/// **NOTE:** Any additional macros should be applied after this macro
+/// because it modifies the fields of the struct to which it is applied.
 ///
-/// #[derive(FromAST)]
-/// struct InkAttribute {
-///     ast: Attr,
-/// }
-/// ```
-#[proc_macro_derive(FromAST)]
-pub fn from_ast_derive(input: TokenStream) -> TokenStream {
-    utils::parse_syntax_tree_and_call_derive_impl(input, from_ast::impl_from_ast)
-}
-
-/// Derive macro that implements the `FromInkAttribute` trait for any `struct` with an `ink_attr` field.
+/// # Arguments
+/// The `entity` macro takes one argument that represents the casting precondition as follows:
+///
+/// - `ast` - accepts on syntax nodes whose kind matches the type of the `ast` field.
+///           This is the default and be skipped.
+/// - `macro_kind = T` - accepts only items annotated with an ink! attribute macro of the kind `T`
+///                      (e.g. `Contract` for `#[ink::contract]`).
+/// - `arg_kind = T` - accepts only items annotated with an ink! attribute argument of the kind `T`
+///                    (e.g. `Storage` for `#[ink(storage)]`).
+/// - `call = F` - accepts only syntax nodes for which the function `F` returns true
+///                where `F: Fn(&SyntaxNode) -> bool`.
 ///
 /// # Attributes
-/// All struct fields must be annotated with an attribute that indicates their ink! attribute kind.
-///
-/// The format of the attribute is `attr_kind(attr_type)` where:
-///
-/// `attr_kind` is one of:
-/// - `macro_kind` - for ink! attribute macros e.g `#[ink::contract]`.
-/// - `arg_kind` - for ink! attributes arguments e.g `#[ink(event)]`.
-///
-/// And `attr_type` is an IR type e.g:
-/// - `Contract`, `ChainExtension`e.t.c for `macro_kind` attributes.
-/// - `Storage`, `Event`, `Constructor` e.t.c for `arg_kind` attributes.
-///
-/// Apart from the `ink_attr` which is required,
+/// Apart from the `ast` field which is required and must be `T: ASTNode`,
 /// all other fields are optional and can use any valid identifier.
-/// However, if present, they must be either `Vec`s or `Option`s of an ink! entity type that matches the `attr_type` of their annotated attribute.
+/// However, if present, they must be either `Vec`s or `Option`s of an ink! entity type
+/// (e.g. `Contract`, `ChainExtension` for ink! attribute macro types e.t.c
+/// or `Storage`, `Event`, `Constructor` for ink! attribute argument types)
+/// because they represent ink! entity descendants.
+///
+/// These ink! entity descendant fields (i.e. all fields apart from the `ast` field)
+/// can (optionally) be annotated with a single `#[initializer(...)]` attribute
+/// that defines their initialization strategy.
+///
+/// The `initializer` attribute takes one argument that represents the initialization strategy
+/// as follows:
+///
+/// - `closest` - collects all descendant ink! entities of the field's type that
+///               don't have any other ink! entity ancestors between them and the this entity.
+///               This is the default and be skipped.
+/// - `peek_macro = T` - collects all descendant ink! entities of the field's type that,
+///                  either don't have any other ink! entity ancestors
+///                  or only have one ink! attribute macro entity of type T
+///                  (e.g. `Contract` for `#[ink::contract]`), between them and the this entity.
+/// - `peek_arg = T` - collects all descendant ink! entities of the field's type that,
+///                  either don't have any other ink! entity ancestors
+///                  or only have one ink! attribute argument entity of type T
+///                  (e.g. `Storage` for `#[ink(storage)]`), between them and the this entity.
+/// - `call = F` - collects all ink! entities returned by the function `F`
+///                where `F: Fn(&SyntaxNode) -> impl Iterator<Item = T>` and `T: InkEntity`
+///                and `T` also matches the ink! entity type for the field.
 ///
 /// # Example
 /// ```
-/// use ink_analyzer_macro::FromInkAttribute;
-/// use ink_analyzer_ir::{Event, FromInkAttribute, InkAttrData, InkAttribute, Storage};
-/// use ink_analyzer_ir::ast::Module;
+/// use ink_analyzer_ir::{Event, Message, Storage};
+/// use ink_analyzer_ir::ast;
 ///
-/// #[derive(FromInkAttribute)]
+/// #[ink_analyzer_macro::entity(macro_kind = Contract)]
+/// #[derive(Debug, Clone, PartialEq, Eq)]
 /// struct Contract {
-///     // Required `ink_attr` field.
-///     #[macro_kind(Contract)]
-///     ink_attr: InkAttrData<Module>,
-///     //Optional ink! storage field whose ink! entity type matches it's annotated `attr_type`.
-///     #[arg_kind(Storage)]
+///     ast: ast::Module,
 ///     storage: Option<Storage>,
-///     // Optional ink! events field whose ink! entity type matches it's annotated `attr_type`.
-///     #[arg_kind(Event)]
 ///     events: Vec<Event>,
+///     #[initializer(call = ink_analyzer_ir::ink_callable_closest_descendants)]
+///     messages: Vec<Message>,
+///     // --snip--
 /// }
 /// ```
-#[proc_macro_derive(FromInkAttribute, attributes(macro_kind, arg_kind))]
-pub fn from_ink_attribute_derive(input: TokenStream) -> TokenStream {
-    utils::parse_syntax_tree_and_call_derive_impl(
-        input,
-        from_ink_attribute::impl_from_ink_attribute,
-    )
-}
-
-/// Derive macro that implements the `FromSyntax` trait
-/// for any `struct` with a `syntax`, `ast` or `ink_attr` field.
-///
-/// # Example
-/// ```
-/// use ink_analyzer_macro::FromSyntax;
-/// use ink_analyzer_ir::FromSyntax;
-/// use ink_analyzer_ir::syntax::SyntaxNode;
-///
-/// #[derive(FromSyntax)]
-/// struct Contract {
-///     syntax: SyntaxNode,
-/// }
-/// ```
-#[proc_macro_derive(FromSyntax)]
-pub fn from_syntax_derive(input: TokenStream) -> TokenStream {
-    utils::parse_syntax_tree_and_call_derive_impl(input, from_syntax::impl_from_syntax)
+#[proc_macro_attribute]
+pub fn entity(args: TokenStream, item: TokenStream) -> TokenStream {
+    entity::impl_entity(args.into(), item.into())
+        .unwrap_or_else(error::Error::into_compile_error)
+        .into()
 }

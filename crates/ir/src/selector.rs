@@ -197,21 +197,19 @@ pub enum SelectorArgKind {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::traits::FromInkAttribute;
-    use crate::{Constructor, InkAttribute, Message};
-    use ra_ap_syntax::ast;
+    use crate::{Constructor, InkEntity, Message};
     use ra_ap_syntax::SourceFile;
     use test_utils::quote_as_str;
 
     fn first_ink_entity_of_type<T>(code: &str) -> T
     where
-        T: FromInkAttribute + IsInkCallable,
+        T: InkEntity + IsInkCallable,
     {
         SourceFile::parse(code)
             .tree()
             .syntax()
             .descendants()
-            .find_map(|node| T::cast(InkAttribute::cast(ast::Attr::cast(node)?)?))
+            .find_map(|node| T::cast(node))
             .unwrap()
     }
 

@@ -1,84 +1,36 @@
 //! ink! source file IR.
 
-use ink_analyzer_macro::FromAST;
-use ra_ap_syntax::{AstNode, SourceFile};
+use ra_ap_syntax::SourceFile;
 
-use crate::traits::FromAST;
-use crate::tree::utils;
 use crate::{ChainExtension, Contract, InkE2ETest, InkTest, StorageItem, TraitDefinition};
 
-/// An ink! source file.
-#[derive(Debug, Clone, PartialEq, Eq, FromAST)]
+/// An ink! file.
+#[ink_analyzer_macro::entity]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InkFile {
-    /// ink! contracts in source file.
-    contracts: Vec<Contract>,
-    /// ink! trait definitions in source file.
-    trait_definitions: Vec<TraitDefinition>,
-    /// ink! chain extensions in source file.
-    chain_extensions: Vec<ChainExtension>,
-    /// ink! storage items in source file.
-    storage_items: Vec<StorageItem>,
-    /// ink! tests in source file.
-    tests: Vec<InkTest>,
-    /// ink! e2e tests in source file.
-    e2e_tests: Vec<InkE2ETest>,
-    /// AST Node for ink! source file.
+    // ASTNode type.
     ast: SourceFile,
-}
-
-impl From<SourceFile> for InkFile {
-    fn from(file: SourceFile) -> Self {
-        Self {
-            contracts: utils::ink_closest_descendants(file.syntax()).collect(),
-            trait_definitions: utils::ink_contract_peekable_quasi_closest_descendants(
-                file.syntax(),
-            )
-            .collect(),
-            chain_extensions: utils::ink_contract_peekable_quasi_closest_descendants(file.syntax())
-                .collect(),
-            storage_items: utils::ink_contract_peekable_quasi_closest_descendants(file.syntax())
-                .collect(),
-            tests: utils::ink_closest_descendants(file.syntax()).collect(),
-            e2e_tests: utils::ink_closest_descendants(file.syntax()).collect(),
-            ast: file,
-        }
-    }
+    // ink! contracts in source file.
+    contracts: Vec<Contract>,
+    // ink! trait definitions in source file.
+    #[initializer(peek_macro = Contract)]
+    trait_definitions: Vec<TraitDefinition>,
+    // ink! chain extensions in source file.
+    #[initializer(peek_macro = Contract)]
+    chain_extensions: Vec<ChainExtension>,
+    // ink! storage items in source file.
+    #[initializer(peek_macro = Contract)]
+    storage_items: Vec<StorageItem>,
+    // ink! tests in source file.
+    tests: Vec<InkTest>,
+    // ink! e2e tests in source file.
+    e2e_tests: Vec<InkE2ETest>,
 }
 
 impl InkFile {
-    /// Parses ink! IR from source code.
+    /// Parses ink! file from source code.
     pub fn parse(code: &str) -> Self {
-        Self::from(SourceFile::parse(code).tree())
-    }
-
-    /// Returns ink! contracts in source file.
-    pub fn contracts(&self) -> &[Contract] {
-        &self.contracts
-    }
-
-    /// Returns ink! trait definitions in source file.
-    pub fn trait_definitions(&self) -> &[TraitDefinition] {
-        &self.trait_definitions
-    }
-
-    /// Returns ink! chain extensions in source file.
-    pub fn chain_extensions(&self) -> &[ChainExtension] {
-        &self.chain_extensions
-    }
-
-    /// Returns ink! storage items in source file.
-    pub fn storage_items(&self) -> &[StorageItem] {
-        &self.storage_items
-    }
-
-    /// Returns ink! tests in source file.
-    pub fn tests(&self) -> &[InkTest] {
-        &self.tests
-    }
-
-    /// Returns ink! e2e tests in source file.
-    pub fn e2e_tests(&self) -> &[InkE2ETest] {
-        &self.e2e_tests
+        <Self as From<SourceFile>>::from(SourceFile::parse(code).tree())
     }
 }
 

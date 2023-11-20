@@ -1,7 +1,7 @@
 //! ink! attribute and entity code/intent actions.
 
 use ink_analyzer_ir::syntax::{SyntaxNode, TextRange, TextSize};
-use ink_analyzer_ir::{FromSyntax, InkAttribute, InkFile};
+use ink_analyzer_ir::{InkAttribute, InkFile};
 use itertools::Itertools;
 
 use super::utils;

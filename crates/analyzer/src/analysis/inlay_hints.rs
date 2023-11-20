@@ -1,7 +1,7 @@
 //! ink! attribute argument inlay hints.
 
 use ink_analyzer_ir::syntax::{AstToken, TextRange, TextSize};
-use ink_analyzer_ir::{InkArgValueKind, InkFile, IsInkEntity};
+use ink_analyzer_ir::{InkArgValueKind, InkEntity, InkFile};
 
 /// An ink! attribute argument inlay hint.
 #[derive(Debug, Clone, PartialEq, Eq)]
