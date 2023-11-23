@@ -12,6 +12,18 @@ pub struct InkE2ETest {
 
 impl_ast_type_trait!(InkE2ETest, IsInkFn);
 
+impl InkE2ETest {
+    impl_pub_ink_arg_getter!(
+        additional_contracts_arg,
+        AdditionalContracts,
+        additional_contracts
+    );
+
+    impl_pub_ink_arg_getter!(environment_arg, Environment, environment);
+
+    impl_pub_ink_arg_getter!(keep_attr_arg, KeepAttr, keep_attr);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
