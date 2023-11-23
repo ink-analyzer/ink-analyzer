@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use crate::InkAttribute;
+use crate::{InkAttribute, InkEntity};
 use ra_ap_syntax::{ast, NodeOrToken, SyntaxKind, SyntaxNode};
 use ra_ap_syntax::{AstNode, SourceFile, SyntaxElement, SyntaxToken};
 
@@ -51,6 +51,19 @@ pub fn parse_first_ink_attribute(code: &str) -> InkAttribute {
         .syntax()
         .descendants()
         .find_map(|node| InkAttribute::cast(ast::Attr::cast(node)?))
+        .unwrap()
+}
+
+/// Returns the first ink! entity of the generic type in the code snippet.
+pub fn first_ink_entity_of_type<T>(code: &str) -> T
+where
+    T: InkEntity,
+{
+    SourceFile::parse(code)
+        .tree()
+        .syntax()
+        .descendants()
+        .find_map(T::cast)
         .unwrap()
 }
 

@@ -38,7 +38,6 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
         // Comma separated groups.
         .group_by(|token| token.kind() == T![,])
         .into_iter()
-        //.filter_map(|(is_sep, group)| (!is_sep || true).then_some(group))
         .filter_map(|(is_sep, mut group)| {
             if is_sep {
                 // This is the comma token, so we update last separator offset.
