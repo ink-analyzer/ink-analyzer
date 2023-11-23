@@ -1,0 +1,51 @@
+//! Declarative macros used through out the library.
+
+macro_rules! impl_ast_type_getter {
+    ($fn_name: ident, $ast_type: ident $(, $vis: vis, $doc: ident)?) => {
+        $(#[doc = concat!("Returns the `", stringify!($doc), "` item (if any).")])?
+        $($vis)? fn $fn_name(&self) -> Option<&ra_ap_syntax::ast::$ast_type> {
+            self.ast.as_ref()
+        }
+    };
+}
+
+macro_rules! impl_pub_ast_type_getter {
+    ($fn_name: ident, $ast_type: ident) => {
+        impl_ast_type_getter!($fn_name, $ast_type, pub, $ast_type);
+    };
+}
+
+macro_rules! impl_ast_type_trait {
+    ($entity: ty, IsInkStruct) => {
+        impl_ast_type_trait_base!($entity, IsInkStruct, Struct, struct_item);
+    };
+    ($entity: ty, IsInkFn) => {
+        impl_ast_type_trait_base!($entity, IsInkFn, Fn, fn_item);
+    };
+    ($entity: ty, IsInkTrait) => {
+        impl_ast_type_trait_base!($entity, IsInkTrait, Trait, trait_item);
+    };
+}
+
+macro_rules! impl_ast_type_trait_base {
+    ($entity: ty, $trait_name: ident, $ast_type: ident, $fn_name: ident) => {
+        impl $crate::traits::$trait_name for $entity {
+            impl_ast_type_getter!($fn_name, $ast_type);
+        }
+    };
+}
+
+macro_rules! impl_ink_arg_getter {
+    ($name: ident, $variant: ident, $doc: ident $(, $vis: vis)?) => {
+        #[doc = concat!("Returns the ink! `", stringify!($doc), "` argument (if any).")]
+        $($vis)? fn $name(&self) -> Option<InkArg> {
+            $crate::tree::utils::ink_arg_by_kind(self.syntax(), $crate::InkArgKind::$variant)
+        }
+    };
+}
+
+macro_rules! impl_pub_ink_arg_getter {
+    ($name: ident, $variant: ident, $doc: ident) => {
+        impl_ink_arg_getter!($name, $variant, $doc, pub);
+    };
+}

@@ -6,22 +6,16 @@ use crate::{InkArg, InkArgKind, InkEntity, Selector, SelectorArg};
 
 /// Implemented by ink! entities that represent an ink! callable entity (i.e an ink! constructor or ink! message).
 pub trait IsInkCallable: InkEntity + IsInkFn {
-    /// Returns the ink! payable argument (if any) for the ink! callable entity.
-    fn payable_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Payable)
-    }
+    impl_ink_arg_getter!(default_arg, Default, default);
 
-    /// Returns the ink! selector argument (if any) for the ink! callable entity.
+    impl_ink_arg_getter!(payable_arg, Payable, payable);
+
+    /// Returns the ink! selector argument (if any).
     fn selector_arg(&self) -> Option<SelectorArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::Selector).and_then(SelectorArg::cast)
     }
 
-    /// Returns the ink! default argument (if any) for the ink! callable entity.
-    fn default_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Default)
-    }
-
-    /// Returns the composed selector for the ink! callable entity.
+    /// Returns the composed selector (if any).
     fn composed_selector(&self) -> Option<Selector>
     where
         Self: Sized,

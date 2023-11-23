@@ -3,8 +3,8 @@
 use ink_analyzer_ir::ast::{AstNode, HasName, HasVisibility, Trait};
 use ink_analyzer_ir::syntax::{SyntaxNode, TextRange};
 use ink_analyzer_ir::{
-    ast, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkEntity, InkImpl, IsInkFn,
-    IsInkImplItem, IsInkTrait, Message,
+    ast, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkEntity,
+    InkImpl, IsInkFn, IsInkTrait, Message,
 };
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
@@ -303,9 +303,9 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
 /// Ensures that item is defined in the root of this specific `impl` item.
 fn ensure_parent_impl<T>(ink_impl: &InkImpl, item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: IsInkImplItem + IsInkFn + InkEntity,
+    T: HasInkImplParent + IsInkFn + InkEntity,
 {
-    let is_parent = item.impl_item().map_or(false, |parent_impl_item| {
+    let is_parent = item.parent_impl_item().map_or(false, |parent_impl_item| {
         parent_impl_item.syntax() == ink_impl.syntax()
     });
 

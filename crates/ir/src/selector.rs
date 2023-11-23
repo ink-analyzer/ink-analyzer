@@ -6,7 +6,7 @@ use blake2::Blake2b;
 use ra_ap_syntax::ast::HasName;
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, TextRange};
 
-use crate::traits::{IsInkCallable, IsInkImplItem};
+use crate::traits::{HasInkImplParent, IsInkCallable};
 use crate::tree::utils;
 use crate::{InkArg, InkArgKind};
 
@@ -95,7 +95,7 @@ impl Selector {
     where
         T: IsInkCallable,
     {
-        match callable.impl_item()?.trait_()? {
+        match callable.parent_impl_item()?.trait_()? {
             ast::Type::PathType(trait_path_type) => {
                 let trait_path = trait_path_type.path()?;
                 let is_full_path = trait_path.to_string().starts_with("::");
@@ -120,7 +120,7 @@ impl Selector {
     where
         T: IsInkCallable,
     {
-        utils::ink_arg_by_kind(callable.impl_item()?.syntax(), InkArgKind::Namespace)?
+        utils::ink_arg_by_kind(callable.parent_impl_item()?.syntax(), InkArgKind::Namespace)?
             .value()?
             .as_string()
     }

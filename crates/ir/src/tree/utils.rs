@@ -5,7 +5,7 @@ use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use super::ast_ext;
 use crate::iter::IterSuccessors;
-use crate::traits::{InkEntity, IsInkImplItem};
+use crate::traits::{HasInkImplParent, InkEntity};
 use crate::{Constructor, InkArg, InkArgKind, InkAttribute, InkAttributeKind, InkImpl, Message};
 
 /// Returns attributes for the syntax node.
@@ -173,7 +173,7 @@ where
 /// ink! ancestor or only have an ink! impl entity between them and the current node.
 pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
-    T: InkEntity + IsInkImplItem,
+    T: InkEntity + HasInkImplParent,
 {
     ink_peekable_quasi_closest_descendants(node, is_possible_callable_ancestor)
 }
@@ -196,13 +196,13 @@ pub fn ink_impl_closest_descendants(node: &SyntaxNode) -> impl Iterator<Item = I
                 // impl parent of ink! constructor closest descendant.
                 Constructor::cast(attr.syntax().clone())
                     .expect("Should be able to cast")
-                    .impl_item()
+                    .parent_impl_item()
                     .map(|item| item.syntax().clone())
             } else if Message::can_cast(attr.syntax()) {
                 // impl parent of ink! message closest descendant.
                 Message::cast(attr.syntax().clone())
                     .expect("Should be able to cast")
-                    .impl_item()
+                    .parent_impl_item()
                     .map(|item| item.syntax().clone())
             } else {
                 None

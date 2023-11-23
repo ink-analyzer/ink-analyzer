@@ -10,20 +10,20 @@ use crate::{ChainExtension, Contract, InkE2ETest, InkTest, StorageItem, TraitDef
 pub struct InkFile {
     // ASTNode type.
     ast: SourceFile,
-    // ink! contracts in source file.
+    // ink! contracts.
     contracts: Vec<Contract>,
-    // ink! trait definitions in source file.
+    // ink! trait definitions.
     #[initializer(peek_macro = Contract)]
     trait_definitions: Vec<TraitDefinition>,
-    // ink! chain extensions in source file.
+    // ink! chain extensions.
     #[initializer(peek_macro = Contract)]
     chain_extensions: Vec<ChainExtension>,
-    // ink! storage items in source file.
+    // ink! storage items.
     #[initializer(peek_macro = Contract)]
     storage_items: Vec<StorageItem>,
-    // ink! tests in source file.
+    // ink! tests.
     tests: Vec<InkTest>,
-    // ink! e2e tests in source file.
+    // ink! e2e tests.
     e2e_tests: Vec<InkE2ETest>,
 }
 

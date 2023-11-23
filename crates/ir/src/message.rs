@@ -2,7 +2,7 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::{IsInkCallable, IsInkFn};
+use crate::traits::IsInkCallable;
 
 /// An ink! message.
 #[ink_analyzer_macro::entity(arg_kind = Message)]
@@ -12,11 +12,7 @@ pub struct Message {
     ast: ast::Fn,
 }
 
-impl IsInkFn for Message {
-    fn fn_item(&self) -> Option<&ast::Fn> {
-        self.ast.as_ref()
-    }
-}
+impl_ast_type_trait!(Message, IsInkFn);
 
 impl IsInkCallable for Message {}
 
@@ -24,7 +20,7 @@ impl IsInkCallable for Message {}
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::traits::InkEntity;
+    use crate::traits::{InkEntity, IsInkFn};
     use test_utils::quote_as_str;
 
     #[test]

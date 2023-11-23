@@ -2,9 +2,8 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::{InkEntity, IsInkStruct};
-use crate::tree::utils;
-use crate::{InkArg, InkArgKind, Topic};
+use crate::traits::InkEntity;
+use crate::{InkArg, Topic};
 
 /// An ink! event.
 #[ink_analyzer_macro::entity(arg_kind = Event)]
@@ -16,23 +15,17 @@ pub struct Event {
     topics: Vec<Topic>,
 }
 
-impl IsInkStruct for Event {
-    fn struct_item(&self) -> Option<&ast::Struct> {
-        self.ast.as_ref()
-    }
-}
+impl_ast_type_trait!(Event, IsInkStruct);
 
 impl Event {
-    /// Returns the ink! anonymous argument (if any) for the ink! event.
-    pub fn anonymous_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Anonymous)
-    }
+    impl_pub_ink_arg_getter!(anonymous_arg, Anonymous, anonymous);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::traits::IsInkStruct;
     use test_utils::quote_as_str;
 
     #[test]

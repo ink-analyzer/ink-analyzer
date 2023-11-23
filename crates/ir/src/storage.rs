@@ -2,8 +2,6 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::IsInkStruct;
-
 /// An ink! storage definition.
 #[ink_analyzer_macro::entity(arg_kind = Storage)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,17 +10,13 @@ pub struct Storage {
     ast: ast::Struct,
 }
 
-impl IsInkStruct for Storage {
-    fn struct_item(&self) -> Option<&ast::Struct> {
-        self.ast.as_ref()
-    }
-}
+impl_ast_type_trait!(Storage, IsInkStruct);
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::traits::InkEntity;
+    use crate::traits::{InkEntity, IsInkStruct};
     use test_utils::quote_as_str;
 
     #[test]

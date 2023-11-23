@@ -3,10 +3,7 @@
 use ra_ap_syntax::ast;
 
 use crate::traits::InkEntity;
-use crate::tree::utils;
-use crate::{
-    Constructor, Event, InkArg, InkArgKind, InkE2ETest, InkImpl, InkTest, Message, Storage,
-};
+use crate::{Constructor, Event, InkArg, InkE2ETest, InkImpl, InkTest, Message, Storage};
 
 /// An ink! contract.
 #[ink_analyzer_macro::entity(macro_kind = Contract)]
@@ -34,20 +31,11 @@ pub struct Contract {
 }
 
 impl Contract {
-    /// Returns the `mod` item (if any) for the ink! contract.
-    pub fn module(&self) -> Option<&ast::Module> {
-        self.ast.as_ref()
-    }
+    impl_pub_ast_type_getter!(module, Module);
 
-    /// Returns the ink! env argument (if any) for the ink! contract.
-    pub fn env_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Env)
-    }
+    impl_pub_ink_arg_getter!(env_arg, Env, env);
 
-    /// Returns the ink! `keep_attr` argument (if any) for the ink! contract.
-    pub fn keep_attr_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::KeepAttr)
-    }
+    impl_pub_ink_arg_getter!(keep_attr_arg, KeepAttr, keep_attr);
 }
 
 #[cfg(test)]

@@ -58,7 +58,9 @@ pub use self::{
     storage_item::StorageItem,
     topic::Topic,
     trait_definition::TraitDefinition,
-    traits::{InkEntity, IsInkCallable, IsInkFn, IsInkImplItem, IsInkStruct, IsInkTrait, IsSyntax},
+    traits::{
+        HasInkImplParent, InkEntity, IsInkCallable, IsInkFn, IsInkStruct, IsInkTrait, IsSyntax,
+    },
     tree::ast_ext::{
         closest_ancestor_ast_type, closest_item_which, closest_non_trivia_token, parent_ast_item,
     },
@@ -77,6 +79,9 @@ pub use ra_ap_syntax as syntax;
 
 /// Re-export `ra_ap_syntax::ast` as `ast`.
 pub use ra_ap_syntax::ast;
+
+#[macro_use]
+mod macros;
 
 mod attrs;
 mod chain_extension;

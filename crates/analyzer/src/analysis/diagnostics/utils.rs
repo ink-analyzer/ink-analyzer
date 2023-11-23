@@ -6,8 +6,8 @@ use ink_analyzer_ir::syntax::{
     SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
 };
 use ink_analyzer_ir::{
-    ast, Contract, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind, InkAttribute,
-    InkAttributeKind, InkEntity, InkMacroKind, IsInkFn, IsInkImplItem, IsInkStruct, IsInkTrait,
+    ast, Contract, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
+    InkAttribute, InkAttributeKind, InkEntity, InkMacroKind, IsInkFn, IsInkStruct, IsInkTrait,
 };
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -1443,9 +1443,9 @@ where
 /// Ensures that item is defined in the root of an `impl` item.
 pub fn ensure_impl_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: InkEntity + IsInkImplItem,
+    T: InkEntity + HasInkImplParent,
 {
-    item.impl_item().is_none().then_some(Diagnostic {
+    item.parent_impl_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be defined in the root of an `impl` block."),
         range: item.syntax().text_range(),
         severity: Severity::Error,

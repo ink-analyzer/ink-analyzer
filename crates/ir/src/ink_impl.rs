@@ -37,14 +37,11 @@ fn can_cast(node: &SyntaxNode) -> bool {
 }
 
 impl InkImpl {
-    /// Returns the `impl` item (if any) for the ink! impl.
-    pub fn impl_item(&self) -> Option<&ast::Impl> {
-        self.ast.as_ref()
-    }
+    impl_pub_ast_type_getter!(impl_item, Impl);
 
-    /// Returns the trait type (if any) for the ink! impl.
+    /// Returns the trait type (if any).
     pub fn trait_type(&self) -> Option<ast::Type> {
-        self.impl_item().and_then(|impl_item| impl_item.trait_())
+        self.impl_item().and_then(ast::Impl::trait_)
     }
 
     /// Returns the ink! impl attribute (if any).
@@ -54,12 +51,9 @@ impl InkImpl {
             .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
     }
 
-    /// Returns the ink! impl namespace argument (if any).
-    pub fn namespace_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Namespace)
-    }
+    impl_pub_ink_arg_getter!(namespace_arg, Namespace, namespace);
 
-    /// Returns the ink! trait definition (if any) for the ink! impl.
+    /// Returns the ink! trait definition (if any).
     pub fn trait_definition(&self) -> Option<TraitDefinition> {
         self.trait_type()
             .and_then(|trait_type| match trait_type {

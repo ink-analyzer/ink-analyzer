@@ -2,8 +2,6 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::IsInkFn;
-
 /// An ink! test.
 #[ink_analyzer_macro::entity(macro_kind = Test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,17 +10,13 @@ pub struct InkTest {
     ast: ast::Fn,
 }
 
-impl IsInkFn for InkTest {
-    fn fn_item(&self) -> Option<&ast::Fn> {
-        self.ast.as_ref()
-    }
-}
+impl_ast_type_trait!(InkTest, IsInkFn);
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::traits::InkEntity;
+    use crate::traits::{InkEntity, IsInkFn};
     use test_utils::quote_as_str;
 
     #[test]

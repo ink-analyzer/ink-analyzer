@@ -16,11 +16,7 @@ pub struct ChainExtension {
     extensions: Vec<Extension>,
 }
 
-impl IsInkTrait for ChainExtension {
-    fn trait_item(&self) -> Option<&ast::Trait> {
-        self.ast.as_ref()
-    }
-}
+impl_ast_type_trait!(ChainExtension, IsInkTrait);
 
 impl ChainExtension {
     /// Returns the `ErrorCode` associated types for the ink! chain extension.

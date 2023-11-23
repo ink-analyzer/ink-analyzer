@@ -3,8 +3,7 @@
 use ra_ap_syntax::ast;
 
 use crate::traits::InkEntity;
-use crate::tree::utils;
-use crate::{InkArg, InkArgKind};
+use crate::InkArg;
 
 /// An ink! storage item.
 #[ink_analyzer_macro::entity(macro_kind = StorageItem)]
@@ -15,15 +14,9 @@ pub struct StorageItem {
 }
 
 impl StorageItem {
-    /// Returns the ink! derive argument (if any) for the ink! storage item.
-    pub fn derive_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Derive)
-    }
+    impl_pub_ast_type_getter!(adt, Adt);
 
-    /// Returns the `adt` (i.e `enum`, `struct` or `union`) item (if any) for the ink! storage item.
-    pub fn adt(&self) -> Option<&ast::Adt> {
-        self.ast.as_ref()
-    }
+    impl_pub_ink_arg_getter!(derive_arg, Derive, derive);
 }
 
 #[cfg(test)]

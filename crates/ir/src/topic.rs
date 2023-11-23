@@ -11,10 +11,7 @@ pub struct Topic {
 }
 
 impl Topic {
-    /// Returns the `field` item (if any) for the ink! topic.
-    pub fn field(&self) -> Option<&ast::RecordField> {
-        self.ast.as_ref()
-    }
+    impl_pub_ast_type_getter!(field, RecordField);
 }
 
 #[cfg(test)]

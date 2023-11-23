@@ -123,7 +123,12 @@ pub fn impl_entity(args: TokenStream, item: TokenStream) -> Result<TokenStream, 
                                                     #field_name: #initializer.#consumer()
                                                 });
 
+                                                let comment = format!(
+                                                    "Returns ink! {}.",
+                                                    field_name.to_string().replace('_', " ")
+                                                );
                                                 getters.push(quote! {
+                                                    #[doc = #comment]
                                                     pub fn #field_name(&self) -> #ret_type {
                                                         #ret_expr
                                                     }

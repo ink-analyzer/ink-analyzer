@@ -2,9 +2,8 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::{InkEntity, IsInkFn};
-use crate::tree::utils;
-use crate::{InkArg, InkArgKind};
+use crate::traits::InkEntity;
+use crate::InkArg;
 
 /// An ink! extension.
 #[ink_analyzer_macro::entity(arg_kind = Extension)]
@@ -14,33 +13,24 @@ pub struct Extension {
     ast: ast::Fn,
 }
 
-impl IsInkFn for Extension {
-    fn fn_item(&self) -> Option<&ast::Fn> {
-        self.ast.as_ref()
-    }
-}
+impl_ast_type_trait!(Extension, IsInkFn);
 
 impl Extension {
-    /// Returns the id (if any) of the ink! extension.
+    /// Returns the extension id (if any).
     pub fn id(&self) -> Option<u32> {
         self.extension_arg()?.value()?.as_u32()
     }
 
-    /// Returns the ink! extension argument (if any) for the ink! extension.
-    pub fn extension_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::Extension)
-    }
+    impl_pub_ink_arg_getter!(extension_arg, Extension, extension);
 
-    /// Returns the ink! `handle_status` argument (if any) for the ink! extension.
-    pub fn handle_status_arg(&self) -> Option<InkArg> {
-        utils::ink_arg_by_kind(self.syntax(), InkArgKind::HandleStatus)
-    }
+    impl_pub_ink_arg_getter!(handle_status_arg, HandleStatus, handle_status);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::traits::IsInkFn;
     use test_utils::quote_as_str;
 
     #[test]
