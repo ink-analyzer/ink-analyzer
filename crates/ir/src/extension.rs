@@ -2,9 +2,6 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::InkEntity;
-use crate::InkArg;
-
 /// An ink! extension.
 #[ink_analyzer_macro::entity(arg_kind = Extension)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,7 +27,7 @@ impl Extension {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::traits::IsInkFn;
+    use crate::traits::{InkEntity, IsInkFn};
     use test_utils::quote_as_str;
 
     #[test]

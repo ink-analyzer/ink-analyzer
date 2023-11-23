@@ -38,7 +38,8 @@ macro_rules! impl_ast_type_trait_base {
 macro_rules! impl_ink_arg_getter {
     ($name: ident, $variant: ident, $doc: ident $(, $vis: vis)?) => {
         #[doc = concat!("Returns the ink! `", stringify!($doc), "` argument (if any).")]
-        $($vis)? fn $name(&self) -> Option<InkArg> {
+        $($vis)? fn $name(&self) -> Option<$crate::InkArg> {
+            use crate::traits::InkEntity;
             $crate::tree::utils::ink_arg_by_kind(self.syntax(), $crate::InkArgKind::$variant)
         }
     };

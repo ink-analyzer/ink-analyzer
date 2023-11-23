@@ -5,9 +5,7 @@ use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 
 use crate::traits::InkEntity;
 use crate::tree::utils;
-use crate::{
-    Constructor, InkArg, InkArgKind, InkAttribute, InkAttributeKind, Message, TraitDefinition,
-};
+use crate::{Constructor, InkArgKind, InkAttribute, InkAttributeKind, Message, TraitDefinition};
 
 /// An ink! impl block.
 #[ink_analyzer_macro::entity(call = self::can_cast)]

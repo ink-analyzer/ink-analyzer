@@ -2,9 +2,6 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::InkEntity;
-use crate::InkArg;
-
 /// An ink! storage item.
 #[ink_analyzer_macro::entity(macro_kind = StorageItem)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +20,7 @@ impl StorageItem {
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::traits::InkEntity;
     use quote::quote;
     use test_utils::quote_as_str;
 

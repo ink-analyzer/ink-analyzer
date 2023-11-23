@@ -2,8 +2,7 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::InkEntity;
-use crate::{Constructor, Event, InkArg, InkE2ETest, InkImpl, InkTest, Message, Storage};
+use crate::{Constructor, Event, InkE2ETest, InkImpl, InkTest, Message, Storage};
 
 /// An ink! contract.
 #[ink_analyzer_macro::entity(macro_kind = Contract)]
@@ -42,6 +41,7 @@ impl Contract {
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::traits::InkEntity;
     use test_utils::quote_as_str;
 
     #[test]

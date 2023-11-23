@@ -2,8 +2,7 @@
 
 use ra_ap_syntax::ast;
 
-use crate::traits::InkEntity;
-use crate::{InkArg, Message};
+use crate::Message;
 
 /// An ink! trait definition.
 #[ink_analyzer_macro::entity(macro_kind = TraitDefinition)]
@@ -27,7 +26,7 @@ impl TraitDefinition {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::traits::IsInkTrait;
+    use crate::traits::{InkEntity, IsInkTrait};
     use test_utils::quote_as_str;
 
     #[test]

@@ -2,9 +2,10 @@
 
 use super::IsInkFn;
 use crate::tree::utils;
-use crate::{InkArg, InkArgKind, InkEntity, Selector, SelectorArg};
+use crate::{InkArgKind, InkEntity, Selector, SelectorArg};
 
 /// Implemented by ink! entities that represent an ink! callable entity (i.e an ink! constructor or ink! message).
+#[allow(unused_imports)]
 pub trait IsInkCallable: InkEntity + IsInkFn {
     impl_ink_arg_getter!(default_arg, Default, default);
 
