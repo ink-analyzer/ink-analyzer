@@ -49,8 +49,7 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
             }
         }
         // Returns valid sibling args (if any) for ink! attribute arguments.
-        // IR crate already makes sure `arg_kind` is the best match regardless of source code order,
-        // See [`ink_analyzer_ir::ink_arg_kind_sort_order`] doc.
+        // IR crate already makes sure `arg_kind` is the best match regardless of order in source code.
         InkAttributeKind::Arg(arg_kind) => {
             match arg_kind {
                 // Unambiguous `arg_kind`.
@@ -172,8 +171,7 @@ pub fn valid_quasi_direct_descendant_ink_args(attr_kind: InkAttributeKind) -> Ve
             }
         }
         // Returns valid quasi-direct descendant args (if any) for ink! attribute arguments.
-        // IR crate already makes sure `arg_kind` is the best match regardless of source code order,
-        // See [`ink_analyzer_ir::ink_arg_kind_sort_order`] doc.
+        // IR crate already makes sure `arg_kind` is the best match regardless of order in source code.
         InkAttributeKind::Arg(arg_kind) => {
             match arg_kind {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L132-L139>.

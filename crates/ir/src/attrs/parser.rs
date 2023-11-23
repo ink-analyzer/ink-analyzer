@@ -1,7 +1,7 @@
 //! ink! attribute IR utilities.
 
 use itertools::Itertools;
-use ra_ap_syntax::{ast, AstNode, AstToken, SyntaxElement, SyntaxToken, T};
+use ra_ap_syntax::{ast, AstNode, AstToken, SyntaxElement, T};
 
 use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaSeparator, MetaValue};
 use crate::InkArg;
@@ -18,7 +18,7 @@ pub fn parse_ink_args(attr: &ast::Attr) -> Vec<InkArg> {
     }
 }
 
-/// Parse meta items.
+// Parse meta items.
 fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
     let l_paren = token_tree.l_paren_token();
     let r_paren = token_tree.r_paren_token();
@@ -35,84 +35,73 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
         .skip(usize::from(l_paren.is_some()))
         // Ignore closing parenthesis if present.
         .take_while(|it| r_paren.is_none() || it.as_token() != r_paren.as_ref())
-        // Comma separated groups.
+        // Comma (`,`) separated groups.
         .group_by(|token| token.kind() == T![,])
         .into_iter()
-        .filter_map(|(is_sep, mut group)| {
-            if is_sep {
+        .filter_map(|(is_comma, mut group)| {
+            if is_comma {
                 // This is the comma token, so we update last separator offset.
-                last_separator_offset = group.next().unwrap().text_range().end();
+                if let Some(comma) = group.next() {
+                    last_separator_offset = comma.text_range().end();
+                }
                 None
             } else {
-                let arg_elems: Vec<SyntaxElement> = group.collect();
-                if arg_elems.is_empty() {
-                    // Empty argument.
-                    // Use last operator offset as the offset for the empty argument.
-                    Some(MetaNameValue::empty(last_separator_offset))
-                } else {
-                    let arg_item_groups: Vec<Vec<SyntaxElement>> = arg_elems
-                        .into_iter()
-                        // Equal sign (=) separated groups.
-                        .group_by(|token| token.kind() == T![=])
-                        .into_iter()
-                        .map(|(_, group)| group.into_iter().collect())
-                        .collect();
+                let mut arg_tokens = group;
+                let mut eq = None;
+                let name: Vec<_> = arg_tokens
+                    .by_ref()
+                    .take_while(|it| {
+                        let is_sep = it.kind() == T![=];
+                        if is_sep {
+                            // Sets the equal sign (`=`) if its present (before its consumed).
+                            eq = it.clone().into_token().and_then(MetaSeparator::cast);
+                        }
+                        !is_sep
+                    })
+                    .collect();
+                let value: Vec<_> = arg_tokens.collect();
 
-                    let empty = Vec::new();
-                    Some(MetaNameValue::new(
-                        arg_name_meta_option(arg_item_groups.get(0).unwrap_or(&empty)),
-                        arg_eq_option(arg_item_groups.get(1).unwrap_or(&empty)),
-                        arg_value_meta_option(arg_item_groups.get(2).unwrap_or(&empty)),
-                        last_separator_offset,
-                    ))
-                }
+                Some(MetaNameValue::new(
+                    parse_meta_name(&name),
+                    eq,
+                    parse_meta_value(&value),
+                    last_separator_offset,
+                ))
             }
         })
         .collect()
 }
 
-fn only_non_trivia_elements(elems: &[SyntaxElement]) -> Vec<&SyntaxElement> {
-    elems
-        .iter()
-        .filter(|elem| !elem.kind().is_trivia())
-        .collect()
-}
-
-fn token_at_index<'a>(elems: &'a [&SyntaxElement], idx: usize) -> Option<&'a SyntaxToken> {
-    elems.get(idx)?.as_token()
-}
-
-fn arg_name_meta_option(elems: &[SyntaxElement]) -> MetaOption<MetaName> {
-    let non_trivia_elems = only_non_trivia_elements(elems);
-    match non_trivia_elems.len() {
+// Parse meta name.
+fn parse_meta_name(tokens: &[SyntaxElement]) -> MetaOption<MetaName> {
+    let non_trivia_tokens: Vec<_> = tokens.iter().filter(|it| !it.kind().is_trivia()).collect();
+    match non_trivia_tokens.len() {
         0 => MetaOption::None,
         1 => {
-            let mut name = MetaOption::Err(elems.to_owned());
-            if let Some(token) = token_at_index(&non_trivia_elems, 0) {
-                if let Some(meta_name) = MetaName::cast(token.clone()) {
-                    name = MetaOption::Ok(meta_name);
-                }
+            let meta_name_option = non_trivia_tokens
+                .get(0)
+                .cloned()
+                .and_then(SyntaxElement::as_token)
+                .cloned()
+                .and_then(MetaName::cast);
+            match meta_name_option {
+                Some(meta_name) => MetaOption::Ok(meta_name),
+                None => MetaOption::Err(tokens.to_owned()),
             }
-            name
         }
-        _ => MetaOption::Err(elems.to_owned()),
+        _ => MetaOption::Err(tokens.to_owned()),
     }
 }
 
-fn arg_eq_option(elems: &[SyntaxElement]) -> Option<MetaSeparator> {
-    let non_trivia_elems = only_non_trivia_elements(elems);
-    (non_trivia_elems.len() == 1)
-        .then(|| MetaSeparator::cast(token_at_index(&non_trivia_elems, 0)?.clone()))?
-}
-
-fn arg_value_meta_option(elems: &[SyntaxElement]) -> MetaOption<MetaValue> {
-    if elems.is_empty() {
-        return MetaOption::None;
-    }
-
-    match MetaValue::parse(elems) {
-        Some(expr) => MetaOption::Ok(expr),
-        None => MetaOption::Err(elems.to_owned()),
+// Parse meta value.
+fn parse_meta_value(tokens: &[SyntaxElement]) -> MetaOption<MetaValue> {
+    if tokens.is_empty() {
+        MetaOption::None
+    } else {
+        match MetaValue::parse(tokens) {
+            Some(expr) => MetaOption::Ok(expr),
+            None => MetaOption::Err(tokens.to_owned()),
+        }
     }
 }
 

@@ -6,11 +6,11 @@ use std::cmp::Ordering;
 use std::fmt;
 
 use crate::meta::MetaName;
-pub use arg::{InkArg, InkArgKind, InkArgValueKind, InkArgValuePathKind, InkArgValueStringKind};
+pub use args::{InkArg, InkArgKind, InkArgValueKind, InkArgValuePathKind, InkArgValueStringKind};
 
-mod arg;
+mod args;
 pub mod meta;
-pub mod utils;
+pub mod parser;
 
 /// An ink! specific attribute.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,15 +49,17 @@ impl InkAttribute {
             let ink_crate_segment = path_segments.next()?;
             let ink_crate_name = ink_crate_segment.to_string();
 
-            let args = utils::parse_ink_args(&attr);
+            let args = parser::parse_ink_args(&attr);
             let possible_ink_macro_segment = path_segments.next();
             let mut possible_ink_arg_name: Option<MetaName> = None;
 
             let ink_attr_kind = match &possible_ink_macro_segment {
                 Some(ink_macro_segment) => {
-                    // More than one path segment means an ink! attribute macro e.g `#[ink::contract]` or `#[ink_e2e::test]`.
+                    // More than one path segment means an ink! attribute macro
+                    // (e.g. `#[ink::contract]` or `#[ink_e2e::test]`).
                     match path_segments.next() {
-                        // Any more path segments means an unknown attribute macro e.g `#[ink::abc::xyz]` or `#[ink_e2e::abc::xyz]`.
+                        // Any more path segments means an unknown attribute macro
+                        // (e.g. `#[ink::abc::xyz]` or `#[ink_e2e::abc::xyz]`).
                         Some(_) => InkAttributeKind::Macro(InkMacroKind::Unknown),
                         // Otherwise we parse the ink! macro kind from the macro path segment.
                         None => InkAttributeKind::Macro(InkMacroKind::from((
@@ -67,7 +69,8 @@ impl InkAttribute {
                     }
                 }
                 None => {
-                    // No additional path segments means either an ink! attribute argument (e.g `#[ink(storage)]`) or an unknown attribute.
+                    // No additional path segments means either an ink! attribute argument
+                    // (e.g. `#[ink(storage)]`) or an unknown attribute.
                     if args.is_empty() {
                         match attr.token_tree() {
                             // A token tree means an unknown ink! attribute argument.
@@ -77,7 +80,7 @@ impl InkAttribute {
                         }
                     } else {
                         // Sort arguments so that we choose the "primary" `InkArgKind` for the attribute.
-                        // See [`utils::ink_arg_kind_sort_order`] doc.
+                        // See [`args::ink_arg_kind_sort_order`] doc.
                         // Returns a new list so we don't change the original order for later analysis.
                         let primary_arg = args.iter().sorted().next().unwrap();
                         possible_ink_arg_name = primary_arg.name().cloned();

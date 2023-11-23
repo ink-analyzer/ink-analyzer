@@ -41,8 +41,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
                 })
             }
             // Returns hover content based on the ink! attribute macro, ink! e2e attribute macro
-            // or "primary" ink! attribute argument for the ink! attribute,
-            // See [`ink_analyzer_ir::ink_arg_kind_sort_order`] doc.
+            // or "primary" ink! attribute argument for the ink! attribute.
             None => {
                 let doc = content::doc(ink_attr.kind());
                 (!doc.is_empty()).then_some(Hover {
