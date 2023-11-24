@@ -136,12 +136,12 @@ pub struct SelectorArg {
 }
 
 impl SelectorArg {
-    /// Returns true if the ink! argument can be converted into an ink! selector.
+    /// Returns true if the ink! argument can be converted into an ink! selector argument.
     pub fn can_cast(arg: &InkArg) -> bool {
         *arg.kind() == InkArgKind::Selector
     }
 
-    /// Converts an ink! attribute argument into a Selector IR type.
+    /// Converts an ink! attribute argument into a ink! selector argument.
     pub fn cast(arg: InkArg) -> Option<Self> {
         Self::can_cast(&arg).then_some(Self {
             kind: if let Some(value) = arg.value() {

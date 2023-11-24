@@ -50,3 +50,11 @@ macro_rules! impl_pub_ink_arg_getter {
         impl_ink_arg_getter!($name, $variant, $doc, pub);
     };
 }
+
+macro_rules! impl_has_ink_environment {
+    ($entity: ty, $variant: ident) => {
+        impl $crate::traits::HasInkEnvironment for $entity {
+            const ENV_ARG_KIND: $crate::InkArgKind = $crate::InkArgKind::$variant;
+        }
+    };
+}

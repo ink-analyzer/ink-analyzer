@@ -29,10 +29,10 @@ pub struct Contract {
     e2e_tests: Vec<InkE2ETest>,
 }
 
+impl_has_ink_environment!(Contract, Env);
+
 impl Contract {
     impl_pub_ast_type_getter!(module, Module);
-
-    impl_pub_ink_arg_getter!(env_arg, Env, env);
 
     impl_pub_ink_arg_getter!(keep_attr_arg, KeepAttr, keep_attr);
 }
@@ -41,7 +41,7 @@ impl Contract {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use crate::traits::InkEntity;
+    use crate::traits::{HasInkEnvironment, InkEntity};
     use test_utils::quote_as_str;
 
     #[test]
@@ -139,7 +139,7 @@ mod tests {
         let contract = Contract::cast(node).unwrap();
 
         // `env` argument exists.
-        assert!(contract.env_arg().is_some());
+        assert!(contract.environment_arg().is_some());
 
         // `keep_attr` argument exists.
         assert!(contract.keep_attr_arg().is_some());

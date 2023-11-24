@@ -12,6 +12,8 @@ pub struct InkE2ETest {
 
 impl_ast_type_trait!(InkE2ETest, IsInkFn);
 
+impl_has_ink_environment!(InkE2ETest, Environment);
+
 impl InkE2ETest {
     impl_pub_ink_arg_getter!(
         additional_contracts_arg,

@@ -46,6 +46,7 @@ pub use self::{
     chain_extension::ChainExtension,
     constructor::Constructor,
     contract::Contract,
+    environment::EnvironmentArg,
     event::Event,
     extension::Extension,
     file::InkFile,
@@ -59,7 +60,8 @@ pub use self::{
     topic::Topic,
     trait_definition::TraitDefinition,
     traits::{
-        HasInkImplParent, InkEntity, IsInkCallable, IsInkFn, IsInkStruct, IsInkTrait, IsSyntax,
+        HasInkEnvironment, HasInkImplParent, InkEntity, IsInkCallable, IsInkFn, IsInkStruct,
+        IsInkTrait, IsSyntax,
     },
     tree::ast_ext::{
         closest_ancestor_ast_type, closest_item_which, closest_non_trivia_token, parent_ast_item,
@@ -99,6 +101,7 @@ mod storage_item;
 mod topic;
 mod trait_definition;
 
+mod environment;
 mod iter;
 mod selector;
 mod traits;

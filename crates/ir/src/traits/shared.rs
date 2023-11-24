@@ -2,9 +2,10 @@
 
 use super::IsInkFn;
 use crate::tree::utils;
-use crate::{InkArgKind, InkEntity, Selector, SelectorArg};
+use crate::{EnvironmentArg, InkArgKind, InkEntity, Selector, SelectorArg};
 
-/// Implemented by ink! entities that represent an ink! callable entity (i.e an ink! constructor or ink! message).
+/// Implemented by ink! entities that represent an ink! callable entity
+/// (i.e. an ink! constructor or ink! message).
 #[allow(unused_imports)]
 pub trait IsInkCallable: InkEntity + IsInkFn {
     impl_ink_arg_getter!(default_arg, Default, default);
@@ -22,5 +23,16 @@ pub trait IsInkCallable: InkEntity + IsInkFn {
         Self: Sized,
     {
         Selector::compose(self)
+    }
+}
+
+/// Implemented by ink! entities that accept an `Environment` configuration
+/// (i.e. an ink! contract or ink! e2e test).
+pub trait HasInkEnvironment: InkEntity {
+    const ENV_ARG_KIND: InkArgKind;
+
+    /// Returns the ink! selector argument (if any).
+    fn environment_arg(&self) -> Option<EnvironmentArg> {
+        utils::ink_arg_by_kind(self.syntax(), Self::ENV_ARG_KIND).and_then(EnvironmentArg::cast)
     }
 }
