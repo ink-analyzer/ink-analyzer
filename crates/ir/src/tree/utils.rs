@@ -257,14 +257,9 @@ where
 }
 
 /// Returns the AST item referenced by the path (if any).
-pub fn resolve_item<T, F>(
-    path: &ast::Path,
-    ref_node: &SyntaxNode,
-    filter_option: Option<F>,
-) -> Option<T>
+pub fn resolve_item<T>(path: &ast::Path, ref_node: &SyntaxNode) -> Option<T>
 where
     T: AstNode + HasName,
-    F: Fn(&SyntaxNode) -> bool,
 {
     // Only continue if the last segment is valid.
     let target = path.segment()?;
@@ -371,10 +366,7 @@ where
         .and_then(|(root_node, target_name)| {
             root_node
                 .children()
-                .filter(|node| {
-                    T::can_cast(node.kind())
-                        && filter_option.as_ref().map_or(true, |filter| filter(node))
-                })
+                .filter(|node| T::can_cast(node.kind()))
                 .find_map(|node| {
                     T::cast(node.clone()).filter(|item| {
                         item.name()

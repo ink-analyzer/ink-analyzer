@@ -58,7 +58,7 @@ impl InkImpl {
         }?;
 
         // Resolves the trait definition (if any) based on the path.
-        utils::resolve_item::<ast::Trait, _>(&path, self.syntax(), Some(TraitDefinition::can_cast))
+        utils::resolve_item::<ast::Trait>(&path, self.syntax())
             .and_then(|trait_item| TraitDefinition::cast(trait_item.syntax().clone()))
     }
 }
