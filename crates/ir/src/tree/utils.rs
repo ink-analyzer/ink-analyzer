@@ -1,6 +1,7 @@
 //! ink! entity tree traversal utilities.
 
 use itertools::Itertools;
+use ra_ap_syntax::ast::HasName;
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode};
 
 use super::ast_ext;
@@ -253,6 +254,134 @@ where
         })
         // Deduplicate by wrapped syntax node.
         .unique_by(|item| item.syntax().clone())
+}
+
+/// Returns the AST item referenced by the path (if any).
+pub fn resolve_item<T, F>(
+    path: &ast::Path,
+    ref_node: &SyntaxNode,
+    filter_option: Option<F>,
+) -> Option<T>
+where
+    T: AstNode + HasName,
+    F: Fn(&SyntaxNode) -> bool,
+{
+    // Only continue if the last segment is valid.
+    let target = path.segment()?;
+
+    // Resolves the root module (i.e. the file root).
+    let resolve_root_module = |node: &SyntaxNode| node.ancestors().last();
+    // Resolves current module (defaults to the file root if there's no `mod` item).
+    let resolve_current_module = |node: &SyntaxNode| {
+        node.ancestors()
+            .find(|it| ast::Module::can_cast(it.kind()))
+            .or(resolve_root_module(node))
+    };
+    // Resolves next child module.
+    let resolve_next_child_module = |root: &SyntaxNode, name: &ast::NameRef| {
+        root.children().find(|it| {
+            ast::Module::can_cast(it.kind())
+                && ast::Module::cast(it.clone())
+                    .and_then(|module| module.name())
+                    .map_or(false, |module_name| module_name.text() == name.text())
+        })
+    };
+
+    // Determines the root module for target item resolution.
+    // Ref: <https://doc.rust-lang.org/reference/paths.html#paths-in-expressions>.
+    let resolution_root = match path.qualifier() {
+        // Resolves based on qualifier.
+        Some(qualifier) => {
+            let mut qualifier_segments = qualifier
+                .segments()
+                // Calling segments on the qualifier appears to also include the target for some reason,
+                // so we filter it out manually.
+                .filter(|segment| *segment != target);
+
+            // Resolves first path segment including respecting valid path qualifiers
+            // (i.e. `::`, `crate`, `self`, `super`).
+            // NOTE: $crate and Self aren't valid path qualifiers for our context
+            // so they're are treated as module/item names.
+            let mut resolution_root_option = qualifier_segments.next().and_then(|root_segment| {
+                if root_segment.coloncolon_token().is_some() || root_segment.crate_token().is_some()
+                {
+                    // Resolve from crate root (and next path segment if any).
+                    resolve_root_module(ref_node).and_then(|crate_root| {
+                        match root_segment.coloncolon_token() {
+                            // Resolves next segment if path has `::` qualifier.
+                            Some(_) => root_segment
+                                .name_ref()
+                                .and_then(|name| resolve_next_child_module(&crate_root, &name)),
+                            // Otherwise returns the crate root.
+                            None => Some(crate_root),
+                        }
+                    })
+                } else if root_segment.self_token().is_some() {
+                    // Resolve from current module.
+                    resolve_current_module(ref_node)
+                } else if root_segment.super_token().is_some() {
+                    // Resolve from parent module.
+                    resolve_current_module(ref_node)
+                        .as_ref()
+                        .and_then(SyntaxNode::parent)
+                        .as_ref()
+                        .and_then(resolve_current_module)
+                } else {
+                    resolve_current_module(ref_node)
+                        .zip(root_segment.name_ref())
+                        .and_then(|(current_module, name)| {
+                            resolve_next_child_module(&current_module, &name)
+                        })
+                }
+            });
+
+            // Resolves the remaining qualifier segments (if any).
+            while let Some((node, segment)) = resolution_root_option
+                .as_ref()
+                .zip(qualifier_segments.next())
+            {
+                resolution_root_option = segment
+                    .name_ref()
+                    .and_then(|name| resolve_next_child_module(node, &name));
+            }
+
+            resolution_root_option
+        }
+        // Resolves from current module if there's no specifier.
+        None => resolve_current_module(ref_node),
+    };
+
+    resolution_root
+        .map(|root_node| {
+            if ast::Module::can_cast(root_node.kind()) {
+                // Use the item list as the root node for module.
+                ast::Module::cast(root_node.clone())
+                    .as_ref()
+                    .and_then(ast::Module::item_list)
+                    .as_ref()
+                    .map(AstNode::syntax)
+                    .cloned()
+                    .unwrap_or(root_node)
+            } else {
+                // Otherwise use the root node directly (e.g. for file roots).
+                root_node
+            }
+        })
+        .zip(target.name_ref())
+        .and_then(|(root_node, target_name)| {
+            root_node
+                .children()
+                .filter(|node| {
+                    T::can_cast(node.kind())
+                        && filter_option.as_ref().map_or(true, |filter| filter(node))
+                })
+                .find_map(|node| {
+                    T::cast(node.clone()).filter(|item| {
+                        item.name()
+                            .map_or(false, |item_name| item_name.text() == target_name.text())
+                    })
+                })
+        })
 }
 
 #[cfg(test)]
