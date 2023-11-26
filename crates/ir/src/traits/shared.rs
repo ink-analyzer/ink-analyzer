@@ -1,10 +1,8 @@
 //! ink! entity traits for callables (i.e ink! constructors and ink! messages).
 
-use ra_ap_syntax::ast;
-
 use super::IsInkFn;
 use crate::tree::utils;
-use crate::{EnvironmentArg, InkArgKind, InkEntity, Selector, SelectorArg};
+use crate::{Environment, EnvironmentArg, InkArgKind, InkEntity, Selector, SelectorArg};
 
 /// Implemented by ink! entities that represent an ink! callable entity
 /// (i.e. an ink! constructor or ink! message).
@@ -33,16 +31,17 @@ pub trait IsInkCallable: InkEntity + IsInkFn {
 pub trait HasInkEnvironment: InkEntity {
     const ENV_ARG_KIND: InkArgKind;
 
-    /// Returns the ink! selector argument (if any).
+    /// Returns the ink! environment argument (if any).
     fn environment_arg(&self) -> Option<EnvironmentArg> {
         utils::ink_arg_by_kind(self.syntax(), Self::ENV_ARG_KIND).and_then(EnvironmentArg::cast)
     }
 
-    /// Returns the composed selector (if any).
-    fn environment(&self) -> Option<ast::Adt> {
+    /// Returns the ink! chain environment (if any).
+    fn environment(&self) -> Option<Environment> {
         self.environment_arg()
             .as_ref()
             .and_then(EnvironmentArg::as_path_with_inaccurate_text_range)
             .and_then(|path| utils::resolve_item(&path, self.syntax()))
+            .map(Environment::new)
     }
 }

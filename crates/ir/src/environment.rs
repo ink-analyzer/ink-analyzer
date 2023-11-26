@@ -4,6 +4,24 @@ use ra_ap_syntax::{ast, SyntaxKind, TextRange};
 
 use crate::{InkArg, InkArgKind};
 
+/// A chain environment.
+///
+/// Ref: <https://use.ink/basics/chain-environment-types>.
+#[derive(Debug, Clone)]
+pub struct Environment(ast::Adt);
+
+impl Environment {
+    /// Creates an environment.
+    pub fn new(adt: ast::Adt) -> Self {
+        Self(adt)
+    }
+
+    /// Returns the `adt` for the environment.
+    pub fn adt(&self) -> &ast::Adt {
+        &self.0
+    }
+}
+
 /// An ink! environment argument.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvironmentArg {

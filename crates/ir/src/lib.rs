@@ -46,7 +46,7 @@ pub use self::{
     chain_extension::ChainExtension,
     constructor::Constructor,
     contract::Contract,
-    environment::EnvironmentArg,
+    environment::{Environment, EnvironmentArg},
     event::Event,
     extension::Extension,
     file::InkFile,
