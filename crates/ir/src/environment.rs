@@ -24,14 +24,14 @@ impl Environment {
 
 /// An ink! environment argument.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EnvironmentArg {
+pub struct EnvArg {
     /// The kind of the ink! environment.
-    kind: EnvironmentArgKind,
+    kind: EnvArgKind,
     /// The ink! attribute argument for the environment.
     arg: InkArg,
 }
 
-impl EnvironmentArg {
+impl EnvArg {
     /// Returns true if the ink! argument can be converted into an ink! environment argument.
     pub fn can_cast(arg: &InkArg) -> bool {
         matches!(arg.kind(), InkArgKind::Env | InkArgKind::Environment)
@@ -42,11 +42,11 @@ impl EnvironmentArg {
         Self::can_cast(&arg).then_some(Self {
             kind: if let Some(value) = arg.value() {
                 match value.kind() {
-                    SyntaxKind::PATH | SyntaxKind::PATH_EXPR => EnvironmentArgKind::Path,
-                    _ => EnvironmentArgKind::Other,
+                    SyntaxKind::PATH | SyntaxKind::PATH_EXPR => EnvArgKind::Path,
+                    _ => EnvArgKind::Other,
                 }
             } else {
-                EnvironmentArgKind::Other
+                EnvArgKind::Other
             },
             arg,
         })
@@ -59,7 +59,7 @@ impl EnvironmentArg {
 
     /// Returns true if the value is a path.
     pub fn is_path(&self) -> bool {
-        self.kind == EnvironmentArgKind::Path
+        self.kind == EnvArgKind::Path
     }
 
     /// Converts the value if it's an integer literal (decimal or hexadecimal) into a `u32`.
@@ -75,7 +75,7 @@ impl EnvironmentArg {
 
 // The ink! environment argument kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum EnvironmentArgKind {
+enum EnvArgKind {
     Path,
     Other,
 }
@@ -94,7 +94,7 @@ mod tests {
                 quote_as_str! {
                     #[ink(env=crate::Environment)]
                 },
-                EnvironmentArgKind::Path,
+                EnvArgKind::Path,
                 true,
                 Some("crate::Environment"),
             ),
@@ -102,7 +102,7 @@ mod tests {
                 quote_as_str! {
                     #[ink(environment=crate::Environment)]
                 },
-                EnvironmentArgKind::Path,
+                EnvArgKind::Path,
                 true,
                 Some("crate::Environment"),
             ),
@@ -110,7 +110,7 @@ mod tests {
                 quote_as_str! {
                     #[ink(env=external::Environment)]
                 },
-                EnvironmentArgKind::Path,
+                EnvArgKind::Path,
                 true,
                 Some("external::Environment"),
             ),
@@ -118,7 +118,7 @@ mod tests {
                 quote_as_str! {
                     #[ink(env=Environment)]
                 },
-                EnvironmentArgKind::Path,
+                EnvArgKind::Path,
                 true,
                 Some("Environment"),
             ),
@@ -127,7 +127,7 @@ mod tests {
                 quote_as_str! {
                     #[ink(env=1)]
                 },
-                EnvironmentArgKind::Other,
+                EnvArgKind::Other,
                 false,
                 None,
             ),
@@ -135,7 +135,7 @@ mod tests {
                 quote_as_str! {
                     #[ink(env="crate::Environment")]
                 },
-                EnvironmentArgKind::Other,
+                EnvArgKind::Other,
                 false,
                 None,
             ),
@@ -143,7 +143,7 @@ mod tests {
                 quote_as_str! {
                     #[ink(env=_)]
                 },
-                EnvironmentArgKind::Other,
+                EnvArgKind::Other,
                 false,
                 None,
             ),
@@ -151,13 +151,13 @@ mod tests {
                 quote_as_str! {
                     #[ink(env=struct)]
                 },
-                EnvironmentArgKind::Other,
+                EnvArgKind::Other,
                 false,
                 None,
             ),
         ] {
             // Parse ink! environment argument.
-            let selector_arg = EnvironmentArg::cast(
+            let selector_arg = EnvArg::cast(
                 parse_first_ink_attribute(code)
                     .args()
                     .iter()

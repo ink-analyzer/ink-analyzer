@@ -9,7 +9,9 @@ use ink_analyzer_ir::{
 };
 use std::collections::HashSet;
 
-use super::{constructor, event, ink_e2e_test, ink_impl, ink_test, message, storage, utils};
+use super::{
+    constructor, environment, event, ink_e2e_test, ink_impl, ink_test, message, storage, utils,
+};
 use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
@@ -96,6 +98,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract) {
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
     ensure_valid_quasi_direct_ink_descendants(results, contract);
+
+    // Runs ink! environment diagnostics, see `environment::diagnostics` doc.
+    environment::diagnostics(results, contract);
 }
 
 /// Ensures that ink! contract attribute is applied to an inline `mod` item.
@@ -919,6 +924,21 @@ mod tests {
             ]
             .iter()
             .flat_map(|code| {
+                let env = quote! {
+                    #[derive(Clone)]
+                    pub struct MyEnvironment;
+
+                    impl ink::env::Environment for MyEnvironment {
+                        const MAX_EVENT_TOPICS: usize = 3;
+                        type AccountId = [u8; 16];
+                        type Balance = u128;
+                        type Hash = [u8; 32];
+                        type Timestamp = u64;
+                        type BlockNumber = u32;
+                        type ChainExtension = ::ink::env::NoChainExtension;
+                    }
+                };
+
                 [
                     // Simple.
                     quote! {
@@ -927,8 +947,10 @@ mod tests {
                     },
                     // Env.
                     quote! {
-                        #[ink::contract(env=my::env::Types)]
+                        #[ink::contract(env=crate::MyEnvironment)]
                         #code
+
+                        #env
                     },
                     // Keep Attr.
                     quote! {
@@ -937,8 +959,10 @@ mod tests {
                     },
                     // Compound.
                     quote! {
-                        #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
+                        #[ink::contract(env=crate::MyEnvironment, keep_attr="foo,bar")]
                         #code
+
+                        #env
                     },
                 ]
             })

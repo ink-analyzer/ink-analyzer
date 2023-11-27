@@ -42,25 +42,11 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use crate::traits::{HasInkEnvironment, InkEntity};
-    use ra_ap_syntax::AstNode;
     use test_utils::quote_as_str;
 
     #[test]
     fn cast_works() {
-        let node: ast::Module = parse_first_ast_node_of_type(quote_as_str! {
-            #[derive(Clone)]
-            pub struct MyEnvironment;
-
-            impl ink_env::Environment for MyEnvironment {
-                const MAX_EVENT_TOPICS: usize = 3;
-                type AccountId = [u8; 16];
-                type Balance = u128;
-                type Hash = [u8; 32];
-                type Timestamp = u64;
-                type BlockNumber = u32;
-                type ChainExtension = ::ink::env::NoChainExtension;
-            }
-
+        let node = parse_first_syntax_node(quote_as_str! {
             #[ink::contract(env=crate::MyEnvironment, keep_attr="foo,bar")]
             mod MyContract {
                 #[ink(storage)]
@@ -148,12 +134,25 @@ mod tests {
                     }
                 }
             }
+
+            #[derive(Clone)]
+            pub struct MyEnvironment;
+
+            impl ink::env::Environment for MyEnvironment {
+                const MAX_EVENT_TOPICS: usize = 3;
+                type AccountId = [u8; 16];
+                type Balance = u128;
+                type Hash = [u8; 32];
+                type Timestamp = u64;
+                type BlockNumber = u32;
+                type ChainExtension = ::ink::env::NoChainExtension;
+            }
         });
 
-        let contract = Contract::cast(node.syntax().clone()).unwrap();
+        let contract = Contract::cast(node).unwrap();
 
         // `env` argument exists.
-        assert!(contract.environment_arg().is_some());
+        assert!(contract.env_arg().is_some());
 
         // `environment` ADT is returned.
         assert!(contract.environment().is_some());

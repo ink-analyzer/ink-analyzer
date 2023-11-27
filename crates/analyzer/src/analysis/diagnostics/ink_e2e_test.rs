@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::InkE2ETest;
 
-use super::utils;
+use super::{environment, utils};
 use crate::Diagnostic;
 
 const E2E_TEST_SCOPE_NAME: &str = "e2e test";
@@ -12,18 +12,21 @@ const E2E_TEST_SCOPE_NAME: &str = "e2e test";
 /// The entry point for finding ink! e2e test semantic rules is the `ir` module of the `ink_e2e_macro` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/ir.rs#L37-L48>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_test: &InkE2ETest) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_e2e_test: &InkE2ETest) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, ink_test);
+    utils::run_generic_diagnostics(results, ink_e2e_test);
 
     // Ensures that ink! e2e test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/ir.rs#L42>.
-    if let Some(diagnostic) = utils::ensure_fn(ink_test, E2E_TEST_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_fn(ink_e2e_test, E2E_TEST_SCOPE_NAME) {
         results.push(diagnostic);
     }
 
     // Ensures that ink! e2e test has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, ink_test, E2E_TEST_SCOPE_NAME);
+    utils::ensure_no_ink_descendants(results, ink_e2e_test, E2E_TEST_SCOPE_NAME);
+
+    // Runs ink! environment diagnostics, see `environment::diagnostics` doc.
+    environment::diagnostics(results, ink_e2e_test);
 }
 
 #[cfg(test)]
@@ -190,8 +193,21 @@ mod tests {
         let ink_e2e_test = parse_first_ink_e2e_test(quote_as_str! {
             type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-            #[ink_e2e::test]
+            #[ink_e2e::test(environment = crate::MyEnvironment)]
             async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+            }
+
+            #[derive(Clone)]
+            pub struct MyEnvironment;
+
+            impl ink::env::Environment for MyEnvironment {
+                const MAX_EVENT_TOPICS: usize = 3;
+                type AccountId = [u8; 16];
+                type Balance = u128;
+                type Hash = [u8; 32];
+                type Timestamp = u64;
+                type BlockNumber = u32;
+                type ChainExtension = ::ink::env::NoChainExtension;
             }
         });
 

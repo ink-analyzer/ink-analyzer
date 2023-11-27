@@ -30,6 +30,7 @@ mod utils;
 mod chain_extension;
 mod constructor;
 mod contract;
+mod environment;
 mod event;
 mod extension;
 mod ink_e2e_test;
