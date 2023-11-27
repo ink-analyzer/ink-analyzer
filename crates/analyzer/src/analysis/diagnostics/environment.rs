@@ -1,10 +1,13 @@
 //! ink! environment config diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasName};
-use ink_analyzer_ir::{ast, HasInkEnvironment, InkEntity};
+use ink_analyzer_ir::syntax::SyntaxNode;
+use ink_analyzer_ir::{ast, Environment, HasInkEnvironment, InkEntity};
 use itertools::Itertools;
 use std::iter;
 
+use crate::analysis::utils as analysis_utils;
+use crate::codegen::snippets::{ENVIRONMENT_PLAIN, ENVIRONMENT_SNIPPET};
 use crate::{Action, ActionKind, Diagnostic, Severity, TextEdit};
 
 /// Runs all ink! environment diagnostics.
@@ -16,9 +19,15 @@ where
     if let Some(diagnostic) = ensure_resolvable(item) {
         results.push(diagnostic);
     }
+
+    // Ensures that ink! environment item satisfies the required trait bounds,
+    // see `ensure_impl_environment` doc.
+    if let Some(diagnostic) = ensure_impl_environment(item) {
+        results.push(diagnostic);
+    }
 }
 
-// Ensures that the ink! environment argument can be resolved to an ADT item
+// Ensures that the ink! environment argument value can be resolved to an ADT item
 // (i.e. struct, enum or union).
 fn ensure_resolvable<T>(item: &T) -> Option<Diagnostic>
 where
@@ -31,30 +40,10 @@ where
         // Handles no environment.
         None => {
             let arg_name = env_arg.arg().meta().name().to_string();
-            let is_target = |name: &str, path: &ast::Path| {
-                path.segment()
-                    .as_ref()
-                    .and_then(ast::PathSegment::name_ref)
-                    .map_or(false, |name_ref| name_ref.to_string() == name)
-            };
-            let has_ink_env_qualifier = |path: &ast::Path| {
-                path.qualifier().map_or(false, |qualifier| {
-                    let qualifier = qualifier.to_string().replace(' ', "");
-                    let env_qualifiers: Vec<_> = ["ink_env", "ink::env"]
-                        .into_iter()
-                        .flat_map(|qualifier| [format!("::{qualifier}"), String::from(qualifier)])
-                        .collect();
-                    env_qualifiers.contains(&qualifier)
-                })
-            };
-            let extract_type_path = |item_type: &ast::Type| match item_type {
-                ast::Type::PathType(path_type) => path_type.path(),
-                _ => None,
-            };
 
             // Finds a struct, enum or union with the target name.
             let find_adt_by_name = |target_name: &ast::NameRef| {
-                item.syntax().ancestors().last().and_then(|root_node| {
+                resolution_root(item).and_then(|root_node| {
                     root_node
                         .descendants()
                         .filter(|it| ast::Adt::can_cast(it.kind()))
@@ -68,12 +57,12 @@ where
                 })
             };
 
-            let is_default_env = is_target("DefaultEnvironment", &env_path)
+            let is_default_env = is_path_target("DefaultEnvironment", &env_path)
                 && (has_ink_env_qualifier(&env_path) || env_path.qualifier().is_none());
             (!is_default_env).then_some(Diagnostic {
                 message: format!(
                     "`{arg_name}` argument value should be a path to a custom type \
-                that implements the `ink_env::Environment` trait."
+                    that implements the `ink::env::Environment` trait."
                 ),
                 range: env_arg.text_range(),
                 severity: Severity::Error,
@@ -86,38 +75,20 @@ where
                     .and_then(find_adt_by_name)
                     // Otherwise finds an implementation of `inv::env::Environment` (if any)
                     // to suggest as the `env` value.
-                    .or(item
-                        .syntax()
-                        .ancestors()
-                        .last()
+                    .or(resolution_root(item)
                         .and_then(|root_node| {
-                            // Finds a implementations of `inv::env::Environment`
-                            // and returns the custom type name.
-                            root_node
-                                .descendants()
-                                .filter(|it| ast::Impl::can_cast(it.kind()))
-                                .find_map(|node| {
-                                    ast::Impl::cast(node)
-                                        .filter(|item| {
-                                            item.trait_()
-                                                .as_ref()
-                                                .and_then(extract_type_path)
-                                                .map_or(false, |path| {
-                                                    is_target("Environment", &path)
-                                                        && (has_ink_env_qualifier(&path)
-                                                            || path.qualifier().is_none())
-                                                })
-                                        })
-                                        .as_ref()
-                                        .and_then(ast::Impl::self_ty)
-                                        .as_ref()
-                                        .and_then(extract_type_path)
-                                        .as_ref()
-                                        .and_then(ast::Path::segment)
-                                        .as_ref()
-                                        .and_then(ast::PathSegment::name_ref)
-                                })
+                            // Finds an `inv::env::Environment` implementation.
+                            ink_env_impl(&root_node, None)
                         })
+                        // Returns the custom type name for `inv::env::Environment` implementation.
+                        .as_ref()
+                        .and_then(ast::Impl::self_ty)
+                        .as_ref()
+                        .and_then(path_from_type)
+                        .as_ref()
+                        .and_then(ast::Path::segment)
+                        .as_ref()
+                        .and_then(ast::PathSegment::name_ref)
                         .as_ref()
                         .and_then(find_adt_by_name))
                     .and_then(|candidate| {
@@ -140,9 +111,10 @@ where
                                 ),
                                 kind: ActionKind::QuickFix,
                                 range: env_arg.text_range(),
-                                edits: vec![TextEdit::replace(
+                                edits: vec![TextEdit::replace_with_snippet(
                                     format!("{arg_name} = {candidate_path}"),
                                     env_arg.text_range(),
+                                    Some(format!("{arg_name} = ${{1:{candidate_path}}}")),
                                 )],
                             }]
                         })
@@ -151,6 +123,121 @@ where
         }
         // Ignores resolved environment config.
         Some(_) => None,
+    }
+}
+
+// Ensures that the ink! environment ADT item (i.e. struct, enum or union) implements
+// the `ink::env::Environment` trait.
+fn ensure_impl_environment<T>(item: &T) -> Option<Diagnostic>
+where
+    T: InkEntity + HasInkEnvironment,
+{
+    // Only continue if there's a named environment ADT.
+    let adt = item.environment().as_ref().map(Environment::adt).cloned()?;
+    let name = adt.name()?;
+
+    // Finds environment implementation (if any).
+    let env_impl_option = resolution_root(item)
+        .and_then(|root_node| ink_env_impl(&root_node, Some(&name.to_string())));
+    match env_impl_option {
+        // Handles no environment implementation.
+        None => {
+            let item = match adt.clone() {
+                ast::Adt::Enum(it) => ast::Item::Enum(it),
+                ast::Adt::Struct(it) => ast::Item::Struct(it),
+                ast::Adt::Union(it) => ast::Item::Union(it),
+            };
+            let range = analysis_utils::ast_item_declaration_range(&item)
+                .unwrap_or(adt.syntax().text_range());
+            let indent_option = analysis_utils::item_indenting(adt.syntax());
+            let env_impl_plain = ENVIRONMENT_PLAIN.replace("MyEnvironment", &name.to_string());
+            let env_impl_snippet = ENVIRONMENT_SNIPPET.replace("MyEnvironment", &name.to_string());
+
+            Some(Diagnostic {
+                message: "Environment values must implement the `ink::env::Environment` trait"
+                    .to_string(),
+                range,
+                severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: format!("Add `ink::env::Environment` implementation for {name}"),
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: vec![TextEdit::insert_with_snippet(
+                        indent_option
+                            .as_ref()
+                            .map(|indent| analysis_utils::apply_indenting(&env_impl_plain, indent))
+                            .unwrap_or(env_impl_plain),
+                        adt.syntax().text_range().end(),
+                        Some(
+                            indent_option
+                                .as_ref()
+                                .map(|indent| {
+                                    analysis_utils::apply_indenting(&env_impl_snippet, indent)
+                                })
+                                .unwrap_or(env_impl_snippet),
+                        ),
+                    )],
+                }]),
+            })
+        }
+        // Ignores resolved environment implementation.
+        Some(_) => None,
+    }
+}
+
+fn resolution_root<T>(item: &T) -> Option<SyntaxNode>
+where
+    T: InkEntity,
+{
+    item.syntax().ancestors().last()
+}
+
+// Finds first `inv::env::Environment` implementation (optionally for a target name).
+fn ink_env_impl(root_node: &SyntaxNode, name_option: Option<&str>) -> Option<ast::Impl> {
+    root_node
+        .descendants()
+        .filter(|it| ast::Impl::can_cast(it.kind()))
+        .find_map(|node| {
+            ast::Impl::cast(node).filter(|item| {
+                let is_env_impl =
+                    item.trait_()
+                        .as_ref()
+                        .and_then(path_from_type)
+                        .map_or(false, |path| {
+                            is_path_target("Environment", &path)
+                                && (has_ink_env_qualifier(&path) || path.qualifier().is_none())
+                        });
+                let is_target_name = name_option
+                    .zip(item.self_ty().as_ref().and_then(path_from_type))
+                    .map_or(false, |(name, path)| is_path_target(name, &path));
+
+                is_env_impl && (name_option.is_none() || is_target_name)
+            })
+        })
+}
+
+fn is_path_target(name: &str, path: &ast::Path) -> bool {
+    path.segment()
+        .as_ref()
+        .and_then(ast::PathSegment::name_ref)
+        .map_or(false, |name_ref| name_ref.to_string() == name)
+}
+
+fn has_ink_env_qualifier(path: &ast::Path) -> bool {
+    path.qualifier().map_or(false, |qualifier| {
+        let qualifier = qualifier.to_string().replace(' ', "");
+        let env_qualifiers: Vec<_> = ["ink_env", "ink::env"]
+            .into_iter()
+            .flat_map(|qualifier| [format!("::{qualifier}"), String::from(qualifier)])
+            .collect();
+        env_qualifiers.contains(&qualifier)
+    })
+}
+
+fn path_from_type(item_type: &ast::Type) -> Option<ast::Path> {
+    match item_type {
+        ast::Type::PathType(path_type) => path_type.path(),
+        _ => None,
     }
 }
 
@@ -221,6 +308,65 @@ mod tests {
         };
     }
 
+    macro_rules! valid_envs {
+        () => {
+            [
+                // No environment argument (i.e. default).
+                (
+                    quote! {},
+                    quote! {},
+                    contract_macro_name!(),
+                    contract_item!(),
+                ),
+                (
+                    quote! {},
+                    quote! {},
+                    e2e_test_macro_name!(),
+                    e2e_test_item!(),
+                ),
+                // Explicit default environment (for re-export).
+                (
+                    quote! {},
+                    quote! { (env = ink::env::DefaultEnvironment) },
+                    contract_macro_name!(),
+                    contract_item!(),
+                ),
+                (
+                    quote! {},
+                    quote! { (environment = ink::env::DefaultEnvironment) },
+                    e2e_test_macro_name!(),
+                    e2e_test_item!(),
+                ),
+                // Explicit default environment (from `ink_env` crate).
+                (
+                    quote! {},
+                    quote! { (env = ink_env::DefaultEnvironment) },
+                    contract_macro_name!(),
+                    contract_item!(),
+                ),
+                (
+                    quote! {},
+                    quote! { (environment = ink_env::DefaultEnvironment) },
+                    e2e_test_macro_name!(),
+                    e2e_test_item!(),
+                ),
+                // Custom environment.
+                (
+                    custom_env!(),
+                    quote! { (env = crate::MyEnvironment) },
+                    contract_macro_name!(),
+                    contract_item!(),
+                ),
+                (
+                    custom_env!(),
+                    quote! { (environment = crate::MyEnvironment) },
+                    e2e_test_macro_name!(),
+                    e2e_test_item!(),
+                ),
+            ]
+        };
+    }
+
     macro_rules! run_diagnostic {
         ($call: ident, $source: ident, $macro_name: ident) => {
             if $macro_name.to_string().contains("contract") {
@@ -235,67 +381,7 @@ mod tests {
 
     #[test]
     fn resolvable_and_default_env_works() {
-        // Default environment path.
-        let default_env_path_re_export = quote! { ink::env::DefaultEnvironment };
-        let default_env_path_from_ink_env = quote! { ink_env::DefaultEnvironment };
-
-        // Custom environment path.
-        let custom_env_path = quote! { crate::MyEnvironment };
-
-        for (env, env_arg, macro_name, item) in [
-            // No environment argument (i.e. default).
-            (
-                quote! {},
-                quote! {},
-                contract_macro_name!(),
-                contract_item!(),
-            ),
-            (
-                quote! {},
-                quote! {},
-                e2e_test_macro_name!(),
-                e2e_test_item!(),
-            ),
-            // Explicit default environment (for re-export).
-            (
-                quote! {},
-                quote! { (env = #default_env_path_re_export) },
-                contract_macro_name!(),
-                contract_item!(),
-            ),
-            (
-                quote! {},
-                quote! { (environment = #default_env_path_re_export) },
-                e2e_test_macro_name!(),
-                e2e_test_item!(),
-            ),
-            // Explicit default environment (from `ink_env` crate).
-            (
-                quote! {},
-                quote! { (env = #default_env_path_from_ink_env) },
-                contract_macro_name!(),
-                contract_item!(),
-            ),
-            (
-                quote! {},
-                quote! { (environment = #default_env_path_from_ink_env) },
-                e2e_test_macro_name!(),
-                e2e_test_item!(),
-            ),
-            // Custom environment.
-            (
-                custom_env!(),
-                quote! { (env = #custom_env_path) },
-                contract_macro_name!(),
-                contract_item!(),
-            ),
-            (
-                custom_env!(),
-                quote! { (environment = #custom_env_path) },
-                e2e_test_macro_name!(),
-                e2e_test_item!(),
-            ),
-        ] {
+        for (env, env_arg, macro_name, item) in valid_envs!() {
             let code = quote_as_string! {
                 #[#macro_name #env_arg]
                 #item
@@ -393,6 +479,88 @@ mod tests {
             };
 
             let result = run_diagnostic!(ensure_resolvable, code, macro_name);
+
+            // Verifies diagnostics.
+            assert!(result.is_some(), "item: {code}");
+            assert_eq!(
+                result.as_ref().unwrap().severity,
+                Severity::Error,
+                "item: {code}"
+            );
+            // Verifies quickfixes.
+            let empty = Vec::new();
+            let quickfixes = result
+                .as_ref()
+                .unwrap()
+                .quickfixes
+                .as_ref()
+                .unwrap_or(&empty);
+            verify_actions(&code, quickfixes, &expected_quickfixes);
+        }
+    }
+
+    #[test]
+    fn env_impl_environment_and_default_works() {
+        for (env, env_arg, macro_name, item) in valid_envs!() {
+            let code = quote_as_string! {
+                #[#macro_name #env_arg]
+                #item
+
+                #env
+            };
+
+            let result = run_diagnostic!(ensure_impl_environment, code, macro_name);
+            assert!(result.is_none(), "item: {code}");
+        }
+    }
+
+    #[test]
+    fn env_no_impl_environment_fails() {
+        for (env, env_arg, macro_name, item, expected_quickfixes) in [
+            // Wrong path to existing environment.
+            (
+                quote! {
+                    #[derive(Clone)]
+                    pub struct MyEnvironment;
+                },
+                quote! { (env = crate::MyEnvironment) },
+                contract_macro_name!(),
+                contract_item!(),
+                vec![TestResultAction {
+                    label: "Add `ink::env::Environment`",
+                    edits: vec![TestResultTextRange {
+                        text: "impl ink::env::Environment for ",
+                        start_pat: Some("pub struct MyEnvironment;"),
+                        end_pat: Some("pub struct MyEnvironment;"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[derive(Clone)]
+                    pub struct MyEnvironment;
+                },
+                quote! { (environment = crate::MyEnvironment) },
+                e2e_test_macro_name!(),
+                e2e_test_item!(),
+                vec![TestResultAction {
+                    label: "Add `ink::env::Environment`",
+                    edits: vec![TestResultTextRange {
+                        text: "impl ink::env::Environment for ",
+                        start_pat: Some("pub struct MyEnvironment;"),
+                        end_pat: Some("pub struct MyEnvironment;"),
+                    }],
+                }],
+            ),
+        ] {
+            let code = quote_as_pretty_string! {
+                #[#macro_name #env_arg]
+                #item
+
+                #env
+            };
+
+            let result = run_diagnostic!(ensure_impl_environment, code, macro_name);
 
             // Verifies diagnostics.
             assert!(result.is_some(), "item: {code}");

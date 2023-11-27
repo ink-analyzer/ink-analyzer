@@ -224,6 +224,28 @@ pub ${1:struct} ${2:StorageItem} {
     $3
 }"#;
 
+pub const ENVIRONMENT_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironment {
+    const MAX_EVENT_TOPICS: usize = 4;
+
+    type AccountId = ::ink::primitives::AccountId;
+    type Balance = u128;
+    type Hash = ::ink::primitives::Hash;
+    type Timestamp = u64;
+    type BlockNumber = u32;
+    type ChainExtension = ::ink::env::NoChainExtension;
+}"#;
+
+pub const ENVIRONMENT_SNIPPET: &str = r#"impl ink::env::Environment for MyEnvironment {
+    const MAX_EVENT_TOPICS: usize = ${1:4};
+
+    type AccountId = ${2:::ink::primitives::AccountId};
+    type Balance = ${3:u128};
+    type Hash = ${4:::ink::primitives::Hash};
+    type Timestamp = ${5:u64};
+    type BlockNumber = ${6:u32};
+    type ChainExtension = ${7:::ink::env::NoChainExtension};
+}"#;
+
 pub const CARGO_TOML_PLAIN: &str = r#"[package]
 name = "my_contract"
 version = "0.1.0"
