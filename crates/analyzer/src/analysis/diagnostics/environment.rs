@@ -7,7 +7,7 @@ use itertools::Itertools;
 use std::iter;
 
 use crate::analysis::utils as analysis_utils;
-use crate::codegen::snippets::{ENVIRONMENT_PLAIN, ENVIRONMENT_SNIPPET};
+use crate::codegen::snippets::{ENVIRONMENT_IMPL_PLAIN, ENVIRONMENT_IMPL_SNIPPET};
 use crate::{Action, ActionKind, Diagnostic, Severity, TextEdit};
 
 /// Runs all ink! environment diagnostics.
@@ -150,8 +150,8 @@ where
             let range = analysis_utils::ast_item_declaration_range(&item)
                 .unwrap_or(adt.syntax().text_range());
             let indent_option = analysis_utils::item_indenting(adt.syntax());
-            let env_impl_plain = ENVIRONMENT_PLAIN.replace("MyEnvironment", &name.to_string());
-            let env_impl_snippet = ENVIRONMENT_SNIPPET.replace("MyEnvironment", &name.to_string());
+            let env_impl_plain = ENVIRONMENT_IMPL_PLAIN.replace("MyEnvironment", &name.to_string());
+            let env_impl_snippet = ENVIRONMENT_IMPL_SNIPPET.replace("MyEnvironment", &name.to_string());
 
             Some(Diagnostic {
                 message: "Environment values must implement the `ink::env::Environment` trait"

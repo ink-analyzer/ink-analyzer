@@ -224,7 +224,7 @@ pub ${1:struct} ${2:StorageItem} {
     $3
 }"#;
 
-pub const ENVIRONMENT_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironment {
+pub const ENVIRONMENT_IMPL_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironment {
     const MAX_EVENT_TOPICS: usize = 4;
 
     type AccountId = ::ink::primitives::AccountId;
@@ -235,7 +235,7 @@ pub const ENVIRONMENT_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironm
     type ChainExtension = ::ink::env::NoChainExtension;
 }"#;
 
-pub const ENVIRONMENT_SNIPPET: &str = r#"impl ink::env::Environment for MyEnvironment {
+pub const ENVIRONMENT_IMPL_SNIPPET: &str = r#"impl ink::env::Environment for MyEnvironment {
     const MAX_EVENT_TOPICS: usize = ${1:4};
 
     type AccountId = ${2:::ink::primitives::AccountId};
