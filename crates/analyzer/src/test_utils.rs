@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use ink_analyzer_ir::syntax::{TextRange, TextSize};
+use ink_analyzer_ir::syntax::{AstNode, SourceFile, TextRange, TextSize};
 use ink_analyzer_ir::{InkEntity, InkFile};
 use test_utils::{parse_offset_at, PartialMatchStr, TestResultAction};
 
@@ -48,6 +48,19 @@ pub fn verify_actions(
             );
         }
     }
+}
+
+/// Returns the first AST node of the generic type in the code snippet.
+pub fn parse_first_ast_node_of_type<T>(code: &str) -> T
+where
+    T: AstNode,
+{
+    SourceFile::parse(code)
+        .tree()
+        .syntax()
+        .descendants()
+        .find_map(T::cast)
+        .unwrap()
 }
 
 /// Returns the first ink! entity of the generic type in the code snippet.
