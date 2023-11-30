@@ -3,7 +3,7 @@
 use ra_ap_syntax::{ast, AstNode, SyntaxNode};
 
 use crate::traits::InkEntity;
-use crate::tree::utils;
+use crate::tree::{ast_ext, utils};
 use crate::{Constructor, InkArgKind, InkAttribute, InkAttributeKind, Message, TraitDefinition};
 
 /// An ink! impl block.
@@ -58,7 +58,7 @@ impl InkImpl {
         }?;
 
         // Resolves the trait definition (if any) based on the path.
-        utils::resolve_item::<ast::Trait>(&path, self.syntax())
+        ast_ext::resolve_item::<ast::Trait>(&path, self.syntax())
             .and_then(|trait_item| TraitDefinition::cast(trait_item.syntax().clone()))
     }
 }
@@ -207,6 +207,54 @@ mod tests {
                     impl ::traits::MyTrait for MyContract {
                         #[ink(message, payable, default, selector=1)]
                         fn my_message(&self) {}
+                    }
+                },
+                false,
+                false,
+                0,
+                1,
+                true,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, payable, default, selector=1)]
+                        fn my_message(&self);
+                    }
+
+                    #[ink::contract]
+                    mod my_contract {
+                        use super::MyTrait;
+
+                        impl MyTrait for MyContract {
+                            #[ink(message, payable, default, selector=1)]
+                            fn my_message(&self) {}
+                        }
+                    }
+                },
+                false,
+                false,
+                0,
+                1,
+                true,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, payable, default, selector=1)]
+                        fn my_message(&self);
+                    }
+
+                    #[ink::contract]
+                    mod my_contract {
+                        use super::*;
+
+                        impl MyTrait for MyContract {
+                            #[ink(message, payable, default, selector=1)]
+                            fn my_message(&self) {}
+                        }
                     }
                 },
                 false,

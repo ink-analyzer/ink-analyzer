@@ -1,7 +1,7 @@
 //! ink! entity traits for callables (i.e ink! constructors and ink! messages).
 
 use super::IsInkFn;
-use crate::tree::utils;
+use crate::tree::{ast_ext, utils};
 use crate::{EnvArg, Environment, InkArgKind, InkEntity, Selector, SelectorArg};
 
 /// Implemented by ink! entities that represent an ink! callable entity
@@ -41,7 +41,7 @@ pub trait HasInkEnvironment: InkEntity {
         self.env_arg()
             .as_ref()
             .and_then(EnvArg::as_path_with_inaccurate_text_range)
-            .and_then(|path| utils::resolve_item(&path, self.syntax()))
+            .and_then(|path| ast_ext::resolve_item(&path, self.syntax()))
             .map(Environment::new)
     }
 }

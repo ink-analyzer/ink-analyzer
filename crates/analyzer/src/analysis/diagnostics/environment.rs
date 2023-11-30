@@ -4,7 +4,6 @@ use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::syntax::SyntaxNode;
 use ink_analyzer_ir::{ast, Environment, HasInkEnvironment, InkEntity};
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
 use std::iter;
 
 use crate::analysis::utils as analysis_utils;
@@ -58,11 +57,7 @@ where
                 })
             };
 
-            let is_default_env = is_ink_env_target(
-                "DefaultEnvironment",
-                &env_path,
-                item.syntax().ancestors().last().as_ref(),
-            );
+            let is_default_env = is_ink_env_target("DefaultEnvironment", &env_path, item.syntax());
             (!is_default_env).then_some(Diagnostic {
                 message: format!(
                     "`{arg_name}` argument value should be a path to a custom type \
@@ -79,25 +74,21 @@ where
                     .and_then(find_adt_by_name)
                     // Otherwise finds an implementation of `inv::env::Environment` (if any)
                     // to suggest as the `env` value.
-                    .or(item
-                        .syntax()
-                        .ancestors()
-                        .last()
-                        .and_then(|root_node| {
-                            // Finds an `inv::env::Environment` implementation.
-                            find_ink_env_impl(&root_node, None)
-                        })
-                        // Returns the custom type name for `inv::env::Environment` implementation.
-                        .as_ref()
-                        .and_then(ast::Impl::self_ty)
-                        .as_ref()
-                        .and_then(path_from_type)
-                        .as_ref()
-                        .and_then(ast::Path::segment)
-                        .as_ref()
-                        .and_then(ast::PathSegment::name_ref)
-                        .as_ref()
-                        .and_then(find_adt_by_name))
+                    .or(
+                        // Finds an `inv::env::Environment` implementation.
+                        find_ink_env_impl(item, None)
+                            // Returns the custom type name for `inv::env::Environment` implementation.
+                            .as_ref()
+                            .and_then(ast::Impl::self_ty)
+                            .as_ref()
+                            .and_then(path_from_type)
+                            .as_ref()
+                            .and_then(ast::Path::segment)
+                            .as_ref()
+                            .and_then(ast::PathSegment::name_ref)
+                            .as_ref()
+                            .and_then(find_adt_by_name),
+                    )
                     .and_then(|candidate| {
                         // Suggests a resolved path based one on the candidate's name.
                         candidate.name().map(|name| {
@@ -144,12 +135,7 @@ where
     let name = adt.name()?;
 
     // Finds environment implementation (if any).
-    let env_impl_option = item
-        .syntax()
-        .ancestors()
-        .last()
-        .and_then(|root_node| find_ink_env_impl(&root_node, Some(&name.to_string())));
-    match env_impl_option {
+    match find_ink_env_impl(item, Some(&name.to_string())) {
         // Handles no environment implementation.
         None => {
             let item = match adt.clone() {
@@ -196,8 +182,36 @@ where
     }
 }
 
+// Finds first `inv::env::Environment` implementation (optionally for a target name).
+fn find_ink_env_impl<T>(item: &T, name_option: Option<&str>) -> Option<ast::Impl>
+where
+    T: InkEntity + HasInkEnvironment,
+{
+    item.syntax().ancestors().last().and_then(|root_node| {
+        root_node
+            .descendants()
+            .filter(|it| ast::Impl::can_cast(it.kind()))
+            .find_map(|node| {
+                ast::Impl::cast(node).filter(|impl_item| {
+                    let is_env_impl = impl_item
+                        .trait_()
+                        .as_ref()
+                        .and_then(path_from_type)
+                        .map_or(false, |path| {
+                            is_ink_env_target("Environment", &path, impl_item.syntax())
+                        });
+                    let is_target_name = name_option
+                        .zip(impl_item.self_ty().as_ref().and_then(path_from_type))
+                        .map_or(false, |(name, path)| is_path_target(name, &path));
+
+                    is_env_impl && (name_option.is_none() || is_target_name)
+                })
+            })
+    })
+}
+
 // Checks that an item referenced by `name` from the `ink::env` (or `ink_env`) crate (or any of its aliases) is the target of `path`.
-fn is_ink_env_target(name: &str, path: &ast::Path, root_node_option: Option<&SyntaxNode>) -> bool {
+fn is_ink_env_target(name: &str, path: &ast::Path, ref_node: &SyntaxNode) -> bool {
     let name_is_path_target = is_path_target(name, path);
 
     // Add fully qualified variants to paths (e.g. [`ink`] becomes [`ink`, `::ink`]).
@@ -226,40 +240,15 @@ fn is_ink_env_target(name: &str, path: &ast::Path, root_node_option: Option<&Syn
 
     // Checks `name` or any of its aliases is the target of `path` (including scope considerations).
     (name_is_path_target && has_qualifier(&name_qualifiers, false))
-        || root_node_option.map_or(false, |root_node| {
-            // Collects `ink` and `ink_env` crate use paths and aliases.
-            let mut use_paths = HashSet::new();
-            let mut use_aliases = HashMap::new(); // use-path -> alias
-            let use_results = root_node
-                .descendants()
-                .filter(|it| ast::Use::can_cast(it.kind()))
-                .filter_map(|node| {
-                    ast::Use::cast(node)
-                        .as_ref()
-                        .and_then(ast::Use::use_tree)
-                        // Filter only uses of the `ink` or `ink_env` crates.
-                        .filter(|it| {
-                            it.path().map_or(false, |path| {
-                                path.first_segment()
-                                    .as_ref()
-                                    .and_then(ast::PathSegment::name_ref)
-                                    .map_or(false, |name| {
-                                        ["ink", "ink_env"].contains(&name.to_string().as_str())
-                                    })
-                            })
-                        })
-                })
-                .flat_map(|use_tree| flatten_use_tree(&use_tree));
-            for (use_path, alias_option) in use_results {
-                match alias_option {
-                    None => {
-                        use_paths.insert(use_path);
-                    }
-                    Some(alias) => {
-                        use_aliases.insert(use_path, alias);
-                    }
-                }
-            }
+        || ink_analyzer_ir::resolve_current_module(ref_node).map_or(false, |root_node| {
+            // Collects use paths and aliases in the current scope.
+            let (use_paths, mut use_aliases) =
+                ink_analyzer_ir::simple_use_paths_and_aliases_in_scope(&root_node);
+            // Reverse alias map to `use_path -> alias`.
+            use_aliases = use_aliases
+                .into_iter()
+                .map(|(alias, use_path)| (use_path, alias))
+                .collect();
 
             // Checks whether an item with given qualifiers is in scope.
             let is_item_in_scope = |item_name: &str, qualifiers: &[&str]| {
@@ -300,62 +289,6 @@ fn is_ink_env_target(name: &str, path: &ast::Path, root_node_option: Option<&Syn
                     || env_alias_qualifier_in_scope()))
                 || target_is_name_alias()
         })
-}
-
-// Finds first `inv::env::Environment` implementation (optionally for a target name).
-fn find_ink_env_impl(root_node: &SyntaxNode, name_option: Option<&str>) -> Option<ast::Impl> {
-    root_node
-        .descendants()
-        .filter(|it| ast::Impl::can_cast(it.kind()))
-        .find_map(|node| {
-            ast::Impl::cast(node).filter(|item| {
-                let is_env_impl = item
-                    .trait_()
-                    .as_ref()
-                    .and_then(path_from_type)
-                    .map_or(false, |path| {
-                        is_ink_env_target("Environment", &path, Some(root_node))
-                    });
-                let is_target_name = name_option
-                    .zip(item.self_ty().as_ref().and_then(path_from_type))
-                    .map_or(false, |(name, path)| is_path_target(name, &path));
-
-                is_env_impl && (name_option.is_none() || is_target_name)
-            })
-        })
-}
-
-// "Flattens" a "use tree" to a list of simple paths.
-// NOTE: Conceptually, this transforms `use a::{b, c as d};` into [`use a::b;`, `use a::c as d;`].
-fn flatten_use_tree(use_tree: &ast::UseTree) -> Vec<(String, Option<String>)> {
-    let alias = use_tree.rename().and_then(|rename| {
-        rename
-            .name()
-            .as_ref()
-            .map(ToString::to_string)
-            .or(rename.underscore_token().as_ref().map(ToString::to_string))
-    });
-    let add_prefix = |sub_paths: Vec<(String, Option<String>)>| match use_tree.path() {
-        None => sub_paths,
-        Some(path_prefix) => sub_paths
-            .into_iter()
-            .map(|(sub_path, alias)| (format!("{path_prefix}::{sub_path}"), alias))
-            .collect(),
-    };
-    if let Some(use_tree_list) = use_tree.use_tree_list() {
-        add_prefix(
-            use_tree_list
-                .use_trees()
-                .flat_map(|it| flatten_use_tree(&it))
-                .collect(),
-        )
-    } else if use_tree.star_token().is_some() {
-        add_prefix(vec![(String::from("*"), alias)])
-    } else if let Some(path) = use_tree.path() {
-        vec![(path.to_string(), alias)]
-    } else {
-        Vec::new()
-    }
 }
 
 // Checks if an item named `name` is the target of the `path`.
@@ -753,7 +686,7 @@ mod tests {
             let path: ast::Path = parse_first_ast_node_of_type(path_str);
 
             assert!(
-                is_ink_env_target("Environment", &path, Some(file.syntax())),
+                is_ink_env_target("Environment", &path, file.syntax()),
                 "code: {code} | path: {path_str}"
             );
         }
