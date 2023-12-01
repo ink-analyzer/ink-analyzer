@@ -519,7 +519,7 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                 |assoc_item_list| {
                     (
                         analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
-                        None,
+                        Some(analysis_utils::item_children_indenting(impl_item.syntax())),
                         None,
                         None,
                     )
@@ -548,7 +548,10 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                     snippet.push_str("\n\n");
                 }
 
-                let fn_text = fn_item.to_string();
+                let fn_text = analysis_utils::item_indenting(fn_item.syntax())
+                    .map_or(fn_item.to_string(), |indent| {
+                        analysis_utils::reduce_indenting(&fn_item.to_string(), &indent)
+                    });
                 let fn_prefix = fn_text.strip_suffix(';').unwrap_or(fn_text.as_str()).trim();
 
                 edit.push_str(fn_prefix);
