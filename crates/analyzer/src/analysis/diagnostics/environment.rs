@@ -1,6 +1,7 @@
 //! ink! environment config diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasName};
+use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::syntax::SyntaxNode;
 use ink_analyzer_ir::{ast, Environment, HasInkEnvironment, InkEntity};
 use itertools::Itertools;
@@ -39,7 +40,15 @@ where
     match item.environment() {
         // Handles no resolved environment.
         None => {
+            // Environment argument name.
             let arg_name = env_arg.arg().meta().name().to_string();
+
+            // Determines text range for the argument value.
+            let range = env_arg
+                .arg()
+                .value()
+                .map(MetaValue::text_range)
+                .unwrap_or(env_arg.text_range());
 
             // Finds a struct, enum or union with the target name.
             let find_adt_by_name = |target_name: &ast::NameRef| {
@@ -63,7 +72,7 @@ where
                     "`{arg_name}` argument value should be a path to a custom type \
                     that implements the `ink::env::Environment` trait."
                 ),
-                range: env_arg.text_range(),
+                range,
                 severity: Severity::Error,
                 quickfixes: env_path
                     .segment()
@@ -108,7 +117,7 @@ where
                                     "Replace `{arg_name}` argument value with `{candidate_path}`"
                                 ),
                                 kind: ActionKind::QuickFix,
-                                range: env_arg.text_range(),
+                                range,
                                 edits: vec![TextEdit::replace_with_snippet(
                                     format!("{arg_name} = {candidate_path}"),
                                     env_arg.text_range(),
