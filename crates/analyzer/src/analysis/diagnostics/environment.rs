@@ -5,6 +5,7 @@ use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::syntax::SyntaxNode;
 use ink_analyzer_ir::{ast, Environment, HasInkEnvironment, InkEntity};
 use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
 use std::iter;
 
 use crate::analysis::utils as analysis_utils;
@@ -223,17 +224,10 @@ where
 fn is_ink_env_target(name: &str, path: &ast::Path, ref_node: &SyntaxNode) -> bool {
     let name_is_path_target = is_path_target(name, path);
 
-    // Add fully qualified variants to paths (e.g. [`ink`] becomes [`ink`, `::ink`]).
-    let make_qualifiers_exhaustive = |paths: &[&str]| -> Vec<String> {
-        paths
-            .iter()
-            .flat_map(|qualifier| [format!("::{qualifier}"), String::from(*qualifier)])
-            .collect()
-    };
     // Checks if path's qualifier matches one of the specified qualifiers.
     // Matches exactly when strict is true, otherwise adds fully qualified variants
     // See `make_qualifiers_exhaustive` doc above.
-    let has_qualifier = |qualifiers: &[&str], strict: bool| {
+    let path_has_qualifier = |qualifiers: &[&str], strict: bool| {
         path.qualifier().map_or(false, |qualifier| {
             let qualifier = qualifier.to_string().replace(' ', "");
             if strict {
@@ -248,11 +242,10 @@ fn is_ink_env_target(name: &str, path: &ast::Path, ref_node: &SyntaxNode) -> boo
     let env_qualifiers = ["ink"];
 
     // Checks `name` or any of its aliases is the target of `path` (including scope considerations).
-    (name_is_path_target && has_qualifier(&name_qualifiers, false))
+    (name_is_path_target && path_has_qualifier(&name_qualifiers, false))
         || ink_analyzer_ir::resolve_current_module(ref_node).map_or(false, |root_node| {
-            // Collects use paths and aliases in the current scope.
-            let (use_paths, mut use_aliases) =
-                ink_analyzer_ir::simple_use_paths_and_aliases_in_scope(&root_node);
+            let (use_paths, mut use_aliases) = ink_env_uses_and_aliases_in_scope(&root_node);
+
             // Reverse alias map to `use_path -> alias`.
             use_aliases = use_aliases
                 .into_iter()
@@ -281,9 +274,9 @@ fn is_ink_env_target(name: &str, path: &ast::Path, ref_node: &SyntaxNode) -> boo
             let unqualified_target_name_in_scope =
                 || path.qualifier().is_none() && is_item_in_scope(name, &name_qualifiers);
             let env_qualifier_in_scope =
-                || has_qualifier(&["env"], true) && is_item_in_scope("env", &env_qualifiers);
+                || path_has_qualifier(&["env"], true) && is_item_in_scope("env", &env_qualifiers);
             let env_alias_qualifier_in_scope = || {
-                has_qualifier(
+                path_has_qualifier(
                     &item_aliases!("env", env_qualifiers).collect::<Vec<_>>(),
                     true,
                 )
@@ -316,16 +309,128 @@ fn path_from_type(item_type: &ast::Type) -> Option<ast::Path> {
     }
 }
 
+// Add fully qualified variants to paths (e.g. [`ink`] becomes [`ink`, `::ink`]).
+fn make_qualifiers_exhaustive(paths: &[&str]) -> Vec<String> {
+    paths
+        .iter()
+        .flat_map(|qualifier| [format!("::{qualifier}"), String::from(*qualifier)])
+        .collect()
+}
+
+// Collects `ink` and `ink_env` use paths and aliases in the current scope.
+fn ink_env_uses_and_aliases_in_scope(
+    root_node: &SyntaxNode,
+) -> (HashSet<String>, HashMap<String, String>) {
+    let (mut use_paths, mut use_aliases) =
+        ink_analyzer_ir::simple_use_paths_and_aliases_in_scope(root_node);
+
+    while let Some(use_path_str) = use_paths.iter().find_map(|use_path| {
+        (!path_str_has_ink_qualifier(use_path)).then_some(use_path.to_string())
+    }) {
+        // Removes path.
+        use_paths.remove(&use_path_str);
+
+        // Resolves path if it points to an `ink` or `ink_crate` use declaration.
+        let result = resolve_non_ink_path(&use_path_str, root_node);
+        use_paths.extend(result.0);
+        use_aliases.extend(result.1);
+    }
+
+    while let Some((alias, use_path_str)) = use_aliases.iter().find_map(|(alias, use_path)| {
+        (!path_str_has_ink_qualifier(use_path)).then_some((alias.to_string(), use_path.to_string()))
+    }) {
+        // Removes alias.
+        use_aliases.remove(&alias);
+
+        // Resolves path if it points to an `ink` or `ink_crate` use declaration.
+        if let Some(target) = ink_analyzer_ir::path_from_str(&use_path_str)
+            .as_ref()
+            .and_then(ast::Path::segment)
+        {
+            let result = resolve_non_ink_path(&use_path_str, root_node);
+            if let Some(resolved_use_path) =
+                result.0.iter().next().or(result.1.get(&target.to_string()))
+            {
+                use_aliases.insert(alias, resolved_use_path.to_string());
+            }
+        }
+    }
+
+    fn path_str_has_ink_qualifier(path_str: &str) -> bool {
+        make_qualifiers_exhaustive(&["ink::", "ink_env::"])
+            .iter()
+            .any(|qualifier| path_str.starts_with(qualifier))
+    }
+
+    fn resolve_non_ink_path(
+        use_path_str: &str,
+        ref_node: &SyntaxNode,
+    ) -> (HashSet<String>, HashMap<String, String>) {
+        let mut use_paths = HashSet::new();
+        let mut use_aliases = HashMap::new();
+        let use_path_option = ink_analyzer_ir::path_from_str(use_path_str).and_then(|path| {
+            path.qualifier().and_then(|qualifier| {
+                let target_name_option = path
+                    .segment()
+                    .as_ref()
+                    .and_then(ast::PathSegment::name_ref)
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .or((path.to_string().replace(' ', "")
+                        == format!("{}::*", qualifier.to_string().replace(' ', "")))
+                    .then_some(String::from("*")));
+
+                target_name_option.zip(ink_analyzer_ir::resolve_qualifier(
+                    &qualifier,
+                    ref_node,
+                    path.segment().as_ref(),
+                ))
+            })
+        });
+        if let Some((target_name, qualifier_ref_node)) = use_path_option {
+            if target_name == "*" {
+                let result = ink_env_uses_and_aliases_in_scope(&qualifier_ref_node);
+                use_paths.extend(result.0);
+                use_aliases.extend(result.1);
+            } else {
+                for path in ink_analyzer_ir::resolve_item_path_from_use_scope!(
+                    target_name,
+                    &qualifier_ref_node
+                ) {
+                    let resolved_path_str = path.to_string().replace(' ', "");
+                    if path_str_has_ink_qualifier(&resolved_path_str) {
+                        if resolved_path_str.ends_with(&format!("::{target_name}")) {
+                            use_paths.insert(resolved_path_str.clone());
+                        } else {
+                            use_aliases.insert(target_name.clone(), resolved_path_str);
+                        }
+                    } else {
+                        let result = resolve_non_ink_path(&resolved_path_str, &qualifier_ref_node);
+                        use_paths.extend(result.0);
+                        use_aliases.extend(result.1);
+                    }
+                }
+            }
+        }
+
+        (use_paths, use_aliases)
+    }
+
+    (use_paths, use_aliases)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::{
         parse_first_ast_node_of_type, parse_first_ink_entity_of_type, verify_actions,
     };
+    use ink_analyzer_ir::ast::SourceFile;
     use ink_analyzer_ir::{Contract, InkE2ETest, InkFile};
     use quote::quote;
     use test_utils::{
-        quote_as_pretty_string, quote_as_string, TestResultAction, TestResultTextRange,
+        quote_as_pretty_string, quote_as_str, quote_as_string, TestResultAction,
+        TestResultTextRange,
     };
 
     // Custom environment definition.
@@ -660,6 +765,7 @@ mod tests {
 
     #[test]
     fn valid_ink_env_target_works() {
+        let ref_name = quote! { ref_node };
         for (code, path_str) in [
             // Simple paths.
             ("", "ink::env::Environment"),
@@ -667,35 +773,102 @@ mod tests {
             ("", "ink_env::Environment"),
             ("", "::ink_env::Environment"),
             // Scoped paths.
-            ("use ink::env::Environment", "Environment"),
-            ("use ink::env::*", "Environment"),
-            ("use ink::{env::Environment, primitives}", "Environment"),
+            ("use ink::env::Environment;", "Environment"),
+            ("use ink::env::*", "Environment;"),
+            ("use ink::{env::Environment, primitives};", "Environment"),
             (
-                "use ink::{env::{Environment, DefaultEnvironment}, primitives}",
+                "use ink::{env::{Environment, DefaultEnvironment}, primitives};",
                 "Environment",
             ),
-            ("use ink::env", "env::Environment"),
-            ("use ink::{env, primitives}", "env::Environment"),
+            ("use ink::env", "env::Environment;"),
+            ("use ink::{env, primitives};", "env::Environment"),
+            (
+                quote_as_str! {
+                    use ink::env::Environment;
+
+                    mod #ref_name {
+                        use super::Environment;
+                    }
+                },
+                "Environment",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment;
+
+                    mod #ref_name {
+                        use super::*;
+                    }
+                },
+                "Environment",
+            ),
             // Aliased paths.
             (
-                "use ink::env::Environment as ChainEnvironment",
+                "use ink::env::Environment as ChainEnvironment;",
                 "ChainEnvironment",
             ),
             (
-                "use ink::{env::Environment as ChainEnvironment, primitives}",
+                "use ink::{env::Environment as ChainEnvironment, primitives};",
                 "ChainEnvironment",
             ),
-            ("use ink::env as chain_env", "chain_env::Environment"),
+            ("use ink::env as chain_env;", "chain_env::Environment"),
             (
-                "use ink::{env as chain_env, primitives}",
+                "use ink::{env as chain_env, primitives};",
                 "chain_env::Environment",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as ChainEnvironment;
+
+                    mod #ref_name {
+                        use super::ChainEnvironment;
+                    }
+                },
+                "ChainEnvironment",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as ChainEnvironment;
+
+                    mod #ref_name {
+                        use super::*;
+                    }
+                },
+                "ChainEnvironment",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as InkEnvironment;
+
+                    mod #ref_name {
+                        use super::InkEnvironment as ChainEnvironment;
+                    }
+                },
+                "ChainEnvironment",
             ),
         ] {
             let file = InkFile::parse(code);
             let path: ast::Path = parse_first_ast_node_of_type(path_str);
+            let ref_module_option = SourceFile::parse(code)
+                .tree()
+                .syntax()
+                .descendants()
+                .find_map(|node| {
+                    ast::Module::cast(node).filter(|item| {
+                        item.name()
+                            .map_or(false, |name| name.to_string() == ref_name.to_string())
+                    })
+                });
 
             assert!(
-                is_ink_env_target("Environment", &path, file.syntax()),
+                is_ink_env_target(
+                    "Environment",
+                    &path,
+                    ref_module_option
+                        .as_ref()
+                        .map(AstNode::syntax)
+                        .unwrap_or(file.syntax())
+                ),
                 "code: {code} | path: {path_str}"
             );
         }

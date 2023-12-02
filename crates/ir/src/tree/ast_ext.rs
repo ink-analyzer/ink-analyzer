@@ -79,9 +79,10 @@ where
 }
 
 // Determines an item's path based on use statements in the current scope.
+#[macro_export]
 macro_rules! resolve_item_path_from_use_scope {
     ($name: ident, $root_node: expr) => {{
-        let (use_paths, use_aliases) = simple_use_paths_and_aliases_in_scope($root_node);
+        let (use_paths, use_aliases) = $crate::simple_use_paths_and_aliases_in_scope($root_node);
 
         std::iter::once(use_aliases.get(&$name).cloned())
             .flatten()
@@ -95,12 +96,7 @@ macro_rules! resolve_item_path_from_use_scope {
                     None
                 }
             }))
-            .filter_map(|path_str| {
-                ra_ap_syntax::hacks::parse_expr_from_str(&path_str).and_then(|expr| match expr {
-                    ast::Expr::PathExpr(path_expr) => path_expr.path(),
-                    _ => None,
-                })
-            })
+            .filter_map(|path_str| $crate::path_from_str(&path_str))
             .filter(|path| path.qualifier().is_some())
     }};
 }
@@ -154,8 +150,8 @@ pub fn resolve_current_module(node: &SyntaxNode) -> Option<SyntaxNode> {
             .or(node.ancestors().last()))
 }
 
-// Resolves qualifier root/module (if it exists).
-fn resolve_qualifier(
+/// Resolves qualifier root/module (if it exists).
+pub fn resolve_qualifier(
     path: &ast::Path,
     ref_node: &SyntaxNode,
     target_option: Option<&ast::PathSegment>,
@@ -244,6 +240,7 @@ pub fn simple_use_paths_and_aliases_in_scope(
         .flat_map(|use_tree| flatten_use_tree(&use_tree));
 
     for (use_path, alias_option) in use_results {
+        let use_path = use_path.replace(' ', "");
         match alias_option {
             None => {
                 use_paths.insert(use_path);
@@ -255,6 +252,14 @@ pub fn simple_use_paths_and_aliases_in_scope(
     }
 
     (use_paths, use_aliases)
+}
+
+/// Converts a string to a path (if possible).
+pub fn path_from_str(path_str: &str) -> Option<ast::Path> {
+    ra_ap_syntax::hacks::parse_expr_from_str(path_str).and_then(|expr| match expr {
+        ast::Expr::PathExpr(path_expr) => path_expr.path(),
+        _ => None,
+    })
 }
 
 fn resolve_item_list_root(node: &SyntaxNode) -> SyntaxNode {
@@ -302,7 +307,7 @@ fn flatten_use_tree(use_tree: &ast::UseTree) -> Vec<(String, Option<String>)> {
     } else if use_tree.star_token().is_some() {
         add_prefix(vec![(String::from("*"), alias)])
     } else if let Some(path) = use_tree.path() {
-        vec![(path.to_string(), alias)]
+        vec![(path.to_string().replace(' ', ""), alias)]
     } else {
         Vec::new()
     }
