@@ -947,6 +947,50 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         ]
                     },
                 },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink::contract(env = crate::CustomEnvironment)]"),
+                        end_pat: Some("#[ink::contract(env = crate::CustomEnvironment)]"),
+                        replacement: "#[ink::contract(env = self::CustomEnvironment)]",
+                    }]),
+                    params: None,
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "env = crate::CustomEnvironment",
+                                        start_pat: Some("<-env = self::CustomEnvironment"),
+                                        end_pat: Some("env = self::CustomEnvironment"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-impl Environment for CustomEnvironment {"),
+                        end_pat: Some("type ChainExtension = crate::Psp22Extension;\n}"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "impl ink::env::Environment for CustomEnvironment {",
+                                        start_pat: Some("pub enum CustomEnvironment {}"),
+                                        end_pat: Some("pub enum CustomEnvironment {}"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
             ],
         },
         TestGroup {
@@ -1269,6 +1313,116 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                                         text: "#[ink(message)]",
                                         start_pat: Some("\n        ) -> Result<()>;"),
                                         end_pat: Some("\n        ) -> Result<()>;"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-/// Returns the total token supply.->"),
+                        end_pat: Some("self.total_supply\n        }"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "/// Returns the total token supply.",
+                                        start_pat: Some("<-\n    }\n\n    #[ink(impl)]"),
+                                        end_pat: Some("<-\n    }\n\n    #[ink(impl)]"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-/// Returns the total token supply."),
+                        end_pat: Some("fn total_supply(&self) -> Balance;"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some("<-/// Returns the total token supply.->"),
+                                        end_pat: Some("self.total_supply\n        }\n\n        "),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-fn total_supply(&self)->"),
+                        end_pat: Some("fn total_supply(&self)->"),
+                        replacement: "fn total_supply(&mut self)",
+                    }]),
+                    params: None,
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "(&self)",
+                                        start_pat: Some("<-(&mut self)"),
+                                        end_pat: Some("(&mut self)"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-fn total_supply(&self) -> Balance {"),
+                        end_pat: Some("fn total_supply(&self) -> Balance {"),
+                        replacement: "fn total_supply(&self) -> Result<Balance> {",
+                    }]),
+                    params: None,
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "-> Balance",
+                                        start_pat: Some("<--> Result<Balance>"),
+                                        end_pat: Some("-> Result<Balance>"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("/// Returns the total token supply.\n        ->"),
+                        end_pat: Some("/// Returns the total token supply.\n        #[ink(message)]->"),
+                        replacement: "#[ink(message, payable)]",
+                    }]),
+                    params: None,
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some("<-, payable"),
+                                        end_pat: Some(", payable"),
                                     }
                                 ],
                             ],
