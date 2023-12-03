@@ -1514,7 +1514,7 @@ pub fn callable_insert_offset_indent_and_affixes(
                     // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
                     (
                         item_insert_offset_impl(&item_list),
-                        format!("{indent}    "),
+                        indent,
                         Some(prefix),
                         Some(suffix),
                     )
