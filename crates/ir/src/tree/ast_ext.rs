@@ -78,7 +78,7 @@ where
     })
 }
 
-// Determines an item's path based on use statements in the current scope.
+/// Determines an item's path based on use statements in the current scope.
 #[macro_export]
 macro_rules! resolve_item_path_from_use_scope {
     ($name: ident, $root_node: expr) => {{
