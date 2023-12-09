@@ -15,8 +15,6 @@ It currently implements an [Analysis](https://github.com/ink-analyzer/ink-analyz
 - [inlay hints](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/inlay_hints.rs) - inline type and format information for ink! attribute arguments values (e.g. `u32 | _` for ink! selector).
 - [signature help](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/signature_help.rs) - popup information for valid ink! attribute arguments for the current context/cursor position.
 
-**NOTE:** 🚧 This project is still work in progress, check back over the next few weeks for regular updates.
-
 ## Installation
 
 Run the following Cargo command in your project directory

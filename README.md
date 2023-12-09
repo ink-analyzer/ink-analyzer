@@ -57,7 +57,7 @@ It's the main dependency for the [semantic analyzer](/crates/analyzer) crate.
 
 ### 4. [Proc-macros (ink-analyzer-macro)](/crates/macro)
 
-This crate implements procedural macros used primarily by the [ink-analyzer-ir](/crates/ir) crate (e.g. custom derive macros for ink! entity traits).
+This crate implements procedural macros used primarily by the [ink-analyzer-ir](/crates/ir) crate.
 
 ## Installation and Usage
 

@@ -10,8 +10,6 @@ It uses the [semantic analyzer](https://github.com/ink-analyzer/ink-analyzer/tre
 
 It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/latest/lsp_server/) crate to handle LSP protocol handshaking and parsing messages, and the [lsp-types](https://docs.rs/lsp-types/latest/lsp_types/) crate for LSP type definitions.
 
-**NOTE:** 🚧 This project is still work in progress, check back over the next few weeks for regular updates.
-
 ## Installation
 
 ### Option 1: Cargo (via [crates.io](https://crates.io/crates/ink-lsp-server))

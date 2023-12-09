@@ -2,7 +2,7 @@
 
 Procedural macros for [ink-analyzer](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer) and [ink-analyzer-ir](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/ir).
 
-This library implements procedural macros used primarily by the [ink-analyzer-ir](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/ir) crate (e.g. custom derive macros for ink! entity traits).
+This library implements procedural macros used primarily by the [ink-analyzer-ir](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/ir) crate.
 
 ## Installation
 
