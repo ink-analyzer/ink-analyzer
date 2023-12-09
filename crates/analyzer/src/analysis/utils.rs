@@ -1633,7 +1633,7 @@ pub fn ink_impl_declaration_range(ink_impl: &InkImpl) -> TextRange {
 /// (i.e tokens between meta - attributes/rustdoc - and the start of the item list) for a trait-based ink! entity.
 pub fn ink_trait_declaration_range<T>(ink_trait_item: &T) -> TextRange
 where
-    T: InkEntity + IsInkTrait,
+    T: IsInkTrait,
 {
     ink_trait_item
         .trait_item()

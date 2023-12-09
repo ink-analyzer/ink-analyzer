@@ -7,7 +7,7 @@ use crate::{EnvArg, Environment, InkArgKind, InkEntity, Selector, SelectorArg};
 /// Implemented by ink! entities that represent an ink! callable entity
 /// (i.e. an ink! constructor or ink! message).
 #[allow(unused_imports)]
-pub trait IsInkCallable: InkEntity + IsInkFn {
+pub trait IsInkCallable: IsInkFn {
     impl_ink_arg_getter!(default_arg, Default, default);
 
     impl_ink_arg_getter!(payable_arg, Payable, payable);

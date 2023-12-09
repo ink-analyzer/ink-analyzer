@@ -173,7 +173,7 @@ where
 /// ink! ancestor or only have an ink! impl entity between them and the current node.
 pub fn ink_callable_closest_descendants<T>(node: &SyntaxNode) -> impl Iterator<Item = T>
 where
-    T: InkEntity + HasInkImplParent,
+    T: HasInkImplParent,
 {
     ink_peekable_quasi_closest_descendants(node, is_possible_callable_ancestor)
 }

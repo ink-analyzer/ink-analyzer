@@ -920,7 +920,7 @@ pub fn ensure_at_most_one_item<T>(
 /// Ensures that ink! entity is a `struct` with `pub` visibility.
 pub fn ensure_pub_struct<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: InkEntity + IsInkStruct,
+    T: IsInkStruct,
 {
     match item.struct_item() {
         Some(struct_item) => {
@@ -969,7 +969,7 @@ where
 /// Ensures that ink! entity is an `fn` item.
 pub fn ensure_fn<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: InkEntity + IsInkFn,
+    T: IsInkFn,
 {
     item.fn_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be an `fn` item.",),
@@ -984,7 +984,7 @@ where
 /// Ensures that ink! entity is a `trait` item.
 pub fn ensure_trait<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: InkEntity + IsInkTrait,
+    T: IsInkTrait,
 {
     item.trait_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be a `trait` item.",),
@@ -1443,7 +1443,7 @@ where
 /// Ensures that item is defined in the root of an `impl` item.
 pub fn ensure_impl_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
-    T: InkEntity + HasInkImplParent,
+    T: HasInkImplParent,
 {
     item.parent_impl_item().is_none().then_some(Diagnostic {
         message: format!("ink! {ink_scope_name} must be defined in the root of an `impl` block."),

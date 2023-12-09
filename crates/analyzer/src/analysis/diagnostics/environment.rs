@@ -3,7 +3,7 @@
 use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::syntax::SyntaxNode;
-use ink_analyzer_ir::{ast, Environment, HasInkEnvironment, InkEntity};
+use ink_analyzer_ir::{ast, Environment, HasInkEnvironment};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::iter;
@@ -15,7 +15,7 @@ use crate::{Action, ActionKind, Diagnostic, Severity, TextEdit};
 /// Runs all ink! environment diagnostics.
 pub fn diagnostics<T>(results: &mut Vec<Diagnostic>, item: &T)
 where
-    T: InkEntity + HasInkEnvironment,
+    T: HasInkEnvironment,
 {
     // Ensures that ink! environment argument value can be resolved, see `ensure_resolvable` doc.
     if let Some(diagnostic) = ensure_resolvable(item) {
@@ -33,7 +33,7 @@ where
 // (i.e. struct, enum or union).
 fn ensure_resolvable<T>(item: &T) -> Option<Diagnostic>
 where
-    T: InkEntity + HasInkEnvironment,
+    T: HasInkEnvironment,
 {
     // Only continue if there's a `path` environment arg.
     let env_arg = item.env_arg()?;
@@ -138,7 +138,7 @@ where
 // the `ink::env::Environment` trait.
 fn ensure_impl_environment<T>(item: &T) -> Option<Diagnostic>
 where
-    T: InkEntity + HasInkEnvironment,
+    T: HasInkEnvironment,
 {
     // Only continue if there's a named environment ADT.
     let adt = item.environment().as_ref().map(Environment::adt).cloned()?;
@@ -195,7 +195,7 @@ where
 // Finds first `inv::env::Environment` implementation (optionally for a target name).
 fn find_ink_env_impl<T>(item: &T, name_option: Option<&str>) -> Option<ast::Impl>
 where
-    T: InkEntity + HasInkEnvironment,
+    T: HasInkEnvironment,
 {
     item.syntax().ancestors().last().and_then(|root_node| {
         root_node
@@ -426,7 +426,7 @@ mod tests {
         parse_first_ast_node_of_type, parse_first_ink_entity_of_type, verify_actions,
     };
     use ink_analyzer_ir::ast::SourceFile;
-    use ink_analyzer_ir::{Contract, InkE2ETest, InkFile};
+    use ink_analyzer_ir::{Contract, InkE2ETest, InkEntity, InkFile};
     use quote::quote;
     use test_utils::{
         quote_as_pretty_string, quote_as_str, quote_as_string, TestResultAction,
