@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.15] - 2023-12-10
+
+- Improvements for chain environment implementation resolution.
+
 ## [0.2.14] - 2023-12-03
 
 - General robustness improvements for semantic analyzer.
