@@ -238,8 +238,7 @@ fn is_ink_env_target(name: &str, path: &ast::Path, ref_node: &SyntaxNode) -> boo
         })
     };
 
-    let name_qualifiers = ["ink_env", "ink::env"];
-    let env_qualifiers = ["ink"];
+    let name_qualifiers = ["ink::env", "ink_env"];
 
     // Checks `name` or any of its aliases is the target of `path` (including scope considerations).
     (name_is_path_target && path_has_qualifier(&name_qualifiers, false))
@@ -261,34 +260,87 @@ fn is_ink_env_target(name: &str, path: &ast::Path, ref_node: &SyntaxNode) -> boo
             };
 
             macro_rules! item_aliases {
-                ($name: expr, $qualifiers: ident) => {
-                    make_qualifiers_exhaustive(&$qualifiers)
+                ($name: expr, $qualifiers: expr) => {
+                    make_qualifiers_exhaustive($qualifiers)
                         .into_iter()
                         .flat_map(|prefix| [format!("{prefix}::{}", $name), format!("{prefix}::*")])
                         .filter_map(|use_path| use_aliases.get(&use_path))
-                        .map(|it| it.as_str())
                 };
             }
 
             // Checks for scope and aliased name.
             let unqualified_target_name_in_scope =
                 || path.qualifier().is_none() && is_item_in_scope(name, &name_qualifiers);
-            let env_qualifier_in_scope =
-                || path_has_qualifier(&["env"], true) && is_item_in_scope("env", &env_qualifiers);
-            let env_alias_qualifier_in_scope = || {
-                path_has_qualifier(
-                    &item_aliases!("env", env_qualifiers).collect::<Vec<_>>(),
-                    true,
-                )
-            };
             let target_is_name_alias = || {
                 path.qualifier().is_none()
-                    && item_aliases!(name, name_qualifiers).any(|alias| is_path_target(alias, path))
+                    && item_aliases!(name, &name_qualifiers)
+                        .any(|alias| is_path_target(alias, path))
             };
+            let sub_qualifier_or_alias_in_scope = || {
+                name_qualifiers.iter().any(|qualifier| {
+                    let qualifiers: Vec<_> = qualifier.split("::").collect();
+                    let n_qualifiers = qualifiers.len();
+                    (0..n_qualifiers).any(|idx| {
+                        let anchor_name = qualifiers[idx];
+                        let pre_anchor_qualifier = qualifiers[0..idx].join("::");
+                        let post_anchor_qualifier = if idx < n_qualifiers {
+                            let post_anchor = qualifiers[idx + 1..].join("::");
+                            (!post_anchor.is_empty()).then_some(post_anchor)
+                        } else {
+                            None
+                        };
+
+                        let is_top_qualifier = idx == 0;
+                        let anchor_and_post_qualifier = |alias: &str| {
+                            format!(
+                                "{alias}{}{}",
+                                if post_anchor_qualifier
+                                    .as_ref()
+                                    .map_or(false, |it| !it.is_empty())
+                                {
+                                    "::"
+                                } else {
+                                    ""
+                                },
+                                post_anchor_qualifier.as_deref().unwrap_or("")
+                            )
+                        };
+                        let anchor_qualifier_in_scope = || {
+                            path_has_qualifier(
+                                &[anchor_and_post_qualifier(anchor_name).as_str()],
+                                !is_top_qualifier,
+                            ) && (is_top_qualifier
+                                || is_item_in_scope(anchor_name, &[pre_anchor_qualifier.as_str()]))
+                        };
+                        let anchor_alias_qualifier_in_scope = || {
+                            let anchor_aliases: Vec<_> = if is_top_qualifier {
+                                make_qualifiers_exhaustive(&[anchor_name])
+                                    .into_iter()
+                                    .filter_map(|use_path| use_aliases.get(&use_path))
+                                    .map(|alias| anchor_and_post_qualifier(alias))
+                                    .collect()
+                            } else {
+                                item_aliases!(anchor_name, &[pre_anchor_qualifier.as_str()])
+                                    .map(|alias| anchor_and_post_qualifier(alias))
+                                    .collect()
+                            };
+
+                            path_has_qualifier(
+                                &anchor_aliases
+                                    .iter()
+                                    .map(|it| it.as_str())
+                                    .collect::<Vec<_>>(),
+                                !is_top_qualifier,
+                            )
+                        };
+
+                        anchor_qualifier_in_scope() || anchor_alias_qualifier_in_scope()
+                    })
+                })
+            };
+
             (name_is_path_target
-                && (unqualified_target_name_in_scope()
-                    || env_qualifier_in_scope()
-                    || env_alias_qualifier_in_scope()))
+                && (unqualified_target_name_in_scope() || sub_qualifier_or_alias_in_scope()))
                 || target_is_name_alias()
         })
 }
@@ -325,7 +377,7 @@ fn ink_env_uses_and_aliases_in_scope(
         ink_analyzer_ir::simple_use_paths_and_aliases_in_scope(root_node);
 
     while let Some(use_path_str) = use_paths.iter().find_map(|use_path| {
-        (!path_str_has_ink_qualifier(use_path)).then_some(use_path.to_string())
+        (!path_str_is_ink_or_has_ink_qualifier(use_path)).then_some(use_path.to_string())
     }) {
         // Removes path.
         use_paths.remove(&use_path_str);
@@ -337,7 +389,8 @@ fn ink_env_uses_and_aliases_in_scope(
     }
 
     while let Some((alias, use_path_str)) = use_aliases.iter().find_map(|(alias, use_path)| {
-        (!path_str_has_ink_qualifier(use_path)).then_some((alias.to_string(), use_path.to_string()))
+        (!path_str_is_ink_or_has_ink_qualifier(use_path))
+            .then_some((alias.to_string(), use_path.to_string()))
     }) {
         // Removes alias.
         use_aliases.remove(&alias);
@@ -356,10 +409,13 @@ fn ink_env_uses_and_aliases_in_scope(
         }
     }
 
-    fn path_str_has_ink_qualifier(path_str: &str) -> bool {
+    fn path_str_is_ink_or_has_ink_qualifier(path_str: &str) -> bool {
         make_qualifiers_exhaustive(&["ink::", "ink_env::"])
             .iter()
             .any(|qualifier| path_str.starts_with(qualifier))
+            || make_qualifiers_exhaustive(&["ink", "ink_env"])
+                .iter()
+                .any(|qualifier| path_str == qualifier)
     }
 
     fn resolve_non_ink_path(
@@ -398,7 +454,7 @@ fn ink_env_uses_and_aliases_in_scope(
                     &qualifier_ref_node
                 ) {
                     let resolved_path_str = path.to_string().replace(' ', "");
-                    if path_str_has_ink_qualifier(&resolved_path_str) {
+                    if path_str_is_ink_or_has_ink_qualifier(&resolved_path_str) {
                         if resolved_path_str.ends_with(&format!("::{target_name}")) {
                             use_paths.insert(resolved_path_str.clone());
                         } else {
@@ -816,6 +872,8 @@ mod tests {
                 "use ink::{env as chain_env, primitives};",
                 "chain_env::Environment",
             ),
+            ("use ink as ink_lang;", "ink_lang::env::Environment"),
+            ("use ink_env as ink_lang_env;", "ink_lang_env::Environment"),
             (
                 quote_as_str! {
                     use ink::env::Environment as ChainEnvironment;
