@@ -410,12 +410,11 @@ fn ink_env_uses_and_aliases_in_scope(
     }
 
     fn path_str_is_ink_or_has_ink_qualifier(path_str: &str) -> bool {
-        make_qualifiers_exhaustive(&["ink::", "ink_env::"])
+        make_qualifiers_exhaustive(&["ink", "ink_env"])
             .iter()
-            .any(|qualifier| path_str.starts_with(qualifier))
-            || make_qualifiers_exhaustive(&["ink", "ink_env"])
-                .iter()
-                .any(|qualifier| path_str == qualifier)
+            .any(|qualifier| {
+                path_str == qualifier || path_str.starts_with(&format!("{qualifier}::"))
+            })
     }
 
     fn resolve_non_ink_path(
