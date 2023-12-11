@@ -246,6 +246,18 @@ pub const ENVIRONMENT_IMPL_SNIPPET: &str = r#"impl ink::env::Environment for MyE
     type ChainExtension = ${7:::ink::env::NoChainExtension};
 }"#;
 
+pub const FROM_STATUS_CODE_IMPL_PLAIN: &str = r#"impl ink::env::chain_extension::FromStatusCode for MyErrorCode {
+    fn from_status_code(status_code: u32) -> Result<(), Self> {
+        todo!()
+    }
+}"#;
+
+pub const FROM_STATUS_CODE_IMPL_SNIPPET: &str = r#"impl ink::env::chain_extension::FromStatusCode for MyErrorCode {
+    fn from_status_code(status_code: u32) -> Result<(), Self> {
+        ${1:todo!()}
+    }
+}"#;
+
 pub const CARGO_TOML_PLAIN: &str = r#"[package]
 name = "my_contract"
 version = "0.1.0"

@@ -1,9 +1,11 @@
 //! Utilities for item resolution.
 
 use ink_analyzer_ir::ast;
-use ink_analyzer_ir::ast::AstNode;
+use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::syntax::SyntaxNode;
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
+use std::iter;
 
 /// Converts a type to a path (if possible).
 pub fn path_from_type(item_type: &ast::Type) -> Option<ast::Path> {
@@ -11,6 +13,25 @@ pub fn path_from_type(item_type: &ast::Type) -> Option<ast::Path> {
         ast::Type::PathType(path_type) => path_type.path(),
         _ => None,
     }
+}
+
+/// Returns the full qualified path for the item (if possible).
+pub fn item_path<T>(item: &T) -> Option<String>
+where
+    T: HasName,
+{
+    item.name().map(|name| {
+        iter::once(String::from("crate"))
+            .chain(item.syntax().ancestors().filter_map(|node| {
+                ast::Module::cast(node)
+                    .as_ref()
+                    .and_then(HasName::name)
+                    .as_ref()
+                    .map(ToString::to_string)
+            }))
+            .chain(iter::once(name.to_string()))
+            .join("::")
+    })
 }
 
 /// Finds first external trait implementation (optionally given an implementation name).
@@ -177,6 +198,58 @@ pub fn is_external_crate_item(
                 && (unqualified_target_name_in_scope() || sub_qualifier_or_alias_in_scope()))
                 || target_is_name_alias()
         })
+}
+
+/// Finds an ADT by either resolving the path or searching for the first ADT that implements and external trait.
+pub fn resolve_or_find_adt_by_external_trait_impl(
+    path: &ast::Path,
+    ref_node: &SyntaxNode,
+    trait_name: &str,
+    crate_qualifiers: &[&str],
+) -> Option<ast::Adt> {
+    // Finds a struct, enum or union with the target name.
+    let find_adt_by_name = |target_name: &ast::NameRef| {
+        ref_node.ancestors().last().and_then(|root_node| {
+            root_node
+                .descendants()
+                .filter(|it| ast::Adt::can_cast(it.kind()))
+                .find_map(|node| {
+                    ast::Adt::cast(node).filter(|item| {
+                        item.name()
+                            .map_or(false, |item_name| item_name.text() == target_name.text())
+                    })
+                })
+        })
+    };
+
+    path.segment()
+        .as_ref()
+        .and_then(ast::PathSegment::name_ref)
+        .as_ref()
+        // Finds a struct, enum or union with the target name.
+        .and_then(find_adt_by_name)
+        // Otherwise finds an implementation of the external trait (if any).
+        .or(
+            // Finds an external trait implementation.
+            ref_node
+                .ancestors()
+                .last()
+                .and_then(|root_node| {
+                    external_trait_impl(trait_name, crate_qualifiers, &root_node, None)
+                })
+                // Returns the custom type name for external trait implementation.
+                .as_ref()
+                .and_then(ast::Impl::self_ty)
+                .as_ref()
+                .and_then(path_from_type)
+                .as_ref()
+                .and_then(ast::Path::segment)
+                .as_ref()
+                .and_then(ast::PathSegment::name_ref)
+                .as_ref()
+                // Finds a struct, enum or union with the custom type name.
+                .and_then(find_adt_by_name),
+        )
 }
 
 // Checks if an item named `name` is the target of the `path`.

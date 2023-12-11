@@ -13,6 +13,8 @@ use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity};
 
+mod error_code;
+
 const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 
 /// Runs all ink! chain extension diagnostics.
@@ -57,6 +59,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // see `ensure_valid_quasi_direct_ink_descendants` doc.
     ensure_valid_quasi_direct_ink_descendants(results, chain_extension);
+
+    // Runs ink! chain extension `ErrorCode` type diagnostics, see `error_code::diagnostics` doc.
+    error_code::diagnostics(results, chain_extension);
 }
 
 /// Ensures that ink! chain extension is a `trait` item whose associated items satisfy all invariants.

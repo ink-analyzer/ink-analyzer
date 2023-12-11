@@ -1,6 +1,8 @@
 //! Utilities for ink! diagnostics.
 
-use ink_analyzer_ir::ast::{AstNode, AstToken, HasGenericParams, HasTypeBounds, HasVisibility};
+use ink_analyzer_ir::ast::{
+    AstNode, AstToken, HasGenericParams, HasName, HasTypeBounds, HasVisibility,
+};
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{
     SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
@@ -14,7 +16,7 @@ use std::collections::HashSet;
 
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils;
-use crate::{Action, ActionKind, Diagnostic, Severity};
+use crate::{resolution, Action, ActionKind, Diagnostic, Severity};
 
 /// Runs generic diagnostics that apply to all ink! entities.
 /// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
@@ -1567,6 +1569,66 @@ where
                 },
             )),
         });
+    }
+}
+
+/// Ensures that the ADT item (i.e. struct, enum or union) implements the specified external trait.
+pub fn ensure_external_trait_impl(
+    adt: &ast::Adt,
+    trait_info: (&str, &[&str], &SyntaxNode),
+    message: String,
+    label: String,
+    fix_plain: String,
+    fix_snippet_option: Option<String>,
+) -> Option<Diagnostic> {
+    // Only continue if the ADT has a name.
+    let name = adt.name()?;
+
+    // Finds external trait implementation (if any).
+    let (trait_name, crate_qualifiers, ref_node) = trait_info;
+    match resolution::external_trait_impl(
+        trait_name,
+        crate_qualifiers,
+        ref_node,
+        Some(&name.to_string()),
+    ) {
+        // Handles no external trait implementation.
+        None => {
+            let item = match adt.clone() {
+                ast::Adt::Enum(it) => ast::Item::Enum(it),
+                ast::Adt::Struct(it) => ast::Item::Struct(it),
+                ast::Adt::Union(it) => ast::Item::Union(it),
+            };
+            let range =
+                utils::ast_item_declaration_range(&item).unwrap_or(adt.syntax().text_range());
+            let indent_option = utils::item_indenting(adt.syntax());
+
+            Some(Diagnostic {
+                message,
+                range,
+                severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label,
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: vec![TextEdit::insert_with_snippet(
+                        indent_option
+                            .as_ref()
+                            .map(|indent| utils::apply_indenting(&fix_plain, indent))
+                            .unwrap_or(fix_plain),
+                        adt.syntax().text_range().end(),
+                        fix_snippet_option.map(|fix_snippet| {
+                            indent_option
+                                .as_ref()
+                                .map(|indent| utils::apply_indenting(&fix_snippet, indent))
+                                .unwrap_or(fix_snippet)
+                        }),
+                    )],
+                }]),
+            })
+        }
+        // Ignores resolved external trait implementation.
+        Some(_) => None,
     }
 }
 
