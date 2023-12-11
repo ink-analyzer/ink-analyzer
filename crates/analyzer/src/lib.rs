@@ -74,6 +74,7 @@ pub use ink_analyzer_ir::syntax::{TextRange, TextSize};
 
 mod analysis;
 mod codegen;
+mod resolution;
 mod utils;
 
 mod test_utils;
