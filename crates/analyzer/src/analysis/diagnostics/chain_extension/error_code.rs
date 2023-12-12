@@ -11,6 +11,10 @@ const INK_ENV_CHAIN_EXTENSION_QUALIFIERS: [&str; 2] =
     ["ink::env::chain_extension", "ink_env::chain_extension"];
 
 /// Runs all ink! chain extension `ErrorCode` diagnostics.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L957-L976>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L1269-L1274>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
     // Ensures that ink! chain extension `ErrorCode` type can be resolved, see `ensure_resolvable` doc.
     if let Some(diagnostic) = ensure_resolvable(chain_extension) {
@@ -22,52 +26,50 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
     if let Some(diagnostic) = ensure_impl_from_status_code(chain_extension) {
         results.push(diagnostic);
     }
+
+    // Ensures no usages of `Self::ErrorCode`, see `ensure_no_self_error_code_usage` doc.
+    ensure_no_self_error_code_usage(results, chain_extension);
 }
 
 // Ensures that the ink! chain extension `ErrorCode` type can be resolved to an ADT item (i.e. struct, enum or union).
 fn ensure_resolvable(chain_extension: &ChainExtension) -> Option<Diagnostic> {
     // Only continue if there's an `ErrorCode` type.
     let error_code_type = chain_extension.error_code()?.ty()?;
-    let error_code_path_option = resolution::path_from_type(&error_code_type);
-    let error_code_option: Option<ast::Adt> =
-        error_code_path_option.as_ref().and_then(|error_code_path| {
-            ink_analyzer_ir::resolve_item(error_code_path, chain_extension.syntax())
-        });
-
-    match error_code_option {
+    match error_code_adt(chain_extension) {
         // Handles no resolved `ErrorCode` type.
         None => {
             // Determines text range for the `ErrorCode` type value.
             let range = error_code_type.syntax().text_range();
 
             Some(Diagnostic {
-                message: "ink! chain extension `ErrorCode` associated type should be a path to a custom type \
-                that implements the `ink::env::chain_extension::FromStatusCode` trait.".to_string(),
+                message: "`ErrorCode` associated type should be a custom type \
+                that implements the `ink::env::chain_extension::FromStatusCode` trait."
+                    .to_string(),
                 range,
                 severity: Severity::Error,
                 quickfixes: resolution::candidate_adt_by_name_or_external_trait_impl(
-                    error_code_path_option.as_ref(),
+                    resolution::path_from_type(&error_code_type).as_ref(),
                     "FromStatusCode",
                     &INK_ENV_CHAIN_EXTENSION_QUALIFIERS,
                     chain_extension.syntax(),
                 )
-                    .as_ref()
-                    .and_then(resolution::item_path)
-                    .map(|candidate_path| {
-                        // Suggests a resolved path.
-                        vec![Action {
-                            label: format!(
-                                "Replace `{error_code_type}` associated type with `{candidate_path}`"
-                            ),
-                            kind: ActionKind::QuickFix,
+                .as_ref()
+                .and_then(resolution::item_path)
+                .map(|candidate_path| {
+                    // Suggests a resolved path.
+                    vec![Action {
+                        label: format!(
+                            "Replace `{error_code_type}` associated type with `{candidate_path}`"
+                        ),
+                        kind: ActionKind::QuickFix,
+                        range,
+                        edits: vec![TextEdit::replace_with_snippet(
+                            candidate_path.clone(),
                             range,
-                            edits: vec![TextEdit::replace_with_snippet(
-                                candidate_path.clone(),
-                                range,
-                                Some(format!("${{1:{candidate_path}}}")),
-                            )],
-                        }]
-                    }),
+                            Some(format!("${{1:{candidate_path}}}")),
+                        )],
+                    }]
+                }),
             })
         }
         // Ignores resolved environment config.
@@ -78,9 +80,7 @@ fn ensure_resolvable(chain_extension: &ChainExtension) -> Option<Diagnostic> {
 // Ensures that the ink! chain extension `ErrorCode` type implements the `ink::env::chain_extension::FromStatusCode` trait.
 fn ensure_impl_from_status_code(chain_extension: &ChainExtension) -> Option<Diagnostic> {
     // Only continue if there's a named `ErrorCode` type.
-    let error_code_type = chain_extension.error_code()?.ty()?;
-    let error_code_path = resolution::path_from_type(&error_code_type)?;
-    let adt: ast::Adt = ink_analyzer_ir::resolve_item(&error_code_path, chain_extension.syntax())?;
+    let adt = error_code_adt(chain_extension)?;
     let name = adt.name()?.to_string();
 
     utils::ensure_external_trait_impl(
@@ -94,6 +94,48 @@ fn ensure_impl_from_status_code(chain_extension: &ChainExtension) -> Option<Diag
         format!("Add `ink::env::chain_extension::FromStatusCode` implementation for {name}"),
         FROM_STATUS_CODE_IMPL_PLAIN.replace("MyErrorCode", &name),
         Some(FROM_STATUS_CODE_IMPL_SNIPPET.replace("MyErrorCode", &name)),
+    )
+}
+
+// Returns an error diagnostic for every usage of `Self::ErrorCode` in the chain extension or its defined methods.
+//
+// Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L1269-L1274>.
+fn ensure_no_self_error_code_usage(
+    results: &mut Vec<Diagnostic>,
+    chain_extension: &ChainExtension,
+) {
+    let error_code_path_option = error_code_adt(chain_extension)
+        .as_ref()
+        .and_then(resolution::item_path);
+    for self_error_code_path in chain_extension.syntax().descendants().filter_map(|node| {
+        ast::Path::cast(node).filter(|path| path.to_string().replace(' ', "") == "Self::ErrorCode")
+    }) {
+        let range = self_error_code_path.syntax().text_range();
+        results.push(Diagnostic {
+            message: "Due to technical limitations, it is not possible to refer to \
+            the `ErrorCode` associated type using `Self::ErrorCode` \
+            anywhere within the chain extension and its defined methods. \
+            \nUse the error code type directly instead."
+                .to_string(),
+            range,
+            severity: Severity::Error,
+            quickfixes: error_code_path_option.as_ref().map(|error_code_path| {
+                vec![Action {
+                    label: format!("Replace `{self_error_code_path}` with `{error_code_path}`"),
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: vec![TextEdit::replace(error_code_path.clone(), range)],
+                }]
+            }),
+        });
+    }
+}
+
+// Returns the error code ADT (struct, enum or union) (if any).
+fn error_code_adt(chain_extension: &ChainExtension) -> Option<ast::Adt> {
+    ink_analyzer_ir::resolve_item(
+        &resolution::path_from_type(&chain_extension.error_code()?.ty()?)?,
+        chain_extension.syntax(),
     )
 }
 
@@ -146,18 +188,33 @@ mod tests {
                     quote! { type ErrorCode = self::MyErrorCode; },
                 ),
             ]
-            .iter()
-            .map(|(type_def, type_alias)| {
-                quote_as_pretty_string! {
-                    #[ink::chain_extension]
-                    pub trait my_chain_extension {
-                        #type_alias
+            .into_iter()
+            .flat_map(|(type_def, type_alias)| {
+                [
+                    // No extensions.
+                    quote! {},
+                    // Extension variations.
+                    quote! {
+                        #[ink(extension=1)]
+                        fn my_extension();
 
-                        // --snip--
+                        #[ink(extension=2)]
+                        fn my_extension4(a: i32) -> bool;
+                    },
+                ]
+                .into_iter()
+                .map(move |extensions| {
+                    quote_as_pretty_string! {
+                        #[ink::chain_extension]
+                        pub trait my_chain_extension {
+                            #type_alias
+
+                            #extensions
+                        }
+
+                        #type_def
                     }
-
-                    #type_def
-                }
+                })
             })
         };
     }
@@ -330,6 +387,77 @@ mod tests {
                 .as_ref()
                 .unwrap_or(&empty);
             verify_actions(&code, quickfixes, &expected_quickfixes);
+        }
+    }
+
+    #[test]
+    fn no_self_error_code_usage_works() {
+        for code in valid_error_codes!() {
+            let chain_extension = parse_first_ink_entity_of_type(&code);
+
+            let mut results = Vec::new();
+            ensure_no_self_error_code_usage(&mut results, &chain_extension);
+            assert!(results.is_empty(), "code: {code}");
+        }
+    }
+
+    #[test]
+    fn self_error_code_usage_fails() {
+        for (extensions, expected_quickfixes) in [
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn my_extension(a: Self::ErrorCode);
+                },
+                vec![TestResultAction {
+                    label: "Replace `Self::ErrorCode`",
+                    edits: vec![TestResultTextRange {
+                        text: "crate::MyErrorCode",
+                        start_pat: Some("<-Self::ErrorCode"),
+                        end_pat: Some("Self::ErrorCode"),
+                    }],
+                }],
+            ),
+            (
+                quote! {
+                    #[ink(extension=1)]
+                    fn my_extension() -> Self::ErrorCode;
+                },
+                vec![TestResultAction {
+                    label: "Replace `Self::ErrorCode`",
+                    edits: vec![TestResultTextRange {
+                        text: "crate::MyErrorCode",
+                        start_pat: Some("<-Self::ErrorCode"),
+                        end_pat: Some("Self::ErrorCode"),
+                    }],
+                }],
+            ),
+        ] {
+            let type_def = error_code_type_def!();
+            let code = quote_as_pretty_string! {
+                #[ink::chain_extension]
+                pub trait my_chain_extension {
+                    type ErrorCode = crate::MyErrorCode;
+
+                    #extensions
+                }
+
+                #type_def
+            };
+            let chain_extension = parse_first_ink_entity_of_type(&code);
+
+            let mut results = Vec::new();
+            ensure_no_self_error_code_usage(&mut results, &chain_extension);
+
+            // Verifies diagnostics.
+            assert_eq!(results.len(), 1, "code: {code}");
+            assert_eq!(results[0].severity, Severity::Error, "code: {code}");
+            // Verifies quickfixes.
+            verify_actions(
+                &code,
+                results[0].quickfixes.as_ref().unwrap(),
+                &expected_quickfixes,
+            );
         }
     }
 }
