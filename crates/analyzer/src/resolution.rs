@@ -201,11 +201,11 @@ pub fn is_external_crate_item(
 }
 
 /// Finds an ADT by either resolving the path or searching for the first ADT that implements and external trait.
-pub fn resolve_or_find_adt_by_external_trait_impl(
-    path: &ast::Path,
-    ref_node: &SyntaxNode,
+pub fn candidate_adt_by_name_or_external_trait_impl(
+    path_option: Option<&ast::Path>,
     trait_name: &str,
     crate_qualifiers: &[&str],
+    ref_node: &SyntaxNode,
 ) -> Option<ast::Adt> {
     // Finds a struct, enum or union with the target name.
     let find_adt_by_name = |target_name: &ast::NameRef| {
@@ -222,7 +222,8 @@ pub fn resolve_or_find_adt_by_external_trait_impl(
         })
     };
 
-    path.segment()
+    path_option
+        .and_then(ast::Path::segment)
         .as_ref()
         .and_then(ast::PathSegment::name_ref)
         .as_ref()

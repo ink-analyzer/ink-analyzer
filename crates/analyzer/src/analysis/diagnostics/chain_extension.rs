@@ -442,9 +442,28 @@ mod tests {
                     quote! {
                         #[ink::chain_extension]
                         pub trait MyChainExtension {
-                            type ErrorCode = ();
+                            type ErrorCode = MyErrorCode;
 
                             #extensions
+                        }
+
+                        #[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]
+                        pub enum MyErrorCode {
+                            InvalidKey,
+                            CannotWriteToKey,
+                            CannotReadFromKey,
+                        }
+
+                        impl ink::env::chain_extension::FromStatusCode for MyErrorCode {
+                            fn from_status_code(status_code: u32) -> Result<(), Self> {
+                                match status_code {
+                                    0 => Ok(()),
+                                    1 => Err(Self::InvalidKey),
+                                    2 => Err(Self::CannotWriteToKey),
+                                    3 => Err(Self::CannotReadFromKey),
+                                    _ => panic!("encountered unknown status code"),
+                                }
+                            }
                         }
                     },
                 ]

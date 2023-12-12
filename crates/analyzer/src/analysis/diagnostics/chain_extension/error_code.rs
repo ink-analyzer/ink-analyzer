@@ -11,31 +11,33 @@ const INK_ENV_CHAIN_EXTENSION_QUALIFIERS: [&str; 2] =
     ["ink::env::chain_extension", "ink_env::chain_extension"];
 
 /// Runs all ink! chain extension `ErrorCode` diagnostics.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, item: &ChainExtension) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
     // Ensures that ink! chain extension `ErrorCode` type can be resolved, see `ensure_resolvable` doc.
-    if let Some(diagnostic) = ensure_resolvable(item) {
+    if let Some(diagnostic) = ensure_resolvable(chain_extension) {
         results.push(diagnostic);
     }
 
     // Ensures that ink! chain extension `ErrorCode` type satisfies the required trait bounds,
     // see `ensure_impl_from_status_code` doc.
-    if let Some(diagnostic) = ensure_impl_from_status_code(item) {
+    if let Some(diagnostic) = ensure_impl_from_status_code(chain_extension) {
         results.push(diagnostic);
     }
 }
 
 // Ensures that the ink! chain extension `ErrorCode` type can be resolved to an ADT item (i.e. struct, enum or union).
-fn ensure_resolvable(item: &ChainExtension) -> Option<Diagnostic> {
+fn ensure_resolvable(chain_extension: &ChainExtension) -> Option<Diagnostic> {
     // Only continue if there's an `ErrorCode` type.
-    let error_code_type = item.error_code()?.ty()?;
-    let error_code_path = resolution::path_from_type(&error_code_type)?;
+    let error_code_type = chain_extension.error_code()?.ty()?;
+    let error_code_path_option = resolution::path_from_type(&error_code_type);
     let error_code_option: Option<ast::Adt> =
-        ink_analyzer_ir::resolve_item(&error_code_path, item.syntax());
+        error_code_path_option.as_ref().and_then(|error_code_path| {
+            ink_analyzer_ir::resolve_item(error_code_path, chain_extension.syntax())
+        });
 
     match error_code_option {
         // Handles no resolved `ErrorCode` type.
         None => {
-            // Determines text range for the argument value.
+            // Determines text range for the `ErrorCode` type value.
             let range = error_code_type.syntax().text_range();
 
             Some(Diagnostic {
@@ -43,11 +45,11 @@ fn ensure_resolvable(item: &ChainExtension) -> Option<Diagnostic> {
                 that implements the `ink::env::chain_extension::FromStatusCode` trait.".to_string(),
                 range,
                 severity: Severity::Error,
-                quickfixes: resolution::resolve_or_find_adt_by_external_trait_impl(
-                    &error_code_path,
-                    item.syntax(),
+                quickfixes: resolution::candidate_adt_by_name_or_external_trait_impl(
+                    error_code_path_option.as_ref(),
                     "FromStatusCode",
                     &INK_ENV_CHAIN_EXTENSION_QUALIFIERS,
+                    chain_extension.syntax(),
                 )
                     .as_ref()
                     .and_then(resolution::item_path)
@@ -55,7 +57,7 @@ fn ensure_resolvable(item: &ChainExtension) -> Option<Diagnostic> {
                         // Suggests a resolved path.
                         vec![Action {
                             label: format!(
-                                "Replace `{error_code_path}` associated type with `{candidate_path}`"
+                                "Replace `{error_code_type}` associated type with `{candidate_path}`"
                             ),
                             kind: ActionKind::QuickFix,
                             range,
@@ -74,11 +76,11 @@ fn ensure_resolvable(item: &ChainExtension) -> Option<Diagnostic> {
 }
 
 // Ensures that the ink! chain extension `ErrorCode` type implements the `ink::env::chain_extension::FromStatusCode` trait.
-fn ensure_impl_from_status_code(item: &ChainExtension) -> Option<Diagnostic> {
+fn ensure_impl_from_status_code(chain_extension: &ChainExtension) -> Option<Diagnostic> {
     // Only continue if there's a named `ErrorCode` type.
-    let error_code_type = item.error_code()?.ty()?;
+    let error_code_type = chain_extension.error_code()?.ty()?;
     let error_code_path = resolution::path_from_type(&error_code_type)?;
-    let adt: ast::Adt = ink_analyzer_ir::resolve_item(&error_code_path, item.syntax())?;
+    let adt: ast::Adt = ink_analyzer_ir::resolve_item(&error_code_path, chain_extension.syntax())?;
     let name = adt.name()?.to_string();
 
     utils::ensure_external_trait_impl(
@@ -86,7 +88,7 @@ fn ensure_impl_from_status_code(item: &ChainExtension) -> Option<Diagnostic> {
         (
             "FromStatusCode",
             &INK_ENV_CHAIN_EXTENSION_QUALIFIERS,
-            &item.syntax().ancestors().last()?,
+            &chain_extension.syntax().ancestors().last()?,
         ),
         "`ErrorCode` associated types must implement the `ink::env::chain_extension::FromStatusCode` trait".to_string(),
         format!("Add `ink::env::chain_extension::FromStatusCode` implementation for {name}"),
@@ -147,14 +149,14 @@ mod tests {
             .iter()
             .map(|(type_def, type_alias)| {
                 quote_as_pretty_string! {
-                    #type_def
-
                     #[ink::chain_extension]
                     pub trait my_chain_extension {
                         #type_alias
 
                         // --snip--
                     }
+
+                    #type_def
                 }
             })
         };
@@ -198,7 +200,7 @@ mod tests {
                 quote! { type ErrorCode = self::MyErrorCode; },
                 vec![],
             ),
-            // Non-existent environment (with local custom environment definition).
+            // Non-existent `ErrorCode` type (with local `ErrorCode` type definition).
             (
                 error_code_type_def!(),
                 quote! { type ErrorCode = NoErrorCode; },
@@ -223,16 +225,30 @@ mod tests {
                     }],
                 }],
             ),
+            // Non-path `ErrorCode` type.
+            (quote! {}, quote! { type ErrorCode = (); }, vec![]),
+            (
+                error_code_type_def!(),
+                quote! { type ErrorCode = (); },
+                vec![TestResultAction {
+                    label: "Replace `()`",
+                    edits: vec![TestResultTextRange {
+                        text: "crate::MyErrorCode",
+                        start_pat: Some("type ErrorCode = "),
+                        end_pat: Some("type ErrorCode = ()"),
+                    }],
+                }],
+            ),
         ] {
             let code = quote_as_pretty_string! {
-                #type_def
-
                 #[ink::chain_extension]
                 pub trait my_chain_extension {
                     #type_alias
 
                     // --snip--
                 }
+
+                #type_def
             };
             let chain_extension = parse_first_ink_entity_of_type(&code);
 
@@ -285,14 +301,14 @@ mod tests {
             }],
         )] {
             let code = quote_as_pretty_string! {
-                #type_def
-
                 #[ink::chain_extension]
                 pub trait my_chain_extension {
                     #type_alias
 
                     // --snip--
                 }
+
+                #type_def
             };
             let chain_extension = parse_first_ink_entity_of_type(&code);
 
