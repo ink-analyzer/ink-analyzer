@@ -73,7 +73,7 @@ where
                     // Suggests a resolved path.
                     vec![Action {
                         label: format!(
-                            "Replace `{arg_name}` argument value with `{candidate_path}`"
+                            "Replace `{arg_name}` argument value with `{candidate_path}`."
                         ),
                         kind: ActionKind::QuickFix,
                         range,
@@ -107,8 +107,8 @@ where
             &INK_ENV_QUALIFIERS,
             &item.syntax().ancestors().last()?,
         ),
-        "Environment values must implement the `ink::env::Environment` trait".to_string(),
-        format!("Add `ink::env::Environment` implementation for {name}"),
+        "Environment values must implement the `ink::env::Environment` trait.".to_string(),
+        format!("Add `ink::env::Environment` implementation for `{name}`."),
         ENVIRONMENT_IMPL_PLAIN.replace("MyEnvironment", &name),
         Some(ENVIRONMENT_IMPL_SNIPPET.replace("MyEnvironment", &name)),
     )

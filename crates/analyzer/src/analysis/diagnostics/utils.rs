@@ -1582,25 +1582,19 @@ pub fn ensure_external_trait_impl(
     fix_snippet_option: Option<String>,
 ) -> Option<Diagnostic> {
     // Only continue if the ADT has a name.
-    let name = adt.name()?;
+    let name = adt.name()?.to_string();
 
     // Finds external trait implementation (if any).
     let (trait_name, crate_qualifiers, ref_node) = trait_info;
-    match resolution::external_trait_impl(
-        trait_name,
-        crate_qualifiers,
-        ref_node,
-        Some(&name.to_string()),
-    ) {
+    match resolution::external_trait_impl(trait_name, crate_qualifiers, ref_node, Some(&name)) {
         // Handles no external trait implementation.
         None => {
-            let item = match adt.clone() {
+            let range = utils::ast_item_declaration_range(&match adt.clone() {
                 ast::Adt::Enum(it) => ast::Item::Enum(it),
                 ast::Adt::Struct(it) => ast::Item::Struct(it),
                 ast::Adt::Union(it) => ast::Item::Union(it),
-            };
-            let range =
-                utils::ast_item_declaration_range(&item).unwrap_or(adt.syntax().text_range());
+            })
+            .unwrap_or(adt.syntax().text_range());
             let indent_option = utils::item_indenting(adt.syntax());
 
             Some(Diagnostic {
