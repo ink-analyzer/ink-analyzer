@@ -1,21 +1,14 @@
 //! ink! chain extension `ErrorCode` diagnostics.
 
-use ink_analyzer_ir::ast::{AstNode, AstToken, HasAttrs, HasDocComments, HasName};
-use ink_analyzer_ir::syntax::{SyntaxToken, TextRange};
+use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::{ast, ChainExtension, InkEntity};
-use itertools::{Either, Itertools};
 
 use super::utils;
-use crate::analysis::utils as analysis_utils;
 use crate::codegen::snippets::{FROM_STATUS_CODE_IMPL_PLAIN, FROM_STATUS_CODE_IMPL_SNIPPET};
 use crate::{resolution, Action, ActionKind, Diagnostic, Severity, TextEdit};
 
 const INK_ENV_CHAIN_EXTENSION_QUALIFIERS: [&str; 2] =
     ["ink::env::chain_extension", "ink_env::chain_extension"];
-
-const SCALE_QUALIFIERS: [&str; 3] = ["scale", "ink::scale", "parity_scale_codec"];
-
-const SCALE_INFO_QUALIFIERS: [&str; 2] = ["scale_info", "ink::scale_info"];
 
 /// Runs all ink! chain extension `ErrorCode` diagnostics.
 ///
@@ -36,7 +29,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
         results.push(diagnostic);
     }
 
-    // Ensures that ink! chain extension `ErrorCode` type implements the SCALE code traits,
+    // Ensures that ink! chain extension `ErrorCode` type implements the SCALE codec traits,
     // see `ensure_impl_scale_codec_traits` doc.
     if let Some(diagnostic) = ensure_impl_scale_codec_traits(chain_extension) {
         results.push(diagnostic);
@@ -112,240 +105,15 @@ fn ensure_impl_from_status_code(chain_extension: &ChainExtension) -> Option<Diag
     )
 }
 
-// Ensures that the ink! chain extension `ErrorCode` type implements all SCALE code traits.
+// Ensures that the ink! chain extension `ErrorCode` type implements all SCALE codec traits.
 //
 // Ref: <https://docs.substrate.io/reference/scale-codec/>.
 //
 // Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L1092-L1094>.
 fn ensure_impl_scale_codec_traits(chain_extension: &ChainExtension) -> Option<Diagnostic> {
     // Only continue if there's an `ErrorCode` type.
-    error_code_adt(chain_extension).and_then(|adt| {
-        // Standalone derive attribute (if any).
-        let standalone_derive_attr = adt.attrs().find(|attr| {
-            attr.path()
-                .map_or(false, |path| path.to_string().trim() == "derive")
-        });
-
-        // Utilities for extracting derive attribute meta items
-        let token_tree_to_non_delimited_string = |token_tree: &ast::TokenTree| {
-            let r_paren_option = token_tree.r_paren_token();
-            token_tree
-                .syntax()
-                .children_with_tokens()
-                .skip(usize::from(token_tree.l_paren_token().is_some()))
-                .take_while(|it| {
-                    r_paren_option.is_none() || it.as_token() != r_paren_option.as_ref()
-                })
-                .join("")
-        };
-        let meta_to_path_list = |meta: &str| {
-            meta.replace(' ', "")
-                .split(',')
-                .filter_map(ink_analyzer_ir::path_from_str)
-                .collect::<Vec<_>>()
-        };
-
-        // Standalone derive attribute meta item string (if any).
-        let standalone_derive_meta = standalone_derive_attr
-            .as_ref()
-            .and_then(ast::Attr::token_tree)
-            .as_ref()
-            .map(token_tree_to_non_delimited_string);
-
-        // Extracts derive item paths from both the standalone and conditional derive attributes.
-        let standalone_derived_items = standalone_derive_meta.as_deref().map(meta_to_path_list);
-        let conditional_derived_items = adt.attrs().find_map(|attr| {
-            if attr
-                .path()
-                .map_or(false, |path| path.to_string().trim() == "cfg_attr")
-            {
-                attr.token_tree().map(|token_tree| {
-                    token_tree
-                        .syntax()
-                        .children()
-                        .filter(|node| {
-                            let is_after_derive = || {
-                                node.first_token()
-                                    .and_then(|token| {
-                                        ink_analyzer_ir::closest_non_trivia_token(
-                                            &token,
-                                            SyntaxToken::prev_token,
-                                        )
-                                    })
-                                    .map_or(false, |token| token.text() == "derive")
-                            };
-                            ast::TokenTree::can_cast(node.kind()) && is_after_derive()
-                        })
-                        .filter_map(|node| {
-                            ast::TokenTree::cast(node)
-                                .as_ref()
-                                .map(token_tree_to_non_delimited_string)
-                        })
-                        .flat_map(|meta| meta_to_path_list(&meta))
-                        .collect::<Vec<_>>()
-                })
-            } else {
-                None
-            }
-        });
-        let derived_items = match (standalone_derived_items, conditional_derived_items) {
-            (Some(standalone), Some(conditional)) => {
-                let mut items = Vec::with_capacity(standalone.len() + conditional.len());
-                items.extend(standalone);
-                items.extend(conditional);
-                Some(items)
-            }
-            (standalone_option, conditional_option) => standalone_option.or(conditional_option),
-        };
-
-        // Finds unimplemented SCALE codec traits.
-        let unimplemented_traits: Vec<_> = ([
-            ("Encode", &SCALE_QUALIFIERS, "scale::Encode"),
-            ("Decode", &SCALE_QUALIFIERS, "scale::Decode"),
-            ("TypeInfo", &SCALE_INFO_QUALIFIERS, "scale_info::TypeInfo"),
-        ] as [(&str, &[&str], &str); 3])
-            .into_iter()
-            .filter_map(|(trait_name, qualifiers, trait_path)| {
-                // Finds #[derive(...)] trait implementation for the error code type (if any).
-                let is_derived = derived_items.as_ref().map_or(false, |item_paths| {
-                    item_paths.iter().any(|path| {
-                        resolution::is_external_crate_item(
-                            trait_name,
-                            path,
-                            qualifiers,
-                            adt.syntax(),
-                        )
-                    })
-                });
-                // Finds trait implementation for the error code type (if any).
-                let is_implemented = || {
-                    adt.name()
-                        .as_ref()
-                        .map(ToString::to_string)
-                        .zip(chain_extension.syntax().ancestors().last())
-                        .and_then(|(error_code_name, ref_node)| {
-                            resolution::external_trait_impl(
-                                trait_name,
-                                qualifiers,
-                                &ref_node,
-                                Some(&error_code_name),
-                            )
-                        })
-                        .is_some()
-                };
-
-                (!is_derived && !is_implemented()).then_some(trait_path)
-            })
-            .collect();
-
-        // Returns diagnostic for unimplemented SCALE code traits (if any).
-        (!unimplemented_traits.is_empty()).then(|| {
-            // Determines the insert text, range and snippet for adding a derive implementation.
-            let trait_paths_plain = unimplemented_traits.join(", ");
-            let trait_paths_snippet = unimplemented_traits
-                .iter()
-                .enumerate()
-                .map(|(idx, path)| format!("${{{}:{path}}}", idx + 1))
-                .join(", ");
-            let trait_paths_display = unimplemented_traits
-                .iter()
-                .map(|path| format!("`{path}`"))
-                .join(", ");
-            // Either updates an existing standalone derive attribute or creates a new one.
-            let (insert_text, insert_range, insert_snippet) =
-                standalone_derive_attr.as_ref().map_or(
-                    (
-                        format!("#[derive({trait_paths_plain})]"),
-                        TextRange::empty(
-                            adt.doc_comments_and_attrs()
-                                .last()
-                                .and_then(|elem| match elem {
-                                    Either::Left(attr) => attr.syntax().last_token(),
-                                    Either::Right(doc) => Some(doc.syntax().clone()),
-                                })
-                                // Finds the first non-(attribute/rustdoc/trivia) token for the item.
-                                .and_then(|it| {
-                                    ink_analyzer_ir::closest_non_trivia_token(
-                                        &it,
-                                        SyntaxToken::next_token,
-                                    )
-                                })
-                                .as_ref()
-                                // Defaults to the start of the custom type.
-                                .map_or(adt.syntax().text_range(), SyntaxToken::text_range)
-                                .start(),
-                        ),
-                        format!("#[derive({trait_paths_snippet})]"),
-                    ),
-                    |attr| {
-                        let meta_prefix = standalone_derive_meta.as_ref().map(|meta| {
-                            format!(
-                                "{meta}{}",
-                                if meta.trim_end().ends_with(',') {
-                                    ""
-                                } else {
-                                    ", "
-                                }
-                            )
-                        });
-                        (
-                            format!(
-                                "#[derive({}{trait_paths_plain})]",
-                                meta_prefix.as_deref().unwrap_or_default()
-                            ),
-                            attr.syntax().text_range(),
-                            format!(
-                                "#[derive({}{trait_paths_snippet})]",
-                                meta_prefix.as_deref().unwrap_or_default()
-                            ),
-                        )
-                    },
-                );
-            // Determines text range for item "declaration" (fallbacks to range of the entire item).
-            let item_declaration_text_range =
-                analysis_utils::ast_item_declaration_range(&match adt.clone() {
-                    ast::Adt::Enum(it) => ast::Item::Enum(it),
-                    ast::Adt::Struct(it) => ast::Item::Struct(it),
-                    ast::Adt::Union(it) => ast::Item::Union(it),
-                })
-                .unwrap_or(adt.syntax().text_range());
-
-            Diagnostic {
-                message: format!(
-                    "`ErrorCode` associated type must implement the {trait_paths_display} trait{}.",
-                    if unimplemented_traits.len() == 1 {
-                        ""
-                    } else {
-                        "s"
-                    }
-                ),
-                range: item_declaration_text_range,
-                severity: Severity::Error,
-                quickfixes: Some(vec![Action {
-                    label: format!(
-                        "Derive {trait_paths_display} trait implementation{}{}.",
-                        if unimplemented_traits.len() == 1 {
-                            ""
-                        } else {
-                            "s"
-                        },
-                        adt.name()
-                            .as_ref()
-                            .map(ToString::to_string)
-                            .map(|name| format!(" for `{name}`"))
-                            .unwrap_or_default()
-                    ),
-                    kind: ActionKind::QuickFix,
-                    range: item_declaration_text_range,
-                    edits: vec![TextEdit::new(
-                        insert_text,
-                        insert_range,
-                        Some(insert_snippet),
-                    )],
-                }]),
-            }
-        })
-    })
+    error_code_adt(chain_extension)
+        .and_then(|adt| utils::ensure_impl_scale_codec_traits(&adt, "`ErrorCode` associated type"))
 }
 
 // Returns an error diagnostic for every usage of `Self::ErrorCode` in the chain extension or its defined methods.

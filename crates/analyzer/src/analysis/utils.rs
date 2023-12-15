@@ -524,11 +524,15 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_cfg_scope(
 
 /// Returns true if the attribute is a conditional compilation flag for test builds.
 pub fn is_cfg_test_attr(attr: &ast::Attr) -> bool {
-    attr.path().map_or(false, |path| path.to_string() == "cfg")
+    attr.path()
+        .map_or(false, |path| path.to_string().trim() == "cfg")
         && attr.token_tree().map_or(false, |token_tree| {
             let mut meta = token_tree.syntax().to_string();
             meta.retain(|it| !it.is_whitespace());
-            meta.contains("(test") || meta.contains(",test")
+            meta.contains("(test)")
+                || meta.contains("(test,")
+                || meta.contains(",test)")
+                || meta.contains(",test,")
         })
 }
 
@@ -643,7 +647,7 @@ pub fn ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
             .last()
             .as_ref()
             .map(ast::Attr::syntax))
-        // First the last token for last ink! attribute or generic attribute (if any).
+        // Finds the last token for last ink! attribute or generic attribute (if any).
         .and_then(SyntaxNode::last_token)
         // Otherwise finds the first trivia/rustdoc token for item (if any).
         .or(node
