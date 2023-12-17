@@ -80,7 +80,7 @@ where
 
 /// Determines an item's path based on use statements in the current scope.
 #[macro_export]
-macro_rules! resolve_item_path_from_use_scope {
+macro_rules! resolve_item_path_from_use_scope_and_aliases {
     ($name: ident, $root_node: expr) => {{
         let (use_paths, use_aliases) = $crate::simple_use_paths_and_aliases_in_scope($root_node);
 
@@ -132,7 +132,7 @@ where
         };
         let resolve_from_use_scope = || {
             let item_name = target_name.to_string();
-            resolve_item_path_from_use_scope!(item_name, &root_node)
+            resolve_item_path_from_use_scope_and_aliases!(item_name, &root_node)
                 .find_map(|path| resolve_item(&path, &root_node))
         };
 
@@ -168,7 +168,7 @@ pub fn resolve_qualifier(
         };
         let resolve_from_use_scope = || {
             let item_name = name.to_string();
-            resolve_item_path_from_use_scope!(item_name, root)
+            resolve_item_path_from_use_scope_and_aliases!(item_name, root)
                 .find_map(|path| resolve_qualifier(&path, root, None))
         };
         resolve_child().or(resolve_from_use_scope())
@@ -236,8 +236,27 @@ pub fn simple_use_paths_and_aliases_in_scope(
 
     let use_results = resolve_item_list_root(ref_node)
         .children()
-        .filter_map(|node| ast::Use::cast(node).as_ref().and_then(ast::Use::use_tree))
-        .flat_map(|use_tree| flatten_use_tree(&use_tree));
+        .filter_map(|node| {
+            // Returns (path, Option<alias>) tuples from type aliases (e.g. `type X = self::Y`)
+            // and use paths (including named use paths e.g. `use a as b;`).
+            if ast::TypeAlias::can_cast(node.kind()) {
+                ast::TypeAlias::cast(node).and_then(|type_alias| {
+                    type_alias
+                        .name()
+                        .zip(type_alias.ty().as_ref().and_then(path_from_type))
+                        .map(|(name, path)| {
+                            vec![(path.to_string().replace(' ', ""), Some(name.to_string()))]
+                        })
+                })
+            } else {
+                ast::Use::cast(node)
+                    .as_ref()
+                    .and_then(ast::Use::use_tree)
+                    .as_ref()
+                    .map(flatten_use_tree)
+            }
+        })
+        .flatten();
 
     for (use_path, alias_option) in use_results {
         let use_path = use_path.replace(' ', "");
@@ -260,6 +279,14 @@ pub fn path_from_str(path_str: &str) -> Option<ast::Path> {
         ast::Expr::PathExpr(path_expr) => path_expr.path(),
         _ => None,
     })
+}
+
+/// Converts a type to a path (if possible).
+pub fn path_from_type(ty: &ast::Type) -> Option<ast::Path> {
+    match ty {
+        ast::Type::PathType(path_type) => path_type.path(),
+        _ => None,
+    }
 }
 
 // Returns the item list syntax node for the given syntax node.
@@ -605,7 +632,7 @@ mod tests {
                 },
                 quote_as_str! { my_items::MyItem },
             ),
-            // Aliased paths.
+            // Use aliases.
             (
                 quote_as_str! {
                     #item
@@ -723,6 +750,125 @@ mod tests {
                     }
                 },
                 quote_as_str! { CustomItem },
+            ),
+            // Type aliases.
+            (
+                quote_as_str! {
+                    #item
+
+                    type CustomItem = self::MyItem;
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    type CustomItem = self::MyItem;
+                },
+                quote_as_str! { self::CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    type CustomItem = self::MyItem;
+                },
+                quote_as_str! { crate::CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        type CustomItem = crate::MyItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        type CustomItem = super::MyItem;
+                    }
+                },
+                quote_as_str! { self::CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        type CustomItem = crate::MyItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        type CustomItem = crate::my_items::MyItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        type CustomItem = super::my_items::MyItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    type CustomItem = my_items::MyItem;
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { crate::CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    type CustomItem = my_items::MyItem;
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { super::CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    type CustomItem = my_items::MyItem;
+
+                    mod #ref_name {
+                        type RenamedItem = super::CustomItem;
+                    }
+                },
+                quote_as_str! { RenamedItem },
             ),
         ] {
             let file = InkFile::parse(code);

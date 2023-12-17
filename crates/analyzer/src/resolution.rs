@@ -7,14 +7,6 @@ use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::iter;
 
-/// Converts a type to a path (if possible).
-pub fn path_from_type(item_type: &ast::Type) -> Option<ast::Path> {
-    match item_type {
-        ast::Type::PathType(path_type) => path_type.path(),
-        _ => None,
-    }
-}
-
 /// Returns the full qualified path for the item (if possible).
 pub fn item_path<T>(item: &T) -> Option<String>
 where
@@ -46,21 +38,25 @@ pub fn external_trait_impl(
         .filter(|it| ast::Impl::can_cast(it.kind()))
         .find_map(|node| {
             ast::Impl::cast(node).filter(|impl_item| {
-                let is_trait_impl =
-                    impl_item
-                        .trait_()
-                        .as_ref()
-                        .and_then(path_from_type)
-                        .map_or(false, |path| {
-                            is_external_crate_item(
-                                trait_name,
-                                &path,
-                                crate_qualifiers,
-                                impl_item.syntax(),
-                            )
-                        });
+                let is_trait_impl = impl_item
+                    .trait_()
+                    .as_ref()
+                    .and_then(ink_analyzer_ir::path_from_type)
+                    .map_or(false, |path| {
+                        is_external_crate_item(
+                            trait_name,
+                            &path,
+                            crate_qualifiers,
+                            impl_item.syntax(),
+                        )
+                    });
                 let is_target_name = impl_name_option
-                    .zip(impl_item.self_ty().as_ref().and_then(path_from_type))
+                    .zip(
+                        impl_item
+                            .self_ty()
+                            .as_ref()
+                            .and_then(ink_analyzer_ir::path_from_type),
+                    )
                     .map_or(false, |(impl_name, path)| is_path_target(impl_name, &path));
 
                 is_trait_impl && (impl_name_option.is_none() || is_target_name)
@@ -193,10 +189,25 @@ pub fn is_external_crate_item(
                     })
                 })
             };
+            let path_is_type_alias_for_name = || {
+                ink_analyzer_ir::resolve_item::<ast::TypeAlias>(path, &root_node).map_or(
+                    false,
+                    |type_alias| {
+                        type_alias
+                            .ty()
+                            .as_ref()
+                            .and_then(ink_analyzer_ir::path_from_type)
+                            .map_or(false, |path| {
+                                is_external_crate_item(name, &path, qualifiers, type_alias.syntax())
+                            })
+                    },
+                )
+            };
 
             (name_is_path_target
                 && (unqualified_target_name_in_scope() || sub_qualifier_or_alias_in_scope()))
                 || target_is_name_alias()
+                || path_is_type_alias_for_name()
         })
 }
 
@@ -242,7 +253,7 @@ pub fn candidate_adt_by_name_or_external_trait_impl(
                 .as_ref()
                 .and_then(ast::Impl::self_ty)
                 .as_ref()
-                .and_then(path_from_type)
+                .and_then(ink_analyzer_ir::path_from_type)
                 .as_ref()
                 .and_then(ast::Path::segment)
                 .as_ref()
@@ -352,9 +363,10 @@ fn match_path_to_external_crate_in_scope(
             use_paths.extend(result.0);
             use_aliases.extend(result.1);
         } else {
-            for path in
-                ink_analyzer_ir::resolve_item_path_from_use_scope!(target_name, &qualifier_ref_node)
-            {
+            for path in ink_analyzer_ir::resolve_item_path_from_use_scope_and_aliases!(
+                target_name,
+                &qualifier_ref_node
+            ) {
                 let resolved_path_str = path.to_string().replace(' ', "");
                 if is_crate_item_path(&resolved_path_str, crates) {
                     if resolved_path_str.ends_with(&format!("::{target_name}")) {
@@ -426,7 +438,7 @@ mod tests {
                 },
                 "Environment",
             ),
-            // Aliased paths.
+            // Use aliases.
             (
                 "use ink::env::Environment as ChainEnvironment;",
                 "ChainEnvironment",
@@ -471,6 +483,44 @@ mod tests {
                     }
                 },
                 "ChainEnvironment",
+            ),
+            // Type aliases.
+            (
+                "type ChainEnvironment = ink::env::Environment;",
+                "ChainEnvironment",
+            ),
+            (
+                "type ChainEnvironment = ink::env::Environment;",
+                "self::ChainEnvironment",
+            ),
+            (
+                quote_as_str! {
+                    type ChainEnvironment = ink::env::Environment;
+
+                    mod #ref_name {
+                    }
+                },
+                "super::ChainEnvironment",
+            ),
+            (
+                quote_as_str! {
+                    type ChainEnvironment = ink::env::Environment;
+
+                    mod #ref_name {
+                        type RenamedEnvironment = super::ChainEnvironment;
+                    }
+                },
+                "RenamedEnvironment",
+            ),
+            (
+                quote_as_str! {
+                    type ChainEnvironment = ink::env::Environment;
+
+                    mod #ref_name {
+                        type RenamedEnvironment = super::ChainEnvironment;
+                    }
+                },
+                "self::RenamedEnvironment",
             ),
         ] {
             let file = InkFile::parse(code);
