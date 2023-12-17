@@ -262,6 +262,8 @@ pub fn path_from_str(path_str: &str) -> Option<ast::Path> {
     })
 }
 
+// Returns the item list syntax node for the given syntax node.
+// NOTE: defaults to return the syntax node itself (item lists that can contain use statements - for now).
 fn resolve_item_list_root(node: &SyntaxNode) -> SyntaxNode {
     ast::Item::cast(node.clone())
         .and_then(|item| match item {
@@ -317,7 +319,9 @@ fn flatten_use_tree(use_tree: &ast::UseTree) -> Vec<(String, Option<String>)> {
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use crate::{InkEntity, InkFile};
     use quote::quote;
+    use ra_ap_syntax::SourceFile;
     use test_utils::quote_as_str;
 
     #[test]
@@ -355,5 +359,396 @@ mod tests {
                 .text_range(),
             module.syntax().text_range()
         );
+    }
+
+    #[test]
+    fn resolve_item_works() {
+        let item = quote! { struct MyItem; };
+        let ref_name = quote! { ref_node };
+        for (code, path_str) in [
+            // Simple paths.
+            (quote_as_str! { #item }, quote_as_str! { MyItem }),
+            (quote_as_str! { #item }, quote_as_str! { self::MyItem }),
+            (quote_as_str! { #item }, quote_as_str! { crate::MyItem }),
+            (quote_as_str! { #item }, quote_as_str! { ::MyItem }),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+                },
+                quote_as_str! { my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+                },
+                quote_as_str! { crate::my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+                },
+                quote_as_str! { ::my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { super::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { crate::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { super::my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { crate::my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { ::my_items::MyItem },
+            ),
+            // Scoped paths.
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        use crate::MyItem;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        use super::MyItem;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        use crate::{MyItem};
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        use crate::*;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        use super::*;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use crate::my_items::MyItem;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use super::my_items::MyItem;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use ::my_items::MyItem;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use crate::my_items::*;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use super::my_items::*;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use crate::my_items;
+                    }
+                },
+                quote_as_str! { my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use super::my_items;
+                    }
+                },
+                quote_as_str! { my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use crate::*;
+                    }
+                },
+                quote_as_str! { my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use super::*;
+                    }
+                },
+                quote_as_str! { my_items::MyItem },
+            ),
+            // Aliased paths.
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        use crate::MyItem as CustomItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        use super::MyItem as CustomItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod #ref_name {
+                        use crate::{MyItem as CustomItem};
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use crate::my_items::MyItem as CustomItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use super::my_items::MyItem as CustomItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use crate::my_items as custom_items;
+                    }
+                },
+                quote_as_str! { custom_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use super::my_items as custom_items;
+                    }
+                },
+                quote_as_str! { custom_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    use self::my_items as custom_items;
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { super::custom_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    use crate::my_items as custom_items;
+
+                    mod #ref_name {
+                    }
+                },
+                quote_as_str! { super::custom_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    use self::my_items as custom_items;
+
+                    mod #ref_name {
+                        use super::custom_items::MyItem as CustomItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+        ] {
+            let file = InkFile::parse(code);
+            let path: ast::Path = parse_first_ast_node_of_type(path_str);
+            let ref_module_option = SourceFile::parse(code)
+                .tree()
+                .syntax()
+                .descendants()
+                .find_map(|node| {
+                    ast::Module::cast(node).filter(|item| {
+                        item.name()
+                            .map_or(false, |name| name.to_string() == ref_name.to_string())
+                    })
+                });
+
+            assert!(
+                resolve_item::<ast::Adt>(
+                    &path,
+                    ref_module_option
+                        .as_ref()
+                        .map(AstNode::syntax)
+                        .unwrap_or(file.syntax())
+                )
+                .is_some(),
+                "code: {code} | path: {path_str}"
+            );
+        }
     }
 }
