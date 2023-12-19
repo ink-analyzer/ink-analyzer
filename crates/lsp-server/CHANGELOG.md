@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.16] - 2023-12-19
+
+- Add diagnostics and quickfixes for error code type resolution and implementation of `ink::env::chain_extension::FromStatusCode` trait.
+- Add diagnostics and quickfixes for no usage of `Self::ErrorCode` in chain extension.
+- Add diagnostics and quickfixes for error code type, and extension input and output types implementing SCALE codec traits.
+- Improve item and external trait impl resolvers.
+- General robustness improvements for semantic analyzer.
+
 ## [0.2.15] - 2023-12-10
 
 - Improvements for chain environment implementation resolution.
