@@ -132,8 +132,17 @@ where
         };
         let resolve_from_use_scope = || {
             let item_name = target_name.to_string();
-            resolve_item_path_from_use_scope_and_aliases!(item_name, &root_node)
-                .find_map(|path| resolve_item(&path, &root_node))
+            resolve_item_path_from_use_scope_and_aliases!(item_name, &root_node).find_map(
+                |resolved_path| {
+                    // Only recurse if the path resolved from use scope and aliases
+                    // is different from the current path argument.
+                    if path_to_string(&resolved_path) != path_to_string(path) {
+                        resolve_item(&resolved_path, &root_node)
+                    } else {
+                        None
+                    }
+                },
+            )
         };
 
         resolve_child().or(resolve_from_use_scope())
@@ -168,8 +177,17 @@ pub fn resolve_qualifier(
         };
         let resolve_from_use_scope = || {
             let item_name = name.to_string();
-            resolve_item_path_from_use_scope_and_aliases!(item_name, root)
-                .find_map(|path| resolve_qualifier(&path, root, None))
+            resolve_item_path_from_use_scope_and_aliases!(item_name, root).find_map(
+                |resolved_path| {
+                    // Only recurse if the path resolved from use scope and aliases
+                    // is different from the current path argument.
+                    if path_to_string(&resolved_path) != path_to_string(path) {
+                        resolve_qualifier(&resolved_path, root, None)
+                    } else {
+                        None
+                    }
+                },
+            )
         };
         resolve_child().or(resolve_from_use_scope())
     };
@@ -244,9 +262,7 @@ pub fn simple_use_paths_and_aliases_in_scope(
                     type_alias
                         .name()
                         .zip(type_alias.ty().as_ref().and_then(path_from_type))
-                        .map(|(name, path)| {
-                            vec![(path.to_string().replace(' ', ""), Some(name.to_string()))]
-                        })
+                        .map(|(name, path)| vec![(path_to_string(&path), Some(name.to_string()))])
                 })
             } else {
                 ast::Use::cast(node)
@@ -259,7 +275,7 @@ pub fn simple_use_paths_and_aliases_in_scope(
         .flatten();
 
     for (use_path, alias_option) in use_results {
-        let use_path = use_path.replace(' ', "");
+        let use_path = remove_whitespace(&use_path);
         match alias_option {
             None => {
                 use_paths.insert(use_path);
@@ -287,6 +303,13 @@ pub fn path_from_type(ty: &ast::Type) -> Option<ast::Path> {
         ast::Type::PathType(path_type) => path_type.path(),
         _ => None,
     }
+}
+
+/// Converts a path to a string.
+///
+/// **NOTE**: Removes whitespace.
+pub fn path_to_string(path: &ast::Path) -> String {
+    remove_whitespace(&path.to_string())
 }
 
 // Returns the item list syntax node for the given syntax node.
@@ -336,10 +359,14 @@ fn flatten_use_tree(use_tree: &ast::UseTree) -> Vec<(String, Option<String>)> {
     } else if use_tree.star_token().is_some() {
         add_prefix(vec![(String::from("*"), alias)])
     } else if let Some(path) = use_tree.path() {
-        vec![(path.to_string().replace(' ', ""), alias)]
+        vec![(path_to_string(&path), alias)]
     } else {
         Vec::new()
     }
+}
+
+fn remove_whitespace(text: &str) -> String {
+    text.replace(' ', "")
 }
 
 #[cfg(test)]

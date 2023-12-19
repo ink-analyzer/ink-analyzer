@@ -127,7 +127,8 @@ fn ensure_no_self_error_code_usage(
         .as_ref()
         .and_then(resolution::item_path);
     for self_error_code_path in chain_extension.syntax().descendants().filter_map(|node| {
-        ast::Path::cast(node).filter(|path| path.to_string().replace(' ', "") == "Self::ErrorCode")
+        ast::Path::cast(node)
+            .filter(|path| ink_analyzer_ir::path_to_string(path) == "Self::ErrorCode")
     }) {
         let range = self_error_code_path.syntax().text_range();
         results.push(Diagnostic {

@@ -65,8 +65,8 @@ pub use self::{
     },
     tree::ast_ext::{
         closest_ancestor_ast_type, closest_item_which, closest_non_trivia_token, parent_ast_item,
-        path_from_str, path_from_type, resolve_current_module, resolve_item, resolve_qualifier,
-        simple_use_paths_and_aliases_in_scope,
+        path_from_str, path_from_type, path_to_string, resolve_current_module, resolve_item,
+        resolve_qualifier, simple_use_paths_and_aliases_in_scope,
     },
     tree::utils::{
         attrs, ink_ancestors, ink_arg_by_kind, ink_args, ink_args_by_kind, ink_attr_to_entity,

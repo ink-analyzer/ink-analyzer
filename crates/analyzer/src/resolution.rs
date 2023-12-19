@@ -78,11 +78,11 @@ pub fn is_external_crate_item(
     // See `make_qualifiers_exhaustive` doc above.
     let path_has_qualifier = |qualifiers: &[&str], strict: bool| {
         path.qualifier().map_or(false, |qualifier| {
-            let qualifier = qualifier.to_string().replace(' ', "");
+            let qualifier_str = ink_analyzer_ir::path_to_string(&qualifier);
             if strict {
-                qualifiers.contains(&qualifier.as_str())
+                qualifiers.contains(&qualifier_str.as_str())
             } else {
-                exhaustive_qualifiers(qualifiers).contains(&qualifier)
+                exhaustive_qualifiers(qualifiers).contains(&qualifier_str)
             }
         })
     };
@@ -346,8 +346,8 @@ fn match_path_to_external_crate_in_scope(
                 .and_then(ast::PathSegment::name_ref)
                 .as_ref()
                 .map(ToString::to_string)
-                .or((path.to_string().replace(' ', "")
-                    == format!("{}::*", qualifier.to_string().replace(' ', "")))
+                .or((ink_analyzer_ir::path_to_string(&path)
+                    == format!("{}::*", ink_analyzer_ir::path_to_string(&qualifier)))
                 .then_some(String::from("*")));
 
             target_name_option.zip(ink_analyzer_ir::resolve_qualifier(
@@ -363,18 +363,20 @@ fn match_path_to_external_crate_in_scope(
             use_paths.extend(result.0);
             use_aliases.extend(result.1);
         } else {
-            for path in ink_analyzer_ir::resolve_item_path_from_use_scope_and_aliases!(
+            for resolved_path in ink_analyzer_ir::resolve_item_path_from_use_scope_and_aliases!(
                 target_name,
                 &qualifier_ref_node
             ) {
-                let resolved_path_str = path.to_string().replace(' ', "");
+                let resolved_path_str = ink_analyzer_ir::path_to_string(&resolved_path);
                 if is_crate_item_path(&resolved_path_str, crates) {
                     if resolved_path_str.ends_with(&format!("::{target_name}")) {
                         use_paths.insert(resolved_path_str.clone());
                     } else {
                         use_aliases.insert(target_name.clone(), resolved_path_str);
                     }
-                } else {
+                } else if resolved_path_str != path {
+                    // Only recurse if the path resolved from use scope and aliases
+                    // is different from the current path argument.
                     let result = match_path_to_external_crate_in_scope(
                         &resolved_path_str,
                         crates,
