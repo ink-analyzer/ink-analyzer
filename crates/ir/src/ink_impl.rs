@@ -18,21 +18,6 @@ pub struct InkImpl {
     messages: Vec<Message>,
 }
 
-// Returns true if the syntax node can be converted into an ink! impl item.
-//
-// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
-fn can_cast(node: &SyntaxNode) -> bool {
-    // Has ink! impl attribute.
-    utils::ink_attrs(node)
-        .any(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
-        // Is an `impl` item and has any ink! constructor or ink! message annotated descendants.
-        || (ast::Impl::can_cast(node.kind())
-        && utils::ink_attrs_closest_descendants(node)
-        .any(|attr| {
-            matches!(attr.kind(), InkAttributeKind::Arg(InkArgKind::Constructor | InkArgKind::Message))
-        }))
-}
-
 impl InkImpl {
     impl_pub_ast_type_getter!(impl_item, Impl);
 
@@ -52,15 +37,49 @@ impl InkImpl {
 
     /// Returns the ink! trait definition (if any).
     pub fn trait_definition(&self) -> Option<TraitDefinition> {
-        let path = match self.trait_type()? {
-            ast::Type::PathType(path_type) => path_type.path(),
-            _ => None,
-        }?;
-
-        // Resolves the trait definition (if any) based on the path.
-        ast_ext::resolve_item::<ast::Trait>(&path, self.syntax())
-            .and_then(|trait_item| TraitDefinition::cast(trait_item.syntax().clone()))
+        self.impl_item().and_then(trait_definition)
     }
+}
+
+// Returns true if the syntax node can be converted into an ink! impl item.
+//
+// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
+fn can_cast(node: &SyntaxNode) -> bool {
+    let has_callable_descendants = || {
+        utils::ink_attrs_closest_descendants(node).any(|attr| {
+            matches!(
+                attr.kind(),
+                InkAttributeKind::Arg(InkArgKind::Constructor | InkArgKind::Message)
+            )
+        })
+    };
+    let is_trait_definition_impl = || {
+        ast::Impl::cast(node.clone())
+            .as_ref()
+            .and_then(trait_definition)
+            .is_some()
+    };
+
+    // Has ink! impl attribute.
+    utils::ink_attrs(node)
+        .any(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Impl))
+        // Is an `impl` item, and either
+        // has any ink! constructor or ink! message annotated descendants or
+        // is a trait definition implementation.
+        || (ast::Impl::can_cast(node.kind())
+        && (has_callable_descendants() || is_trait_definition_impl()))
+}
+
+// Returns the ink! trait definition for impl item (if any).
+fn trait_definition(impl_item: &ast::Impl) -> Option<TraitDefinition> {
+    let path = match impl_item.trait_()? {
+        ast::Type::PathType(path_type) => path_type.path(),
+        _ => None,
+    }?;
+
+    // Resolves the trait definition (if any) based on the path.
+    ast_ext::resolve_item::<ast::Trait>(&path, impl_item.syntax())
+        .and_then(|trait_item| TraitDefinition::cast(trait_item.syntax().clone()))
 }
 
 #[cfg(test)]
@@ -93,6 +112,69 @@ mod tests {
                 false,
                 1,
                 1,
+                false,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(namespace="my_namespace")]
+                    impl MyContract {
+                        #[ink(constructor)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                false,
+                true,
+                1,
+                1,
+                false,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(impl)]
+                    impl MyContract {
+                        #[ink(constructor)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                true,
+                false,
+                1,
+                1,
+                false,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(impl, namespace="my_namespace")]
+                    impl MyContract {
+                        #[ink(constructor)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                true,
+                true,
+                1,
+                1,
+                false,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(impl)]
+                    impl MyContract {
+                    }
+                },
+                true,
+                false,
+                0,
+                0,
                 false,
             ),
             (
@@ -305,7 +387,7 @@ mod tests {
                 false,
                 0,
                 1,
-                false,
+                false, // wrong trait path in impl.
             ),
             (
                 quote_as_str! {
@@ -315,82 +397,15 @@ mod tests {
                         fn my_message(&self);
                     }
 
-                    #[ink::contract]
-                    mod my_contract {
-                        impl MyTrait for MyContract {
-                            #[ink(message, payable, default, selector=1)]
-                            fn my_message(&self) {}
-                        }
+                    impl MyTrait for MyContract {
+                        // Incomplete trait implementation.
                     }
                 },
                 false,
                 false,
                 0,
-                1,
-                false,
-            ),
-            (
-                quote_as_str! {
-                    #[ink(namespace="my_namespace")]
-                    impl MyContract {
-                        #[ink(constructor)]
-                        pub fn my_constructor() -> Self {}
-
-                        #[ink(message)]
-                        pub fn my_message(&self) {}
-                    }
-                },
-                false,
+                0, // impl has no messages.
                 true,
-                1,
-                1,
-                false,
-            ),
-            (
-                quote_as_str! {
-                    #[ink(impl)]
-                    impl MyContract {
-                        #[ink(constructor)]
-                        pub fn my_constructor() -> Self {}
-
-                        #[ink(message)]
-                        pub fn my_message(&self) {}
-                    }
-                },
-                true,
-                false,
-                1,
-                1,
-                false,
-            ),
-            (
-                quote_as_str! {
-                    #[ink(impl, namespace="my_namespace")]
-                    impl MyContract {
-                        #[ink(constructor)]
-                        pub fn my_constructor() -> Self {}
-
-                        #[ink(message)]
-                        pub fn my_message(&self) {}
-                    }
-                },
-                true,
-                true,
-                1,
-                1,
-                false,
-            ),
-            (
-                quote_as_str! {
-                    #[ink(impl)]
-                    impl MyContract {
-                    }
-                },
-                true,
-                false,
-                0,
-                0,
-                false,
             ),
         ] {
             let impl_item: ast::Impl = parse_first_ast_node_of_type(code);
