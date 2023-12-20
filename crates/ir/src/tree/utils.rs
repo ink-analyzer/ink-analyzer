@@ -70,7 +70,7 @@ pub fn ink_attrs_ancestors(node: &SyntaxNode) -> impl Iterator<Item = InkAttribu
                 // Additionally, if the current node is an attribute,
                 // we also filter out it's parent so that we get its ancestor attributes not its siblings.
                 && (node.kind() != SyntaxKind::ATTR
-                || node.parent().map(|attr_parent| attr_parent.text_range())
+                || node.parent().as_ref().map(SyntaxNode::text_range)
                 != Some(ancestor.text_range()))
         })
         .flat_map(|ancestor| ink_attrs(&ancestor))
@@ -82,15 +82,14 @@ pub fn ink_attrs_closest_ancestors(node: &SyntaxNode) -> impl Iterator<Item = In
     IterSuccessors::new(
         if node.kind() == SyntaxKind::ATTR {
             // For attributes, we need to call parent on the parent node so that we get ancestor attributes not siblings.
-            node.parent().and_then(|attr_parent| attr_parent.parent())
+            node.parent().as_ref().and_then(SyntaxNode::parent)
         } else {
             node.parent()
         },
         |source| {
             // Get a reference to the current node or return None to stop the recursion.
             source.as_ref().map(|current_node| {
-                let has_attrs = ink_attrs(current_node).next().is_some();
-                if has_attrs {
+                if ink_attrs(current_node).next().is_some() {
                     // Return the next iter of ink! attributes (if any).
                     (Some(ink_attrs(current_node)), None)
                 } else {
