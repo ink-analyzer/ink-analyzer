@@ -12,7 +12,7 @@ use crate::{translator, utils};
 /// Handles completion request.
 pub fn handle_completion(
     params: lsp_types::CompletionParams,
-    memory: &mut Memory,
+    memory: &Memory,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::CompletionResponse>> {
     // Gets document uri and retrieves document from memory.
@@ -62,7 +62,7 @@ pub fn handle_completion(
 /// Handles hover request.
 pub fn handle_hover(
     params: lsp_types::HoverParams,
-    memory: &mut Memory,
+    memory: &Memory,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::Hover>> {
     // Gets document uri and retrieves document from memory.
@@ -99,7 +99,7 @@ pub fn handle_hover(
 /// Handles code action request.
 pub fn handle_code_action(
     params: lsp_types::CodeActionParams,
-    memory: &mut Memory,
+    memory: &Memory,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::CodeActionResponse>> {
     // Gets document uri and retrieves document from memory.
@@ -137,7 +137,7 @@ pub fn handle_code_action(
 /// Handles inlay hint request.
 pub fn handle_inlay_hint(
     params: lsp_types::InlayHintParams,
-    memory: &mut Memory,
+    memory: &Memory,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<Vec<lsp_types::InlayHint>>> {
     // Gets document uri and retrieves document from memory.
@@ -174,7 +174,7 @@ pub fn handle_inlay_hint(
 /// Handles signature help request.
 pub fn handle_signature_help(
     params: lsp_types::SignatureHelpParams,
-    memory: &mut Memory,
+    memory: &Memory,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::SignatureHelp>> {
     // Gets document uri and retrieves document from memory.
@@ -221,7 +221,7 @@ pub struct CreateProjectResponse {
 /// Handles execute command request.
 pub fn handle_execute_command(
     params: lsp_types::ExecuteCommandParams,
-    _memory: &mut Memory,
+    _memory: &Memory,
     _client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<serde_json::Value>> {
     // Handles create project command.

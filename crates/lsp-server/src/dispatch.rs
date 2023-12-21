@@ -79,7 +79,7 @@ impl<'a> Dispatcher<'a> {
     fn handle_request(&mut self, req: lsp_server::Request) -> anyhow::Result<()> {
         // Computes request response (if any).
         let is_execute_command = req.method == lsp_types::request::ExecuteCommand::METHOD;
-        let mut router = RequestRouter::new(req, &mut self.memory, &self.client_capabilities);
+        let mut router = RequestRouter::new(req, &self.memory, &self.client_capabilities);
         let result = router
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)

@@ -8,7 +8,7 @@ use crate::memory::Memory;
 pub struct RequestRouter<'a> {
     req: Option<lsp_server::Request>,
     resp: Option<lsp_server::Response>,
-    memory: &'a mut Memory,
+    memory: &'a Memory,
     client_capabilities: &'a lsp_types::ClientCapabilities,
 }
 
@@ -16,7 +16,7 @@ impl<'a> RequestRouter<'a> {
     /// Creates router for a request.
     pub fn new(
         req: lsp_server::Request,
-        memory: &'a mut Memory,
+        memory: &'a Memory,
         client_capabilities: &'a lsp_types::ClientCapabilities,
     ) -> Self {
         Self {
@@ -32,7 +32,7 @@ impl<'a> RequestRouter<'a> {
         &mut self,
         handler: fn(
             R::Params,
-            &mut Memory,
+            &Memory,
             &lsp_types::ClientCapabilities,
         ) -> anyhow::Result<R::Result>,
     ) -> &mut Self
@@ -142,7 +142,7 @@ mod tests {
 
         // Processes completion request through a request router with a completion handler,
         // retrieves response and verifies that it's a success response.
-        let mut router = RequestRouter::new(req.clone(), &mut memory, &client_capabilities);
+        let mut router = RequestRouter::new(req.clone(), &memory, &client_capabilities);
         let result = router
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
@@ -156,7 +156,7 @@ mod tests {
 
         // Processes completion request through a request router with NO completion handler,
         // retrieves response and verifies that it's an "unknown or unsupported request" error response.
-        let mut router = RequestRouter::new(req.clone(), &mut memory, &client_capabilities);
+        let mut router = RequestRouter::new(req.clone(), &memory, &client_capabilities);
         let result = router
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
@@ -174,7 +174,7 @@ mod tests {
         let mut req_invalid = req;
         req_invalid.params = serde_json::Value::Null;
         let req_id_invalid = req_invalid.id.clone();
-        let mut router = RequestRouter::new(req_invalid, &mut memory, &client_capabilities);
+        let mut router = RequestRouter::new(req_invalid, &memory, &client_capabilities);
         let result = router
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
