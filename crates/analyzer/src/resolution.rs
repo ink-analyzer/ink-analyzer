@@ -94,14 +94,18 @@ pub fn is_external_crate_item(
                 .iter()
                 .map(|qualifier| qualifier.split("::").next().unwrap_or(qualifier))
                 .collect();
-            let (use_paths, mut use_aliases) =
+            let (use_paths, item_aliases) =
                 external_crate_uses_and_aliases_in_scope(&crates, &root_node);
 
-            // Reverse alias map to `use_path -> alias`.
-            use_aliases = use_aliases
-                .into_iter()
-                .map(|(alias, use_path)| (use_path, alias))
-                .collect();
+            // Reverse `alias -> path` map to `path -> [alias]`.
+            let mut item_path_to_aliases: HashMap<String, HashSet<String>> = HashMap::new();
+            for (alias, item_path) in item_aliases {
+                if let Some(path_aliases) = item_path_to_aliases.get_mut(&item_path) {
+                    path_aliases.insert(alias);
+                } else {
+                    item_path_to_aliases.insert(item_path, HashSet::from([alias]));
+                }
+            }
 
             // Checks whether an item with given qualifiers is in scope.
             let is_item_in_scope = |item_name: &str, qualifiers: &[&str]| {
@@ -116,7 +120,8 @@ pub fn is_external_crate_item(
                     exhaustive_qualifiers($qualifiers)
                         .into_iter()
                         .flat_map(|prefix| [format!("{prefix}::{}", $name), format!("{prefix}::*")])
-                        .filter_map(|use_path| use_aliases.get(&use_path))
+                        .filter_map(|item_path| item_path_to_aliases.get(&item_path))
+                        .flatten()
                 };
             }
 
@@ -167,7 +172,8 @@ pub fn is_external_crate_item(
                             let anchor_aliases: Vec<_> = if is_top_qualifier {
                                 exhaustive_qualifiers(&[anchor_name])
                                     .into_iter()
-                                    .filter_map(|use_path| use_aliases.get(&use_path))
+                                    .filter_map(|item_path| item_path_to_aliases.get(&item_path))
+                                    .flatten()
                                     .map(|alias| anchor_and_post_qualifier(alias))
                                     .collect()
                             } else {
@@ -292,7 +298,7 @@ fn external_crate_uses_and_aliases_in_scope(
     crates: &[&str],
     ref_node: &SyntaxNode,
 ) -> (HashSet<String>, HashMap<String, String>) {
-    let (mut use_paths, mut use_aliases) =
+    let (mut use_paths, mut item_aliases) =
         ink_analyzer_ir::simple_use_paths_and_aliases_in_scope(ref_node);
 
     while let Some(use_path_str) = use_paths.iter().find_map(|use_path| {
@@ -304,30 +310,31 @@ fn external_crate_uses_and_aliases_in_scope(
         // Resolves path if it points to a use declaration for one of the specified external crates.
         let result = match_path_to_external_crate_in_scope(&use_path_str, crates, ref_node);
         use_paths.extend(result.0);
-        use_aliases.extend(result.1);
+        item_aliases.extend(result.1);
     }
 
-    while let Some((alias, use_path_str)) = use_aliases.iter().find_map(|(alias, use_path)| {
-        (!is_crate_item_path(use_path, crates)).then_some((alias.to_string(), use_path.to_string()))
+    while let Some((alias, item_path_str)) = item_aliases.iter().find_map(|(alias, item_path)| {
+        (!is_crate_item_path(item_path, crates))
+            .then_some((alias.to_string(), item_path.to_string()))
     }) {
         // Removes alias.
-        use_aliases.remove(&alias);
+        item_aliases.remove(&alias);
 
         // Resolves path if it points to a use declaration for one of the specified external crates.
-        if let Some(target) = ink_analyzer_ir::path_from_str(&use_path_str)
+        if let Some(target) = ink_analyzer_ir::path_from_str(&item_path_str)
             .as_ref()
             .and_then(ast::Path::segment)
         {
-            let result = match_path_to_external_crate_in_scope(&use_path_str, crates, ref_node);
-            if let Some(resolved_use_path) =
+            let result = match_path_to_external_crate_in_scope(&item_path_str, crates, ref_node);
+            if let Some(resolved_item_path) =
                 result.0.iter().next().or(result.1.get(&target.to_string()))
             {
-                use_aliases.insert(alias, resolved_use_path.to_string());
+                item_aliases.insert(alias, resolved_item_path.to_string());
             }
         }
     }
 
-    (use_paths, use_aliases)
+    (use_paths, item_aliases)
 }
 
 // Matches a path to an external crate item (if possible) using use declarations and aliases in the current scope.
@@ -337,8 +344,8 @@ fn match_path_to_external_crate_in_scope(
     ref_node: &SyntaxNode,
 ) -> (HashSet<String>, HashMap<String, String>) {
     let mut use_paths = HashSet::new();
-    let mut use_aliases = HashMap::new();
-    let use_path_option = ink_analyzer_ir::path_from_str(path).and_then(|path| {
+    let mut item_aliases = HashMap::new();
+    let item_path_option = ink_analyzer_ir::path_from_str(path).and_then(|path| {
         path.qualifier().and_then(|qualifier| {
             let target_name_option = path
                 .segment()
@@ -357,11 +364,11 @@ fn match_path_to_external_crate_in_scope(
             ))
         })
     });
-    if let Some((target_name, qualifier_ref_node)) = use_path_option {
+    if let Some((target_name, qualifier_ref_node)) = item_path_option {
         if target_name == "*" {
             let result = external_crate_uses_and_aliases_in_scope(crates, &qualifier_ref_node);
             use_paths.extend(result.0);
-            use_aliases.extend(result.1);
+            item_aliases.extend(result.1);
         } else {
             for resolved_path in ink_analyzer_ir::resolve_item_path_from_use_scope_and_aliases!(
                 target_name,
@@ -372,7 +379,7 @@ fn match_path_to_external_crate_in_scope(
                     if resolved_path_str.ends_with(&format!("::{target_name}")) {
                         use_paths.insert(resolved_path_str.clone());
                     } else {
-                        use_aliases.insert(target_name.clone(), resolved_path_str);
+                        item_aliases.insert(target_name.clone(), resolved_path_str);
                     }
                 } else if resolved_path_str != path {
                     // Only recurse if the path resolved from use scope and aliases
@@ -383,13 +390,13 @@ fn match_path_to_external_crate_in_scope(
                         &qualifier_ref_node,
                     );
                     use_paths.extend(result.0);
-                    use_aliases.extend(result.1);
+                    item_aliases.extend(result.1);
                 }
             }
         }
     }
 
-    (use_paths, use_aliases)
+    (use_paths, item_aliases)
 }
 
 #[cfg(test)]
@@ -485,6 +492,64 @@ mod tests {
                     }
                 },
                 "ChainEnvironment",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as ChainEnvironment1;
+                    use ink::env::Environment as ChainEnvironment2;
+                },
+                "ChainEnvironment1",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as ChainEnvironment1;
+                    use ink::env::Environment as ChainEnvironment2;
+                },
+                "ChainEnvironment2",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as ChainEnvironment1;
+                    use ink::env::Environment as ChainEnvironment2;
+
+                    mod #ref_name {
+                        use super::ChainEnvironment1;
+                    }
+                },
+                "ChainEnvironment1",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as ChainEnvironment1;
+                    use ink::env::Environment as ChainEnvironment2;
+
+                    mod #ref_name {
+                        use super::ChainEnvironment2;
+                    }
+                },
+                "ChainEnvironment2",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as ChainEnvironment1;
+                    use ink::env::Environment as ChainEnvironment2;
+
+                    mod #ref_name {
+                        use super::*;
+                    }
+                },
+                "ChainEnvironment1",
+            ),
+            (
+                quote_as_str! {
+                    use ink::env::Environment as ChainEnvironment1;
+                    use ink::env::Environment as ChainEnvironment2;
+
+                    mod #ref_name {
+                        use super::*;
+                    }
+                },
+                "ChainEnvironment2",
             ),
             // Type aliases.
             (

@@ -82,9 +82,9 @@ where
 #[macro_export]
 macro_rules! resolve_item_path_from_use_scope_and_aliases {
     ($name: ident, $root_node: expr) => {{
-        let (use_paths, use_aliases) = $crate::simple_use_paths_and_aliases_in_scope($root_node);
+        let (use_paths, item_aliases) = $crate::simple_use_paths_and_aliases_in_scope($root_node);
 
-        std::iter::once(use_aliases.get(&$name).cloned())
+        std::iter::once(item_aliases.get(&$name).cloned())
             .flatten()
             .chain(use_paths.into_iter().filter_map(|use_path| {
                 let path_str = use_path.replace(' ', "");
@@ -250,7 +250,7 @@ pub fn simple_use_paths_and_aliases_in_scope(
     ref_node: &SyntaxNode,
 ) -> (HashSet<String>, HashMap<String, String>) {
     let mut use_paths = HashSet::new();
-    let mut use_aliases = HashMap::new(); // alias -> use-path
+    let mut item_aliases = HashMap::new(); // alias -> path
 
     let use_results = resolve_item_list_root(ref_node)
         .children()
@@ -274,19 +274,19 @@ pub fn simple_use_paths_and_aliases_in_scope(
         })
         .flatten();
 
-    for (use_path, alias_option) in use_results {
-        let use_path = remove_whitespace(&use_path);
+    for (path, alias_option) in use_results {
+        let path = remove_whitespace(&path);
         match alias_option {
             None => {
-                use_paths.insert(use_path);
+                use_paths.insert(path);
             }
             Some(alias) => {
-                use_aliases.insert(alias, use_path);
+                item_aliases.insert(alias, path);
             }
         }
     }
 
-    (use_paths, use_aliases)
+    (use_paths, item_aliases)
 }
 
 /// Converts a string to a path (if possible).
