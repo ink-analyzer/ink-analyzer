@@ -113,11 +113,10 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                         None,
                         // Adds formatting suffix only if the edit is not surrounded by whitespace
                         // (treats end of the file like whitespace)
-                        // and its preceding whitespace contains a new line but doesn't end with a new line.
+                        // and its preceding whitespace contains a new line.
                         (token_after_option.as_ref().map_or(false, |token_after| {
                             token_after.kind() != SyntaxKind::WHITESPACE
-                        }) && token_before.text().contains('\n')
-                            && !token_before.text().ends_with('\n'))
+                        }) && token_before.text().contains('\n'))
                         .then_some(format!("\n{}", utils::end_indenting(token_before.text()),)),
                     )
                 }

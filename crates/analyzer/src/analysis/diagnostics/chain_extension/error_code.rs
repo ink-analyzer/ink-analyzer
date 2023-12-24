@@ -50,8 +50,8 @@ fn ensure_resolvable(chain_extension: &ChainExtension) -> Option<Diagnostic> {
             let range = error_code_type.syntax().text_range();
 
             Some(Diagnostic {
-                message: "`ErrorCode` associated type should be a custom type \
-                that implements the `ink::env::chain_extension::FromStatusCode` trait."
+                message: "`ErrorCode` associated type must implement \
+                the `ink::env::chain_extension::FromStatusCode` trait."
                     .to_string(),
                 range,
                 severity: Severity::Error,
