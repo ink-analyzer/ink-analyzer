@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.17] - 2023-12-24
+
+- General robustness improvements for semantic analyzer.
+
 ## [0.2.16] - 2023-12-19
 
 - Add diagnostics and quickfixes for error code type resolution and implementation of `ink::env::chain_extension::FromStatusCode` trait.
