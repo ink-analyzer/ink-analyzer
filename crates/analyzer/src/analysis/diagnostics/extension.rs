@@ -538,6 +538,31 @@ mod tests {
             quote! {
                 fn my_extension() -> Vec<&MyType>;
             },
+            // Result type.
+            quote! {
+                fn my_extension(a: Result<MyType, ()>);
+            },
+            quote! {
+                fn my_extension() -> Result<MyType, ()>;
+            },
+            quote! {
+                fn my_extension(a: Result<(), MyType>);
+            },
+            quote! {
+                fn my_extension() -> Result<(), MyType>;
+            },
+            quote! {
+                fn my_extension(a: &Result<MyType, ()>);
+            },
+            quote! {
+                fn my_extension() -> &Result<MyType, ()>;
+            },
+            quote! {
+                fn my_extension(a: Result<&MyType, ()>);
+            },
+            quote! {
+                fn my_extension() -> Result<&MyType, ()>;
+            },
         ] {
             let code = quote_as_pretty_string! {
                 #[ink::chain_extension]

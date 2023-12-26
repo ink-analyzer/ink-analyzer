@@ -938,7 +938,7 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                             vec![
                                 vec![
                                     TestResultTextRange {
-                                        text: "type ErrorCode",
+                                        text: "type ErrorCode = ();",
                                         start_pat: Some("pub trait Psp22Extension {"),
                                         end_pat: Some("pub trait Psp22Extension {"),
                                     }
@@ -985,6 +985,75 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                                         text: "impl ink::env::Environment for CustomEnvironment {",
                                         start_pat: Some("pub enum CustomEnvironment {}"),
                                         end_pat: Some("pub enum CustomEnvironment {}"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-type ErrorCode = Psp22Error;"),
+                        end_pat: Some("type ErrorCode = Psp22Error;"),
+                        replacement: "type ErrorCode = ();",
+                    }]),
+                    params: None,
+                    // `ErrorCode` type `()` doesn't implement `ink::env::chain_extension::FromStatusCode`.
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "crate::Psp22Error",
+                                        start_pat: Some("type ErrorCode = "),
+                                        end_pat: Some("type ErrorCode = ()"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("fn token_name(asset_id: u32) -> "),
+                        end_pat: Some("fn token_name(asset_id: u32) -> Result<Vec<u8>>"),
+                        replacement: "core::result::Result<Vec<u8>, Self::ErrorCode>",
+                    }]),
+                    params: None,
+                    // return type uses `Self::ErrorCode`.
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "crate::Psp22Error",
+                                        start_pat: Some("core::result::Result<Vec<u8>, "),
+                                        end_pat: Some("core::result::Result<Vec<u8>, Self::ErrorCode"),
+                                    }
+                                ],
+                            ],
+                        ]
+                    },
+                },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[derive(scale::Encode, scale::Decode)]\n#[cfg_attr(feature = \"std\", derive(scale_info::TypeInfo))]"),
+                        end_pat: Some("#[derive(scale::Encode, scale::Decode)]\n#[cfg_attr(feature = \"std\", derive(scale_info::TypeInfo))]"),
+                        replacement: "",
+                    }]),
+                    params: None,
+                    // Missing `scale::Encode`, `scale::Decode` and `scale_info::TypeInfo` implementations for `ErrorCode` type.
+                    results: TestCaseResults::Diagnostic {
+                        n: 1,
+                        quickfixes: vec![
+                            vec![
+                                vec![
+                                    TestResultTextRange {
+                                        text: "#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]\n",
+                                        start_pat: Some("<-pub enum Psp22Error {"),
+                                        end_pat: Some("<-pub enum Psp22Error {"),
                                     }
                                 ],
                             ],
