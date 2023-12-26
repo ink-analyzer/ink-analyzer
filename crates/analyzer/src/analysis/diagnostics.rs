@@ -1,21 +1,29 @@
 //! Diagnostic errors and warnings based on ink! semantic rules.
 //!
 //! # Note
-//! The [ink_ir crate](https://github.com/paritytech/ink/tree/v4.1.0/crates/ink/ir) is used as a reference implementation for ink!'s semantic rules.
+//! The [ink_ir crate](https://github.com/paritytech/ink/tree/v4.1.0/crates/ink/ir)
+//! is used as a reference implementation for ink!'s semantic rules.
 //!
-//! References to the source of enforced semantic rules are included either in the rustdoc for most utilities or at the call site for more generic utilities.
+//! References to the source of enforced semantic rules are included
+//! either in the rustdoc for most utilities or at the call site for more generic utilities.
 //!
 //! ## Methodology for extracting ink! semantic rules
-//! 1. Start by reviewing each ink! attribute macro's definition in the [ink_macro crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs).
-//! 2. Then for each ink! attribute macro, extract its semantic rules from its corresponding [ink_ir](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/lib.rs) type,
+//! 1. Start by reviewing each ink! attribute macro's definition in the
+//! [ink_macro crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs).
+//! 2. Then for each ink! attribute macro, extract its semantic rules from its corresponding
+//! [ink_ir](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/lib.rs) type,
 //! the types, utilities and modules it uses, as well as related unit tests.
 //!
-//! Using the [`#[ink::contract]` attribute-macro](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L517-L520) as an example,
-//! from its [implementation in the ink_macro crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/contract.rs#L20-L30),
-//! we can trace it's corresponding `ink_ir` type as the [Contract struct in the contracts module of the ink_ir crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs).
+//! Using the [`#[ink::contract]` attribute macro](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L517-L520)
+//! as an example, from its
+//! [implementation in the ink_macro crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/contract.rs#L20-L30),
+//! we can trace it's corresponding `ink_ir` type as the
+//! [Contract struct in the contract module of the ink_ir crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs).
 //!
 //! We can then extract the semantic rules by recursively analyzing the types, utilities and modules
-//! used in the [Contract struct's constructor](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L61-L73) as well as related unit tests.
+//! used in the [Contract struct definition](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L35-L44)
+//! and [its constructor](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L61-L73)
+//! as well as related unit tests.
 
 use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::InkFile;
