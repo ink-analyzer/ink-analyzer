@@ -210,7 +210,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
     edit
 }
 
-/// Checks whether the given text starts with at least 2 new lines (the new lines can be interspersed with other whitespace).
+// Checks whether the given text starts with at least 2 new lines (the new lines can be interspersed with other whitespace).
 fn starts_with_two_or_more_newlines(text: &str) -> bool {
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^\S\n]*\n[^\S\n]*){2,}").unwrap());
     RE.is_match(text)

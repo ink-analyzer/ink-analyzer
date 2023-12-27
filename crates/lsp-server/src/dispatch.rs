@@ -1,5 +1,9 @@
 //! LSP server main loop for dispatching requests, notifications and handling responses.
 
+mod actions;
+mod handlers;
+mod routers;
+
 use crossbeam_channel::Sender;
 use lsp_types::request::Request;
 use std::collections::HashSet;
@@ -8,10 +12,6 @@ use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
 use crate::utils;
 use handlers::request::CreateProjectResponse;
-
-mod actions;
-mod handlers;
-mod routers;
 
 /// Implements the main loop for dispatching LSP requests, notifications and handling responses.
 pub fn main_loop(

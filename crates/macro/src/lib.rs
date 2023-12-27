@@ -19,11 +19,11 @@
 //! }
 //! ```
 
-use proc_macro::TokenStream;
-
 mod entity;
 mod error;
 mod utils;
+
+use proc_macro::TokenStream;
 
 /// proc-macro that implements the `InkEntity` trait for any `struct` with an `ast` field,
 /// where the type for `ast` is `T: ASTNode`.

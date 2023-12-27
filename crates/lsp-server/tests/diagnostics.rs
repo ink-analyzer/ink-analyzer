@@ -1,8 +1,8 @@
 //! integration tests for ink! Language Server diagnostics.
 
-use test_utils::TestCaseResults;
-
 mod utils;
+
+use test_utils::TestCaseResults;
 
 // The high-level methodology for diagnostics test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).

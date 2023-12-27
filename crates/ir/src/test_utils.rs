@@ -2,9 +2,10 @@
 
 #![cfg(test)]
 
-use crate::{InkAttribute, InkEntity};
 use ra_ap_syntax::{ast, NodeOrToken, SyntaxKind, SyntaxNode};
 use ra_ap_syntax::{AstNode, SourceFile, SyntaxElement, SyntaxToken};
+
+use crate::{InkAttribute, InkEntity};
 
 /// Returns the first syntax token in the code snippet.
 pub fn parse_first_syntax_token(code: &str) -> SyntaxToken {

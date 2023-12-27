@@ -25,13 +25,6 @@
 //! and [its constructor](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L61-L73)
 //! as well as related unit tests.
 
-use ink_analyzer_ir::syntax::TextRange;
-use ink_analyzer_ir::InkFile;
-use itertools::Itertools;
-
-use crate::analysis::text_edit;
-use crate::{Action, TextEdit};
-
 mod file;
 mod utils;
 
@@ -49,6 +42,13 @@ mod storage;
 mod storage_item;
 mod topic;
 mod trait_definition;
+
+use ink_analyzer_ir::syntax::TextRange;
+use ink_analyzer_ir::InkFile;
+use itertools::Itertools;
+
+use crate::analysis::text_edit;
+use crate::{Action, TextEdit};
 
 /// A diagnostic error or warning.
 #[derive(Debug, Clone, PartialEq, Eq)]

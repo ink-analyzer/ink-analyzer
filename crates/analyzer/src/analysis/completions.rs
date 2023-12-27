@@ -1,10 +1,10 @@
 //! ink! attribute completions.
 
-use crate::analysis::text_edit::TextEdit;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
 
 use super::utils;
+use crate::analysis::text_edit::TextEdit;
 
 /// An ink! attribute completion item.
 #[derive(Debug, Clone, PartialEq, Eq)]

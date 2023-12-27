@@ -1,10 +1,10 @@
 //! Test utilities for ink! analyzer.
 
+pub mod fixtures;
+
 use std::cmp;
 use std::fs;
-use std::path::PathBuf;
-
-pub mod fixtures;
+use std::path::Path;
 
 /// Quasi-quotation macro that accepts input like the `quote!` macro
 /// but returns a string (`String`) instead of a `TokenStream`.
@@ -47,7 +47,9 @@ pub fn read_source_code(location: &str) -> String {
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn source_uri(location: &str) -> lsp_types::Url {
     lsp_types::Url::from_file_path(
-        fs::canonicalize(PathBuf::from(&format!("../../test-fixtures/{location}.rs"))).unwrap(),
+        Path::new(&format!("../../test-fixtures/{location}.rs"))
+            .canonicalize()
+            .unwrap(),
     )
     .unwrap()
 }

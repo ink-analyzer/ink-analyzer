@@ -1,11 +1,11 @@
 //! ink! attribute code/intent actions.
 
-use crate::{ActionKind, TextEdit};
 use ink_analyzer_ir::syntax::TextRange;
 use ink_analyzer_ir::InkFile;
 
 use super::Action;
 use crate::analysis::utils;
+use crate::{ActionKind, TextEdit};
 
 /// Computes ink! attribute-based actions at the given text range.
 pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {

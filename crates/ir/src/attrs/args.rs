@@ -4,7 +4,7 @@ use ra_ap_syntax::{AstToken, TextRange};
 use std::cmp::Ordering;
 use std::fmt;
 
-use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaValue};
+use super::meta::{MetaName, MetaNameValue, MetaOption, MetaValue};
 
 /// An ink! attribute argument.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,5 +1,9 @@
 //! ink! attribute and entity code/intent actions.
 
+mod attr;
+pub mod entity;
+mod item;
+
 use ink_analyzer_ir::syntax::{SyntaxNode, TextRange, TextSize};
 use ink_analyzer_ir::{InkAttribute, InkFile};
 use itertools::Itertools;
@@ -7,10 +11,6 @@ use itertools::Itertools;
 use super::utils;
 use crate::analysis::text_edit;
 use crate::TextEdit;
-
-mod attr;
-pub mod entity;
-mod item;
 
 /// An ink! attribute code/intent action.
 #[derive(Debug, Clone, PartialEq, Eq)]

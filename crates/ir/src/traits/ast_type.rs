@@ -1,9 +1,9 @@
 //! ink! entity traits for accessing the wrapped AST type.
 
-use crate::InkEntity;
 use ra_ap_syntax::{ast, AstNode};
 
 use crate::tree::ast_ext;
+use crate::InkEntity;
 
 /// Implemented by ink! entities whose valid AST node is a `struct` item.
 pub trait IsInkStruct: InkEntity {

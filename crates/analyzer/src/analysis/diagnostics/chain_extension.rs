@@ -1,5 +1,7 @@
 //! ink! chain extension diagnostics.
 
+mod error_code;
+
 use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::{
@@ -12,8 +14,6 @@ use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity};
-
-mod error_code;
 
 const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 

@@ -1,5 +1,14 @@
 //! Types and abstractions for performing semantic analysis of ink! smart contract code.
 
+mod actions;
+mod completions;
+mod diagnostics;
+mod hover;
+mod inlay_hints;
+mod signature_help;
+mod text_edit;
+mod utils;
+
 use ink_analyzer_ir::syntax::{TextRange, TextSize};
 use ink_analyzer_ir::InkFile;
 use itertools::Itertools;
@@ -11,15 +20,6 @@ pub use hover::Hover;
 pub use inlay_hints::InlayHint;
 pub use signature_help::SignatureHelp;
 pub use text_edit::TextEdit;
-
-mod actions;
-mod completions;
-mod diagnostics;
-mod hover;
-mod inlay_hints;
-mod signature_help;
-mod text_edit;
-mod utils;
 
 /// Entry point for asking for semantic information about ink! smart contract code.
 #[derive(Debug)]

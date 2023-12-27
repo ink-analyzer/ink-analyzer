@@ -9,6 +9,8 @@ use ink_analyzer_ir::{
     InkAttributeKind, InkEntity, InkImpl, InkMacroKind, IsInkStruct, IsInkTrait, Storage,
 };
 use itertools::Itertools;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use std::collections::HashSet;
 
 use crate::utils;
@@ -527,12 +529,8 @@ pub fn is_cfg_test_attr(attr: &ast::Attr) -> bool {
     attr.path()
         .map_or(false, |path| path.to_string().trim() == "cfg")
         && attr.token_tree().map_or(false, |token_tree| {
-            let mut meta = token_tree.syntax().to_string();
-            meta.retain(|it| !it.is_whitespace());
-            meta.contains("(test)")
-                || meta.contains("(test,")
-                || meta.contains(",test)")
-                || meta.contains(",test,")
+            static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[(,]\s*test\s*[,)]").unwrap());
+            RE.is_match(&token_tree.syntax().to_string())
         })
 }
 
@@ -541,9 +539,9 @@ pub fn is_cfg_test_attr(attr: &ast::Attr) -> bool {
 pub fn is_cfg_e2e_tests_attr(attr: &ast::Attr) -> bool {
     is_cfg_test_attr(attr)
         && attr.token_tree().map_or(false, |token_tree| {
-            let mut meta = token_tree.syntax().to_string();
-            meta.retain(|it| !it.is_whitespace());
-            meta.contains(r#"feature="e2e-tests""#)
+            static RE: Lazy<Regex> =
+                Lazy::new(|| Regex::new(r#"[(,]\s*feature\s*=\s*"e2e-tests"\s*[,)]"#).unwrap());
+            RE.is_match(&token_tree.syntax().to_string())
         })
 }
 

@@ -63,6 +63,13 @@
 //! }
 //! ```
 
+mod analysis;
+mod codegen;
+mod resolution;
+mod utils;
+
+mod test_utils;
+
 pub use self::{
     analysis::{
         Action, ActionKind, Analysis, Completion, Diagnostic, Hover, InlayHint, Severity,
@@ -71,10 +78,3 @@ pub use self::{
     codegen::{new_project, Error, Project, ProjectFile},
 };
 pub use ink_analyzer_ir::syntax::{TextRange, TextSize};
-
-mod analysis;
-mod codegen;
-mod resolution;
-mod utils;
-
-mod test_utils;

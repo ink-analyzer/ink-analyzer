@@ -1,4 +1,4 @@
-//! Declarative macros used through out the library.
+//! Declarative macros used through out the crate.
 
 macro_rules! impl_ast_type_getter {
     ($fn_name: ident, $ast_type: ident $(, $vis: vis, $doc: ident)?) => {

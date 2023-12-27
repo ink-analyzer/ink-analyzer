@@ -1,9 +1,9 @@
 //! integration tests for ink! Language Server completions.
 
+mod utils;
+
 use line_index::LineIndex;
 use test_utils::{TestCaseParams, TestCaseResults};
-
-mod utils;
 
 // The high-level methodology for completions test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).

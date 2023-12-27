@@ -1,5 +1,10 @@
 //! ink! attribute meta item IR.
 
+mod name;
+mod option;
+mod separator;
+mod value;
+
 use ra_ap_syntax::{AstToken, SyntaxElement, TextRange, TextSize};
 use std::fmt;
 
@@ -7,11 +12,6 @@ pub use name::MetaName;
 pub use option::MetaOption;
 pub use separator::MetaSeparator;
 pub use value::MetaValue;
-
-mod name;
-mod option;
-mod separator;
-mod value;
 
 /// An ink! attribute meta item.
 ///

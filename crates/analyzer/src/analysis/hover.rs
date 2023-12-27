@@ -1,11 +1,12 @@
 //! ink! attribute hover content.
 
+mod args;
+mod macros;
+
 use ink_analyzer_ir::syntax::{AstNode, AstToken, TextRange};
-use ink_analyzer_ir::{InkAttributeKind, InkFile};
+use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkFile, InkMacroKind};
 
 use crate::analysis::utils;
-
-mod content;
 
 /// An ink! attribute hover result.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,7 +33,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
             // Returns hover content for the covered ink! attribute argument if it's valid.
             Some(ink_arg) => {
                 let attr_kind = InkAttributeKind::Arg(*ink_arg.kind());
-                let doc = content::doc(&attr_kind);
+                let doc = content(&attr_kind);
                 (!doc.is_empty()).then_some(Hover {
                     range: ink_arg.name().map_or(ink_arg.text_range(), |ink_arg_name| {
                         ink_arg_name.syntax().text_range()
@@ -43,7 +44,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
             // Returns hover content based on the ink! attribute macro, ink! e2e attribute macro
             // or "primary" ink! attribute argument for the ink! attribute.
             None => {
-                let doc = content::doc(ink_attr.kind());
+                let doc = content(ink_attr.kind());
                 (!doc.is_empty()).then_some(Hover {
                     range: match ink_attr.kind() {
                         InkAttributeKind::Arg(_) => ink_attr
@@ -62,6 +63,41 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
             }
         }
     })
+}
+
+/// Returns documentation for the ink! attribute kind.
+pub fn content(attr_kind: &InkAttributeKind) -> &str {
+    match attr_kind {
+        InkAttributeKind::Arg(arg_kind) => match arg_kind {
+            InkArgKind::AdditionalContracts => args::ADDITIONAL_CONTRACTS_DOC,
+            InkArgKind::Anonymous => args::ANONYMOUS_DOC,
+            InkArgKind::Constructor => args::CONSTRUCTOR_DOC,
+            InkArgKind::Default => args::DEFAULT_DOC,
+            InkArgKind::Derive => args::DERIVE_DOC,
+            InkArgKind::Env | InkArgKind::Environment => args::ENV_DOC,
+            InkArgKind::Event => args::EVENT_DOC,
+            InkArgKind::Extension => args::EXTENSION_DOC,
+            InkArgKind::HandleStatus => args::HANDLE_STATUS_DOC,
+            InkArgKind::Impl => args::IMPL_DOC,
+            InkArgKind::KeepAttr => args::KEEP_ATTR_DOC,
+            InkArgKind::Message => args::MESSAGE_DOC,
+            InkArgKind::Namespace => args::NAMESPACE_DOC,
+            InkArgKind::Payable => args::PAYABLE_DOC,
+            InkArgKind::Selector => args::SELECTOR_DOC,
+            InkArgKind::Storage => args::STORAGE_DOC,
+            InkArgKind::Topic => args::TOPIC_DOC,
+            _ => "",
+        },
+        InkAttributeKind::Macro(macro_kind) => match macro_kind {
+            InkMacroKind::ChainExtension => macros::CHAIN_EXTENSION_DOC,
+            InkMacroKind::Contract => macros::CONTRACT_DOC,
+            InkMacroKind::StorageItem => macros::STORAGE_ITEM_DOC,
+            InkMacroKind::Test => macros::TEST_DOC,
+            InkMacroKind::TraitDefinition => macros::TRAIT_DEFINITION_DOC,
+            InkMacroKind::E2ETest => macros::E2E_TEST_DOC,
+            _ => "",
+        },
+    }
 }
 
 #[cfg(test)]
@@ -89,7 +125,7 @@ mod tests {
                         Some("<-#"),
                         Some("<-#"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -98,7 +134,7 @@ mod tests {
                         Some("<-#"),
                         Some("ink"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -107,7 +143,7 @@ mod tests {
                         Some("<-contract"),
                         Some("contract"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -116,7 +152,7 @@ mod tests {
                         Some("<-#"),
                         Some("]"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -132,7 +168,7 @@ mod tests {
                         Some("<-#"),
                         Some("<-#"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -141,7 +177,7 @@ mod tests {
                         Some("<-#"),
                         Some("ink"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -150,7 +186,7 @@ mod tests {
                         Some("<-contract"),
                         Some("contract"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -159,7 +195,7 @@ mod tests {
                         Some("<-#"),
                         Some("]"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -168,7 +204,7 @@ mod tests {
                         Some("<-env="),
                         Some("(env"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Env)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Env)),
                             Some("<-env="),
                             Some("(env"),
                         )),
@@ -177,7 +213,7 @@ mod tests {
                         Some("<-my::env::Types"),
                         Some("my::env::Types"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Env)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Env)),
                             Some("<-env="),
                             Some("(env"),
                         )),
@@ -186,7 +222,7 @@ mod tests {
                         Some("<-,"),
                         Some(","),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
                             Some("<-contract"),
                             Some("contract"),
                         )),
@@ -195,7 +231,7 @@ mod tests {
                         Some("<-keep_attr"),
                         Some("keep_attr"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::KeepAttr)),
+                            content(&InkAttributeKind::Arg(InkArgKind::KeepAttr)),
                             Some("<-keep_attr"),
                             Some("keep_attr"),
                         )),
@@ -204,7 +240,7 @@ mod tests {
                         Some(r#"<-"foo,bar""#),
                         Some(r#""foo,bar""#),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::KeepAttr)),
+                            content(&InkAttributeKind::Arg(InkArgKind::KeepAttr)),
                             Some("<-keep_attr"),
                             Some("keep_attr"),
                         )),
@@ -218,7 +254,7 @@ mod tests {
                         Some("<-#"),
                         Some("<-#"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
                             Some("<-test"),
                             Some("test"),
                         )),
@@ -227,7 +263,7 @@ mod tests {
                         Some("<-#"),
                         Some("ink"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
                             Some("<-test"),
                             Some("test"),
                         )),
@@ -236,7 +272,7 @@ mod tests {
                         Some("<-test"),
                         Some("test"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
                             Some("<-test"),
                             Some("test"),
                         )),
@@ -245,7 +281,7 @@ mod tests {
                         Some("<-#"),
                         Some("]"),
                         Some((
-                            content::doc(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            content(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
                             Some("<-test"),
                             Some("test"),
                         )),
@@ -260,7 +296,7 @@ mod tests {
                         Some("<-#"),
                         Some("<-#"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Storage)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Storage)),
                             Some("<-storage"),
                             Some("storage"),
                         )),
@@ -269,7 +305,7 @@ mod tests {
                         Some("<-#"),
                         Some("ink"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Storage)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Storage)),
                             Some("<-storage"),
                             Some("storage"),
                         )),
@@ -278,7 +314,7 @@ mod tests {
                         Some("<-storage"),
                         Some("storage"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Storage)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Storage)),
                             Some("<-storage"),
                             Some("storage"),
                         )),
@@ -287,7 +323,7 @@ mod tests {
                         Some("<-#"),
                         Some("]"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Storage)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Storage)),
                             Some("<-storage"),
                             Some("storage"),
                         )),
@@ -301,7 +337,7 @@ mod tests {
                         Some("<-#"),
                         Some("<-#"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Message)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Message)),
                             Some("<-message"),
                             Some("message"),
                         )),
@@ -310,7 +346,7 @@ mod tests {
                         Some("<-#"),
                         Some("ink"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Message)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Message)),
                             Some("<-message"),
                             Some("message"),
                         )),
@@ -319,7 +355,7 @@ mod tests {
                         Some("<-message"),
                         Some("message"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Message)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Message)),
                             Some("<-message"),
                             Some("message"),
                         )),
@@ -328,7 +364,7 @@ mod tests {
                         Some("<-#"),
                         Some("]"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Message)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Message)),
                             Some("<-message"),
                             Some("message"),
                         )),
@@ -337,7 +373,7 @@ mod tests {
                         Some("<-payable"),
                         Some("payable"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Payable)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Payable)),
                             Some("<-payable"),
                             Some("payable"),
                         )),
@@ -346,7 +382,7 @@ mod tests {
                         Some("<-selector"),
                         Some("selector"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Selector)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Selector)),
                             Some("<-selector"),
                             Some("selector"),
                         )),
@@ -355,7 +391,7 @@ mod tests {
                         Some("<-_"),
                         Some("_"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Selector)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Selector)),
                             Some("<-selector"),
                             Some("selector"),
                         )),
@@ -369,7 +405,7 @@ mod tests {
                         Some("<-#"),
                         Some("<-#"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Extension)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
                             Some("<-extension"),
                             Some("extension"),
                         )),
@@ -378,7 +414,7 @@ mod tests {
                         Some("<-#"),
                         Some("ink"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Extension)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
                             Some("<-extension"),
                             Some("extension"),
                         )),
@@ -387,7 +423,7 @@ mod tests {
                         Some("<-extension"),
                         Some("extension"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Extension)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
                             Some("<-extension"),
                             Some("extension"),
                         )),
@@ -396,7 +432,7 @@ mod tests {
                         Some("<-#"),
                         Some("]"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Extension)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
                             Some("<-extension"),
                             Some("extension"),
                         )),
@@ -405,7 +441,7 @@ mod tests {
                         Some("<-1"),
                         Some("1"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::Extension)),
+                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
                             Some("<-extension"),
                             Some("extension"),
                         )),
@@ -414,7 +450,7 @@ mod tests {
                         Some("<-handle_status"),
                         Some("handle_status"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::HandleStatus)),
+                            content(&InkAttributeKind::Arg(InkArgKind::HandleStatus)),
                             Some("<-handle_status"),
                             Some("handle_status"),
                         )),
@@ -423,7 +459,7 @@ mod tests {
                         Some("<-true"),
                         Some("true"),
                         Some((
-                            content::doc(&InkAttributeKind::Arg(InkArgKind::HandleStatus)),
+                            content(&InkAttributeKind::Arg(InkArgKind::HandleStatus)),
                             Some("<-handle_status"),
                             Some("handle_status"),
                         )),

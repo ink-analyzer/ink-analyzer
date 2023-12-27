@@ -38,6 +38,34 @@
 //!     }
 //! ```
 
+#[macro_use]
+mod macros;
+
+mod attrs;
+mod chain_extension;
+mod constructor;
+mod contract;
+mod event;
+mod extension;
+mod file;
+mod ink_e2e_test;
+mod ink_impl;
+mod ink_test;
+mod message;
+mod storage;
+mod storage_item;
+mod topic;
+mod trait_definition;
+
+mod environment;
+mod selector;
+
+mod iter;
+mod traits;
+mod tree;
+
+mod test_utils;
+
 pub use self::{
     attrs::{
         meta, InkArg, InkArgKind, InkArgValueKind, InkArgValuePathKind, InkArgValueStringKind,
@@ -83,30 +111,3 @@ pub use ra_ap_syntax as syntax;
 
 /// Re-export `ra_ap_syntax::ast` as `ast`.
 pub use ra_ap_syntax::ast;
-
-#[macro_use]
-mod macros;
-
-mod attrs;
-mod chain_extension;
-mod constructor;
-mod contract;
-mod event;
-mod extension;
-mod file;
-mod ink_e2e_test;
-mod ink_impl;
-mod ink_test;
-mod message;
-mod storage;
-mod storage_item;
-mod topic;
-mod trait_definition;
-
-mod environment;
-mod iter;
-mod selector;
-mod traits;
-mod tree;
-
-mod test_utils;

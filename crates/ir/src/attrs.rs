@@ -1,5 +1,9 @@
 //! ink! attribute IR.
 
+mod args;
+pub mod meta;
+pub mod parser;
+
 use itertools::Itertools;
 use ra_ap_syntax::{ast, AstNode, Direction, SyntaxNode};
 use std::cmp::Ordering;
@@ -7,10 +11,6 @@ use std::fmt;
 
 use crate::meta::MetaName;
 pub use args::{InkArg, InkArgKind, InkArgValueKind, InkArgValuePathKind, InkArgValueStringKind};
-
-mod args;
-pub mod meta;
-pub mod parser;
 
 /// An ink! specific attribute.
 #[derive(Debug, Clone, PartialEq, Eq)]

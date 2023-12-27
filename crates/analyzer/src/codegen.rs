@@ -1,9 +1,9 @@
 //! Utilities for generate ink! project files.
 
+pub mod snippets;
+
 use self::snippets::{CARGO_TOML_PLAIN, CARGO_TOML_SNIPPET, CONTRACT_PLAIN, CONTRACT_SNIPPET};
 use crate::utils;
-
-pub mod snippets;
 
 /// Code stubs/snippets for creating an ink! project
 /// (i.e. code stubs/snippets for `lib.rs` and `Cargo.toml`).

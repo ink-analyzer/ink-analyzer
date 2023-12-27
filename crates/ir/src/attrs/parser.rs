@@ -3,7 +3,7 @@
 use itertools::Itertools;
 use ra_ap_syntax::{ast, AstNode, AstToken, SyntaxElement, T};
 
-use crate::meta::{MetaName, MetaNameValue, MetaOption, MetaSeparator, MetaValue};
+use super::meta::{MetaName, MetaNameValue, MetaOption, MetaSeparator, MetaValue};
 use crate::InkArg;
 
 /// Parse ink! attribute arguments.
