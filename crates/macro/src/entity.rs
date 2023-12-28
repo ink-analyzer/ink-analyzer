@@ -173,7 +173,7 @@ pub fn impl_entity(args: TokenStream, item: TokenStream) -> Result<TokenStream, 
     let attrs = struct_item.attrs;
 
     let (can_cast_impl, ink_attr_init) = match &config {
-        Config::AST(_) => (
+        Config::AST => (
             quote! {
                 use #ir_crate_path::syntax::AstNode;
                 <#ast_type>::can_cast(node.kind())
@@ -225,7 +225,7 @@ pub fn impl_entity(args: TokenStream, item: TokenStream) -> Result<TokenStream, 
     };
 
     let (cast_impl, from_impl) = match &config {
-        Config::AST(_) => (
+        Config::AST => (
             quote! {
                 use #ir_crate_path::syntax::AstNode;
                 <#ast_type>::cast(node)
@@ -309,21 +309,16 @@ const FIELD_ARGUMENT_ERROR: &str =
 const FIELD_TYPE_ERROR: &str =
     "Field types must be of the form `Vec<T>` or `Option<T>` where `T: InkEntity`";
 
-#[derive(Debug, FromMeta)]
+#[derive(Debug, Default, FromMeta)]
 #[darling(default)]
 #[allow(clippy::upper_case_acronyms)]
 enum Config {
+    #[default]
     #[darling(rename = "ast")]
-    AST(darling::util::Flag),
+    AST,
     MacroKind(syn::Ident),
     ArgKind(syn::Ident),
     Call(syn::Path),
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self::AST(darling::util::Flag::present())
-    }
 }
 
 #[derive(Debug)]
