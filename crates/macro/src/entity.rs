@@ -81,7 +81,7 @@ pub fn impl_entity(args: TokenStream, item: TokenStream) -> Result<TokenStream, 
                                     Some((base_type, base_field_type)) => {
                                         let field_config = FieldConfig::build(field)?;
                                         let initializer = match &field_config {
-                                            FieldConfig::Closest(_) => quote! {
+                                            FieldConfig::Closest => quote! {
                                                 #ir_crate_path::ink_closest_descendants(&root_node)
                                             },
                                             FieldConfig::PeekMacro(kind_type_variant)
@@ -321,9 +321,10 @@ enum Config {
     Call(syn::Path),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum FieldConfig {
-    Closest(darling::util::Flag),
+    #[default]
+    Closest,
     PeekMacro(syn::Ident),
     PeekArg(syn::Ident),
     Call(syn::Path),
@@ -343,7 +344,7 @@ impl FieldConfig {
             // Default.
             (false, None, None, None) => Ok(Self::default()),
             // Exactly one argument set.
-            (true, None, None, None) => Ok(Self::Closest(darling::util::Flag::present())),
+            (true, None, None, None) => Ok(Self::Closest),
             (false, Some(name), None, None) => Ok(Self::PeekMacro(name)),
             (false, None, Some(name), None) => Ok(Self::PeekArg(name)),
             (false, None, None, Some(path)) => Ok(Self::Call(path)),
@@ -353,12 +354,6 @@ impl FieldConfig {
                 FIELD_ARGUMENT_ERROR,
             ))),
         }
-    }
-}
-
-impl Default for FieldConfig {
-    fn default() -> Self {
-        Self::Closest(darling::util::Flag::present())
     }
 }
 
