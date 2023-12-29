@@ -79,7 +79,7 @@ fn parse_meta_name(tokens: &[SyntaxElement]) -> MetaOption<MetaName> {
         0 => MetaOption::None,
         1 => {
             let meta_name_option = non_trivia_tokens
-                .get(0)
+                .first()
                 .cloned()
                 .and_then(SyntaxElement::as_token)
                 .cloned()
