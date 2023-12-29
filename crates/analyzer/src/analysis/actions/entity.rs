@@ -9,11 +9,12 @@ use super::{Action, ActionKind};
 use crate::analysis::utils;
 use crate::codegen::snippets::{
     CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_SNIPPET, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET,
-    CONTRACT_PLAIN, CONTRACT_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN,
-    EVENT_SNIPPET, EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET,
-    INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN,
-    STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN, TOPIC_SNIPPET,
-    TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
+    CONTRACT_PLAIN, CONTRACT_SNIPPET, ENVIRONMENT_DEF, ENVIRONMENT_IMPL_PLAIN,
+    ENVIRONMENT_IMPL_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN, EVENT_SNIPPET,
+    EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET, INK_TEST_PLAIN,
+    INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN, STORAGE_ITEM_SNIPPET,
+    STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN, TOPIC_SNIPPET, TRAIT_DEFINITION_PLAIN,
+    TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
 };
 use crate::TextEdit;
 
@@ -554,6 +555,21 @@ pub fn add_storage_item(offset: TextSize, kind: ActionKind, indent_option: Optio
             STORAGE_ITEM_PLAIN,
             offset,
             Some(STORAGE_ITEM_SNIPPET),
+            indent_option,
+        )],
+    }
+}
+
+/// Add an ink! environment.
+pub fn add_environment(offset: TextSize, kind: ActionKind, indent_option: Option<&str>) -> Action {
+    Action {
+        label: "Add custom ink! environment implementation.".to_string(),
+        kind,
+        range: TextRange::new(offset, offset),
+        edits: vec![insert_edit_with_snippet_and_indent(
+            &format!("{ENVIRONMENT_DEF}\n\n{ENVIRONMENT_IMPL_PLAIN}"),
+            offset,
+            Some(&format!("{ENVIRONMENT_DEF}\n\n{ENVIRONMENT_IMPL_SNIPPET}")),
             indent_option,
         )],
     }

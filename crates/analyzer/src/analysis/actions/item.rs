@@ -442,6 +442,9 @@ fn root_ink_entity_actions(results: &mut Vec<Action>, file: &InkFile, offset: Te
 
     // Adds ink! storage item.
     results.push(entity::add_storage_item(offset, ActionKind::Refactor, None));
+
+    // Adds ink! environment.
+    results.push(entity::add_environment(offset, ActionKind::Refactor, None));
 }
 
 /// Computes actions for "flattening" ink! attributes for the target syntax node.
@@ -572,6 +575,14 @@ mod tests {
                             end_pat: None,
                         }],
                     },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "pub enum MyEnvironment {}",
+                            start_pat: None,
+                            end_pat: None,
+                        }],
+                    },
                 ],
             ),
             (
@@ -606,6 +617,14 @@ mod tests {
                         label: "Add",
                         edits: vec![TestResultTextRange {
                             text: "#[ink::storage_item]",
+                            start_pat: Some(" "),
+                            end_pat: Some(" "),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "pub enum MyEnvironment {}",
                             start_pat: Some(" "),
                             end_pat: Some(" "),
                         }],
@@ -648,6 +667,14 @@ mod tests {
                             end_pat: Some("\n"),
                         }],
                     },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "pub enum MyEnvironment {}",
+                            start_pat: Some("\n"),
+                            end_pat: Some("\n"),
+                        }],
+                    },
                 ],
             ),
             (
@@ -682,6 +709,14 @@ mod tests {
                         label: "Add",
                         edits: vec![TestResultTextRange {
                             text: "#[ink::storage_item]",
+                            start_pat: Some("// A comment in focus."),
+                            end_pat: Some("// A comment in focus."),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "pub enum MyEnvironment {}",
                             start_pat: Some("// A comment in focus."),
                             end_pat: Some("// A comment in focus."),
                         }],

@@ -224,6 +224,10 @@ pub ${1:struct} ${2:StorageItem} {
     $3
 }"#;
 
+pub const ENVIRONMENT_DEF: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum MyEnvironment {}"#;
+
 pub const ENVIRONMENT_IMPL_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironment {
     const MAX_EVENT_TOPICS: usize = 4;
 
