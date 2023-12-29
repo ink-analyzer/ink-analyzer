@@ -98,7 +98,9 @@ impl Selector {
         match callable.parent_impl_item()?.trait_()? {
             ast::Type::PathType(trait_path_type) => {
                 let trait_path = trait_path_type.path()?;
-                let is_full_path = trait_path.to_string().starts_with("::");
+                let is_full_path = trait_path
+                    .qualifier()
+                    .map_or(false, |qualifier| qualifier.coloncolon_token().is_some());
                 let trait_ident = if is_full_path {
                     let mut full_path = trait_path.to_string();
                     full_path.retain(|c| !c.is_whitespace());
