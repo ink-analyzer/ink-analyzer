@@ -34,7 +34,7 @@ use proc_macro::TokenStream;
 /// # Arguments
 /// The `entity` macro takes one argument that represents the casting precondition as follows:
 ///
-/// - `ast` - accepts on syntax nodes whose kind matches the type of the `ast` field.
+/// - `ast` - accepts only syntax nodes whose kind matches the type of the `ast` field.
 ///           This is the default and be skipped.
 /// - `macro_kind = T` - accepts only items annotated with an ink! attribute macro of the kind `T`
 ///                      (e.g. `Contract` for `#[ink::contract]`).
