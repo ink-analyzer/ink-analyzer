@@ -504,30 +504,8 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
         }
 
         // Computes diagnostic for missing messages (if any).
-        let (insert_offset, indent_option, prefix_option, suffix_option) =
-            impl_item.assoc_item_list().map_or(
-                (
-                    impl_item.syntax().text_range().end(),
-                    Some(analysis_utils::item_children_indenting(impl_item.syntax())),
-                    Some(" {"),
-                    Some(format!(
-                        "{}}}",
-                        analysis_utils::item_indenting(impl_item.syntax())
-                            .as_deref()
-                            .unwrap_or_default()
-                    )),
-                ),
-                |assoc_item_list| {
-                    (
-                        analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
-                        Some(analysis_utils::item_children_indenting(impl_item.syntax())),
-                        None,
-                        None,
-                    )
-                },
-            );
-        // Determines missing messages (with valid names).
         let mut missing_messages = message_index.values().filter_map(|message| {
+            // Filters missing messages (with valid names).
             message.fn_item().and_then(|fn_item| {
                 fn_item
                     .name()
@@ -539,12 +517,34 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
             })
         });
         if let Some(fn_item) = missing_messages.next() {
+            let (insert_offset, indent_option, prefix_option, suffix_option) =
+                impl_item.assoc_item_list().map_or(
+                    (
+                        impl_item.syntax().text_range().end(),
+                        Some(analysis_utils::item_children_indenting(impl_item.syntax())),
+                        Some(" {"),
+                        Some(format!(
+                            "{}}}",
+                            analysis_utils::item_indenting(impl_item.syntax())
+                                .as_deref()
+                                .unwrap_or_default()
+                        )),
+                    ),
+                    |assoc_item_list| {
+                        (
+                            analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
+                            Some(analysis_utils::item_children_indenting(impl_item.syntax())),
+                            None,
+                            None,
+                        )
+                    },
+                );
             let range = analysis_utils::ink_impl_declaration_range(ink_impl);
             let mut edit_option = None;
             let mut snippet_option = None;
             let mut snippet_idx = 1;
             for fn_item in iter::once(fn_item).chain(missing_messages) {
-                // Only create quickfixes if the method name properly declared.
+                // Only create quickfixes if the method name is declared properly.
                 if let Some(fn_name) = fn_item.name().as_ref().map(ToString::to_string) {
                     let params = fn_item.param_list().map(|param_list| {
                         let self_param = param_list.self_param().as_ref().map(ToString::to_string);
@@ -722,10 +722,10 @@ fn ensure_trait_definition_impl_message_args(
                 seen_arg_kinds.insert(*arg.kind());
 
                 // Verifies the argument value (if any or expected).
-                // NOTE: This doesn't do generic argument value validation
+                // NOTE: This doesn't perform argument value validation
                 // (that's done by `utils::run_generic_diagnostics`),
-                // it only checks that the argument value for the implementation matches the declaration
-                // if a value is expected for the attribute kind.
+                // it only checks that the argument value for the implementation
+                // matches the declaration if a value is expected for the attribute kind.
                 if let Some(value_declaration) = arg_declaration.value() {
                     if InkArgValueKind::from(*arg.kind()) != InkArgValueKind::None {
                         match arg.value() {
