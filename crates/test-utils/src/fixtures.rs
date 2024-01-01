@@ -1401,7 +1401,7 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                             vec![
                                 vec![
                                     TestResultTextRange {
-                                        text: "/// Returns the total token supply.",
+                                        text: "fn total_supply(&self) -> Balance {",
                                         start_pat: Some("<-\n    }\n\n    #[ink(impl)]"),
                                         end_pat: Some("<-\n    }\n\n    #[ink(impl)]"),
                                     }
