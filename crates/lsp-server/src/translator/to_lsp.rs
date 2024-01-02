@@ -3,7 +3,7 @@
 use line_index::WideEncoding;
 use std::collections::HashMap;
 
-use crate::translator::PositionTranslationContext;
+use super::PositionTranslationContext;
 use crate::utils::SignatureSupport;
 
 /// Translates ink! analyzer offset to LSP position.

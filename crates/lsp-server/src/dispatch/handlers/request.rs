@@ -1,46 +1,38 @@
 //! LSP request handlers.
 
-use ink_analyzer::Analysis;
-use line_index::LineIndex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::memory::Memory;
-use crate::translator::PositionTranslationContext;
+use crate::dispatch::Snapshots;
 use crate::{translator, utils};
 
 /// Handles completion request.
 pub fn handle_completion(
     params: lsp_types::CompletionParams,
-    memory: &Memory,
+    snapshots: &Snapshots,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::CompletionResponse>> {
     // Gets document uri and retrieves document from memory.
     let id = params.text_document_position.text_document.uri.to_string();
-    match memory.get(&id) {
-        Some(doc) => {
-            // Composes translation context.
-            let translation_context = PositionTranslationContext {
-                encoding: utils::position_encoding(client_capabilities),
-                line_index: LineIndex::new(&doc.content),
-            };
-
+    match snapshots.get(&id) {
+        Some(snapshot) => {
             // Converts LSP position to ink! analyzer offset.
             let offset = translator::from_lsp::offset(
                 params.text_document_position.position,
-                &translation_context,
+                &snapshot.context,
             )
             .ok_or(anyhow::format_err!("Invalid offset."))?;
 
             // Computes ink! analyzer completions and translates them into an LSP completion list.
-            let completion_items: Vec<lsp_types::CompletionItem> = Analysis::new(&doc.content)
+            let completion_items: Vec<lsp_types::CompletionItem> = snapshot
+                .analysis
                 .completions(offset)
                 .into_iter()
                 .filter_map(|completion| {
                     translator::to_lsp::completion(
                         completion,
                         utils::snippet_support(client_capabilities),
-                        &translation_context,
+                        &snapshot.context,
                     )
                 })
                 .collect();
@@ -62,8 +54,8 @@ pub fn handle_completion(
 /// Handles hover request.
 pub fn handle_hover(
     params: lsp_types::HoverParams,
-    memory: &Memory,
-    client_capabilities: &lsp_types::ClientCapabilities,
+    snapshots: &Snapshots,
+    _: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::Hover>> {
     // Gets document uri and retrieves document from memory.
     let id = params
@@ -71,25 +63,20 @@ pub fn handle_hover(
         .text_document
         .uri
         .to_string();
-    match memory.get(&id) {
-        Some(doc) => {
-            // Composes translation context.
-            let translation_context = PositionTranslationContext {
-                encoding: utils::position_encoding(client_capabilities),
-                line_index: LineIndex::new(&doc.content),
-            };
-
+    match snapshots.get(&id) {
+        Some(snapshot) => {
             // Converts LSP position to ink! analyzer offset.
             let offset = translator::from_lsp::offset(
                 params.text_document_position_params.position,
-                &translation_context,
+                &snapshot.context,
             )
             .ok_or(anyhow::format_err!("Invalid offset."))?;
 
             // Computes ink! analyzer hover content and translates it to an LSP hover.
-            Ok(Analysis::new(&doc.content)
+            Ok(snapshot
+                .analysis
                 .hover(ink_analyzer::TextRange::empty(offset))
-                .and_then(|hover| translator::to_lsp::hover(hover, &translation_context)))
+                .and_then(|hover| translator::to_lsp::hover(hover, &snapshot.context)))
         }
         // Empty response for missing documents.
         None => Ok(None),
@@ -99,31 +86,26 @@ pub fn handle_hover(
 /// Handles code action request.
 pub fn handle_code_action(
     params: lsp_types::CodeActionParams,
-    memory: &Memory,
-    client_capabilities: &lsp_types::ClientCapabilities,
+    snapshots: &Snapshots,
+    _: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::CodeActionResponse>> {
     // Gets document uri and retrieves document from memory.
     let uri = params.text_document.uri;
     let id = uri.to_string();
-    match memory.get(&id) {
-        Some(doc) => {
-            // Composes translation context.
-            let translation_context = PositionTranslationContext {
-                encoding: utils::position_encoding(client_capabilities),
-                line_index: LineIndex::new(&doc.content),
-            };
-
+    match snapshots.get(&id) {
+        Some(snapshot) => {
             // Converts LSP range to ink! analyzer text range.
-            let text_range = translator::from_lsp::text_range(params.range, &translation_context)
+            let text_range = translator::from_lsp::text_range(params.range, &snapshot.context)
                 .ok_or(anyhow::format_err!("Invalid range."))?;
 
             // Computes ink! analyzer actions and translates them to LSP code actions.
             Ok(Some(
-                Analysis::new(&doc.content)
+                snapshot
+                    .analysis
                     .actions(text_range)
                     .into_iter()
                     .filter_map(|action| {
-                        translator::to_lsp::code_action(action, uri.clone(), &translation_context)
+                        translator::to_lsp::code_action(action, uri.clone(), &snapshot.context)
                             .map(Into::into)
                     })
                     .collect(),
@@ -137,31 +119,26 @@ pub fn handle_code_action(
 /// Handles inlay hint request.
 pub fn handle_inlay_hint(
     params: lsp_types::InlayHintParams,
-    memory: &Memory,
-    client_capabilities: &lsp_types::ClientCapabilities,
+    snapshots: &Snapshots,
+    _: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<Vec<lsp_types::InlayHint>>> {
     // Gets document uri and retrieves document from memory.
     let uri = params.text_document.uri;
     let id = uri.to_string();
-    match memory.get(&id) {
-        Some(doc) => {
-            // Composes translation context.
-            let translation_context = PositionTranslationContext {
-                encoding: utils::position_encoding(client_capabilities),
-                line_index: LineIndex::new(&doc.content),
-            };
-
+    match snapshots.get(&id) {
+        Some(snapshot) => {
             // Converts LSP range to ink! analyzer text range.
-            let text_range = translator::from_lsp::text_range(params.range, &translation_context)
+            let text_range = translator::from_lsp::text_range(params.range, &snapshot.context)
                 .ok_or(anyhow::format_err!("Invalid range."))?;
 
             // Computes ink! analyzer inlay hints and translates them to LSP inlay hints.
             Ok(Some(
-                Analysis::new(&doc.content)
+                snapshot
+                    .analysis
                     .inlay_hints(Some(text_range))
                     .into_iter()
                     .filter_map(|hint| {
-                        translator::to_lsp::inlay_hint(hint, &translation_context).map(Into::into)
+                        translator::to_lsp::inlay_hint(hint, &snapshot.context).map(Into::into)
                     })
                     .collect(),
             ))
@@ -174,36 +151,30 @@ pub fn handle_inlay_hint(
 /// Handles signature help request.
 pub fn handle_signature_help(
     params: lsp_types::SignatureHelpParams,
-    memory: &Memory,
+    snapshots: &Snapshots,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::SignatureHelp>> {
     // Gets document uri and retrieves document from memory.
     let uri = params.text_document_position_params.text_document.uri;
     let id = uri.to_string();
-    match memory.get(&id) {
-        Some(doc) => {
-            // Composes translation context.
-            let translation_context = PositionTranslationContext {
-                encoding: utils::position_encoding(client_capabilities),
-                line_index: LineIndex::new(&doc.content),
-            };
-
+    match snapshots.get(&id) {
+        Some(snapshot) => {
             // Converts LSP position to ink! analyzer offset.
             let offset = translator::from_lsp::offset(
                 params.text_document_position_params.position,
-                &translation_context,
+                &snapshot.context,
             )
             .ok_or(anyhow::format_err!("Invalid offset."))?;
 
             // Computes ink! analyzer signature help and translates it to LSP signature help.
             Ok(translator::to_lsp::signature_help(
-                &Analysis::new(&doc.content).signature_help(offset),
+                &snapshot.analysis.signature_help(offset),
                 &utils::signature_support(client_capabilities),
                 params
                     .context
                     .as_ref()
                     .and_then(|ctx| ctx.active_signature_help.as_ref()),
-                &translation_context,
+                &snapshot.context,
             ))
         }
         // Empty response for missing documents.
@@ -221,8 +192,8 @@ pub struct CreateProjectResponse {
 /// Handles execute command request.
 pub fn handle_execute_command(
     params: lsp_types::ExecuteCommandParams,
-    _memory: &Memory,
-    _client_capabilities: &lsp_types::ClientCapabilities,
+    _: &Snapshots,
+    _: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<serde_json::Value>> {
     // Handles create project command.
     if params.command == "createProject" {
@@ -286,16 +257,16 @@ pub fn handle_execute_command(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::document;
+    use crate::test_utils::init_snapshots;
     use test_utils::simple_client_config;
 
     #[test]
     fn handle_completion_works() {
-        // Initializes memory.
-        let mut memory = Memory::new();
+        // Creates client capabilities.
+        let client_capabilities = simple_client_config();
 
-        // Creates test document.
-        let uri = document("#[ink::co]".to_string(), &mut memory);
+        // Initializes snapshots with test document.
+        let (snapshots, uri) = init_snapshots(String::from("#[ink::co]"), &client_capabilities);
 
         // Calls handler and verifies that the expected completion items are returned.
         let result = handle_completion(
@@ -311,8 +282,8 @@ mod tests {
                 partial_result_params: Default::default(),
                 context: None,
             },
-            &mut memory,
-            &simple_client_config(),
+            &snapshots,
+            &client_capabilities,
         );
         assert!(result.is_ok());
         let completion_items = match result.unwrap().unwrap() {
@@ -326,11 +297,12 @@ mod tests {
 
     #[test]
     fn handle_hover_works() {
-        // Initializes memory.
-        let mut memory = Memory::new();
+        // Creates client capabilities.
+        let client_capabilities = simple_client_config();
 
-        // Creates test document.
-        let uri = document("#[ink::contract]".to_string(), &mut memory);
+        // Initializes snapshots with test document.
+        let (snapshots, uri) =
+            init_snapshots(String::from("#[ink::contract]"), &client_capabilities);
 
         // Calls handler and verifies that the expected hover content is returned.
         let result = handle_hover(
@@ -344,8 +316,8 @@ mod tests {
                 },
                 work_done_progress_params: Default::default(),
             },
-            &mut memory,
-            &simple_client_config(),
+            &snapshots,
+            &client_capabilities,
         );
         assert!(result.is_ok());
         let hover_content = match result.unwrap().unwrap().contents {
@@ -358,11 +330,12 @@ mod tests {
 
     #[test]
     fn handle_code_action_works() {
-        // Initializes memory.
-        let mut memory = Memory::new();
+        // Creates client capabilities.
+        let client_capabilities = simple_client_config();
 
-        // Creates test document.
-        let uri = document("mod my_contract {}".to_string(), &mut memory);
+        // Initializes snapshots with test document.
+        let (snapshots, uri) =
+            init_snapshots(String::from("mod my_contract {}"), &client_capabilities);
 
         // Calls handler and verifies that the expected code actions are returned.
         let result = handle_code_action(
@@ -382,8 +355,8 @@ mod tests {
                 work_done_progress_params: Default::default(),
                 partial_result_params: Default::default(),
             },
-            &mut memory,
-            &simple_client_config(),
+            &snapshots,
+            &client_capabilities,
         );
         assert!(result.is_ok());
         let code_actions = result.unwrap().unwrap();
@@ -398,13 +371,13 @@ mod tests {
 
     #[test]
     fn handle_inlay_hint_works() {
-        // Initializes memory.
-        let mut memory = Memory::new();
+        // Creates client capabilities.
+        let client_capabilities = simple_client_config();
 
-        // Creates test document.
-        let uri = document(
-            r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar")]"#.to_string(),
-            &mut memory,
+        // Initializes snapshots with test document.
+        let (snapshots, uri) = init_snapshots(
+            String::from(r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar")]"#),
+            &client_capabilities,
         );
 
         // Calls handler and verifies that the expected inlay hints are returned.
@@ -423,8 +396,8 @@ mod tests {
                 },
                 work_done_progress_params: Default::default(),
             },
-            &mut memory,
-            &simple_client_config(),
+            &snapshots,
+            &client_capabilities,
         );
         assert!(result.is_ok());
         let inlay_hints = result.unwrap().unwrap();
@@ -454,11 +427,12 @@ mod tests {
 
     #[test]
     fn handle_signature_help_works() {
-        // Initializes memory.
-        let mut memory = Memory::new();
+        // Creates client capabilities.
+        let client_capabilities = simple_client_config();
 
-        // Creates test document.
-        let uri = document("#[ink::contract()]".to_string(), &mut memory);
+        // Initializes snapshots with test document.
+        let (snapshots, uri) =
+            init_snapshots(String::from("#[ink::contract()]"), &client_capabilities);
 
         // Calls handler and verifies that the expected signature help is returned.
         let result = handle_signature_help(
@@ -473,7 +447,7 @@ mod tests {
                 work_done_progress_params: Default::default(),
                 context: None,
             },
-            &mut memory,
+            &snapshots,
             &simple_client_config(),
         );
         assert!(result.is_ok());
@@ -504,9 +478,6 @@ mod tests {
 
     #[test]
     fn handle_execute_command_new_project_works() {
-        // Initializes memory.
-        let mut memory = Memory::new();
-
         // Creates test project.
         let project_name = "hello_ink";
         let project_uri = lsp_types::Url::parse("file:///tmp/hello_ink/").unwrap();
@@ -521,7 +492,7 @@ mod tests {
                 })],
                 work_done_progress_params: Default::default(),
             },
-            &mut memory,
+            &Snapshots::new(),
             &simple_client_config(),
         );
         assert!(result.is_ok());

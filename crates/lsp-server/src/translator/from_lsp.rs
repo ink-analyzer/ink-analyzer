@@ -2,7 +2,7 @@
 
 use line_index::{LineCol, WideEncoding, WideLineCol};
 
-use crate::translator::PositionTranslationContext;
+use super::PositionTranslationContext;
 
 /// Translates LSP position to ink! analyzer offset.
 pub fn offset(

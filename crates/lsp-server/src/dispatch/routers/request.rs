@@ -2,13 +2,13 @@
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::memory::Memory;
+use crate::dispatch::Snapshots;
 
 /// Chainable type for routing LSP requests to appropriate handlers and composing responses (if appropriate).
 pub struct RequestRouter<'a> {
     req: Option<lsp_server::Request>,
     resp: Option<lsp_server::Response>,
-    memory: &'a Memory,
+    snapshots: &'a Snapshots,
     client_capabilities: &'a lsp_types::ClientCapabilities,
 }
 
@@ -16,13 +16,13 @@ impl<'a> RequestRouter<'a> {
     /// Creates router for a request.
     pub fn new(
         req: lsp_server::Request,
-        memory: &'a Memory,
+        snapshots: &'a Snapshots,
         client_capabilities: &'a lsp_types::ClientCapabilities,
     ) -> Self {
         Self {
             req: Some(req),
             resp: None,
-            memory,
+            snapshots,
             client_capabilities,
         }
     }
@@ -32,7 +32,7 @@ impl<'a> RequestRouter<'a> {
         &mut self,
         handler: fn(
             R::Params,
-            &Memory,
+            &Snapshots,
             &lsp_types::ClientCapabilities,
         ) -> anyhow::Result<R::Result>,
     ) -> &mut Self
@@ -59,7 +59,7 @@ impl<'a> RequestRouter<'a> {
             // Handles and consumes the request if it matches the method.
             Ok((id, params)) => {
                 // Composes LSP response using method handler.
-                let resp = match handler(params, self.memory, self.client_capabilities) {
+                let resp = match handler(params, self.snapshots, self.client_capabilities) {
                     Ok(resp) => lsp_server::Response::new_ok(id, resp),
                     Err(error) => lsp_server::Response::new_err(
                         id,
@@ -108,16 +108,16 @@ impl<'a> RequestRouter<'a> {
 mod tests {
     use super::*;
     use crate::dispatch::handlers;
-    use crate::test_utils::document;
+    use crate::test_utils::init_snapshots;
     use test_utils::simple_client_config;
 
     #[test]
     fn request_router_works() {
-        // Initializes memory.
-        let mut memory = Memory::new();
+        // Creates client capabilities.
+        let client_capabilities = simple_client_config();
 
-        // Creates test document.
-        let uri = document("".to_string(), &mut memory);
+        // Initializes snapshots with test document.
+        let (snapshots, uri) = init_snapshots(String::from(""), &client_capabilities);
 
         // Creates LSP completion request.
         use lsp_types::request::Request;
@@ -137,12 +137,9 @@ mod tests {
             .unwrap(),
         };
 
-        // Creates client capabilities.
-        let client_capabilities = simple_client_config();
-
         // Processes completion request through a request router with a completion handler,
         // retrieves response and verifies that it's a success response.
-        let mut router = RequestRouter::new(req.clone(), &memory, &client_capabilities);
+        let mut router = RequestRouter::new(req.clone(), &snapshots, &client_capabilities);
         let result = router
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
@@ -156,7 +153,7 @@ mod tests {
 
         // Processes completion request through a request router with NO completion handler,
         // retrieves response and verifies that it's an "unknown or unsupported request" error response.
-        let mut router = RequestRouter::new(req.clone(), &memory, &client_capabilities);
+        let mut router = RequestRouter::new(req.clone(), &snapshots, &client_capabilities);
         let result = router
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
@@ -174,7 +171,7 @@ mod tests {
         let mut req_invalid = req;
         req_invalid.params = serde_json::Value::Null;
         let req_id_invalid = req_invalid.id.clone();
-        let mut router = RequestRouter::new(req_invalid, &memory, &client_capabilities);
+        let mut router = RequestRouter::new(req_invalid, &snapshots, &client_capabilities);
         let result = router
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)

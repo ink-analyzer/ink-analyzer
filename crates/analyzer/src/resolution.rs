@@ -100,10 +100,13 @@ pub fn is_external_crate_item(
             // Reverse `alias -> path` map to `path -> [alias]`.
             let mut item_path_to_aliases: HashMap<String, HashSet<String>> = HashMap::new();
             for (alias, item_path) in item_aliases {
-                if let Some(path_aliases) = item_path_to_aliases.get_mut(&item_path) {
-                    path_aliases.insert(alias);
-                } else {
-                    item_path_to_aliases.insert(item_path, HashSet::from([alias]));
+                match item_path_to_aliases.get_mut(&item_path) {
+                    Some(path_aliases) => {
+                        path_aliases.insert(alias);
+                    }
+                    None => {
+                        item_path_to_aliases.insert(item_path, HashSet::from([alias]));
+                    }
                 }
             }
 

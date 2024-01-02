@@ -2,7 +2,8 @@
 
 #![cfg(test)]
 
-use crate::memory::Memory;
+use crate::dispatch::{Snapshot, Snapshots};
+use crate::utils;
 
 /// Returns uri for a test document.
 pub fn document_uri() -> lsp_types::Url {
@@ -14,11 +15,22 @@ pub fn document_uri() -> lsp_types::Url {
     .unwrap()
 }
 
-/// Adds a test document to memory and returns its uri.
-pub fn document(content: String, memory: &mut Memory) -> lsp_types::Url {
+/// Initializes snapshots with a test document.
+pub fn init_snapshots(
+    content: String,
+    client_capabilities: &lsp_types::ClientCapabilities,
+) -> (Snapshots, lsp_types::Url) {
+    let mut snapshots = Snapshots::new();
     let uri = document_uri();
-    memory.insert(uri.to_string(), content, 0);
-    uri
+    snapshots.insert(
+        uri.to_string(),
+        Snapshot::new(
+            content,
+            utils::position_encoding(&client_capabilities),
+            Some(0),
+        ),
+    );
+    (snapshots, uri)
 }
 
 // Returns a fixture with text, and groups of ink! analyzer UTF-8 offsets and their equivalent UTF-8, UTF-16 and UTF-32 LSP positions.

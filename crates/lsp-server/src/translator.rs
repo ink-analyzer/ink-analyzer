@@ -11,3 +11,12 @@ pub struct PositionTranslationContext {
     pub encoding: PositionEncodingKind,
     pub line_index: LineIndex,
 }
+
+impl PositionTranslationContext {
+    pub(crate) fn new(content: &str, encoding: PositionEncodingKind) -> Self {
+        Self {
+            encoding,
+            line_index: LineIndex::new(content),
+        }
+    }
+}

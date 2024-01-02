@@ -5,10 +5,13 @@ mod handlers;
 mod routers;
 
 use crossbeam_channel::Sender;
+use ink_analyzer::Analysis;
 use lsp_types::request::Request;
+use std::collections::HashMap;
 
 use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
+use crate::translator::PositionTranslationContext;
 use crate::utils;
 use handlers::request::CreateProjectResponse;
 
@@ -56,6 +59,31 @@ struct Dispatcher<'a> {
     sender: &'a Sender<lsp_server::Message>,
     client_capabilities: lsp_types::ClientCapabilities,
     memory: Memory,
+    snapshots: Snapshots,
+}
+
+pub type Snapshots = HashMap<String, Snapshot>;
+
+/// An immutable analysis snapshot (and metadata).
+pub struct Snapshot {
+    analysis: Analysis,
+    context: PositionTranslationContext,
+    version: Option<i32>,
+}
+
+impl Snapshot {
+    /// Creates an Analysis snapshot.
+    pub fn new(
+        content: String,
+        encoding: lsp_types::PositionEncodingKind,
+        version: Option<i32>,
+    ) -> Self {
+        Self {
+            analysis: Analysis::new(&content),
+            context: PositionTranslationContext::new(&content, encoding),
+            version,
+        }
+    }
 }
 
 const INITIALIZE_PROJECT_ID_PREFIX: &str = "initialize-project::";
@@ -71,6 +99,7 @@ impl<'a> Dispatcher<'a> {
             sender,
             client_capabilities,
             memory: Memory::new(),
+            snapshots: Snapshots::new(),
         }
     }
 
@@ -78,7 +107,7 @@ impl<'a> Dispatcher<'a> {
     fn handle_request(&mut self, req: lsp_server::Request) -> anyhow::Result<()> {
         // Computes request response (if any).
         let is_execute_command = req.method == lsp_types::request::ExecuteCommand::METHOD;
-        let mut router = RequestRouter::new(req, &self.memory, &self.client_capabilities);
+        let mut router = RequestRouter::new(req, &self.snapshots, &self.client_capabilities);
         let result = router
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
@@ -220,9 +249,28 @@ impl<'a> Dispatcher<'a> {
         // Retrieves document changes (if any).
         if let Some(changes) = self.memory.take_changes() {
             for id in changes {
-                // Converts doc ids to LSP URIs.
-                if let Ok(uri) = lsp_types::Url::parse(&id) {
-                    // Publish diagnostics for each document with changes.
+                // Converts doc id to LSP URI.
+                let doc_uri = lsp_types::Url::parse(&id);
+
+                // Update analysis snapshot.
+                match self.memory.get(&id) {
+                    Some(doc) => {
+                        self.snapshots.insert(
+                            id,
+                            Snapshot::new(
+                                doc.content.clone(),
+                                utils::position_encoding(&self.client_capabilities),
+                                Some(doc.version),
+                            ),
+                        );
+                    }
+                    None => {
+                        self.snapshots.remove(&id);
+                    }
+                }
+
+                // Publish diagnostics for each document with changes.
+                if let Ok(uri) = doc_uri {
                     self.publish_diagnostics(&uri)?;
                 }
             }
@@ -237,7 +285,7 @@ impl<'a> Dispatcher<'a> {
         use lsp_types::notification::Notification;
         let notification = lsp_server::Notification::new(
             lsp_types::notification::PublishDiagnostics::METHOD.to_string(),
-            actions::publish_diagnostics(uri, &self.memory, &self.client_capabilities)?,
+            actions::publish_diagnostics(uri, &self.snapshots)?,
         );
         self.send(notification.into())?;
 
