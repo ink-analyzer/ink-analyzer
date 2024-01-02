@@ -393,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "ink-lsp-server"
-version = "0.2.18"
+version = "0.2.19"
 dependencies = [
  "anyhow",
  "clap",
