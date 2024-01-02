@@ -6,7 +6,6 @@ mod routers;
 
 use crossbeam_channel::Sender;
 use lsp_types::request::Request;
-use std::collections::HashSet;
 
 use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
@@ -220,35 +219,27 @@ impl<'a> Dispatcher<'a> {
     fn process_changes(&mut self) -> anyhow::Result<()> {
         // Retrieves document changes (if any).
         if let Some(changes) = self.memory.take_changes() {
-            // Converts doc ids to LSP URIs.
-            let changes = changes
-                .iter()
-                .filter_map(|id| lsp_types::Url::parse(id).ok())
-                .collect();
-
-            // publish diagnostics.
-            self.publish_diagnostics(&changes)?;
+            for id in changes {
+                // Converts doc ids to LSP URIs.
+                if let Ok(uri) = lsp_types::Url::parse(&id) {
+                    // Publish diagnostics for each document with changes.
+                    self.publish_diagnostics(&uri)?;
+                }
+            }
         }
 
         Ok(())
     }
 
     /// Sends diagnostics notifications to the client for changed (including new) documents.
-    fn publish_diagnostics(&mut self, changes: &HashSet<lsp_types::Url>) -> anyhow::Result<()> {
-        // Composes `PublishDiagnostics` notification parameters for documents with changes.
-        if let Some(params_list) =
-            actions::publish_diagnostics(changes, &self.memory, &self.client_capabilities)?
-        {
-            // Composes and sends `PublishDiagnostics` notifications for all documents with changes.
-            for params in params_list {
-                use lsp_types::notification::Notification;
-                let notification = lsp_server::Notification::new(
-                    lsp_types::notification::PublishDiagnostics::METHOD.to_string(),
-                    params,
-                );
-                self.send(notification.into())?;
-            }
-        }
+    fn publish_diagnostics(&mut self, uri: &lsp_types::Url) -> anyhow::Result<()> {
+        // Composes and sends `PublishDiagnostics` notification for document with changes.
+        use lsp_types::notification::Notification;
+        let notification = lsp_server::Notification::new(
+            lsp_types::notification::PublishDiagnostics::METHOD.to_string(),
+            actions::publish_diagnostics(uri, &self.memory, &self.client_capabilities)?,
+        );
+        self.send(notification.into())?;
 
         Ok(())
     }
