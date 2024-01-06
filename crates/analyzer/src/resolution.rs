@@ -42,7 +42,7 @@ pub fn external_trait_impl(
                     .trait_()
                     .as_ref()
                     .and_then(ink_analyzer_ir::path_from_type)
-                    .map_or(false, |path| {
+                    .is_some_and(|path| {
                         is_external_crate_item(
                             trait_name,
                             &path,
@@ -57,7 +57,7 @@ pub fn external_trait_impl(
                             .as_ref()
                             .and_then(ink_analyzer_ir::path_from_type),
                     )
-                    .map_or(false, |(impl_name, path)| is_path_target(impl_name, &path));
+                    .is_some_and(|(impl_name, path)| is_path_target(impl_name, &path));
 
                 is_trait_impl && (impl_name_option.is_none() || is_target_name)
             })
@@ -77,7 +77,7 @@ pub fn is_external_crate_item(
     // Matches exactly when strict is true, otherwise adds fully qualified variants
     // See `make_qualifiers_exhaustive` doc above.
     let path_has_qualifier = |qualifiers: &[&str], strict: bool| {
-        path.qualifier().map_or(false, |qualifier| {
+        path.qualifier().is_some_and(|qualifier| {
             let qualifier_str = ink_analyzer_ir::path_to_string(&qualifier);
             if strict {
                 qualifiers.contains(&qualifier_str.as_str())
@@ -89,7 +89,7 @@ pub fn is_external_crate_item(
 
     // Checks `name` or any of its aliases is the target of `path` (including scope considerations).
     (name_is_path_target && path_has_qualifier(qualifiers, false))
-        || ink_analyzer_ir::resolve_current_module(ref_node).map_or(false, |root_node| {
+        || ink_analyzer_ir::resolve_current_module(ref_node).is_some_and(|root_node| {
             let crates: Vec<_> = qualifiers
                 .iter()
                 .map(|qualifier| qualifier.split("::").next().unwrap_or(qualifier))
@@ -155,7 +155,7 @@ pub fn is_external_crate_item(
                                 "{alias}{}{}",
                                 if post_anchor_qualifier
                                     .as_ref()
-                                    .map_or(false, |it| !it.is_empty())
+                                    .is_some_and(|it| !it.is_empty())
                                 {
                                     "::"
                                 } else {
@@ -206,7 +206,7 @@ pub fn is_external_crate_item(
                             .ty()
                             .as_ref()
                             .and_then(ink_analyzer_ir::path_from_type)
-                            .map_or(false, |path| {
+                            .is_some_and(|path| {
                                 is_external_crate_item(name, &path, qualifiers, type_alias.syntax())
                             })
                     },
@@ -236,7 +236,7 @@ pub fn candidate_adt_by_name_or_external_trait_impl(
                 .find_map(|node| {
                     ast::Adt::cast(node).filter(|item| {
                         item.name()
-                            .map_or(false, |item_name| item_name.text() == target_name.text())
+                            .is_some_and(|item_name| item_name.text() == target_name.text())
                     })
                 })
         })
@@ -278,7 +278,7 @@ fn is_path_target(name: &str, path: &ast::Path) -> bool {
     path.segment()
         .as_ref()
         .and_then(ast::PathSegment::name_ref)
-        .map_or(false, |name_ref| name_ref.to_string() == name)
+        .is_some_and(|name_ref| name_ref.to_string() == name)
 }
 
 // Add fully qualified variants to paths (e.g. [`ink`] becomes [`ink`, `::ink`]).
@@ -602,7 +602,7 @@ mod tests {
                 .find_map(|node| {
                     ast::Module::cast(node).filter(|item| {
                         item.name()
-                            .map_or(false, |name| name.to_string() == ref_name.to_string())
+                            .is_some_and(|name| name.to_string() == ref_name.to_string())
                     })
                 });
 

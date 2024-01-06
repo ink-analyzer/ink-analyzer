@@ -101,10 +101,10 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                 // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
                 let mut ink_macro_suggestions = Vec::new();
                 let ast_item_option = ink_analyzer_ir::parent_ast_item(attr.syntax());
-                let has_other_ink_siblings = ast_item_option.as_ref().map_or(false, |item| {
+                let has_other_ink_siblings = ast_item_option.as_ref().is_some_and(|item| {
                     ink_analyzer_ir::ink_attrs(item.syntax()).any(|it| it.syntax() != attr.syntax())
                 });
-                let has_other_ink_macro_siblings = ast_item_option.as_ref().map_or(false, |item| {
+                let has_other_ink_macro_siblings = ast_item_option.as_ref().is_some_and(|item| {
                     ink_analyzer_ir::ink_attrs(item.syntax()).any(|it| {
                         it.syntax() != attr.syntax()
                             && matches!(it.kind(), InkAttributeKind::Macro(_))
@@ -225,7 +225,7 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
                         ink_path_suggestions
                     {
                         if focused_token_prefix
-                            .map_or(false, |prefix| ink_macro_crate_name.starts_with(prefix))
+                            .is_some_and(|prefix| ink_macro_crate_name.starts_with(prefix))
                         {
                             results.push(Completion {
                                 label: ink_macro_crate_name.to_string(),

@@ -126,7 +126,7 @@ where
                 .find_map(|node| {
                     T::cast(node).filter(|item| {
                         item.name()
-                            .map_or(false, |item_name| item_name.text() == target_name.text())
+                            .is_some_and(|item_name| item_name.text() == target_name.text())
                     })
                 })
         };
@@ -172,7 +172,7 @@ pub fn resolve_qualifier(
                 ast::Module::can_cast(it.kind())
                     && ast::Module::cast(it.clone())
                         .and_then(|module| module.name())
-                        .map_or(false, |module_name| module_name.text() == name.text())
+                        .is_some_and(|module_name| module_name.text() == name.text())
             })
         };
         let resolve_from_use_scope = || {
@@ -907,7 +907,7 @@ mod tests {
                 .find_map(|node| {
                     ast::Module::cast(node).filter(|item| {
                         item.name()
-                            .map_or(false, |name| name.to_string() == ref_name.to_string())
+                            .is_some_and(|name| name.to_string() == ref_name.to_string())
                     })
                 });
 

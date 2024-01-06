@@ -88,13 +88,12 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         // but only the token right after the whitespace is not a closing curly break
         // (because it would otherwise break the indenting of the closing curly bracket).
         if let Some(token_after) = token_after_option {
-            let token_before_is_whitespace =
-                token_before_option.as_ref().map_or(false, |token_before| {
-                    token_before.kind() == SyntaxKind::WHITESPACE
-                });
+            let token_before_is_whitespace = token_before_option
+                .as_ref()
+                .is_some_and(|token_before| token_before.kind() == SyntaxKind::WHITESPACE);
             let is_at_the_end_block = token_after
                 .next_token()
-                .map_or(false, |it| it.kind() == SyntaxKind::R_CURLY);
+                .is_some_and(|it| it.kind() == SyntaxKind::R_CURLY);
             if token_before_is_whitespace
                 && token_after.kind() == SyntaxKind::WHITESPACE
                 && !is_at_the_end_block
@@ -114,7 +113,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                         // Adds formatting suffix only if the edit is not surrounded by whitespace
                         // (treats end of the file like whitespace)
                         // and its preceding whitespace contains a new line.
-                        (token_after_option.as_ref().map_or(false, |token_after| {
+                        (token_after_option.as_ref().is_some_and(|token_after| {
                             token_after.kind() != SyntaxKind::WHITESPACE
                         }) && token_before.text().contains('\n'))
                         .then_some(format!("\n{}", utils::end_indenting(token_before.text()),)),

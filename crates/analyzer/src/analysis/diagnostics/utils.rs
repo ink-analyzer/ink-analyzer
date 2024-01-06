@@ -1519,7 +1519,7 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
             // Then sort in order of attribute kind ranking.
             .sorted()
             .next()
-            .map_or(false, |primary_attr| {
+            .is_some_and(|primary_attr| {
                 primary_attr.syntax().text_range() == attr.syntax().text_range()
             });
         if is_primary_attribute && !is_valid_quasi_direct_descendant(&attr) {
@@ -1634,7 +1634,7 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
     // Standalone derive attribute (if any).
     let standalone_derive_attr = adt.attrs().find(|attr| {
         attr.path()
-            .map_or(false, |path| path.to_string().trim() == "derive")
+            .is_some_and(|path| path.to_string().trim() == "derive")
     });
 
     // Utilities for extracting derive attribute meta items.
@@ -1666,7 +1666,7 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
     let conditional_derived_items = adt.attrs().find_map(|attr| {
         if attr
             .path()
-            .map_or(false, |path| path.to_string().trim() == "cfg_attr")
+            .is_some_and(|path| path.to_string().trim() == "cfg_attr")
         {
             attr.token_tree().map(|token_tree| {
                 token_tree
@@ -1681,7 +1681,7 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
                                         SyntaxToken::prev_token,
                                     )
                                 })
-                                .map_or(false, |token| token.text() == "derive")
+                                .is_some_and(|token| token.text() == "derive")
                         };
                         ast::TokenTree::can_cast(node.kind()) && is_after_derive()
                     })
@@ -1718,7 +1718,7 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
         .into_iter()
         .filter_map(|(trait_name, qualifiers, trait_path)| {
             // Finds derived trait implementation for the custom type (if any).
-            let is_derived = derived_items.as_ref().map_or(false, |item_paths| {
+            let is_derived = derived_items.as_ref().is_some_and(|item_paths| {
                 item_paths.iter().any(|path| {
                     resolution::is_external_crate_item(trait_name, path, qualifiers, adt.syntax())
                 })

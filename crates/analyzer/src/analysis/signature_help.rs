@@ -43,7 +43,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
             // Opening parenthesis is required.
             let is_after_left_paren = token_tree
                 .l_paren_token()
-                .map_or(false, |l_paren| l_paren.text_range().end() <= offset);
+                .is_some_and(|l_paren| l_paren.text_range().end() <= offset);
             // Closing parenthesis is not required.
             let is_before_right_paren = token_tree
                 .r_paren_token()
@@ -262,11 +262,11 @@ fn add_signature(
         if active_param.is_none() {
             let idx = params.len() - 1;
 
-            if focused_arg.map_or(false, |arg| arg.kind() == arg_kind) {
+            if focused_arg.is_some_and(|arg| arg.kind() == arg_kind) {
                 active_param = Some(idx);
             } else if active_param_by_prefix.is_none()
-                && focused_arg.map_or(false, |arg| {
-                    arg.name().map_or(false, |arg_name| {
+                && focused_arg.is_some_and(|arg| {
+                    arg.name().is_some_and(|arg_name| {
                         let name = arg_name.to_string();
                         !name.is_empty() && arg_kind.to_string().starts_with(&name)
                     })

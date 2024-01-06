@@ -58,7 +58,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
     // Determines if the function has a return type.
     let has_return_type = fn_item
         .ret_type()
-        .map_or(false, |ret_type| ret_type.ty().is_some());
+        .is_some_and(|ret_type| ret_type.ty().is_some());
 
     // Gets the declaration range for the item.
     let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))

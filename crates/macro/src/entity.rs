@@ -188,7 +188,7 @@ pub fn impl_entity(args: TokenStream, item: TokenStream) -> Result<TokenStream, 
                     if #ir_crate_path::ast::Attr::can_cast(node.kind()) {
                         #ir_crate_path::ast::Attr::cast(node.clone())
                             .and_then(#ir_crate_path::InkAttribute::cast)
-                            .map_or(false, |attr| *attr.kind() == #attr_kind)
+                            .is_some_and(|attr| *attr.kind() == #attr_kind)
                     } else {
                         #ir_crate_path::ink_attrs(node).any(|attr| *attr.kind() == #attr_kind)
                     }

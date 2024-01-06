@@ -36,9 +36,7 @@ impl InkAttribute {
     pub fn can_cast(attr: &ast::Attr) -> bool {
         attr.path()
             .and_then(|path| path.segments().next())
-            .map_or(false, |segment| {
-                matches!(segment.to_string().as_str(), "ink" | "ink_e2e")
-            })
+            .is_some_and(|segment| matches!(segment.to_string().as_str(), "ink" | "ink_e2e"))
     }
 
     /// Converts an attribute into an ink! attribute.

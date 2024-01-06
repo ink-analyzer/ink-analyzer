@@ -221,7 +221,7 @@ fn is_possible_callable_ancestor(attr: &InkAttribute) -> bool {
         || ((*attr.kind() == InkAttributeKind::Arg(InkArgKind::Namespace)
             || attr.kind().is_unknown())
             && ast_ext::parent_ast_item(attr.syntax())
-                .map_or(false, |item| matches!(item, ast::Item::Impl(_))))
+                .is_some_and(|item| matches!(item, ast::Item::Impl(_))))
 }
 
 /// Returns the syntax node's descendant ink! entities of IR type `T` that either don't have any

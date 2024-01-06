@@ -91,7 +91,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                     None => {
                         let is_in_file_root = focused_elem
                             .parent()
-                            .map_or(false, |it| it.kind() == SyntaxKind::SOURCE_FILE);
+                            .is_some_and(|it| it.kind() == SyntaxKind::SOURCE_FILE);
                         if is_in_file_root {
                             // Suggests root-level ink! entities based on the context.
                             root_ink_entity_actions(results, file, focused_elem_insert_offset());
@@ -495,10 +495,10 @@ fn flatten_attrs(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRang
 /// for an item that can be annotated with ink! attributes or can have ink! attribute descendants.
 fn is_focused_on_item_declaration(item: &ast::Item, range: TextRange) -> bool {
     // Returns false for "unsupported" item types (see [`utils::ast_item_declaration_range`] doc and implementation).
-    utils::ast_item_declaration_range(item).map_or(false, |declaration_range| {
-        declaration_range.contains_range(range)
-    }) || utils::ast_item_terminal_token(item)
-        .map_or(false, |token| token.text_range().contains_range(range))
+    utils::ast_item_declaration_range(item)
+        .is_some_and(|declaration_range| declaration_range.contains_range(range))
+        || utils::ast_item_terminal_token(item)
+            .is_some_and(|token| token.text_range().contains_range(range))
 }
 
 /// Determines if the selection range is in an AST item's body (i.e inside the AST item's item list or body)
@@ -511,7 +511,7 @@ fn is_focused_on_item_body(item: &ast::Item, range: TextRange) -> bool {
                 .as_ref()
                 .map(SyntaxToken::text_range),
         )
-        .map_or(false, |(declaration_range, terminal_range)| {
+        .is_some_and(|(declaration_range, terminal_range)| {
             // Verifies that
             declaration_range.end() < terminal_range.start()
                 && TextRange::new(declaration_range.end(), terminal_range.start())

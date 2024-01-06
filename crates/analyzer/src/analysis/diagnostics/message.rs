@@ -58,7 +58,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
         .param_list()
         .as_ref()
         .and_then(ast::ParamList::self_param)
-        .map_or(false, |self_param| self_param.amp_token().is_some());
+        .is_some_and(|self_param| self_param.amp_token().is_some());
 
     // Gets the declaration range for the item.
     let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
@@ -76,7 +76,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
             .map(|insert_offset| {
                 let has_more_params = fn_item
                     .param_list()
-                    .map_or(false, |param_list| param_list.params().next().is_some());
+                    .is_some_and(|param_list| param_list.params().next().is_some());
                 let insert_suffix = if has_more_params { ", " } else { "" };
                 vec![
                     Action {

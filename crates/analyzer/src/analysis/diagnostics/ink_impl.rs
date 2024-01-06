@@ -306,9 +306,9 @@ fn ensure_parent_impl<T>(ink_impl: &InkImpl, item: &T, ink_scope_name: &str) -> 
 where
     T: HasInkImplParent + IsInkFn,
 {
-    let is_parent = item.parent_impl_item().map_or(false, |parent_impl_item| {
-        parent_impl_item.syntax() == ink_impl.syntax()
-    });
+    let is_parent = item
+        .parent_impl_item()
+        .is_some_and(|parent_impl_item| parent_impl_item.syntax() == ink_impl.syntax());
 
     (!is_parent).then_some(Diagnostic {
         message: format!(
@@ -509,7 +509,7 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
             message.fn_item().and_then(|fn_item| {
                 fn_item
                     .name()
-                    .map_or(false, |name| {
+                    .is_some_and(|name| {
                         let name_text = name.to_string();
                         !name_text.is_empty() && !seen_messages.contains(&name_text)
                     })

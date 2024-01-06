@@ -527,8 +527,8 @@ pub fn remove_invalid_ink_macro_suggestions_for_parent_cfg_scope(
 /// Returns true if the attribute is a conditional compilation flag for test builds.
 pub fn is_cfg_test_attr(attr: &ast::Attr) -> bool {
     attr.path()
-        .map_or(false, |path| path.to_string().trim() == "cfg")
-        && attr.token_tree().map_or(false, |token_tree| {
+        .is_some_and(|path| path.to_string().trim() == "cfg")
+        && attr.token_tree().is_some_and(|token_tree| {
             static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[(,]\s*test\s*[,)]").unwrap());
             RE.is_match(&token_tree.syntax().to_string())
         })
@@ -538,7 +538,7 @@ pub fn is_cfg_test_attr(attr: &ast::Attr) -> bool {
 /// with an additional `e2e-tests` feature condition.
 pub fn is_cfg_e2e_tests_attr(attr: &ast::Attr) -> bool {
     is_cfg_test_attr(attr)
-        && attr.token_tree().map_or(false, |token_tree| {
+        && attr.token_tree().is_some_and(|token_tree| {
             static RE: Lazy<Regex> =
                 Lazy::new(|| Regex::new(r#"[(,]\s*feature\s*=\s*"e2e-tests"\s*[,)]"#).unwrap());
             RE.is_match(&token_tree.syntax().to_string())
@@ -672,7 +672,7 @@ pub fn ink_arg_insert_offset_and_affixes(
     // as those get inserted at the beginning of the argument list while everything else gets inserted at the end.
     let is_primary = arg_kind_option
         .as_ref()
-        .map_or(false, InkArgKind::is_entity_type);
+        .is_some_and(InkArgKind::is_entity_type);
 
     // Only computes insert context for closed attributes because
     // unclosed attributes are too tricky for useful contextual edits.

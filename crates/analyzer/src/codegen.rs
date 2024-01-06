@@ -53,7 +53,7 @@ pub fn new_project(name: String) -> Result<Project, Error> {
 
     // Validates that name is a valid ink! contract name (i.e. contract names must additionally begin with an alphabetic character).
     // Ref: <https://github.com/paritytech/cargo-contract/blob/v3.2.0/crates/build/src/new.rs#L34-L52>.
-    if !name.chars().next().map_or(false, char::is_alphabetic) {
+    if !name.chars().next().is_some_and(char::is_alphabetic) {
         return Err(Error::ContractName);
     }
 

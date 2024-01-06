@@ -106,14 +106,14 @@ pub fn request_id_as_str(id: RequestId) -> Option<String> {
 
 /// Returns true if the LSP client advertises capabilities needed to create new projects via workspace edit, or false otherwise.
 pub fn can_create_project_via_workspace_edit(client_capabilities: &ClientCapabilities) -> bool {
-    client_capabilities.workspace.as_ref().map_or(false, |it| {
+    client_capabilities.workspace.as_ref().is_some_and(|it| {
         // Checks support for workspace/applyEdit requests.
         it.apply_edit.unwrap_or(false)
-            && it.workspace_edit.as_ref().map_or(false, |it| {
+            && it.workspace_edit.as_ref().is_some_and(|it| {
                 // Checks support for versioned document changes.
                 it.document_changes.unwrap_or(false)
                     // Checks support for create file operation.
-                    && it.resource_operations.as_ref().map_or(false, |it| {
+                    && it.resource_operations.as_ref().is_some_and(|it| {
                         it.contains(&lsp_types::ResourceOperationKind::Create)
                     })
             })
