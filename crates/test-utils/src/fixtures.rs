@@ -3159,6 +3159,22 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
                         end_pat: Some("#[ink_e2e::test(environment"),
                     })),
                 },
+                TestCase {
+                    modifications: Some(vec![TestCaseModification {
+                        start_pat: Some("<-#[ink_e2e::test]"),
+                        end_pat: Some("#[ink_e2e::test]"),
+                        replacement: r#"#[ink_e2e::test(keep_attr="foo,bar")]"#,
+                    }]),
+                    params: Some(TestCaseParams::Hover(TestParamsRangeOnly {
+                        start_pat: Some("#[ink_e2e::test("),
+                        end_pat: Some("#[ink_e2e::test(keep_attr"),
+                    })),
+                    results: TestCaseResults::Hover(Some(TestResultTextRange {
+                        text: "`#[ink_e2e::test(keep_attr = N: string)]`",
+                        start_pat: Some("#[ink_e2e::test("),
+                        end_pat: Some("#[ink_e2e::test(keep_attr"),
+                    })),
+                },
             ],
         },
         // Trait definitions.

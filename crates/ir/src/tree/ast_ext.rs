@@ -245,7 +245,7 @@ pub fn resolve_qualifier(
     resolution_root_option
 }
 
-/// Returns all use-paths and aliases in the current scope as flattened as simple paths.
+/// Returns all use paths and aliases in the current scope as flattened simple paths.
 pub fn simple_use_paths_and_aliases_in_scope(
     ref_node: &SyntaxNode,
 ) -> (HashSet<String>, HashMap<String, String>) {
