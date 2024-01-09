@@ -4,7 +4,8 @@ use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils::{PartialMatchStr, TestCaseResults};
 
 // The high-level methodology for diagnostics test cases is:
-// - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+// - Read the source code of an ink! entity file in the `test-fixtures` directory
+//   (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
 // - (Optionally) Make modifications to the source code at specific offsets/text ranges to create a specific test case.
 // - Compute diagnostics for the modified source code.
 // - Verify that the actual results match the expected results.

@@ -4,7 +4,8 @@ use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for signature help test cases is:
-// - Read the source code of an ink! entity file in the `test-fixtures` directory (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+// - Read the source code of an ink! entity file in the `test-fixtures` directory
+//   (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
 // - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - Compute signature help for the modified source code and a specific offset position.
 // - Verify that the actual results match the expected results.
