@@ -144,7 +144,11 @@ fn ensure_no_self_error_code_usage(
                     label: format!("Replace `{self_error_code_path}` with `{error_code_path}`"),
                     kind: ActionKind::QuickFix,
                     range,
-                    edits: vec![TextEdit::replace(error_code_path.clone(), range)],
+                    edits: vec![TextEdit::replace_with_snippet(
+                        error_code_path.clone(),
+                        range,
+                        Some(format!("${{1:{error_code_path}}}")),
+                    )],
                 }]
             }),
         });
