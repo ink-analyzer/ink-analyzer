@@ -213,8 +213,8 @@ pub enum TestCaseResults {
     // Expected number of diagnostic errors/warnings.
     Diagnostic {
         n: usize,
-        // Vec<Vec<Vec because we iterate over diagnostics > quickfixes > text edits.
-        quickfixes: Vec<Vec<Vec<TestResultTextRange>>>,
+        // Iterates over diagnostics > quickfixes > text edits.
+        quickfixes: Vec<Vec<TestResultAction>>,
     },
     Hover(Option<TestResultTextRange>),
     InlayHints(Vec<TestResultTextOffsetRange>),

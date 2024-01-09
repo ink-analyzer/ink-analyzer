@@ -43,168 +43,228 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                             // storage actions.
                             vec![
                                 // Remove attribute text edits.
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(storage)]"),
-                                        end_pat: Some("<-#[derive(Default)]"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(storage)]"),
+                                            end_pat: Some("<-#[derive(Default)]"),
+                                        }
+                                    ]
+                                },
                                 // Remove item text edits.
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// A simple ERC-20 contract."),
-                                        end_pat: Some("<-/// Event emitted when"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// A simple ERC-20 contract."),
+                                            end_pat: Some("<-/// Event emitted when"),
+                                        }
+                                    ]
+                                },
                             ],
                             // event actions.
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(event)]"),
-                                        end_pat: Some("<-pub struct Transfer"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Event emitted when a token transfer occurs."),
-                                        end_pat: Some("<-/// Event emitted when an approval"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(event)]"),
+                                            end_pat: Some("<-pub struct Transfer"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Event emitted when a token transfer occurs."),
+                                            end_pat: Some("<-/// Event emitted when an approval"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(event)]\n    pub struct Approval"),
-                                        end_pat: Some("<-pub struct Approval"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Event emitted when an approval"),
-                                        end_pat: Some("<-/// The ERC-20 error types."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(event)]\n    pub struct Approval"),
+                                            end_pat: Some("<-pub struct Approval"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Event emitted when an approval"),
+                                            end_pat: Some("<-/// The ERC-20 error types."),
+                                        }
+                                    ]
+                                },
                             ],
                             // constructor actions.
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(constructor)]"),
-                                        end_pat: Some("<-pub fn new(total_supply: Balance)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Creates a new ERC-20 contract"),
-                                        end_pat: Some("<-/// Returns the total token supply."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(constructor)]"),
+                                            end_pat: Some("<-pub fn new(total_supply: Balance)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Creates a new ERC-20 contract"),
+                                            end_pat: Some("<-/// Returns the total token supply."),
+                                        }
+                                    ]
+                                },
                             ],
                             // message actions.
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]"),
-                                        end_pat: Some("<-pub fn total_supply(&self)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the total token supply."),
-                                        end_pat: Some("<-/// Returns the account balance"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]"),
+                                            end_pat: Some("<-pub fn total_supply(&self)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the total token supply."),
+                                            end_pat: Some("<-/// Returns the account balance"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n        pub fn balance_of(&self, owner: AccountId)"),
-                                        end_pat: Some("<-pub fn balance_of(&self, owner: AccountId)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the account balance"),
-                                        end_pat: Some("self.balance_of_impl(&owner)\n        }\n\n        "),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n        pub fn balance_of(&self, owner: AccountId)"),
+                                            end_pat: Some("<-pub fn balance_of(&self, owner: AccountId)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the account balance"),
+                                            end_pat: Some("self.balance_of_impl(&owner)\n        }\n\n        "),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n        pub fn allowance(&self, owner: AccountId, spender: AccountId)"),
-                                        end_pat: Some("<-pub fn allowance(&self, owner: AccountId, spender: AccountId)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the amount which `spender`"),
-                                        end_pat: Some("self.allowance_impl(&owner, &spender)\n        }\n\n        "),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n        pub fn allowance(&self, owner: AccountId, spender: AccountId)"),
+                                            end_pat: Some("<-pub fn allowance(&self, owner: AccountId, spender: AccountId)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the amount which `spender`"),
+                                            end_pat: Some("self.allowance_impl(&owner, &spender)\n        }\n\n        "),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n        pub fn transfer(&mut self, to: AccountId, value: Balance)"),
-                                        end_pat: Some("<-pub fn transfer(&mut self, to: AccountId, value: Balance)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Transfers `value` amount of tokens"),
-                                        end_pat: Some("<-/// Allows `spender` to withdraw from"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n        pub fn transfer(&mut self, to: AccountId, value: Balance)"),
+                                            end_pat: Some("<-pub fn transfer(&mut self, to: AccountId, value: Balance)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Transfers `value` amount of tokens"),
+                                            end_pat: Some("<-/// Allows `spender` to withdraw from"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n        pub fn approve(&mut self, spender: AccountId, value: Balance)"),
-                                        end_pat: Some("<-pub fn approve(&mut self, spender: AccountId, value: Balance)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Allows `spender` to withdraw from"),
-                                        end_pat: Some("<-/// Transfers `value` tokens on the behalf of"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n        pub fn approve(&mut self, spender: AccountId, value: Balance)"),
+                                            end_pat: Some("<-pub fn approve(&mut self, spender: AccountId, value: Balance)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Allows `spender` to withdraw from"),
+                                            end_pat: Some("<-/// Transfers `value` tokens on the behalf of"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n        pub fn transfer_from("),
-                                        end_pat: Some("<-pub fn transfer_from("),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Transfers `value` tokens on the behalf of"),
-                                        end_pat: Some("<-/// Transfers `value` amount of tokens from->"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n        pub fn transfer_from("),
+                                            end_pat: Some("<-pub fn transfer_from("),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Transfers `value` tokens on the behalf of"),
+                                            end_pat: Some("<-/// Transfers `value` amount of tokens from->"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -221,13 +281,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(storage)]",
-                                        start_pat: Some("use ink::storage::Mapping;"),
-                                        end_pat: Some("use ink::storage::Mapping;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(storage)]",
+                                            start_pat: Some("use ink::storage::Mapping;"),
+                                            end_pat: Some("use ink::storage::Mapping;"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -244,13 +307,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(constructor)]",
-                                        start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                        end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(constructor)]",
+                                            start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                            end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -271,13 +337,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                        end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                            end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -307,84 +376,114 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 5,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(storage)]"),
-                                        end_pat: Some("<-pub struct Flipper"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(storage)]"),
-                                        end_pat: Some("<-impl Flipper {"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(storage)]"),
+                                            end_pat: Some("<-pub struct Flipper"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(storage)]"),
+                                            end_pat: Some("<-impl Flipper {"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(constructor)]"),
-                                        end_pat: Some("<-pub fn new(init_value: bool)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Creates a new flipper smart contract initialized with the given value."),
-                                        end_pat: Some("<-/// Creates a new flipper smart contract initialized to `false`."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(constructor)]"),
+                                            end_pat: Some("<-pub fn new(init_value: bool)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Creates a new flipper smart contract initialized with the given value."),
+                                            end_pat: Some("<-/// Creates a new flipper smart contract initialized to `false`."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(constructor)]\n        pub fn new_default()"),
-                                        end_pat: Some("<-pub fn new_default()"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Creates a new flipper smart contract initialized to `false`."),
-                                        end_pat: Some("<-/// Flips the current value of the Flipper's boolean."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(constructor)]\n        pub fn new_default()"),
+                                            end_pat: Some("<-pub fn new_default()"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Creates a new flipper smart contract initialized to `false`."),
+                                            end_pat: Some("<-/// Flips the current value of the Flipper's boolean."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]"),
-                                        end_pat: Some("<-pub fn flip(&mut self)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Flips the current value of the Flipper's boolean."),
-                                        end_pat: Some("<-/// Returns the current value of the Flipper's boolean."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]"),
+                                            end_pat: Some("<-pub fn flip(&mut self)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Flips the current value of the Flipper's boolean."),
+                                            end_pat: Some("<-/// Returns the current value of the Flipper's boolean."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n        pub fn get(&self)"),
-                                        end_pat: Some("<-pub fn get(&self)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the current value of the Flipper's boolean."),
-                                        end_pat: Some("self.value\n        }"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n        pub fn get(&self)"),
+                                            end_pat: Some("<-pub fn get(&self)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the current value of the Flipper's boolean."),
+                                            end_pat: Some("self.value\n        }"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -401,13 +500,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(storage)]",
-                                        start_pat: Some("pub mod flipper {"),
-                                        end_pat: Some("pub mod flipper {"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(storage)]",
+                                            start_pat: Some("pub mod flipper {"),
+                                            end_pat: Some("pub mod flipper {"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -431,13 +533,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(constructor)]",
-                                        start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                        end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(constructor)]",
+                                            start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                            end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -461,13 +566,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                        end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                            end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -497,132 +605,180 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 8,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(event)]"),
-                                        end_pat: Some("<-pub struct AuctionEchoed {"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Event emitted when an auction being echoed."),
-                                        end_pat: Some("<-/// Storage of the contract."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(event)]"),
+                                            end_pat: Some("<-pub struct AuctionEchoed {"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Event emitted when an auction being echoed."),
+                                            end_pat: Some("<-/// Storage of the contract."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(storage)]"),
-                                        end_pat: Some("<-#[derive(Default)]"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Storage of the contract."),
-                                        end_pat: Some("<-impl Mother {"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(storage)]"),
+                                            end_pat: Some("<-#[derive(Default)]"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Storage of the contract."),
+                                            end_pat: Some("<-impl Mother {"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(constructor)]"),
-                                        end_pat: Some("<-pub fn new(auction: Auction)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(constructor)]"),
-                                        end_pat: Some("<-#[ink(constructor)]\n        pub fn new_default()"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(constructor)]"),
+                                            end_pat: Some("<-pub fn new(auction: Auction)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(constructor)]"),
+                                            end_pat: Some("<-#[ink(constructor)]\n        pub fn new_default()"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(constructor)]\n        pub fn new_default()"),
-                                        end_pat: Some("<-pub fn new_default()"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(constructor)]\n        pub fn new_default()"),
-                                        end_pat: Some("<-/// Demonstrates the ability to fail a constructor safely."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(constructor)]\n        pub fn new_default()"),
+                                            end_pat: Some("<-pub fn new_default()"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(constructor)]\n        pub fn new_default()"),
+                                            end_pat: Some("<-/// Demonstrates the ability to fail a constructor safely."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(constructor)]\n        pub fn failed_new(fail: bool)"),
-                                        end_pat: Some("<-pub fn failed_new(fail: bool)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Demonstrates the ability to fail a constructor safely."),
-                                        end_pat: Some("<-/// Takes an auction data struct as input and returns it back."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(constructor)]\n        pub fn failed_new(fail: bool)"),
+                                            end_pat: Some("<-pub fn failed_new(fail: bool)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Demonstrates the ability to fail a constructor safely."),
+                                            end_pat: Some("<-/// Takes an auction data struct as input and returns it back."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]"),
-                                        end_pat: Some("<-pub fn echo_auction(&mut self, auction: Auction)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Takes an auction data struct as input and returns it back."),
-                                        end_pat: Some("<-/// Fails contract execution in the required way."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]"),
+                                            end_pat: Some("<-pub fn echo_auction(&mut self, auction: Auction)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Takes an auction data struct as input and returns it back."),
+                                            end_pat: Some("<-/// Fails contract execution in the required way."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n        pub fn revert_or_trap(&mut self, fail: Option<Failure>)"),
-                                        end_pat: Some("<-pub fn revert_or_trap(&mut self, fail: Option<Failure>)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Fails contract execution in the required way."),
-                                        end_pat: Some("<-/// Prints the specified string into node's debug log."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n        pub fn revert_or_trap(&mut self, fail: Option<Failure>)"),
+                                            end_pat: Some("<-pub fn revert_or_trap(&mut self, fail: Option<Failure>)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Fails contract execution in the required way."),
+                                            end_pat: Some("<-/// Prints the specified string into node's debug log."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n        pub fn debug_log(&mut self, _message: String)"),
-                                        end_pat: Some("<-pub fn debug_log(&mut self, _message: String)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Prints the specified string into node's debug log."),
-                                        end_pat: Some("ink::env::debug_println!(\"debug_log: {}\", _message);\n        }"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n        pub fn debug_log(&mut self, _message: String)"),
+                                            end_pat: Some("<-pub fn debug_log(&mut self, _message: String)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Prints the specified string into node's debug log."),
+                                            end_pat: Some("ink::env::debug_println!(\"debug_log: {}\", _message);\n        }"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -639,13 +795,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(storage)]",
-                                        start_pat: Some("use ink::storage::Mapping;"),
-                                        end_pat: Some("use ink::storage::Mapping;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(storage)]",
+                                            start_pat: Some("use ink::storage::Mapping;"),
+                                            end_pat: Some("use ink::storage::Mapping;"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -674,13 +833,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(constructor)]",
-                                        start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                        end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(constructor)]",
+                                            start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                            end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -709,13 +871,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                        end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                            end_pat: Some("<-\n    }\n\n    #[cfg(test)]"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -746,180 +911,246 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 11,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x3d26)]"),
-                                        end_pat: Some("<-fn token_name(asset_id: u32) -> Result<Vec<u8>>;"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x3d26)]"),
-                                        end_pat: Some("<-#[ink(extension = 0x3420)]"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x3d26)]"),
+                                            end_pat: Some("<-fn token_name(asset_id: u32) -> Result<Vec<u8>>;"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x3d26)]"),
+                                            end_pat: Some("<-#[ink(extension = 0x3420)]"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x3420)]"),
-                                        end_pat: Some("<-fn token_symbol(asset_id: u32) -> Result<Vec<u8>>;"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x3420)]"),
-                                        end_pat: Some("<-#[ink(extension = 0x7271)]"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x3420)]"),
+                                            end_pat: Some("<-fn token_symbol(asset_id: u32) -> Result<Vec<u8>>;"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x3420)]"),
+                                            end_pat: Some("<-#[ink(extension = 0x7271)]"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x7271)]"),
-                                        end_pat: Some("<-fn token_decimals(asset_id: u32) -> Result<u8>;"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x7271)]"),
-                                        end_pat: Some("<-// PSP22 interface queries"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x7271)]"),
+                                            end_pat: Some("<-fn token_decimals(asset_id: u32) -> Result<u8>;"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x7271)]"),
+                                            end_pat: Some("<-// PSP22 interface queries"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x162d)]"),
-                                        end_pat: Some("<-fn total_supply(asset_id: u32) -> Result<DefaultBalance>;"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x162d)]"),
-                                        end_pat: Some("<-#[ink(extension = 0x6568)]"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x162d)]"),
+                                            end_pat: Some("<-fn total_supply(asset_id: u32) -> Result<DefaultBalance>;"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x162d)]"),
+                                            end_pat: Some("<-#[ink(extension = 0x6568)]"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x6568)]"),
-                                        end_pat: Some("<-fn balance_of(asset_id: u32, owner: DefaultAccountId) -> Result<DefaultBalance>;"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x6568)]"),
-                                        end_pat: Some("<-#[ink(extension = 0x4d47)]"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x6568)]"),
+                                            end_pat: Some("<-fn balance_of(asset_id: u32, owner: DefaultAccountId) -> Result<DefaultBalance>;"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x6568)]"),
+                                            end_pat: Some("<-#[ink(extension = 0x4d47)]"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x4d47)]"),
-                                        end_pat: Some("<-fn allowance("),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x4d47)]"),
-                                        end_pat: Some("<-// PSP22 transfer"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x4d47)]"),
+                                            end_pat: Some("<-fn allowance("),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x4d47)]"),
+                                            end_pat: Some("<-// PSP22 transfer"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0xdb20)]"),
-                                        end_pat: Some("<-fn transfer(asset_id: u32, to: DefaultAccountId, value: DefaultBalance)"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-// PSP22 transfer"),
-                                        end_pat: Some("<-// PSP22 transfer_from"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0xdb20)]"),
+                                            end_pat: Some("<-fn transfer(asset_id: u32, to: DefaultAccountId, value: DefaultBalance)"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-// PSP22 transfer"),
+                                            end_pat: Some("<-// PSP22 transfer_from"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x54b3)]"),
-                                        end_pat: Some("<-fn transfer_from("),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-// PSP22 transfer_from"),
-                                        end_pat: Some("<-// PSP22 approve"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x54b3)]"),
+                                            end_pat: Some("<-fn transfer_from("),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-// PSP22 transfer_from"),
+                                            end_pat: Some("<-// PSP22 approve"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0xb20f)]"),
-                                        end_pat: Some("<-fn approve("),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-// PSP22 approve"),
-                                        end_pat: Some("<-// PSP22 increase_allowance"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0xb20f)]"),
+                                            end_pat: Some("<-fn approve("),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-// PSP22 approve"),
+                                            end_pat: Some("<-// PSP22 increase_allowance"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0x96d6)]"),
-                                        end_pat: Some("<-fn increase_allowance("),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-// PSP22 increase_allowance"),
-                                        end_pat: Some("<-// PSP22 decrease_allowance"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0x96d6)]"),
+                                            end_pat: Some("<-fn increase_allowance("),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-// PSP22 increase_allowance"),
+                                            end_pat: Some("<-// PSP22 decrease_allowance"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 0xfecb)]"),
-                                        end_pat: Some("<-fn decrease_allowance("),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-// PSP22 decrease_allowance"),
-                                        end_pat: Some(") -> Result<()>;->"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 0xfecb)]"),
+                                            end_pat: Some("<-fn decrease_allowance("),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-// PSP22 decrease_allowance"),
+                                            end_pat: Some(") -> Result<()>;->"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -936,13 +1167,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "type ErrorCode = ();",
-                                        start_pat: Some("pub trait Psp22Extension {"),
-                                        end_pat: Some("pub trait Psp22Extension {"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "type ErrorCode = ();",
+                                            start_pat: Some("pub trait Psp22Extension {"),
+                                            end_pat: Some("pub trait Psp22Extension {"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -958,13 +1192,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "env = crate::CustomEnvironment",
-                                        start_pat: Some("<-env = self::CustomEnvironment"),
-                                        end_pat: Some("env = self::CustomEnvironment"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Replace",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "env = crate::CustomEnvironment",
+                                            start_pat: Some("<-env = self::CustomEnvironment"),
+                                            end_pat: Some("env = self::CustomEnvironment"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -980,13 +1217,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "impl ink::env::Environment for CustomEnvironment {",
-                                        start_pat: Some("pub enum CustomEnvironment {}"),
-                                        end_pat: Some("pub enum CustomEnvironment {}"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "impl ink::env::Environment for CustomEnvironment {",
+                                            start_pat: Some("pub enum CustomEnvironment {}"),
+                                            end_pat: Some("pub enum CustomEnvironment {}"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1003,13 +1243,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "crate::Psp22Error",
-                                        start_pat: Some("type ErrorCode = "),
-                                        end_pat: Some("type ErrorCode = ()"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Replace",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "crate::Psp22Error",
+                                            start_pat: Some("type ErrorCode = "),
+                                            end_pat: Some("type ErrorCode = ()"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1026,13 +1269,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "crate::Psp22Error",
-                                        start_pat: Some("core::result::Result<Vec<u8>, "),
-                                        end_pat: Some("core::result::Result<Vec<u8>, Self::ErrorCode"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Replace",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "crate::Psp22Error",
+                                            start_pat: Some("core::result::Result<Vec<u8>, "),
+                                            end_pat: Some("core::result::Result<Vec<u8>, Self::ErrorCode"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1049,13 +1295,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]\n",
-                                        start_pat: Some("<-pub enum Psp22Error {"),
-                                        end_pat: Some("<-pub enum Psp22Error {"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Derive",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]\n",
+                                            start_pat: Some("<-pub enum Psp22Error {"),
+                                            end_pat: Some("<-pub enum Psp22Error {"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1085,20 +1334,26 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(extension = 1101)]"),
-                                        end_pat: Some("<-fn fetch_random(subject: [u8; 32]) -> [u8; 32];"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Note: this gives the operation"),
-                                        end_pat: Some("fn fetch_random(subject: [u8; 32]) -> [u8; 32];"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(extension = 1101)]"),
+                                            end_pat: Some("<-fn fetch_random(subject: [u8; 32]) -> [u8; 32];"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Note: this gives the operation"),
+                                            end_pat: Some("fn fetch_random(subject: [u8; 32]) -> [u8; 32];"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1115,13 +1370,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "type ErrorCode",
-                                        start_pat: Some("pub trait FetchRandom {"),
-                                        end_pat: Some("pub trait FetchRandom {"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "type ErrorCode",
+                                            start_pat: Some("pub trait FetchRandom {"),
+                                            end_pat: Some("pub trait FetchRandom {"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1219,88 +1477,106 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 6,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "fn total_supply(&self) -> Balance;",
-                                        start_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                        end_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the total token supply."),
-                                        end_pat: Some("<-/// Returns the account balance for the specified `owner`."),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Move",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "fn total_supply(&self) -> Balance;",
+                                            start_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                            end_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                        },
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the total token supply."),
+                                            end_pat: Some("<-/// Returns the account balance for the specified `owner`."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "fn balance_of(&self, owner: AccountId) -> Balance;",
-                                        start_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                        end_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the account balance for the specified `owner`."),
-                                        end_pat: Some("<-/// Returns the amount which `spender` is still allowed to withdraw from `owner`."),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Move",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "fn balance_of(&self, owner: AccountId) -> Balance;",
+                                            start_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                            end_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                        },
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the account balance for the specified `owner`."),
+                                            end_pat: Some("<-/// Returns the amount which `spender` is still allowed to withdraw from `owner`."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance;",
-                                        start_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                        end_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the amount which `spender` is still allowed to withdraw from `owner`."),
-                                        end_pat: Some("<-/// Transfers `value` amount of tokens from the caller's account to account `to`."),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Move",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance;",
+                                            start_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                            end_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                        },
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the amount which `spender` is still allowed to withdraw from `owner`."),
+                                            end_pat: Some("<-/// Transfers `value` amount of tokens from the caller's account to account `to`."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "fn transfer(&mut self, to: AccountId, value: Balance) -> Result<()>;",
-                                        start_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                        end_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Transfers `value` amount of tokens from the caller's account to account `to`."),
-                                        end_pat: Some("<-/// Allows `spender` to withdraw from the caller's account multiple times, up to"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Move",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "fn transfer(&mut self, to: AccountId, value: Balance) -> Result<()>;",
+                                            start_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                            end_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                        },
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Transfers `value` amount of tokens from the caller's account to account `to`."),
+                                            end_pat: Some("<-/// Allows `spender` to withdraw from the caller's account multiple times, up to"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "fn approve(&mut self, spender: AccountId, value: Balance) -> Result<()>;",
-                                        start_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                        end_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Allows `spender` to withdraw from the caller's account multiple times, up to"),
-                                        end_pat: Some("<-/// Transfers `value` tokens on the behalf of `from` to the account `to`."),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Move",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "fn approve(&mut self, spender: AccountId, value: Balance) -> Result<()>;",
+                                            start_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                            end_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                        },
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Allows `spender` to withdraw from the caller's account multiple times, up to"),
+                                            end_pat: Some("<-/// Transfers `value` tokens on the behalf of `from` to the account `to`."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "fn transfer_from(",
-                                        start_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                        end_pat: Some("allowances: Default::default(),\n            }\n        }"),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Transfers `value` tokens on the behalf of `from` to the account `to`."),
-                                        end_pat: Some("\n        ) -> Result<()>;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Move",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "fn transfer_from(",
+                                            start_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                            end_pat: Some("allowances: Default::default(),\n            }\n        }"),
+                                        },
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Transfers `value` tokens on the behalf of `from` to the account `to`."),
+                                            end_pat: Some("\n        ) -> Result<()>;"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1322,68 +1598,89 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         quickfixes: vec![
                             // Add ink! message attribute to existing methods.
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-fn total_supply(&self) -> Balance;"),
-                                        end_pat: Some("<-fn total_supply(&self) -> Balance;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-fn total_supply(&self) -> Balance;"),
+                                            end_pat: Some("<-fn total_supply(&self) -> Balance;"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-fn balance_of(&self, owner: AccountId) -> Balance;"),
-                                        end_pat: Some("<-fn balance_of(&self, owner: AccountId) -> Balance;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-fn balance_of(&self, owner: AccountId) -> Balance;"),
+                                            end_pat: Some("<-fn balance_of(&self, owner: AccountId) -> Balance;"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance;"),
-                                        end_pat: Some("<-fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance;"),
+                                            end_pat: Some("<-fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance;"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-fn transfer(&mut self, to: AccountId, value: Balance) -> Result<()>;"),
-                                        end_pat: Some("<-fn transfer(&mut self, to: AccountId, value: Balance) -> Result<()>;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-fn transfer(&mut self, to: AccountId, value: Balance) -> Result<()>;"),
+                                            end_pat: Some("<-fn transfer(&mut self, to: AccountId, value: Balance) -> Result<()>;"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-fn approve(&mut self, spender: AccountId, value: Balance) -> Result<()>;"),
-                                        end_pat: Some("<-fn approve(&mut self, spender: AccountId, value: Balance) -> Result<()>;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-fn approve(&mut self, spender: AccountId, value: Balance) -> Result<()>;"),
+                                            end_pat: Some("<-fn approve(&mut self, spender: AccountId, value: Balance) -> Result<()>;"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-fn transfer_from("),
-                                        end_pat: Some("<-fn transfer_from("),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-fn transfer_from("),
+                                            end_pat: Some("<-fn transfer_from("),
+                                        }
+                                    ]
+                                },
                             ],
                             // Add a new method.
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("\n        ) -> Result<()>;"),
-                                        end_pat: Some("\n        ) -> Result<()>;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("\n        ) -> Result<()>;"),
+                                            end_pat: Some("\n        ) -> Result<()>;"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1399,13 +1696,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "fn total_supply(&self) -> Balance {",
-                                        start_pat: Some("<-\n    }\n\n    #[ink(impl)]"),
-                                        end_pat: Some("<-\n    }\n\n    #[ink(impl)]"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "fn total_supply(&self) -> Balance {",
+                                            start_pat: Some("<-\n    }\n\n    #[ink(impl)]"),
+                                            end_pat: Some("<-\n    }\n\n    #[ink(impl)]"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1421,13 +1721,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the total token supply.->"),
-                                        end_pat: Some("self.total_supply\n        }\n\n        "),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the total token supply.->"),
+                                            end_pat: Some("self.total_supply\n        }\n\n        "),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1443,13 +1746,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "(&self)",
-                                        start_pat: Some("<-(&mut self)"),
-                                        end_pat: Some("(&mut self)"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Change",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "(&self)",
+                                            start_pat: Some("<-(&mut self)"),
+                                            end_pat: Some("(&mut self)"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1465,13 +1771,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "-> Balance",
-                                        start_pat: Some("<--> Result<Balance>"),
-                                        end_pat: Some("-> Result<Balance>"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Change",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "-> Balance",
+                                            start_pat: Some("<--> Result<Balance>"),
+                                            end_pat: Some("-> Result<Balance>"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1487,13 +1796,16 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 1,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-, payable"),
-                                        end_pat: Some(", payable"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-, payable"),
+                                            end_pat: Some(", payable"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1523,36 +1835,48 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         n: 2,
                         quickfixes: vec![
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]"),
-                                        end_pat: Some("<-fn flip(&mut self);"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Flips the current value of the Flipper's boolean."),
-                                        end_pat: Some("<-/// Returns the current value of the Flipper's boolean."),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]"),
+                                            end_pat: Some("<-fn flip(&mut self);"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Flips the current value of the Flipper's boolean."),
+                                            end_pat: Some("<-/// Returns the current value of the Flipper's boolean."),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(message)]\n    fn get(&self) -> bool;"),
-                                        end_pat: Some("<-fn get(&self) -> bool;"),
-                                    }
-                                ],
-                                vec![
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-/// Returns the current value of the Flipper's boolean."),
-                                        end_pat: Some("fn get(&self) -> bool;"),
-                                    }
-                                ]
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(message)]\n    fn get(&self) -> bool;"),
+                                            end_pat: Some("<-fn get(&self) -> bool;"),
+                                        }
+                                    ]
+                                },
+                                TestResultAction {
+                                    label: "Remove",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-/// Returns the current value of the Flipper's boolean."),
+                                            end_pat: Some("fn get(&self) -> bool;"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
@@ -1577,32 +1901,41 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                         quickfixes: vec![
                             // Add ink! message attribute to existing methods.
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-fn flip(&mut self);"),
-                                        end_pat: Some("<-fn flip(&mut self);"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-fn flip(&mut self);"),
+                                            end_pat: Some("<-fn flip(&mut self);"),
+                                        }
+                                    ]
+                                },
                             ],
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("<-fn get(&self) -> bool;"),
-                                        end_pat: Some("<-fn get(&self) -> bool;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("<-fn get(&self) -> bool;"),
+                                            end_pat: Some("<-fn get(&self) -> bool;"),
+                                        }
+                                    ]
+                                },
                             ],
                             // Add a new method.
                             vec![
-                                vec![
-                                    TestResultTextRange {
-                                        text: "#[ink(message)]",
-                                        start_pat: Some("fn get(&self) -> bool;"),
-                                        end_pat: Some("fn get(&self) -> bool;"),
-                                    }
-                                ],
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink(message)]",
+                                            start_pat: Some("fn get(&self) -> bool;"),
+                                            end_pat: Some("fn get(&self) -> bool;"),
+                                        }
+                                    ]
+                                },
                             ],
                         ]
                     },
