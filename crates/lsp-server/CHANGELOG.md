@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.20] - 2024-01-09
+
+- General robustness improvements for semantic analyzer.
+
 ## [0.2.19] - 2024-01-02
 
 - Performance improvements.

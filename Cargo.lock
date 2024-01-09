@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "ink-analyzer"
-version = "0.8.17"
+version = "0.8.18"
 dependencies = [
  "ink-analyzer-ir",
  "itertools",
@@ -393,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "ink-lsp-server"
-version = "0.2.19"
+version = "0.2.20"
 dependencies = [
  "anyhow",
  "clap",
