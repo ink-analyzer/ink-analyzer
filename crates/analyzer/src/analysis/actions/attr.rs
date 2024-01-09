@@ -14,6 +14,16 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
         // Only computes actions for closed attributes because
         // unclosed attributes are too tricky for useful contextual edits.
         if ink_attr.ast().r_brack_token().is_some() {
+            // No ink! attribute argument suggestions for trait definition implementation messages.
+            if ink_attr
+                .syntax()
+                .parent()
+                .as_ref()
+                .is_some_and(utils::is_trait_definition_impl_message)
+            {
+                return;
+            }
+
             // Suggests ink! attribute arguments based on the context.
             let mut ink_arg_suggestions = utils::valid_sibling_ink_args(*ink_attr.kind());
 

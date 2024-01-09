@@ -5,8 +5,9 @@ use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 use ink_analyzer_ir::{
-    ast, Contract, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind, InkAttribute,
-    InkAttributeKind, InkEntity, InkImpl, InkMacroKind, IsInkStruct, IsInkTrait, Storage,
+    ast, Contract, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
+    InkAttribute, InkAttributeKind, InkEntity, InkImpl, InkMacroKind, IsInkStruct, IsInkTrait,
+    Message, Storage,
 };
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -1651,4 +1652,13 @@ pub fn is_trivia_insensitive_eq(a: &SyntaxNode, b: &SyntaxNode) -> bool {
             .join("")
     };
     strip_trivia(a) == strip_trivia(b)
+}
+
+/// Returns true if the syntax node is a trait definition implementation message.
+pub fn is_trait_definition_impl_message(target: &SyntaxNode) -> bool {
+    Message::can_cast(target)
+        && Message::cast(target.clone())
+            .expect("Should be able to cast to message.")
+            .parent_impl_item()
+            .is_some_and(|impl_item| impl_item.trait_().is_some())
 }

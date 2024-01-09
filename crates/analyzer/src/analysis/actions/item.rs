@@ -151,6 +151,11 @@ fn ink_macro_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: Text
 
 /// Computes AST item-based ink! attribute argument actions.
 fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRange) {
+    // No ink! attribute argument suggestions for trait definition implementation messages.
+    if utils::is_trait_definition_impl_message(target) {
+        return;
+    }
+
     // Gets the primary ink! attribute candidate (if any).
     let primary_ink_attr_candidate =
         utils::primary_ink_attribute_candidate(ink_analyzer_ir::ink_attrs(target))
