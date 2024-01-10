@@ -18,47 +18,46 @@ use test_utils::{
 // See inline comments for more details.
 #[test]
 fn actions_works() {
+    // Verifies actions fixtures (see [`test_utils::fixtures::actions_fixtures`] doc and
+    // inline comments) and sets the `quickfixes_only` flag to false.
+    verify_actions(test_utils::fixtures::actions_fixtures().into_iter(), false);
+}
+
+#[test]
+fn quickfixes_works() {
+    // Verifies quickfixes (from diagnostics fixtures) as actions
+    // (see [`test_utils::fixtures::diagnostics_fixtures`] doc and inline comments)
+    // and sets the `quickfixes_only` flag to true.
+    let quickfixes = test_utils::fixtures::diagnostics_fixtures()
+        .into_iter()
+        .flat_map(|test_group| {
+            test_group
+                .test_cases
+                .into_iter()
+                .filter_map(move |test_case| match test_case.results {
+                    TestCaseResults::Diagnostic { n: _, quickfixes } => {
+                        Some(quickfixes.into_iter().map(move |(actions, pat)| TestGroup {
+                            source: test_group.source,
+                            test_cases: vec![TestCase {
+                                modifications: test_case.modifications.clone(),
+                                params: Some(TestCaseParams::Action(TestParamsOffsetOnly { pat })),
+                                results: TestCaseResults::Action(actions),
+                            }],
+                        }))
+                    }
+                    _ => None,
+                })
+                .flatten()
+        });
+    verify_actions(quickfixes, true);
+}
+
+fn verify_actions(test_groups: impl Iterator<Item = TestGroup>, quickfixes_only: bool) {
     // Creates an in-memory connection to an initialized LSP server.
     let client_connection = utils::create_initialized_lsp_server();
 
-    // Composes test cases for actions (and quickfixes).
-    let test_group_categories = test_utils::fixtures::actions_fixtures()
-        .into_iter()
-        // Adds actions fixtures (see [`test_utils::fixtures::actions_fixtures`] doc and
-        // inline comments) and sets the `quickfixes_only` flag to false.
-        .map(|test_group| (test_group, false))
-        .chain(
-            // Adds quickfixes (from diagnostics fixtures) as actions
-            // (see [`test_utils::fixtures::diagnostics_fixtures`] doc and inline comments)
-            // and sets the `quickfixes_only` flag to true.
-            test_utils::fixtures::diagnostics_fixtures()
-                .into_iter()
-                .flat_map(|test_group| {
-                    test_group
-                        .test_cases
-                        .into_iter()
-                        .filter_map(move |test_case| match test_case.results {
-                            TestCaseResults::Diagnostic { n: _, quickfixes } => {
-                                Some(quickfixes.into_iter().map(move |(actions, pat)| TestGroup {
-                                    source: test_group.source,
-                                    test_cases: vec![TestCase {
-                                        modifications: test_case.modifications.clone(),
-                                        params: Some(TestCaseParams::Action(
-                                            TestParamsOffsetOnly { pat },
-                                        )),
-                                        results: TestCaseResults::Action(actions),
-                                    }],
-                                }))
-                            }
-                            _ => None,
-                        })
-                        .flatten()
-                        .map(|test_group| (test_group, true))
-                }),
-        );
-
-    // Iterates over all test case groups for actions (and quickfixes).
-    for (test_group, quickfixes_only) in test_group_categories {
+    // Iterates over all test case groups.
+    for test_group in test_groups {
         // Gets the original source code.
         let original_code = test_utils::read_source_code(test_group.source);
 
