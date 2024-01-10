@@ -185,7 +185,7 @@ pub struct TestCase {
 }
 
 /// Describes a modification to perform on the original smart contract code.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestCaseModification {
     /// Substring used to find the start offset for the code snippet to replace (see [`parse_offset_at`] doc).
     pub start_pat: Option<&'static str>,
@@ -213,8 +213,8 @@ pub enum TestCaseResults {
     // Expected number of diagnostic errors/warnings.
     Diagnostic {
         n: usize,
-        // Iterates over diagnostics > quickfixes > text edits.
-        quickfixes: Vec<Vec<TestResultAction>>,
+        // Vec<(Vec<>, Option<>)> because diagnostics > (quickfixes, trigger offset).
+        quickfixes: Vec<(Vec<TestResultAction>, Option<&'static str>)>,
     },
     Hover(Option<TestResultTextRange>),
     InlayHints(Vec<TestResultTextOffsetRange>),

@@ -46,11 +46,14 @@ fn diagnostics_works() {
             for (idx, result) in results.iter().enumerate() {
                 assert_eq!(
                     result.quickfixes.as_ref().map(Vec::len),
-                    expected_results.1.get(idx).map(Vec::len),
+                    expected_results
+                        .1
+                        .get(idx)
+                        .map(|(expected_quickfixes, _)| expected_quickfixes.len()),
                     "source: {}",
                     test_group.source
                 );
-                let expected_quickfixes = &expected_results.1[idx];
+                let expected_quickfixes = &expected_results.1[idx].0;
                 if let Some(quickfixes) = result.quickfixes.as_ref() {
                     assert_eq!(
                         quickfixes

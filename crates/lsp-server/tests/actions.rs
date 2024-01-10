@@ -3,7 +3,9 @@
 mod utils;
 
 use line_index::LineIndex;
-use test_utils::{PartialMatchStr, TestCaseParams, TestCaseResults};
+use test_utils::{
+    PartialMatchStr, TestCase, TestCaseParams, TestCaseResults, TestGroup, TestParamsOffsetOnly,
+};
 
 // The high-level methodology for code/intent actions test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory
@@ -19,8 +21,44 @@ fn actions_works() {
     // Creates an in-memory connection to an initialized LSP server.
     let client_connection = utils::create_initialized_lsp_server();
 
-    // Iterates over all test case groups (see [`test_utils::fixtures::actions_fixtures`] doc and inline comments).
-    for test_group in test_utils::fixtures::actions_fixtures() {
+    // Composes test cases for actions (and quickfixes).
+    let test_group_categories = test_utils::fixtures::actions_fixtures()
+        .into_iter()
+        // Adds actions fixtures (see [`test_utils::fixtures::actions_fixtures`] doc and
+        // inline comments) and sets the `quickfixes_only` flag to false.
+        .map(|test_group| (test_group, false))
+        .chain(
+            // Adds quickfixes (from diagnostics fixtures) as actions
+            // (see [`test_utils::fixtures::diagnostics_fixtures`] doc and inline comments)
+            // and sets the `quickfixes_only` flag to true.
+            test_utils::fixtures::diagnostics_fixtures()
+                .into_iter()
+                .flat_map(|test_group| {
+                    test_group
+                        .test_cases
+                        .into_iter()
+                        .filter_map(move |test_case| match test_case.results {
+                            TestCaseResults::Diagnostic { n: _, quickfixes } => {
+                                Some(quickfixes.into_iter().map(move |(actions, pat)| TestGroup {
+                                    source: test_group.source,
+                                    test_cases: vec![TestCase {
+                                        modifications: test_case.modifications.clone(),
+                                        params: Some(TestCaseParams::Action(
+                                            TestParamsOffsetOnly { pat },
+                                        )),
+                                        results: TestCaseResults::Action(actions),
+                                    }],
+                                }))
+                            }
+                            _ => None,
+                        })
+                        .flatten()
+                        .map(|test_group| (test_group, true))
+                }),
+        );
+
+    // Iterates over all test case groups for actions (and quickfixes).
+    for (test_group, quickfixes_only) in test_group_categories {
         // Gets the original source code.
         let original_code = test_utils::read_source_code(test_group.source);
 
@@ -117,6 +155,11 @@ fn actions_works() {
             assert_eq!(
                 results
                     .iter()
+                    .filter(|code_action| !quickfixes_only
+                        || code_action
+                            .kind
+                            .as_ref()
+                            .is_some_and(|kind| *kind == lsp_types::CodeActionKind::QUICKFIX))
                     .filter_map(|code_action| code_action
                         .edit
                         .as_ref()
