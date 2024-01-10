@@ -457,7 +457,7 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                                                 it.syntax().text_range()
                                             })
                                             .end();
-                                        let diagnostic_range = fn_item.param_list().map_or(
+                                        let diagnostic_range = fn_item.ret_type().map_or(
                                             TextRange::new(
                                                 fn_name.syntax().text_range().start(),
                                                 fallback_insert_offset,
