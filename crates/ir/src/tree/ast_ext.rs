@@ -3,6 +3,7 @@
 use ra_ap_syntax::ast::{HasAttrs, HasName};
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
 use std::collections::{HashMap, HashSet};
+use std::iter::once;
 
 use crate::traits::IsSyntax;
 
@@ -332,8 +333,8 @@ fn resolve_item_list_root(node: &SyntaxNode) -> SyntaxNode {
         .unwrap_or(node.clone())
 }
 
-// "Flattens" a "use tree" into a list of simple paths.
-// NOTE: Conceptually, this transforms `use a::{b, c as d};` into [`use a::b;`, `use a::c as d;`].
+// Flattens a use tree into a list of simple paths.
+// NOTE: Conceptually, this transforms `a::{self, b, c as d};` into [`a`, `a::b;`, `a::c as d;`].
 fn flatten_use_tree(use_tree: &ast::UseTree) -> Vec<(String, Option<String>)> {
     let alias = use_tree.rename().and_then(|rename| {
         rename
@@ -342,22 +343,38 @@ fn flatten_use_tree(use_tree: &ast::UseTree) -> Vec<(String, Option<String>)> {
             .map(ToString::to_string)
             .or(rename.underscore_token().as_ref().map(ToString::to_string))
     });
-    let add_prefix = |sub_paths: Vec<(String, Option<String>)>| match use_tree.path() {
-        None => sub_paths,
-        Some(path_prefix) => sub_paths
-            .into_iter()
-            .map(|(sub_path, alias)| (format!("{path_prefix}::{sub_path}"), alias))
-            .collect(),
-    };
+    fn add_prefix(
+        tree: &ast::UseTree,
+        sub_paths: impl Iterator<Item = (String, Option<String>)>,
+    ) -> Vec<(String, Option<String>)> {
+        match tree.path() {
+            None => sub_paths
+                .filter(|(sub_path, _)| sub_path != "self")
+                .collect(),
+            Some(path_prefix) => sub_paths
+                .map(|(sub_path, alias)| {
+                    (
+                        if sub_path == "self" {
+                            path_prefix.to_string()
+                        } else {
+                            format!("{path_prefix}::{sub_path}")
+                        },
+                        alias,
+                    )
+                })
+                .collect(),
+        }
+    }
+
     if let Some(use_tree_list) = use_tree.use_tree_list() {
         add_prefix(
+            use_tree,
             use_tree_list
                 .use_trees()
-                .flat_map(|it| flatten_use_tree(&it))
-                .collect(),
+                .flat_map(|subtree| flatten_use_tree(&subtree)),
         )
     } else if use_tree.star_token().is_some() {
-        add_prefix(vec![(String::from("*"), alias)])
+        add_prefix(use_tree, once((String::from("*"), alias)))
     } else if let Some(path) = use_tree.path() {
         vec![(path_to_string(&path), alias)]
     } else {
@@ -630,6 +647,18 @@ mod tests {
                     }
 
                     mod #ref_name {
+                        use crate::my_items::{self};
+                    }
+                },
+                quote_as_str! { my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
                         use super::my_items;
                     }
                 },
@@ -722,6 +751,18 @@ mod tests {
 
                     mod #ref_name {
                         use crate::my_items as custom_items;
+                    }
+                },
+                quote_as_str! { custom_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod #ref_name {
+                        use crate::my_items::{self as custom_items};
                     }
                 },
                 quote_as_str! { custom_items::MyItem },
