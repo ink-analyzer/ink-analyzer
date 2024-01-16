@@ -238,7 +238,7 @@ pub struct TestParamsRangeOnly {
 }
 
 /// Describes the expected text and range result.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestResultTextRange {
     /// Expected text.
     pub text: &'static str,
@@ -262,7 +262,7 @@ pub struct TestResultTextOffsetRange {
 }
 
 /// Describes the expected action label and text edits.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestResultAction {
     /// Expected label.
     pub label: &'static str,

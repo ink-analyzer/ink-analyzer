@@ -30,24 +30,22 @@ fn quickfixes_works() {
     // and sets the `quickfixes_only` flag to true.
     let quickfixes = test_utils::fixtures::diagnostics_fixtures()
         .into_iter()
-        .flat_map(|test_group| {
-            test_group
+        .map(|test_group| TestGroup {
+            source: test_group.source,
+            test_cases: test_group
                 .test_cases
                 .into_iter()
                 .filter_map(move |test_case| match test_case.results {
                     TestCaseResults::Diagnostic { n: _, quickfixes } => {
-                        Some(quickfixes.into_iter().map(move |(actions, pat)| TestGroup {
-                            source: test_group.source,
-                            test_cases: vec![TestCase {
-                                modifications: test_case.modifications.clone(),
-                                params: Some(TestCaseParams::Action(TestParamsOffsetOnly { pat })),
-                                results: TestCaseResults::Action(actions),
-                            }],
-                        }))
+                        quickfixes.first().cloned().map(|(actions, pat)| TestCase {
+                            modifications: test_case.modifications.clone(),
+                            params: Some(TestCaseParams::Action(TestParamsOffsetOnly { pat })),
+                            results: TestCaseResults::Action(actions),
+                        })
                     }
                     _ => None,
                 })
-                .flatten()
+                .collect(),
         });
     verify_actions(quickfixes, true);
 }
