@@ -942,20 +942,8 @@ mod tests {
                     (Some("le"), Some("let"), None, None, None),
                     (Some("1"), Some("10"), None, None, None),
                     // Between tokens.
-                    (
-                        Some("x"),
-                        Some("x"),
-                        None,
-                        None,
-                        Some(SyntaxKind::MACRO_CALL),
-                    ),
-                    (
-                        Some("<-x"),
-                        Some("x"),
-                        None,
-                        None,
-                        Some(SyntaxKind::MACRO_CALL),
-                    ),
+                    (Some("x"), Some("x"), None, None, None),
+                    (Some("<-x"), Some("x"), None, None, None),
                     (Some("="), Some("="), None, None, None),
                     (Some("0"), Some("10"), None, None, None),
                     (Some("+"), Some("+"), None, None, None),

@@ -112,7 +112,7 @@ where
 
     match path.qualifier() {
         // Determines the root node/module for target item resolution based on qualifier.
-        Some(qualifier) => resolve_qualifier(&qualifier, ref_node, Some(&target)),
+        Some(qualifier) => resolve_qualifier(&qualifier, ref_node),
         // Otherwise defaults to the current module (if there's no qualifier).
         None => resolve_current_module(ref_node),
     }
@@ -161,11 +161,7 @@ pub fn resolve_current_module(node: &SyntaxNode) -> Option<SyntaxNode> {
 }
 
 /// Resolves qualifier root/module (if it exists).
-pub fn resolve_qualifier(
-    path: &ast::Path,
-    ref_node: &SyntaxNode,
-    target_option: Option<&ast::PathSegment>,
-) -> Option<SyntaxNode> {
+pub fn resolve_qualifier(path: &ast::Path, ref_node: &SyntaxNode) -> Option<SyntaxNode> {
     // Resolves next child module.
     let resolve_next_child_module = |root: &SyntaxNode, name: &ast::NameRef| {
         let resolve_child = || {
@@ -183,7 +179,7 @@ pub fn resolve_qualifier(
                     // Only recurse if the path resolved from use scope and aliases
                     // is different from the current path argument.
                     if path_to_string(&resolved_path) != path_to_string(path) {
-                        resolve_qualifier(&resolved_path, root, None)
+                        resolve_qualifier(&resolved_path, root)
                     } else {
                         None
                     }
@@ -193,11 +189,7 @@ pub fn resolve_qualifier(
         resolve_child().or(resolve_from_use_scope())
     };
 
-    let mut path_segments = path
-        .segments()
-        // Calling segments on the qualifier appears to also include the target for some reason,
-        // so we filter it out manually.
-        .filter(|segment| target_option.map_or(true, |target| segment != target));
+    let mut path_segments = path.segments();
 
     // Resolves first path segment including respecting valid path qualifiers
     // (i.e. `::`, `crate`, `self`, `super`).

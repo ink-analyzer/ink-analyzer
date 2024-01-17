@@ -1,8 +1,7 @@
 //! Utilities for ink! diagnostics.
 
 use ink_analyzer_ir::ast::{
-    AstNode, AstToken, HasAttrs, HasDocComments, HasGenericParams, HasName, HasTypeBounds,
-    HasVisibility,
+    AstNode, AstToken, HasAttrs, HasGenericParams, HasName, HasTypeBounds, HasVisibility,
 };
 use ink_analyzer_ir::meta::{MetaOption, MetaValue};
 use ink_analyzer_ir::syntax::{
@@ -12,7 +11,7 @@ use ink_analyzer_ir::{
     ast, Contract, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
     InkAttribute, InkAttributeKind, InkEntity, InkMacroKind, IsInkFn, IsInkStruct, IsInkTrait,
 };
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use std::collections::HashSet;
 
 use crate::analysis::text_edit::TextEdit;
@@ -1762,12 +1761,9 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
             (
                 format!("#[derive({trait_paths_plain})]"),
                 TextRange::empty(
-                    adt.doc_comments_and_attrs()
+                    adt.attrs()
                         .last()
-                        .and_then(|elem| match elem {
-                            Either::Left(attr) => attr.syntax().last_token(),
-                            Either::Right(doc) => Some(doc.syntax().clone()),
-                        })
+                        .and_then(|attr| attr.syntax().last_token())
                         // Finds the first non-(attribute/rustdoc/trivia) token for the item.
                         .and_then(|it| {
                             ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token)

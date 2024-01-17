@@ -360,11 +360,7 @@ fn match_path_to_external_crate_in_scope(
                     == format!("{}::*", ink_analyzer_ir::path_to_string(&qualifier)))
                 .then_some(String::from("*")));
 
-            target_name_option.zip(ink_analyzer_ir::resolve_qualifier(
-                &qualifier,
-                ref_node,
-                path.segment().as_ref(),
-            ))
+            target_name_option.zip(ink_analyzer_ir::resolve_qualifier(&qualifier, ref_node))
         })
     });
     if let Some((target_name, qualifier_ref_node)) = item_path_option {
