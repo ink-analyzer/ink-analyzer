@@ -92,7 +92,7 @@ pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
                 fixes
                     .into_iter()
                     .map(|action| Action {
-                        edits: text_edit::format_edits(action.edits, file).collect(),
+                        edits: text_edit::format_edits(action.edits.into_iter(), file).collect(),
                         ..action
                     })
                     .collect()

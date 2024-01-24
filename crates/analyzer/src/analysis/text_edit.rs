@@ -63,8 +63,11 @@ impl TextEdit {
 }
 
 /// Format text edits (i.e. add indenting and new lines based on context).
-pub fn format_edits(edits: Vec<TextEdit>, file: &InkFile) -> impl Iterator<Item = TextEdit> + '_ {
-    edits.into_iter().map(|item| format_edit(item, file))
+pub fn format_edits<'a>(
+    edits: impl Iterator<Item = TextEdit> + 'a,
+    file: &'a InkFile,
+) -> impl Iterator<Item = TextEdit> + 'a {
+    edits.map(|item| format_edit(item, file))
 }
 
 /// Format text edit (i.e. add indenting and new lines based on context).
@@ -85,7 +88,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
     if edit.text.is_empty() {
         // Handles deletes.
         // Removes whitespace immediately following a delete if the text is surrounded by whitespace,
-        // but only the token right after the whitespace is not a closing curly break
+        // but only when the token right after the whitespace is not a closing curly bracket
         // (because it would otherwise break the indenting of the closing curly bracket).
         if let Some(token_after) = token_after_option {
             let token_before_is_whitespace = token_before_option
@@ -209,7 +212,8 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
     edit
 }
 
-// Checks whether the given text starts with at least 2 new lines (the new lines can be interspersed with other whitespace).
+// Checks whether the given text starts with at least 2 new lines
+// (the new lines can be interspersed with other whitespace).
 fn starts_with_two_or_more_newlines(text: &str) -> bool {
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^\S\n]*\n[^\S\n]*){2,}").unwrap());
     RE.is_match(text)

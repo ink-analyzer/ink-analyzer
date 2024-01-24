@@ -49,7 +49,7 @@ pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
         .unique_by(|item| item.edits.clone())
         // Format edits.
         .map(|item| Action {
-            edits: text_edit::format_edits(item.edits, file).collect(),
+            edits: text_edit::format_edits(item.edits.into_iter(), file).collect(),
             ..item
         })
         .collect()
