@@ -1,6 +1,6 @@
 //! A text edit.
 
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, TextRange, TextSize};
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{InkEntity, InkFile};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -77,13 +77,25 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         .syntax()
         .token_at_offset(edit.range.start())
         .left_biased()
-        .filter(|it| it.text_range().end() <= edit.range.start());
+        .and_then(|token| {
+            if token.text_range().end() <= edit.range.start() {
+                Some(token)
+            } else {
+                token.prev_token()
+            }
+        });
     // Determines the token right after the end of the edit offset.
     let token_after_option = file
         .syntax()
         .token_at_offset(edit.range.end())
         .right_biased()
-        .filter(|it| it.text_range().start() >= edit.range.end());
+        .and_then(|token| {
+            if token.text_range().start() >= edit.range.end() {
+                Some(token)
+            } else {
+                token.next_token()
+            }
+        });
 
     if edit.text.is_empty() {
         // Handles deletes.
@@ -91,13 +103,14 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         // but only when the token right after the whitespace is not a closing curly bracket
         // (because it would otherwise break the indenting of the closing curly bracket).
         if let Some(token_after) = token_after_option {
-            let token_before_is_whitespace = token_before_option
-                .as_ref()
-                .is_some_and(|token_before| token_before.kind() == SyntaxKind::WHITESPACE);
+            let is_whitespace_or_bof_before =
+                token_before_option.as_ref().map_or(true, |token_before| {
+                    token_before.kind() == SyntaxKind::WHITESPACE
+                });
             let is_at_the_end_block = token_after
                 .next_token()
                 .is_some_and(|it| it.kind() == SyntaxKind::R_CURLY);
-            if token_before_is_whitespace
+            if is_whitespace_or_bof_before
                 && token_after.kind() == SyntaxKind::WHITESPACE
                 && !is_at_the_end_block
             {
@@ -105,23 +118,72 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
             }
         }
     } else {
-        // Handles inserts and replaces.
-        if let Some(token_before) = token_before_option {
-            let (prefix, suffix) = match token_before.kind() {
-                // Handles edits after whitespace.
-                SyntaxKind::WHITESPACE => {
+        // Handles insert and replace.
+        let handle_edit_after_whitespace_or_bof =
+            |token_before_option: Option<&SyntaxToken>,
+             token_after_option: Option<&SyntaxToken>| {
+                let is_whitespace_or_bof_before =
+                    token_before_option.as_ref().map_or(true, |token_before| {
+                        token_before.kind() == SyntaxKind::WHITESPACE
+                    });
+                let is_whitespace_or_eof_after =
+                    token_after_option.as_ref().map_or(true, |token_after| {
+                        token_after.kind() == SyntaxKind::WHITESPACE
+                    });
+                if is_whitespace_or_bof_before && is_whitespace_or_eof_after {
+                    // Handles edits between whitespace and/or file boundaries.
+                    match (
+                        token_before_option
+                            .map(|token_before| (token_before.text().contains('\n'), token_before)),
+                        token_after_option
+                            .map(|token_after| (token_after.text().contains('\n'), token_after)),
+                    ) {
+                        // Handles edits between new lines and/or file boundaries.
+                        (Some((true, token_before)), Some((true, token_after))) => (
+                            (!starts_with_two_or_more_newlines(token_before.text()))
+                                .then_some("\n".to_string()),
+                            (!starts_with_two_or_more_newlines(token_after.text()))
+                                .then_some("\n".to_string()),
+                        ),
+                        (Some((true, token_before)), None) => (
+                            (!starts_with_two_or_more_newlines(token_before.text()))
+                                .then_some("\n".to_string()),
+                            None,
+                        ),
+                        (None, Some((true, token_after))) => (
+                            None,
+                            (!starts_with_two_or_more_newlines(token_after.text()))
+                                .then_some("\n".to_string()),
+                        ),
+                        _ => (None, None),
+                    }
+                } else if is_whitespace_or_bof_before && !is_whitespace_or_eof_after {
+                    // Handles preserving formatting for next non-whitespace item.
                     (
                         // No formatting prefix.
                         None,
                         // Adds formatting suffix only if the edit is not surrounded by whitespace
                         // (treats end of the file like whitespace)
                         // and its preceding whitespace contains a new line.
-                        (token_after_option.as_ref().is_some_and(|token_after| {
-                            token_after.kind() != SyntaxKind::WHITESPACE
-                        }) && token_before.text().contains('\n'))
-                        .then_some(format!("\n{}", utils::end_indenting(token_before.text()),)),
+                        match token_before_option {
+                            // Handles beginning of file.
+                            None => Some("\n".to_string()),
+                            Some(token_before) => token_before.text().contains('\n').then_some(
+                                format!("\n{}", utils::end_indenting(token_before.text())),
+                            ),
+                        },
                     )
+                } else {
+                    (None, None)
                 }
+            };
+        let (prefix, suffix) = if let Some(token_before) = token_before_option {
+            match token_before.kind() {
+                // Handles edits after whitespace.
+                SyntaxKind::WHITESPACE => handle_edit_after_whitespace_or_bof(
+                    Some(&token_before),
+                    token_after_option.as_ref(),
+                ),
                 // Handles edits at the beginning of blocks (i.e right after the opening curly bracket).
                 SyntaxKind::L_CURLY => {
                     (
@@ -159,7 +221,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                         }),
                     )
                 }
-                // Handles edits at the end a statement or block or after a comment.
+                // Handles edits at the end of a statement or block or after a comment.
                 SyntaxKind::SEMICOLON | SyntaxKind::R_CURLY | SyntaxKind::COMMENT => {
                     (
                         // Adds formatting prefix only if the edit doesn't start with a new line
@@ -189,24 +251,26 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                 }
                 // Ignores all other cases.
                 _ => (None, None),
-            };
-
-            // Adds formatting if necessary.
-            if prefix.is_some() || suffix.is_some() {
-                edit.text = format!(
-                    "{}{}{}",
-                    prefix.as_deref().unwrap_or_default(),
-                    edit.text,
-                    suffix.as_deref().unwrap_or_default(),
-                );
-                edit.snippet = edit.snippet.map(|snippet| {
-                    format!(
-                        "{}{snippet}{}",
-                        prefix.as_deref().unwrap_or_default(),
-                        suffix.as_deref().unwrap_or_default()
-                    )
-                });
             }
+        } else {
+            handle_edit_after_whitespace_or_bof(None, token_after_option.as_ref())
+        };
+
+        // Adds formatting if necessary.
+        if prefix.is_some() || suffix.is_some() {
+            edit.text = format!(
+                "{}{}{}",
+                prefix.as_deref().unwrap_or_default(),
+                edit.text,
+                suffix.as_deref().unwrap_or_default(),
+            );
+            edit.snippet = edit.snippet.map(|snippet| {
+                format!(
+                    "{}{snippet}{}",
+                    prefix.as_deref().unwrap_or_default(),
+                    suffix.as_deref().unwrap_or_default()
+                )
+            });
         }
     }
     edit
@@ -230,9 +294,17 @@ mod tests {
             // Insert after whitespace.
             (
                 "#[ink::contract]",
+                "\n#[ink::contract]",
+                r#"
+#![cfg_attr(not(feature = "std"), no_std, no_main)]
+"#,
+                Some("\n->"),
+                Some("\n->"),
+            ),
+            (
+                "#[ink::contract]",
                 "#[ink::contract]\n",
-                r"
-mod contract {}", // FIXME: Should work without leading line.
+                "mod contract {}",
                 Some("<-mod contract {"),
                 Some("<-mod contract {"),
             ),
@@ -248,9 +320,16 @@ mod contract {}",
             (
                 "#[ink::contract]",
                 "#[ink::contract]\n",
+                "#[doc(hidden)]\nmod contract {}",
+                Some("<-#[doc(hidden)]"),
+                Some("<-#[doc(hidden)]"),
+            ),
+            (
+                "#[ink::contract]",
+                "#[ink::contract]\n",
                 r"
 #[doc(hidden)]
-mod contract {}", // FIXME: Should work without leading line.
+mod contract {}",
                 Some("<-#[doc(hidden)]"),
                 Some("<-#[doc(hidden)]"),
             ),
@@ -561,10 +640,16 @@ mod contract {}",
                 Some("<-#[ink::contract]"),
                 Some("#[ink::contract]"),
                 Some((Some("<-#[ink::contract]"), Some("<-mod contract {}"))),
+                "#[ink::contract]\nmod contract {}",
+            ),
+            (
+                Some("<-#[ink::contract]"),
+                Some("#[ink::contract]"),
+                Some((Some("<-#[ink::contract]"), Some("<-mod contract {}"))),
                 r"
 #[ink::contract]
 mod contract {}
-", // FIXME: Should work without leading line.
+",
             ),
             (
                 Some("<-#[ink::contract]"),
@@ -582,7 +667,7 @@ mod contract {}",
                 r"
 #[ink::contract]
 #[doc(hidden)]
-mod contract {}", // FIXME: Should work without leading line.
+mod contract {}",
             ),
             (
                 Some("<-#[ink(storage)]"),
