@@ -218,3 +218,675 @@ fn starts_with_two_or_more_newlines(text: &str) -> bool {
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^\S\n]*\n[^\S\n]*){2,}").unwrap());
     RE.is_match(text)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_utils::parse_offset_at;
+
+    #[test]
+    fn format_insert_and_replace_works() {
+        for (input, output, source, start_pat, end_pat) in [
+            // Insert after whitespace.
+            (
+                "#[ink::contract]",
+                "#[ink::contract]\n",
+                r"
+mod contract {}", // FIXME: Should work without leading line.
+                Some("<-mod contract {"),
+                Some("<-mod contract {"),
+            ),
+            (
+                "#[ink::contract]",
+                "#[ink::contract]\n",
+                r"
+#[doc(hidden)]
+mod contract {}",
+                Some("<-mod contract {"),
+                Some("<-mod contract {"),
+            ),
+            (
+                "#[ink::contract]",
+                "#[ink::contract]\n",
+                r"
+#[doc(hidden)]
+mod contract {}", // FIXME: Should work without leading line.
+                Some("<-#[doc(hidden)]"),
+                Some("<-#[doc(hidden)]"),
+            ),
+            (
+                "#[ink::contract]",
+                "#[ink::contract]\n",
+                r"
+#[doc(hidden)]
+mod contract {}",
+                Some("<-mod contract {"),
+                Some("<-mod contract {"),
+            ),
+            (
+                "#[ink(storage)]",
+                "#[ink(storage)]\n    ",
+                r"
+mod contract {
+    struct MyContract {}
+}",
+                Some("<-struct MyContract {}"),
+                Some("<-struct MyContract {}"),
+            ),
+            (
+                "#[ink(topic)]",
+                "#[ink(topic)]\n        ",
+                r"
+mod contract {
+    struct MyEvent {
+        status: bool,
+    }
+}",
+                Some("<-status: bool,"),
+                Some("<-status: bool,"),
+            ),
+            (
+                "#[ink(impl)]",
+                "#[ink(impl)]\n    ",
+                r"
+mod contract {
+    impl MyContract {}
+}",
+                Some("<-impl MyContract {}"),
+                Some("<-impl MyContract {}"),
+            ),
+            (
+                "#[ink(impl)]",
+                "#[ink(impl)]\n    ",
+                r#"
+mod contract {
+    #[ink(namespace = "my_namespace")]
+    impl MyContract {}
+}
+                "#,
+                Some(r#"<-#[ink(namespace = "my_namespace")]"#),
+                Some(r#"<-#[ink(namespace = "my_namespace")]"#),
+            ),
+            (
+                "#[ink(message)]",
+                "#[ink(message)]\n        ",
+                r"
+mod contract {
+    impl MyContract {
+        pub fn message(&self) {}
+    }
+}",
+                Some("<-pub fn message(&self) {}"),
+                Some("<-pub fn message(&self) {}"),
+            ),
+            // Insert at the beginning of block.
+            (
+                "struct MyContract {}",
+                "\n    struct MyContract {}\n",
+                r"
+mod contract {
+}",
+                Some("mod contract {"),
+                Some("mod contract {"),
+            ),
+            (
+                "status: bool,",
+                "\n        status: bool,\n",
+                r"
+mod contract {
+    struct MyContract {
+    }
+}",
+                Some("struct MyContract {"),
+                Some("struct MyContract {"),
+            ),
+            (
+                "impl MyContract {}",
+                "\n    impl MyContract {}\n",
+                r"
+mod contract {
+}",
+                Some("mod contract {"),
+                Some("mod contract {"),
+            ),
+            (
+                "pub fn message(&self) {}",
+                "\n        pub fn message(&self) {}\n",
+                r"
+mod contract {
+    impl MyContract {
+    }
+}",
+                Some("impl MyContract {"),
+                Some("impl MyContract {"),
+            ),
+            // Insert at the end of a statement or block or after a comment.
+            (
+                "struct MyEvent {}",
+                "\n\n    struct MyEvent {}",
+                r"
+mod contract {
+    struct MyContract {}
+}",
+                Some("struct MyContract {}"),
+                Some("struct MyContract {}"),
+            ),
+            (
+                "struct MyEvent {}",
+                "\n\n    struct MyEvent {}",
+                r"
+mod contract {
+    struct MyContract;
+}",
+                Some("struct MyContract;"),
+                Some("struct MyContract;"),
+            ),
+            (
+                "struct MyEvent {}",
+                "\n\n    struct MyEvent {}",
+                r"
+mod contract {
+    struct MyContract {}
+
+    struct MyOtherEvent {}
+}",
+                Some("struct MyContract {}"),
+                Some("struct MyContract {}"),
+            ),
+            (
+                "struct MyEvent {}",
+                "\n\n    struct MyEvent {}",
+                r"
+mod contract {
+    struct MyContract {}
+    struct MyOtherEvent {}
+}",
+                Some("struct MyContract {}"),
+                Some("struct MyContract {}"),
+            ),
+            (
+                "pub fn message(&self) {}",
+                "\n\n        pub fn message(&self) {}",
+                r"
+mod contract {
+    impl MyContract {
+        pub fn constructor() {}
+    }
+}",
+                Some("pub fn constructor() {}"),
+                Some("pub fn constructor() {}"),
+            ),
+            (
+                "pub fn message(&self) {}",
+                "\n\n        pub fn message(&self) {}",
+                r"
+mod contract {
+    impl MyContract {
+        pub fn constructor() {}
+
+        pub fn message2(&self) {}
+    }
+}",
+                Some("pub fn constructor() {}"),
+                Some("pub fn constructor() {}"),
+            ),
+            (
+                "pub fn message(&self) {}",
+                "\n\n        pub fn message(&self) {}",
+                r"
+mod contract {
+    impl MyContract {
+        pub fn constructor() {}
+        pub fn message2(&self) {}
+    }
+}",
+                Some("pub fn constructor() {}"),
+                Some("pub fn constructor() {}"),
+            ),
+            // Everything else should remain unchanged.
+            (
+                "(env = crate::MyEnvironment)",
+                "(env = crate::MyEnvironment)",
+                r"
+#[ink::contract]
+mod contract {}",
+                Some("#[ink::contract"),
+                Some("#[ink::contract"),
+            ),
+            (
+                "env = crate::MyEnvironment",
+                "env = crate::MyEnvironment",
+                r"
+#[ink::contract()]
+mod contract {}",
+                Some("#[ink::contract("),
+                Some("#[ink::contract("),
+            ),
+            (
+                r#", keep_attr = "foo,bar""#,
+                r#", keep_attr = "foo,bar""#,
+                r"
+#[ink::contract(env = crate::MyEnvironment)]
+mod contract {}",
+                Some("#[ink::contract(env = crate::MyEnvironment"),
+                Some("#[ink::contract(env = crate::MyEnvironment"),
+            ),
+            (
+                "crate::MyEnvironment",
+                "crate::MyEnvironment",
+                r"
+#[ink::contract(env = self::MyEnvironment)]
+mod contract {}",
+                Some("#[ink::contract(env = "),
+                Some("#[ink::contract(env = self::MyEnvironment"),
+            ),
+            (
+                " crate::MyEnvironment",
+                " crate::MyEnvironment",
+                r"
+#[ink::contract(env = self::MyEnvironment)]
+mod contract {}",
+                Some("#[ink::contract(env ="),
+                Some("#[ink::contract(env = self::MyEnvironment"),
+            ),
+            (
+                "&self",
+                "&self",
+                "pub fn message() {}",
+                Some("pub fn message("),
+                Some("pub fn message("),
+            ),
+            (
+                ", status: bool",
+                ", status: bool",
+                "pub fn message(&self) {}",
+                Some("pub fn message(&self"),
+                Some("pub fn message(&self"),
+            ),
+            (
+                " status: bool",
+                " status: bool",
+                "pub fn message(&self,) {}",
+                Some("pub fn message(&self,"),
+                Some("pub fn message(&self,"),
+            ),
+            (
+                "status: bool",
+                "status: bool",
+                "pub fn message(&self, ) {}",
+                Some("pub fn message(&self, "),
+                Some("pub fn message(&self, "),
+            ),
+            (
+                " -> u8",
+                " -> u8",
+                "pub fn message(&self) {}",
+                Some("pub fn message(&self)"),
+                Some("pub fn message(&self)"),
+            ),
+            (
+                "-> u8",
+                "-> u8",
+                "pub fn message(&self) {}",
+                Some("pub fn message(&self) "),
+                Some("pub fn message(&self) "),
+            ),
+        ] {
+            let file = InkFile::parse(source);
+            let range = TextRange::new(
+                TextSize::from(parse_offset_at(source, start_pat).unwrap() as u32),
+                TextSize::from(parse_offset_at(source, end_pat).unwrap() as u32),
+            );
+            let edit = TextEdit {
+                text: input.to_string(),
+                range,
+                snippet: None,
+            };
+            let result = format_edit(edit, &file);
+            let expected = TextEdit {
+                text: output.to_string(),
+                range,
+                snippet: None,
+            };
+            assert_eq!(result, expected);
+        }
+    }
+
+    #[test]
+    fn format_delete_works() {
+        for (start_pat_input, end_pat_input, pat_range_output, source) in [
+            // Removes space after delete if its surrounded by whitespace and
+            // the next token after trailing whitespace is not a closing curly bracket.
+            (
+                Some("<-#[ink::contract]"),
+                Some("#[ink::contract]"),
+                Some((Some("<-#[ink::contract]"), Some("<-mod contract {}"))),
+                r"
+#[ink::contract]
+mod contract {}
+", // FIXME: Should work without leading line.
+            ),
+            (
+                Some("<-#[ink::contract]"),
+                Some("#[ink::contract]"),
+                Some((Some("<-#[ink::contract]"), Some("<-mod contract {}"))),
+                r"
+#[doc(hidden)]
+#[ink::contract]
+mod contract {}",
+            ),
+            (
+                Some("<-#[ink::contract]"),
+                Some("#[ink::contract]"),
+                Some((Some("<-#[ink::contract]"), Some("<-#[doc(hidden)]"))),
+                r"
+#[ink::contract]
+#[doc(hidden)]
+mod contract {}", // FIXME: Should work without leading line.
+            ),
+            (
+                Some("<-#[ink(storage)]"),
+                Some("#[ink(storage)]"),
+                Some((Some("<-#[ink(storage)]"), Some("<-struct MyContract {}"))),
+                r"
+mod contract {
+    #[ink(storage)]
+    struct MyContract {}
+}",
+            ),
+            (
+                Some("<-#[ink(topic)]"),
+                Some("#[ink(topic)]"),
+                Some((Some("<-#[ink(topic)]"), Some("<-status: bool,"))),
+                r"
+mod contract {
+    struct MyEvent {
+        #[ink(topic)]
+        status: bool,
+    }
+}",
+            ),
+            (
+                Some("<-#[ink(impl)]"),
+                Some("#[ink(impl)]"),
+                Some((Some("<-#[ink(impl)]"), Some("<-impl MyContract {}"))),
+                r"
+mod contract {
+    #[ink(impl)]
+    impl MyContract {}
+}",
+            ),
+            (
+                Some("<-#[ink(impl)]"),
+                Some("#[ink(impl)]"),
+                Some((
+                    Some("<-#[ink(impl)]"),
+                    Some(r#"<-#[ink(namespace = "my_namespace")]"#),
+                )),
+                r#"
+mod contract {
+    #[ink(impl)]
+    #[ink(namespace = "my_namespace")]
+    impl MyContract {}
+}"#,
+            ),
+            (
+                Some("<-#[ink(message)]"),
+                Some("#[ink(message)]"),
+                Some((
+                    Some("<-#[ink(message)]"),
+                    Some("<-pub fn message(&self) {}"),
+                )),
+                r"
+mod contract {
+    impl MyContract {
+        #[ink(message)]
+        pub fn message(&self) {}
+    }
+}",
+            ),
+            (
+                Some("<--> u8"),
+                Some("-> u8"),
+                Some((Some("<--> u8"), Some("-> u8 "))),
+                "pub fn message(&self) -> u8 {}",
+            ),
+            (
+                Some("<-struct MyEvent {}"),
+                Some("struct MyEvent {}"),
+                Some((
+                    Some("<-struct MyEvent {}"),
+                    Some("<-struct MyOtherEvent {}"),
+                )),
+                r"
+mod contract {
+    struct MyContract {}
+
+    struct MyEvent {}
+
+    struct MyOtherEvent {}
+}",
+            ),
+            (
+                Some("<-struct MyEvent {}"),
+                Some("struct MyEvent {}"),
+                Some((
+                    Some("<-struct MyEvent {}"),
+                    Some("<-struct MyOtherEvent {}"),
+                )),
+                r"
+mod contract {
+    struct MyContract {}
+    struct MyEvent {}
+    struct MyOtherEvent {}
+}",
+            ),
+            (
+                Some("<-pub fn message(&self) {}"),
+                Some("pub fn message(&self) {}"),
+                Some((
+                    Some("<-pub fn message(&self) {}"),
+                    Some("<-pub fn message2(&self) {}"),
+                )),
+                r"
+mod contract {
+    impl MyContract {
+        pub fn constructor() {}
+
+        pub fn message(&self) {}
+
+        pub fn message2(&self) {}
+    }
+}",
+            ),
+            (
+                Some("<-pub fn message(&self) {}"),
+                Some("pub fn message(&self) {}"),
+                Some((
+                    Some("<-pub fn message(&self) {}"),
+                    Some("<-pub fn message2(&self) {}"),
+                )),
+                r"
+mod contract {
+    impl MyContract {
+        pub fn constructor() {}
+        pub fn message(&self) {}
+        pub fn message2(&self) {}
+    }
+}",
+            ),
+            // Everything else should remain unchanged.
+            (
+                Some("<-struct MyContract {}"),
+                Some("struct MyContract {}"),
+                None,
+                r"
+mod contract {
+    struct MyContract {}
+}",
+            ),
+            (
+                Some("<-status: bool,"),
+                Some("status: bool,"),
+                None,
+                r"
+mod contract {
+    struct MyContract {
+        status: bool,
+    }
+}",
+            ),
+            (
+                Some("<-impl MyContract {}"),
+                Some("impl MyContract {}"),
+                None,
+                r"
+mod contract {
+    impl MyContract {}
+}",
+            ),
+            (
+                Some("<-pub fn message(&self) {}"),
+                Some("pub fn message(&self) {}"),
+                None,
+                r"
+mod contract {
+    impl MyContract {
+        pub fn message(&self) {}
+    }
+}",
+            ),
+            (
+                Some("<-struct MyEvent {}"),
+                Some("struct MyEvent {}"),
+                None,
+                r"
+mod contract {
+    struct MyContract {}
+
+    struct MyEvent {}
+}",
+            ),
+            (
+                Some("<-struct MyEvent {}"),
+                Some("struct MyEvent {}"),
+                None,
+                r"
+mod contract {
+    struct MyContract;
+
+    struct MyEvent {}
+}",
+            ),
+            (
+                Some("<-pub fn message(&self) {}"),
+                Some("pub fn message(&self) {}"),
+                None,
+                r"
+mod contract {
+    impl MyContract {
+        pub fn constructor() {}
+
+        pub fn message(&self) {}
+    }
+}",
+            ),
+            (
+                Some("<-(env = crate::MyEnvironment)"),
+                Some("(env = crate::MyEnvironment)"),
+                None,
+                r"
+#[ink::contract(env = crate::MyEnvironment)]
+mod contract {}",
+            ),
+            (
+                Some("<-env = crate::MyEnvironment"),
+                Some("env = crate::MyEnvironment"),
+                None,
+                r"
+#[ink::contract(env = crate::MyEnvironment)]
+mod contract {}",
+            ),
+            (
+                Some(r#"<-, keep_attr = "foo,bar""#),
+                Some(r#", keep_attr = "foo,bar""#),
+                None,
+                r#"
+#[ink::contract(env = crate::MyEnvironment, keep_attr = "foo,bar")]
+mod contract {}"#,
+            ),
+            (
+                Some("<-crate::MyEnvironment"),
+                Some("crate::MyEnvironment"),
+                None,
+                r"
+#[ink::contract(env = crate::MyEnvironment)]
+mod contract {}",
+            ),
+            (
+                Some("<- crate::MyEnvironment"),
+                Some(" crate::MyEnvironment"),
+                None,
+                r"
+#[ink::contract(env = crate::MyEnvironment)]
+mod contract {}",
+            ),
+            (
+                Some("<-&self"),
+                Some("&self"),
+                None,
+                "pub fn message(&self) {}",
+            ),
+            (
+                Some("<-, status: bool"),
+                Some(", status: bool"),
+                None,
+                "pub fn message(&self, status: bool) {}",
+            ),
+            (
+                Some("<- status: bool"),
+                Some(" status: bool"),
+                None,
+                "pub fn message(&self, status: bool) {}",
+            ),
+            (
+                Some("<-status: bool"),
+                Some("status: bool"),
+                None,
+                "pub fn message(&self, status: bool) {}",
+            ),
+            (
+                Some("<- -> u8"),
+                Some(" -> u8"),
+                None,
+                "pub fn message(&self) -> u8 {}",
+            ),
+        ] {
+            let file = InkFile::parse(source);
+            let range_input = TextRange::new(
+                TextSize::from(parse_offset_at(source, start_pat_input).unwrap() as u32),
+                TextSize::from(parse_offset_at(source, end_pat_input).unwrap() as u32),
+            );
+            let range_output =
+                pat_range_output.map_or(range_input, |(start_pat_output, end_pat_output)| {
+                    TextRange::new(
+                        TextSize::from(parse_offset_at(source, start_pat_output).unwrap() as u32),
+                        TextSize::from(parse_offset_at(source, end_pat_output).unwrap() as u32),
+                    )
+                });
+
+            let edit = TextEdit {
+                text: "".to_string(),
+                range: range_input,
+                snippet: None,
+            };
+            let result = format_edit(edit, &file);
+            let expected = TextEdit {
+                text: "".to_string(),
+                range: range_output,
+                snippet: None,
+            };
+            assert_eq!(result, expected);
+        }
+    }
+}
