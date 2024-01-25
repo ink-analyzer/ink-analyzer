@@ -72,6 +72,78 @@ pub fn format_edits<'a>(
 
 /// Format text edit (i.e. add indenting and new lines based on context).
 pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
+    // Adds affixes to a text edit.
+    fn add_affixes(edit: &mut TextEdit, prefix: Option<String>, suffix: Option<String>) {
+        if prefix.is_some() || suffix.is_some() {
+            edit.text = format!(
+                "{}{}{}",
+                prefix.as_deref().unwrap_or_default(),
+                edit.text,
+                suffix.as_deref().unwrap_or_default(),
+            );
+            edit.snippet = edit.snippet.as_ref().map(|snippet| {
+                format!(
+                    "{}{snippet}{}",
+                    prefix.as_deref().unwrap_or_default(),
+                    suffix.as_deref().unwrap_or_default()
+                )
+            });
+        }
+    }
+
+    // Generates affixes for edits between new lines and/or file boundaries.
+    let affix_edit_between_whitespace_or_file_boundaries =
+        |whitespace_before: Option<&str>, whitespace_after: Option<&str>| {
+            let build_affix = |ws_text: &str| {
+                (!starts_with_two_or_more_newlines(ws_text)).then_some("\n".to_string())
+            };
+            match (
+                whitespace_before.map(|ws_before| (ws_before.contains('\n'), ws_before)),
+                whitespace_after.map(|ws_after| (ws_after.contains('\n'), ws_after)),
+            ) {
+                // Handles edits between new lines and/or file boundaries.
+                (Some((true, ws_text_before)), Some((true, ws_text_after))) => {
+                    (build_affix(ws_text_before), build_affix(ws_text_after))
+                }
+                (Some((true, ws_text_before)), None) => (build_affix(ws_text_before), None),
+                (None, Some((true, ws_text_after))) => (None, build_affix(ws_text_after)),
+                _ => (None, None),
+            }
+        };
+
+    // Handles edits inside whitespace.
+    let covering_whitespace = file
+        .syntax()
+        .covering_element(edit.range)
+        .into_token()
+        .filter(|token| {
+            token.kind() == SyntaxKind::WHITESPACE
+                && token.text_range().start() < edit.range.start()
+                && edit.range.end() < token.text_range().end()
+        });
+    if let Some(whitespace_token) = covering_whitespace {
+        if edit.text.is_empty() {
+            return edit;
+        }
+
+        let whitespace_text = whitespace_token.text();
+        let start = edit.range.start() - whitespace_token.text_range().start();
+        let (whitespace_before, whitespace_after) = if edit.range.is_empty() {
+            whitespace_text.split_at(start.into())
+        } else {
+            let end = whitespace_token.text_range().end() - edit.range.end();
+            let (whitespace_before, _) = whitespace_text.split_at(start.into());
+            let (_, whitespace_after) = whitespace_text.split_at(end.into());
+            (whitespace_before, whitespace_after)
+        };
+        let (prefix, suffix) = affix_edit_between_whitespace_or_file_boundaries(
+            Some(whitespace_before),
+            Some(whitespace_after),
+        );
+        add_affixes(&mut edit, prefix, suffix);
+        return edit;
+    }
+
     // Determines the token right before the start of the edit offset.
     let token_before_option = file
         .syntax()
@@ -119,7 +191,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         }
     } else {
         // Handles insert and replace.
-        let handle_edit_after_whitespace_or_bof =
+        let affix_edit_after_whitespace_or_bof =
             |token_before_option: Option<&SyntaxToken>,
              token_after_option: Option<&SyntaxToken>| {
                 let is_whitespace_or_bof_before =
@@ -132,31 +204,10 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                     });
                 if is_whitespace_or_bof_before && is_whitespace_or_eof_after {
                     // Handles edits between whitespace and/or file boundaries.
-                    match (
-                        token_before_option
-                            .map(|token_before| (token_before.text().contains('\n'), token_before)),
-                        token_after_option
-                            .map(|token_after| (token_after.text().contains('\n'), token_after)),
-                    ) {
-                        // Handles edits between new lines and/or file boundaries.
-                        (Some((true, token_before)), Some((true, token_after))) => (
-                            (!starts_with_two_or_more_newlines(token_before.text()))
-                                .then_some("\n".to_string()),
-                            (!starts_with_two_or_more_newlines(token_after.text()))
-                                .then_some("\n".to_string()),
-                        ),
-                        (Some((true, token_before)), None) => (
-                            (!starts_with_two_or_more_newlines(token_before.text()))
-                                .then_some("\n".to_string()),
-                            None,
-                        ),
-                        (None, Some((true, token_after))) => (
-                            None,
-                            (!starts_with_two_or_more_newlines(token_after.text()))
-                                .then_some("\n".to_string()),
-                        ),
-                        _ => (None, None),
-                    }
+                    affix_edit_between_whitespace_or_file_boundaries(
+                        token_before_option.map(SyntaxToken::text),
+                        token_after_option.map(SyntaxToken::text),
+                    )
                 } else if is_whitespace_or_bof_before && !is_whitespace_or_eof_after {
                     // Handles preserving formatting for next non-whitespace item.
                     (
@@ -180,7 +231,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         let (prefix, suffix) = if let Some(token_before) = token_before_option {
             match token_before.kind() {
                 // Handles edits after whitespace.
-                SyntaxKind::WHITESPACE => handle_edit_after_whitespace_or_bof(
+                SyntaxKind::WHITESPACE => affix_edit_after_whitespace_or_bof(
                     Some(&token_before),
                     token_after_option.as_ref(),
                 ),
@@ -253,25 +304,11 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                 _ => (None, None),
             }
         } else {
-            handle_edit_after_whitespace_or_bof(None, token_after_option.as_ref())
+            affix_edit_after_whitespace_or_bof(None, token_after_option.as_ref())
         };
 
         // Adds formatting if necessary.
-        if prefix.is_some() || suffix.is_some() {
-            edit.text = format!(
-                "{}{}{}",
-                prefix.as_deref().unwrap_or_default(),
-                edit.text,
-                suffix.as_deref().unwrap_or_default(),
-            );
-            edit.snippet = edit.snippet.map(|snippet| {
-                format!(
-                    "{}{snippet}{}",
-                    prefix.as_deref().unwrap_or_default(),
-                    suffix.as_deref().unwrap_or_default()
-                )
-            });
-        }
+        add_affixes(&mut edit, prefix, suffix);
     }
     edit
 }
@@ -300,6 +337,36 @@ mod tests {
 "#,
                 Some("\n->"),
                 Some("\n->"),
+            ),
+            (
+                "mod contract {}",
+                "\nmod contract {}\n",
+                r#"
+#![cfg_attr(not(feature = "std"), no_std, no_main)]
+
+#[cfg(test)]
+mod tests {}"#,
+                Some("<-\n#[cfg(test)]"),
+                Some("<-\n#[cfg(test)]"),
+            ),
+            (
+                "mod contract {}",
+                "\nmod contract {}\n",
+                "#![cfg_attr(not(feature = \"std\"), no_std)]\n \n#[cfg(test)]\nmod tests {}",
+                Some("<- \n#[cfg(test)]"),
+                Some("<-\n#[cfg(test)]"),
+            ),
+            (
+                "mod contract {}",
+                "mod contract {}\n",
+                r#"
+#![cfg_attr(not(feature = "std"), no_std, no_main)]
+
+
+#[cfg(test)]
+mod tests {}"#,
+                Some("<-\n#[cfg(test)]"),
+                Some("<-\n#[cfg(test)]"),
             ),
             (
                 "#[ink::contract]",
