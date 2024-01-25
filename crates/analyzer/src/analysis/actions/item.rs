@@ -305,19 +305,34 @@ fn item_ink_entity_actions(
                         range_option,
                     ));
 
-                    // Adds ink! constructor.
-                    add_result(entity::add_constructor_to_contract(
-                        &contract,
-                        ActionKind::Refactor,
-                        range_option,
-                    ));
+                    // Only suggest ink! constructors and ink! messages in module root if either:
+                    // - no action range is specified
+                    // - the action range is inside the module's body and the contract doesn't have
+                    //   any non-trait impls
+                    let has_non_trait_impls = || {
+                        contract
+                            .impls()
+                            .iter()
+                            .any(|impl_item| impl_item.trait_type().is_none())
+                    };
+                    if range_option.is_none()
+                        || (range_option.is_some_and(|range| is_focused_on_item_body(item, range))
+                            && !has_non_trait_impls())
+                    {
+                        // Adds ink! constructor.
+                        add_result(entity::add_constructor_to_contract(
+                            &contract,
+                            ActionKind::Refactor,
+                            range_option,
+                        ));
 
-                    // Adds ink! message.
-                    add_result(entity::add_message_to_contract(
-                        &contract,
-                        ActionKind::Refactor,
-                        range_option,
-                    ));
+                        // Adds ink! message.
+                        add_result(entity::add_message_to_contract(
+                            &contract,
+                            ActionKind::Refactor,
+                            range_option,
+                        ));
+                    }
                 }
                 None => {
                     let is_cfg_test = module.attrs().any(|attr| utils::is_cfg_test_attr(&attr));
