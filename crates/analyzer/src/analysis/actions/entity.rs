@@ -1,6 +1,6 @@
 //! ink! entity code/intent actions.
 
-use ink_analyzer_ir::syntax::{AstNode, TextRange, TextSize};
+use ink_analyzer_ir::syntax::{AstNode, TextRange};
 use ink_analyzer_ir::{
     ast, ChainExtension, Contract, Event, InkEntity, IsInkStruct, IsInkTrait, TraitDefinition,
 };
@@ -22,16 +22,18 @@ use crate::TextEdit;
 pub fn add_storage(
     contract: &Contract,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     contract.module().and_then(|module| {
-        // Sets insert offset or defaults to inserting at the beginning of the associated items list (if possible).
-        insert_offset_option
+        // Sets insert offset or defaults to inserting at the beginning of the
+        // associated items list (if possible).
+        range_option
             .or(module
                 .item_list()
                 .as_ref()
-                .map(utils::item_insert_offset_start))
-            .map(|insert_offset| {
+                .map(utils::item_insert_offset_start)
+                .map(|offset| TextRange::new(offset, offset)))
+            .map(|range| {
                 // Sets insert indent.
                 let indent = utils::item_children_indenting(module.syntax());
                 // Gets the "resolved" contract name.
@@ -41,7 +43,7 @@ pub fn add_storage(
                     label: "Add ink! storage `struct`.".to_string(),
                     kind,
                     range: utils::contract_declaration_range(contract),
-                    edits: vec![TextEdit::insert_with_snippet(
+                    edits: vec![TextEdit::replace_with_snippet(
                         utils::apply_indenting(
                             contract_name
                                 .as_deref()
@@ -50,7 +52,7 @@ pub fn add_storage(
                                 .unwrap_or(STORAGE_PLAIN),
                             &indent,
                         ),
-                        insert_offset,
+                        range,
                         Some(utils::apply_indenting(
                             contract_name
                                 .as_deref()
@@ -69,16 +71,18 @@ pub fn add_storage(
 pub fn add_event(
     contract: &Contract,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     contract.module().and_then(|module| {
-        // Sets insert offset or defaults to inserting after either the last struct or the beginning of the associated items list (if possible).
-        insert_offset_option
+        // Sets insert offset or defaults to inserting after either the last struct or
+        // the beginning of the associated items list (if possible).
+        range_option
             .or(module
                 .item_list()
                 .as_ref()
-                .map(utils::item_insert_offset_after_last_struct_or_start))
-            .map(|insert_offset| {
+                .map(utils::item_insert_offset_after_last_struct_or_start)
+                .map(|offset| TextRange::new(offset, offset)))
+            .map(|range| {
                 // Sets insert indent.
                 let indent = utils::item_children_indenting(module.syntax());
                 // Suggests an event name based on the "resolved" contract name.
@@ -89,7 +93,7 @@ pub fn add_event(
                     label: "Add ink! event `struct`.".to_string(),
                     kind,
                     range: utils::contract_declaration_range(contract),
-                    edits: vec![TextEdit::insert_with_snippet(
+                    edits: vec![TextEdit::replace_with_snippet(
                         utils::apply_indenting(
                             suggested_event_name
                                 .as_deref()
@@ -98,7 +102,7 @@ pub fn add_event(
                                 .unwrap_or(EVENT_PLAIN),
                             &indent,
                         ),
-                        insert_offset,
+                        range,
                         Some(utils::apply_indenting(
                             suggested_event_name
                                 .as_deref()
@@ -117,17 +121,18 @@ pub fn add_event(
 pub fn add_topic(
     event: &Event,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     event.struct_item().and_then(|struct_item| {
         // Sets insert offset or defaults to inserting at the end of the field list (if possible).
-        insert_offset_option
+        range_option
             .map(|offset| (offset, None, None))
             .or(struct_item
                 .field_list()
                 .as_ref()
-                .map(utils::field_insert_offset_end_and_affixes))
-            .map(|(insert_offset, prefix, suffix)| {
+                .map(utils::field_insert_offset_end_and_affixes)
+                .map(|(offset, prefix, suffix)| (TextRange::new(offset, offset), prefix, suffix)))
+            .map(|(range, prefix, suffix)| {
                 // Sets insert indent.
                 let indent = utils::item_children_indenting(struct_item.syntax());
 
@@ -138,14 +143,14 @@ pub fn add_topic(
                         struct_item.clone(),
                     ))
                     .unwrap_or(struct_item.syntax().text_range()),
-                    edits: vec![TextEdit::insert_with_snippet(
+                    edits: vec![TextEdit::replace_with_snippet(
                         format!(
                             "{}{}{}",
                             prefix.as_deref().unwrap_or_default(),
                             utils::apply_indenting(TOPIC_PLAIN, &indent),
                             suffix.as_deref().unwrap_or_default()
                         ),
-                        insert_offset,
+                        range,
                         Some(format!(
                             "{}{}{}",
                             prefix.as_deref().unwrap_or_default(),
@@ -158,17 +163,18 @@ pub fn add_topic(
     })
 }
 
-/// Adds an ink! callable `fn` to the first non-trait `impl` block or creates a new `impl` block if necessary.
+/// Adds an ink! callable `fn` to the first non-trait `impl` block or
+/// creates a new `impl` block if necessary.
 fn add_callable_to_contract(
     contract: &Contract,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
     label: String,
     plain: &str,
     snippet: &str,
 ) -> Option<Action> {
-    insert_offset_option
-        .and_then(|offset| utils::parent_ast_item(contract, TextRange::new(offset, offset)))
+    range_option
+        .and_then(|range| utils::parent_ast_item(contract, range))
         // Finds the parent `impl` block (if any).
         .and_then(|it| match it {
             ast::Item::Impl(impl_item) => Some(impl_item),
@@ -186,32 +192,39 @@ fn add_callable_to_contract(
             add_callable_to_impl(
                 &impl_item,
                 kind,
-                insert_offset_option,
+                range_option,
                 label.clone(),
                 plain,
                 snippet,
             )
         })
         // Otherwise inserts in contract root and creates `impl` block as needed.
-        .or(insert_offset_option
+        .or(range_option
             .zip(utils::callable_impl_indent_and_affixes(contract))
             .map(|(insert_offset, (indent, prefix, suffix))| {
                 (insert_offset, indent, Some(prefix), Some(suffix))
             })
-            // Defaults to inserting in the first non-trait `impl` block or creating a new `impl` block if necessary
-            .or(utils::callable_insert_offset_indent_and_affixes(contract))
-            .map(|(insert_offset, indent, prefix, suffix)| Action {
+            // Defaults to inserting in the first non-trait `impl` block or
+            // creating a new `impl` block if necessary
+            .or(
+                utils::callable_insert_offset_indent_and_affixes(contract).map(
+                    |(offset, ident, prefix, suffix)| {
+                        (TextRange::new(offset, offset), ident, prefix, suffix)
+                    },
+                ),
+            )
+            .map(|(range, indent, prefix, suffix)| Action {
                 label,
                 kind,
                 range: utils::contract_declaration_range(contract),
-                edits: vec![TextEdit::insert_with_snippet(
+                edits: vec![TextEdit::replace_with_snippet(
                     format!(
                         "{}{}{}",
                         prefix.as_deref().unwrap_or_default(),
                         utils::apply_indenting(plain, &indent),
                         suffix.as_deref().unwrap_or_default()
                     ),
-                    insert_offset,
+                    range,
                     Some(format!(
                         "{}{}{}",
                         prefix.as_deref().unwrap_or_default(),
@@ -222,32 +235,34 @@ fn add_callable_to_contract(
             }))
 }
 
-/// Adds an ink! constructor `fn` to the first non-trait `impl` block or creates a new `impl` block if necessary.
+/// Adds an ink! constructor `fn` to the first non-trait `impl` block or
+/// creates a new `impl` block if necessary.
 pub fn add_constructor_to_contract(
     contract: &Contract,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     add_callable_to_contract(
         contract,
         kind,
-        insert_offset_option,
+        range_option,
         "Add ink! constructor `fn`.".to_string(),
         CONSTRUCTOR_PLAIN,
         CONSTRUCTOR_SNIPPET,
     )
 }
 
-/// Adds an ink! message `fn` to the first non-trait `impl` block or creates a new `impl` block if necessary.
+/// Adds an ink! message `fn` to the first non-trait `impl` block or
+/// creates a new `impl` block if necessary.
 pub fn add_message_to_contract(
     contract: &Contract,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     add_callable_to_contract(
         contract,
         kind,
-        insert_offset_option,
+        range_option,
         "Add ink! message `fn`.".to_string(),
         MESSAGE_PLAIN,
         MESSAGE_SNIPPET,
@@ -258,18 +273,20 @@ pub fn add_message_to_contract(
 fn add_callable_to_impl(
     impl_item: &ast::Impl,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
     label: String,
     plain: &str,
     snippet: &str,
 ) -> Option<Action> {
-    // Sets insert offset or defaults to inserting at the end of the associated items list (if possible).
-    insert_offset_option
+    // Sets insert offset or defaults to inserting at the end of the
+    // associated items list (if possible).
+    range_option
         .or(impl_item
             .assoc_item_list()
             .as_ref()
-            .map(utils::assoc_item_insert_offset_end))
-        .map(|insert_offset| {
+            .map(utils::assoc_item_insert_offset_end)
+            .map(|offset| TextRange::new(offset, offset)))
+        .map(|range| {
             // Sets insert indent.
             let indent = utils::item_children_indenting(impl_item.syntax());
 
@@ -278,9 +295,9 @@ fn add_callable_to_impl(
                 kind,
                 range: utils::ast_item_declaration_range(&ast::Item::Impl(impl_item.clone()))
                     .unwrap_or(impl_item.syntax().text_range()),
-                edits: vec![TextEdit::insert_with_snippet(
+                edits: vec![TextEdit::replace_with_snippet(
                     utils::apply_indenting(plain, &indent),
-                    insert_offset,
+                    range,
                     Some(utils::apply_indenting(snippet, &indent)),
                 )],
             }
@@ -291,12 +308,12 @@ fn add_callable_to_impl(
 pub fn add_constructor_to_impl(
     impl_item: &ast::Impl,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     add_callable_to_impl(
         impl_item,
         kind,
-        insert_offset_option,
+        range_option,
         "Add ink! constructor `fn`.".to_string(),
         CONSTRUCTOR_PLAIN,
         CONSTRUCTOR_SNIPPET,
@@ -307,12 +324,12 @@ pub fn add_constructor_to_impl(
 pub fn add_message_to_impl(
     impl_item: &ast::Impl,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     add_callable_to_impl(
         impl_item,
         kind,
-        insert_offset_option,
+        range_option,
         "Add ink! message `fn`.".to_string(),
         MESSAGE_PLAIN,
         MESSAGE_SNIPPET,
@@ -323,16 +340,18 @@ pub fn add_message_to_impl(
 pub fn add_message_to_trait_definition(
     trait_definition: &TraitDefinition,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     trait_definition.trait_item().and_then(|trait_item| {
-        // Sets insert offset or defaults to inserting at the end of the associated items list (if possible).
-        insert_offset_option
+        // Sets insert offset or defaults to inserting at the end of the
+        // associated items list (if possible).
+        range_option
             .or(trait_item
                 .assoc_item_list()
                 .as_ref()
-                .map(utils::assoc_item_insert_offset_end))
-            .map(|insert_offset| {
+                .map(utils::assoc_item_insert_offset_end)
+                .map(|offset| TextRange::new(offset, offset)))
+            .map(|range| {
                 // Sets insert indent.
                 let indent = utils::item_children_indenting(trait_item.syntax());
 
@@ -340,9 +359,9 @@ pub fn add_message_to_trait_definition(
                     label: "Add ink! message `fn`.".to_string(),
                     kind,
                     range: utils::ink_trait_declaration_range(trait_definition),
-                    edits: vec![TextEdit::insert_with_snippet(
+                    edits: vec![TextEdit::replace_with_snippet(
                         utils::apply_indenting(TRAIT_MESSAGE_PLAIN, &indent),
-                        insert_offset,
+                        range,
                         Some(utils::apply_indenting(TRAIT_MESSAGE_SNIPPET, &indent)),
                     )],
                 }
@@ -354,16 +373,18 @@ pub fn add_message_to_trait_definition(
 pub fn add_error_code(
     chain_extension: &ChainExtension,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     chain_extension.trait_item().and_then(|trait_item| {
-        // Sets insert offset or defaults to inserting at the beginning of the associated items list (if possible).
-        insert_offset_option
+        // Sets insert offset or defaults to inserting at the beginning of the
+        // associated items list (if possible).
+        range_option
             .or(trait_item
                 .assoc_item_list()
                 .as_ref()
-                .map(utils::assoc_item_insert_offset_start))
-            .map(|insert_offset| {
+                .map(utils::assoc_item_insert_offset_start)
+                .map(|offset| TextRange::new(offset, offset)))
+            .map(|range| {
                 // Sets insert indent.
                 let indent = utils::item_children_indenting(trait_item.syntax());
 
@@ -371,9 +392,9 @@ pub fn add_error_code(
                     label: "Add `ErrorCode` type for ink! chain extension.".to_string(),
                     kind,
                     range: utils::ink_trait_declaration_range(chain_extension),
-                    edits: vec![TextEdit::insert_with_snippet(
+                    edits: vec![TextEdit::replace_with_snippet(
                         utils::apply_indenting(ERROR_CODE_PLAIN, &indent),
-                        insert_offset,
+                        range,
                         Some(utils::apply_indenting(ERROR_CODE_SNIPPET, &indent)),
                     )],
                 }
@@ -385,16 +406,18 @@ pub fn add_error_code(
 pub fn add_extension(
     chain_extension: &ChainExtension,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
     chain_extension.trait_item().and_then(|trait_item| {
-        // Sets insert offset or defaults to inserting at the end of the associated items list (if possible).
-        insert_offset_option
+        // Sets insert offset or defaults to inserting at the end of the
+        // associated items list (if possible).
+        range_option
             .or(trait_item
                 .assoc_item_list()
                 .as_ref()
-                .map(utils::assoc_item_insert_offset_end))
-            .map(|insert_offset| {
+                .map(utils::assoc_item_insert_offset_end)
+                .map(|offset| TextRange::new(offset, offset)))
+            .map(|range| {
                 // Sets insert indent.
                 let indent = utils::item_children_indenting(trait_item.syntax());
 
@@ -402,9 +425,9 @@ pub fn add_extension(
                     label: "Add ink! extension `fn`.".to_string(),
                     kind,
                     range: utils::ink_trait_declaration_range(chain_extension),
-                    edits: vec![TextEdit::insert_with_snippet(
+                    edits: vec![TextEdit::replace_with_snippet(
                         utils::apply_indenting(EXTENSION_PLAIN, &indent),
-                        insert_offset,
+                        range,
                         Some(utils::apply_indenting(EXTENSION_SNIPPET, &indent)),
                     )],
                 }
@@ -416,15 +439,17 @@ pub fn add_extension(
 pub fn add_ink_test(
     module: &ast::Module,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
-    // Sets insert offset or defaults to inserting at the end of the associated items list (if possible).
-    insert_offset_option
+    // Sets insert offset or defaults to inserting at the end of the
+    // associated items list (if possible).
+    range_option
         .or(module
             .item_list()
             .as_ref()
-            .map(utils::item_insert_offset_end))
-        .map(|insert_offset| {
+            .map(utils::item_insert_offset_end)
+            .map(|offset| TextRange::new(offset, offset)))
+        .map(|range| {
             // Sets insert indent.
             let indent = utils::item_children_indenting(module.syntax());
 
@@ -433,9 +458,9 @@ pub fn add_ink_test(
                 kind,
                 range: utils::ast_item_declaration_range(&ast::Item::Module(module.clone()))
                     .unwrap_or(module.syntax().text_range()),
-                edits: vec![TextEdit::insert_with_snippet(
+                edits: vec![TextEdit::replace_with_snippet(
                     utils::apply_indenting(INK_TEST_PLAIN, &indent),
-                    insert_offset,
+                    range,
                     Some(utils::apply_indenting(INK_TEST_SNIPPET, &indent)),
                 )],
             }
@@ -446,15 +471,17 @@ pub fn add_ink_test(
 pub fn add_ink_e2e_test(
     module: &ast::Module,
     kind: ActionKind,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) -> Option<Action> {
-    // Sets insert offset or defaults to inserting at the end of the associated items list (if possible).
-    insert_offset_option
+    // Sets insert offset or defaults to inserting at the end of the
+    // associated items list (if possible).
+    range_option
         .or(module
             .item_list()
             .as_ref()
-            .map(utils::item_insert_offset_end))
-        .map(|insert_offset| {
+            .map(utils::item_insert_offset_end)
+            .map(|offset| TextRange::new(offset, offset)))
+        .map(|range| {
             // Sets insert indent.
             let indent = utils::item_children_indenting(module.syntax());
 
@@ -463,9 +490,9 @@ pub fn add_ink_e2e_test(
                 kind,
                 range: utils::ast_item_declaration_range(&ast::Item::Module(module.clone()))
                     .unwrap_or(module.syntax().text_range()),
-                edits: vec![TextEdit::insert_with_snippet(
+                edits: vec![TextEdit::replace_with_snippet(
                     utils::apply_indenting(INK_E2E_TEST_PLAIN, &indent),
-                    insert_offset,
+                    range,
                     Some(utils::apply_indenting(INK_E2E_TEST_SNIPPET, &indent)),
                 )],
             }
@@ -473,18 +500,18 @@ pub fn add_ink_e2e_test(
 }
 
 /// Creates an insert edit with a snippet and indenting.
-fn insert_edit_with_snippet_and_indent(
+fn compose_edit_with_snippet_and_indent(
     text: &str,
-    offset: TextSize,
+    range: TextRange,
     snippet_option: Option<&str>,
     indent_option: Option<&str>,
 ) -> TextEdit {
-    TextEdit::insert_with_snippet(
+    TextEdit::replace_with_snippet(
         match indent_option {
             Some(indent) => utils::apply_indenting(text, indent),
             None => text.to_string(),
         },
-        offset,
+        range,
         snippet_option.map(|snippet| match indent_option {
             Some(indent) => utils::apply_indenting(snippet, indent),
             None => snippet.to_string(),
@@ -493,14 +520,14 @@ fn insert_edit_with_snippet_and_indent(
 }
 
 /// Add an ink! contract `mod`.
-pub fn add_contract(offset: TextSize, kind: ActionKind, indent_option: Option<&str>) -> Action {
+pub fn add_contract(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
     Action {
         label: "Add ink! contract `mod`.".to_string(),
         kind,
-        range: TextRange::new(offset, offset),
-        edits: vec![insert_edit_with_snippet_and_indent(
+        range,
+        edits: vec![compose_edit_with_snippet_and_indent(
             CONTRACT_PLAIN,
-            offset,
+            range,
             Some(CONTRACT_SNIPPET),
             indent_option,
         )],
@@ -509,17 +536,17 @@ pub fn add_contract(offset: TextSize, kind: ActionKind, indent_option: Option<&s
 
 /// Add an ink! trait definition `trait`.
 pub fn add_trait_definition(
-    offset: TextSize,
+    range: TextRange,
     kind: ActionKind,
     indent_option: Option<&str>,
 ) -> Action {
     Action {
         label: "Add ink! trait definition.".to_string(),
         kind,
-        range: TextRange::new(offset, offset),
-        edits: vec![insert_edit_with_snippet_and_indent(
+        range,
+        edits: vec![compose_edit_with_snippet_and_indent(
             TRAIT_DEFINITION_PLAIN,
-            offset,
+            range,
             Some(TRAIT_DEFINITION_SNIPPET),
             indent_option,
         )],
@@ -528,17 +555,17 @@ pub fn add_trait_definition(
 
 /// Add an ink! chain extension `trait`.
 pub fn add_chain_extension(
-    offset: TextSize,
+    range: TextRange,
     kind: ActionKind,
     indent_option: Option<&str>,
 ) -> Action {
     Action {
         label: "Add ink! chain extension `trait`.".to_string(),
         kind,
-        range: TextRange::new(offset, offset),
-        edits: vec![insert_edit_with_snippet_and_indent(
+        range,
+        edits: vec![compose_edit_with_snippet_and_indent(
             CHAIN_EXTENSION_PLAIN,
-            offset,
+            range,
             Some(CHAIN_EXTENSION_SNIPPET),
             indent_option,
         )],
@@ -546,14 +573,14 @@ pub fn add_chain_extension(
 }
 
 /// Add an ink! storage item.
-pub fn add_storage_item(offset: TextSize, kind: ActionKind, indent_option: Option<&str>) -> Action {
+pub fn add_storage_item(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
     Action {
         label: "Add ink! storage item `ADT` (i.e. `struct`, `enum` or `union`).".to_string(),
         kind,
-        range: TextRange::new(offset, offset),
-        edits: vec![insert_edit_with_snippet_and_indent(
+        range,
+        edits: vec![compose_edit_with_snippet_and_indent(
             STORAGE_ITEM_PLAIN,
-            offset,
+            range,
             Some(STORAGE_ITEM_SNIPPET),
             indent_option,
         )],
@@ -561,14 +588,14 @@ pub fn add_storage_item(offset: TextSize, kind: ActionKind, indent_option: Optio
 }
 
 /// Add an ink! environment.
-pub fn add_environment(offset: TextSize, kind: ActionKind, indent_option: Option<&str>) -> Action {
+pub fn add_environment(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
     Action {
         label: "Add custom ink! environment implementation.".to_string(),
         kind,
-        range: TextRange::new(offset, offset),
-        edits: vec![insert_edit_with_snippet_and_indent(
+        range,
+        edits: vec![compose_edit_with_snippet_and_indent(
             &format!("{ENVIRONMENT_DEF}\n\n{ENVIRONMENT_IMPL_PLAIN}"),
-            offset,
+            range,
             Some(&format!("{ENVIRONMENT_DEF}\n\n{ENVIRONMENT_IMPL_SNIPPET}")),
             indent_option,
         )],

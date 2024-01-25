@@ -1,7 +1,7 @@
 //! AST item code/intent actions.
 
 use ink_analyzer_ir::ast::HasAttrs;
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize};
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
     ast, ChainExtension, Contract, Event, InkArgKind, InkAttribute, InkAttributeKind, InkEntity,
     InkFile, InkImpl, InkMacroKind, TraitDefinition,
@@ -18,18 +18,18 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
     match utils::focused_element(file, range) {
         // Computes actions based on focused element (if it can be determined).
         Some(focused_elem) => {
-            // Computes an offset for inserting around the focused element
+            // Computes an offset for editing around the focused element
             // (i.e. insert at the end of the focused element except if it's whitespace,
             // in which case insert based on the passed text range).
-            let focused_elem_insert_offset = || -> TextSize {
+            let focused_elem_edit_range = || {
                 if focused_elem.kind() == SyntaxKind::WHITESPACE
                     && focused_elem.text_range().contains_range(range)
                 {
                     range
                 } else {
-                    focused_elem.text_range()
+                    let end = focused_elem.text_range().end();
+                    TextRange::new(end, end)
                 }
-                .end()
             };
 
             // Only computes actions if the focused element isn't part of an attribute.
@@ -37,25 +37,27 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                 match utils::parent_ast_item(file, range) {
                     // Computes actions based on the parent AST item.
                     Some(ast_item) => {
-                        // Gets the covering struct record field (if any) if the AST item is a struct.
+                        // Gets the covering struct record field (if any).
                         let record_field: Option<ast::RecordField> =
                             matches!(&ast_item, ast::Item::Struct(_))
                                 .then(|| ink_analyzer_ir::closest_ancestor_ast_type(&focused_elem))
                                 .flatten();
 
-                        // Only computes ink! attribute actions if the focus is on either a struct record field or
-                        // an AST item's declaration (i.e not on attributes nor rustdoc nor inside the AST item's item list or body) for
-                        // an item that can be annotated with ink! attributes.
+                        // Only computes ink! attribute actions if the focus is on either a
+                        // struct record field or an AST item's declaration (i.e not on attributes
+                        // nor rustdoc nor inside the AST item's item list or body) for an item
+                        // that can be annotated with ink! attributes.
                         if record_field.is_some()
                             || is_focused_on_item_declaration(&ast_item, range)
                         {
-                            // Retrieves the target syntax node as either the covering struct field (if present) or
-                            // the parent AST item (for all other cases).
+                            // Retrieves the target syntax node as either the covering struct field
+                            // (if present) or the parent AST item (for all other cases).
                             let target = record_field
                                 .as_ref()
                                 .map_or(ast_item.syntax(), AstNode::syntax);
 
-                            // Determines text range for item "declaration" (fallbacks to range of the entire item).
+                            // Determines text range for item "declaration"
+                            // (fallbacks to range of the entire item).
                             let item_declaration_text_range = record_field
                                 .as_ref()
                                 .map(|it| it.syntax().text_range())
@@ -74,7 +76,8 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
 
                         // Only computes ink! entity actions if the focus is on either
                         // an AST item's "declaration" or body (except for record fields)
-                        // (i.e not on meta - attributes/rustdoc) for an item that can can have ink! attribute descendants.
+                        // (i.e not on meta - attributes/rustdoc) for an item that can have
+                        // ink! attribute descendants.
                         let is_focused_on_body = is_focused_on_item_body(&ast_item, range);
                         if is_focused_on_item_declaration(&ast_item, range)
                             || (is_focused_on_body && record_field.is_none())
@@ -83,18 +86,19 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                             item_ink_entity_actions(
                                 results,
                                 &ast_item,
-                                is_focused_on_body.then_some(focused_elem_insert_offset()),
+                                is_focused_on_body.then_some(focused_elem_edit_range()),
                             );
                         }
                     }
-                    // Computes root-level ink! entity actions if focused element is whitespace in the root of the file (i.e. has no AST parent).
+                    // Computes root-level ink! entity actions if focused element is whitespace
+                    // in the root of the file (i.e. has no AST parent).
                     None => {
                         let is_in_file_root = focused_elem
                             .parent()
                             .is_some_and(|it| it.kind() == SyntaxKind::SOURCE_FILE);
                         if is_in_file_root {
                             // Suggests root-level ink! entities based on the context.
-                            root_ink_entity_actions(results, file, focused_elem_insert_offset());
+                            root_ink_entity_actions(results, file, focused_elem_edit_range());
                         }
                     }
                 }
@@ -105,7 +109,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
             if file.syntax().text_range().is_empty()
                 && file.syntax().text_range().contains_range(range)
             {
-                root_ink_entity_actions(results, file, range.end());
+                root_ink_entity_actions(results, file, range);
             }
         }
     }
@@ -118,7 +122,8 @@ fn ink_macro_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: Text
         // Suggests ink! attribute macros based on the context.
         let mut ink_macro_suggestions = utils::valid_ink_macros_by_syntax_kind(target.kind());
 
-        // Filters out duplicate and invalid ink! attribute macro actions based on parent ink! scope (if any).
+        // Filters out duplicate and invalid ink! attribute macro actions based on
+        // parent ink! scope (if any).
         utils::remove_duplicate_ink_macro_suggestions(&mut ink_macro_suggestions, target);
         utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
             &mut ink_macro_suggestions,
@@ -176,7 +181,8 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
     // Filters out invalid ink! arguments from suggestions based on parent item's invariants.
     utils::remove_invalid_ink_arg_suggestions_for_parent_item(&mut ink_arg_suggestions, target);
     // Filters out invalid ink! attribute argument actions based on parent ink! scope
-    // if there's either no valid ink! attribute macro or only ink! attribute arguments applied to the item.
+    // if there's either no valid ink! attribute macro or only ink! attribute arguments
+    // applied to the item.
     if primary_ink_attr_candidate.is_none()
         || !matches!(
             primary_ink_attr_candidate.as_ref().map(InkAttribute::kind),
@@ -192,7 +198,8 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
     if !ink_arg_suggestions.is_empty() {
         // Add ink! attribute argument actions to accumulator.
         for arg_kind in ink_arg_suggestions {
-            // Determines the insertion offset and affixes for the action and whether or not an existing attribute can be extended.
+            // Determines the insertion offset and affixes for the action and whether or
+            // not an existing attribute can be extended.
             let ((insert_offset, insert_prefix, insert_suffix), is_extending) =
                 primary_ink_attr_candidate
                     .as_ref()
@@ -267,7 +274,7 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
 fn item_ink_entity_actions(
     results: &mut Vec<Action>,
     item: &ast::Item,
-    insert_offset_option: Option<TextSize>,
+    range_option: Option<TextRange>,
 ) {
     let mut add_result = |action_option: Option<Action>| {
         // Add action to accumulator (if any).
@@ -287,7 +294,7 @@ fn item_ink_entity_actions(
                         add_result(entity::add_storage(
                             &contract,
                             ActionKind::Refactor,
-                            insert_offset_option,
+                            range_option,
                         ));
                     }
 
@@ -295,21 +302,21 @@ fn item_ink_entity_actions(
                     add_result(entity::add_event(
                         &contract,
                         ActionKind::Refactor,
-                        insert_offset_option,
+                        range_option,
                     ));
 
                     // Adds ink! constructor.
                     add_result(entity::add_constructor_to_contract(
                         &contract,
                         ActionKind::Refactor,
-                        insert_offset_option,
+                        range_option,
                     ));
 
                     // Adds ink! message.
                     add_result(entity::add_message_to_contract(
                         &contract,
                         ActionKind::Refactor,
-                        insert_offset_option,
+                        range_option,
                     ));
                 }
                 None => {
@@ -319,7 +326,7 @@ fn item_ink_entity_actions(
                         add_result(entity::add_ink_test(
                             module,
                             ActionKind::Refactor,
-                            insert_offset_option,
+                            range_option,
                         ));
                     }
 
@@ -331,14 +338,15 @@ fn item_ink_entity_actions(
                         add_result(entity::add_ink_e2e_test(
                             module,
                             ActionKind::Refactor,
-                            insert_offset_option,
+                            range_option,
                         ));
                     }
                 }
             }
         }
         ast::Item::Impl(impl_item) => {
-            // Only computes ink! entities if impl item is not a trait `impl` and additionally either:
+            // Only computes ink! entities if impl item is not a trait `impl`
+            // and additionally either:
             // - has an ink! `impl` attribute.
             // - contains at least one ink! constructor or ink! message.
             // - has an ink! contract as the direct parent.
@@ -350,14 +358,14 @@ fn item_ink_entity_actions(
                 add_result(entity::add_constructor_to_impl(
                     impl_item,
                     ActionKind::Refactor,
-                    insert_offset_option,
+                    range_option,
                 ));
 
                 // Adds ink! message.
                 add_result(entity::add_message_to_impl(
                     impl_item,
                     ActionKind::Refactor,
-                    insert_offset_option,
+                    range_option,
                 ));
             }
         }
@@ -376,7 +384,7 @@ fn item_ink_entity_actions(
                                     add_result(entity::add_error_code(
                                         &chain_extension,
                                         ActionKind::Refactor,
-                                        insert_offset_option,
+                                        range_option,
                                     ));
                                 }
 
@@ -384,7 +392,7 @@ fn item_ink_entity_actions(
                                 add_result(entity::add_extension(
                                     &chain_extension,
                                     ActionKind::Refactor,
-                                    insert_offset_option,
+                                    range_option,
                                 ));
                             }
                         }
@@ -396,7 +404,7 @@ fn item_ink_entity_actions(
                                 add_result(entity::add_message_to_trait_definition(
                                     &trait_definition,
                                     ActionKind::Refactor,
-                                    insert_offset_option,
+                                    range_option,
                                 ));
                             }
                         }
@@ -415,7 +423,7 @@ fn item_ink_entity_actions(
                 add_result(entity::add_topic(
                     &event,
                     ActionKind::Refactor,
-                    insert_offset_option,
+                    range_option,
                 ));
             }
         }
@@ -425,31 +433,31 @@ fn item_ink_entity_actions(
 }
 
 /// Computes root-level ink! entity macro actions.
-fn root_ink_entity_actions(results: &mut Vec<Action>, file: &InkFile, offset: TextSize) {
+fn root_ink_entity_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
     if file.contracts().is_empty() {
         // Adds ink! contract.
-        results.push(entity::add_contract(offset, ActionKind::Refactor, None));
+        results.push(entity::add_contract(range, ActionKind::Refactor, None));
     }
 
     // Adds ink! trait definition.
     results.push(entity::add_trait_definition(
-        offset,
+        range,
         ActionKind::Refactor,
         None,
     ));
 
     // Adds ink! chain extension.
     results.push(entity::add_chain_extension(
-        offset,
+        range,
         ActionKind::Refactor,
         None,
     ));
 
     // Adds ink! storage item.
-    results.push(entity::add_storage_item(offset, ActionKind::Refactor, None));
+    results.push(entity::add_storage_item(range, ActionKind::Refactor, None));
 
     // Adds ink! environment.
-    results.push(entity::add_environment(offset, ActionKind::Refactor, None));
+    results.push(entity::add_environment(range, ActionKind::Refactor, None));
 }
 
 /// Computes actions for "flattening" ink! attributes for the target syntax node.
@@ -506,7 +514,8 @@ fn is_focused_on_item_declaration(item: &ast::Item, range: TextRange) -> bool {
             .is_some_and(|token| token.text_range().contains_range(range))
 }
 
-/// Determines if the selection range is in an AST item's body (i.e inside the AST item's item list or body)
+/// Determines if the selection range is in an AST item's body
+/// (i.e inside the AST item's item list or body)
 /// for an item that can be annotated with ink! attributes or can have ink! attribute descendants.
 fn is_focused_on_item_body(item: &ast::Item, range: TextRange) -> bool {
     // Returns false for "unsupported" item types (see [`utils::ast_item_declaration_range`] doc and implementation).
@@ -537,11 +546,14 @@ mod tests {
         for (code, pat, expected_results) in [
             // (code, pat, Vec<(label, Vec<(text, start_pat, end_pat)>)>) where:
             // code = source code,
-            // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
+            // pat = substring used to find the cursor offset
+            //       (see `test_utils::parse_offset_at` doc),
             // label = the label text (of a substring of it) for the action,
             // edit = the text (of a substring of it) that will inserted,
-            // start_pat = substring used to find the start of the edit offset (see `test_utils::parse_offset_at` doc),
-            // end_pat = substring used to find the end of the edit offset (see `test_utils::parse_offset_at` doc).
+            // start_pat = substring used to find the start of the edit offset
+            //             (see `test_utils::parse_offset_at` doc),
+            // end_pat = substring used to find the end of the edit offset
+            //           (see `test_utils::parse_offset_at` doc).
 
             // No AST item in focus.
             (
@@ -1924,8 +1936,10 @@ mod tests {
         for (code, test_cases) in [
             // (code, [(pat, declaration_result, body_result)]) where:
             // code = source code,
-            // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // result = expected result from calling `is_focused_on_ast_item_declaration` (i.e whether or not an AST item's declaration is in focus),
+            // pat = substring used to find the cursor offset
+            //       (see `test_utils::parse_offset_at` doc),
+            // result = expected result from calling `is_focused_on_ast_item_declaration`
+            //          (i.e whether or not an AST item's declaration is in focus),
 
             // Module.
             (
