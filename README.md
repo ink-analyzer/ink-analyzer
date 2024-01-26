@@ -6,8 +6,6 @@ ink! analyzer aims to improve [ink!](https://use.ink/) language support in [inte
 
 - [Introductory blog post](https://analyze.ink/blog/introducing-ink-analyzer).
 
-**NOTE:** 🚧 This project is still work in progress, check back over the next few weeks for regular updates.
-
 ## Architecture
 
 This repository contains 4 main crates:
