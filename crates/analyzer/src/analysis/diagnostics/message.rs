@@ -66,7 +66,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
 
     (!has_self_ref_receiver).then_some(Diagnostic {
         message: "ink! message must have a self reference receiver (i.e `&self` or `&mut self`)."
-            .to_string(),
+            .to_owned(),
         range,
         severity: Severity::Error,
         quickfixes: fn_item
@@ -80,7 +80,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
                 let insert_suffix = if has_more_params { ", " } else { "" };
                 vec![
                     Action {
-                        label: "Add immutable self reference receiver".to_string(),
+                        label: "Add immutable self reference receiver".to_owned(),
                         kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::insert(
@@ -89,7 +89,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
                         )],
                     },
                     Action {
-                        label: "Add mutable self reference receiver".to_string(),
+                        label: "Add mutable self reference receiver".to_owned(),
                         kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::insert(
@@ -112,11 +112,11 @@ fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
     // Edit range for quickfix.
     let range = analysis_utils::node_and_trivia_range(fn_item.ret_type()?.syntax());
     (return_type.to_string() == "Self").then_some(Diagnostic {
-        message: "ink! message must not return `Self`.".to_string(),
+        message: "ink! message must not return `Self`.".to_owned(),
         range: return_type.syntax().text_range(),
         severity: Severity::Error,
         quickfixes: Some(vec![Action {
-            label: "Remove `Self` return type.".to_string(),
+            label: "Remove `Self` return type.".to_owned(),
             kind: ActionKind::QuickFix,
             range,
             edits: vec![TextEdit::delete(range)],

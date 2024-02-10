@@ -304,9 +304,10 @@ fn external_crate_uses_and_aliases_in_scope(
     let (mut use_paths, mut item_aliases) =
         ink_analyzer_ir::simple_use_paths_and_aliases_in_scope(ref_node);
 
-    while let Some(use_path_str) = use_paths.iter().find_map(|use_path| {
-        (!is_crate_item_path(use_path, crates)).then_some(use_path.to_string())
-    }) {
+    while let Some(use_path_str) = use_paths
+        .iter()
+        .find_map(|use_path| (!is_crate_item_path(use_path, crates)).then_some(use_path.to_owned()))
+    {
         // Removes path.
         use_paths.remove(&use_path_str);
 
@@ -317,8 +318,7 @@ fn external_crate_uses_and_aliases_in_scope(
     }
 
     while let Some((alias, item_path_str)) = item_aliases.iter().find_map(|(alias, item_path)| {
-        (!is_crate_item_path(item_path, crates))
-            .then_some((alias.to_string(), item_path.to_string()))
+        (!is_crate_item_path(item_path, crates)).then_some((alias.to_owned(), item_path.to_owned()))
     }) {
         // Removes alias.
         item_aliases.remove(&alias);
@@ -332,7 +332,7 @@ fn external_crate_uses_and_aliases_in_scope(
             if let Some(resolved_item_path) =
                 result.0.iter().next().or(result.1.get(&target.to_string()))
             {
-                item_aliases.insert(alias, resolved_item_path.to_string());
+                item_aliases.insert(alias, resolved_item_path.to_owned());
             }
         }
     }

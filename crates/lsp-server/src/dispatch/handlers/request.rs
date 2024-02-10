@@ -221,26 +221,27 @@ pub fn handle_execute_command(
                     .ok()
                     .zip(root.join("Cargo.toml").ok());
                 match uris {
-                    Some((lib_uri, cargo_uri)) => match ink_analyzer::new_project(name.to_string())
-                    {
-                        Ok(project) => {
-                            // Returns create project edits.
-                            Ok(serde_json::to_value(CreateProjectResponse {
-                                name: name.to_owned(),
-                                uri: root,
-                                files: HashMap::from([
-                                    (lib_uri, project.lib.plain),
-                                    (cargo_uri, project.cargo.plain),
-                                ]),
-                            })
-                            .ok())
-                        }
-                        Err(_) => Err(anyhow::format_err!(
-                            "Failed to create ink! project: {name}\n\
+                    Some((lib_uri, cargo_uri)) => {
+                        match ink_analyzer::new_project(name.to_owned()) {
+                            Ok(project) => {
+                                // Returns create project edits.
+                                Ok(serde_json::to_value(CreateProjectResponse {
+                                    name: name.to_owned(),
+                                    uri: root,
+                                    files: HashMap::from([
+                                        (lib_uri, project.lib.plain),
+                                        (cargo_uri, project.cargo.plain),
+                                    ]),
+                                })
+                                .ok())
+                            }
+                            Err(_) => Err(anyhow::format_err!(
+                                "Failed to create ink! project: {name}\n\
                             ink! project names must begin with an alphabetic character, \
                             and only contain alphanumeric characters, underscores and hyphens"
-                        )),
-                    },
+                            )),
+                        }
+                    }
                     None => Err(anyhow::format_err!("Failed to create ink! project: {name}")),
                 }
             }
@@ -485,7 +486,7 @@ mod tests {
         // Calls handler and verifies that the expected response is returned.
         let result = handle_execute_command(
             lsp_types::ExecuteCommandParams {
-                command: "createProject".to_string(),
+                command: "createProject".to_owned(),
                 arguments: vec![serde_json::json!({
                     "name": project_name,
                     "root": project_uri

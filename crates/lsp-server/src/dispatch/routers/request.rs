@@ -97,7 +97,7 @@ impl<'a> RequestRouter<'a> {
                 lsp_server::Response::new_err(
                     req.id,
                     lsp_server::ErrorCode::MethodNotFound as i32,
-                    "Unknown or unsupported request.".to_string(),
+                    "Unknown or unsupported request.".to_owned(),
                 )
             }),
         }
@@ -124,7 +124,7 @@ mod tests {
         let req_id = lsp_server::RequestId::from(1);
         let req = lsp_server::Request {
             id: req_id.clone(),
-            method: lsp_types::request::Completion::METHOD.to_string(),
+            method: lsp_types::request::Completion::METHOD.to_owned(),
             params: serde_json::to_value(lsp_types::CompletionParams {
                 text_document_position: lsp_types::TextDocumentPositionParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri },

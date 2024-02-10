@@ -20,8 +20,8 @@ pub fn initialize(
         // Sets server capabilities based on client's capabilities.
         capabilities: server_capabilities(&initialize_params.capabilities),
         server_info: Some(lsp_types::ServerInfo {
-            name: "ink-analyzer".to_string(),
-            version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            name: "ink-analyzer".to_owned(),
+            version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         }),
         offset_encoding: None,
     })
@@ -57,10 +57,10 @@ pub fn server_capabilities(
             resolve_provider: None,
             // ink! completions are all attribute based.
             trigger_characters: Some(vec![
-                "[".to_string(),
-                "(".to_string(),
-                ",".to_string(),
-                ":".to_string(),
+                "[".to_owned(),
+                "(".to_owned(),
+                ",".to_owned(),
+                ":".to_owned(),
             ]),
             all_commit_characters: None,
             work_done_progress_options: Default::default(),
@@ -83,12 +83,12 @@ pub fn server_capabilities(
             }),
         )),
         signature_help_provider: Some(lsp_types::SignatureHelpOptions {
-            trigger_characters: Some(vec!["(".to_string(), ",".to_string()]),
+            trigger_characters: Some(vec!["(".to_owned(), ",".to_owned()]),
             retrigger_characters: None,
             work_done_progress_options: Default::default(),
         }),
         execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
-            commands: vec!["createProject".to_string()],
+            commands: vec!["createProject".to_owned()],
             work_done_progress_options: Default::default(),
         }),
         ..Default::default()
@@ -114,7 +114,7 @@ mod tests {
         let init_req_id = lsp_server::RequestId::from(1);
         let init_req = lsp_server::Request {
             id: init_req_id.clone(),
-            method: lsp_types::request::Initialize::METHOD.to_string(),
+            method: lsp_types::request::Initialize::METHOD.to_owned(),
             params: serde_json::to_value(lsp_types::InitializeParams::default()).unwrap(),
         };
         // Sends initialization request from client to server.

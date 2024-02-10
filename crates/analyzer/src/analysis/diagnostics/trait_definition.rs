@@ -88,15 +88,15 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                     analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
                         .unwrap_or(fn_item.syntax().text_range());
                 results.push(Diagnostic {
-                    message: "All ink! trait definition methods must be ink! messages.".to_string(),
+                    message: "All ink! trait definition methods must be ink! messages.".to_owned(),
                     range,
                     severity: Severity::Error,
                     quickfixes: Some(vec![Action {
-                        label: "Add ink! message attribute.".to_string(),
+                        label: "Add ink! message attribute.".to_owned(),
                         kind: ActionKind::QuickFix,
                         range,
                         edits: [TextEdit::insert(
-                            "#[ink(message)]".to_string(),
+                            "#[ink(message)]".to_owned(),
                             insert_offset,
                         )]
                         .into_iter()
@@ -135,11 +135,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                                 message:
                                 "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
                                 They're only supported on inherent ink! messages and constructors."
-                                    .to_string(),
+                                    .to_owned(),
                                 range: arg.text_range(),
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
-                                    label: "Remove wildcard selector.".to_string(),
+                                    label: "Remove wildcard selector.".to_owned(),
                                     kind: ActionKind::QuickFix,
                                     range,
                                     edits: vec![TextEdit::delete(range)],
@@ -153,11 +153,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
         |results, type_alias| {
             results.push(Diagnostic {
                 message: "Associated types in ink! trait definitions are not yet supported."
-                    .to_string(),
+                    .to_owned(),
                 range: type_alias.syntax().text_range(),
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
-                    label: "Remove associated type.".to_string(),
+                    label: "Remove associated type.".to_owned(),
                     kind: ActionKind::QuickFix,
                     range: type_alias.syntax().text_range(),
                     edits: vec![TextEdit::delete(type_alias.syntax().text_range())],
@@ -180,7 +180,7 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
         trait_definition.messages(),
         Diagnostic {
             message: "At least one ink! message must be defined for an ink! trait definition."
-                .to_string(),
+                .to_owned(),
             range,
             severity: Severity::Error,
             quickfixes: entity_actions::add_message_to_trait_definition(

@@ -71,14 +71,14 @@ mod tests {
         // Creates test document parameters.
         let uri = document_uri();
         let version = 0;
-        let content = "".to_string();
+        let content = "".to_owned();
 
         // Calls handler with parameters for an open rust file and verifies that the file is added to memory.
         let result = handle_did_open_text_document(
             DidOpenTextDocumentParams {
                 text_document: TextDocumentItem {
                     uri: uri.clone(),
-                    language_id: "rust".to_string(),
+                    language_id: "rust".to_owned(),
                     version,
                     text: content.clone(),
                 },
@@ -101,7 +101,7 @@ mod tests {
             DidOpenTextDocumentParams {
                 text_document: TextDocumentItem {
                     uri: uri.clone(),
-                    language_id: "xyz".to_string(),
+                    language_id: "xyz".to_owned(),
                     version,
                     text: content,
                 },
@@ -119,11 +119,11 @@ mod tests {
 
         // Creates test document.
         let uri = document_uri();
-        memory.insert(uri.to_string(), "".to_string(), 0);
+        memory.insert(uri.to_string(), "".to_owned(), 0);
 
         // Creates document update test parameters.
         let updated_version = 1;
-        let updated_content = "A".to_string();
+        let updated_content = "A".to_owned();
 
         // Calls handler.
         let result = handle_did_change_text_document(
@@ -160,7 +160,7 @@ mod tests {
 
         // Creates test document.
         let uri = document_uri();
-        memory.insert(uri.to_string(), "".to_string(), 0);
+        memory.insert(uri.to_string(), "".to_owned(), 0);
 
         // Calls handler.
         let result = handle_did_close_text_document(

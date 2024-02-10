@@ -862,7 +862,7 @@ pub fn end_indenting(whitespace: &str) -> String {
 pub fn item_children_indenting(node: &SyntaxNode) -> String {
     item_indenting(node)
         .and_then(|ident| (!ident.is_empty()).then_some(format!("{ident}{ident}")))
-        .unwrap_or("    ".to_string())
+        .unwrap_or("    ".to_owned())
 }
 
 /// Returns the deepest syntax element that fully covers text range (if any).
@@ -1416,7 +1416,7 @@ pub fn field_insert_offset_start_and_affixes(
                 (
                     it.syntax().text_range().start(),
                     None,
-                    Some(", ".to_string()),
+                    Some(", ".to_owned()),
                 )
             }))
             .unwrap_or((tuple_field_list.syntax().text_range().start(), None, None)),
@@ -1564,7 +1564,7 @@ pub fn resolve_contract_name(contract: &Contract) -> Option<String> {
 /// Applies indenting to a snippet.
 pub fn apply_indenting(input: &str, indent: &str) -> String {
     if indent.is_empty() {
-        input.to_string()
+        input.to_owned()
     } else {
         let mut output = String::new();
         for (idx, line) in input.lines().enumerate() {
@@ -1583,7 +1583,7 @@ pub fn apply_indenting(input: &str, indent: &str) -> String {
 /// Reduces indenting for a snippet.
 pub fn reduce_indenting(input: &str, indent: &str) -> String {
     if indent.is_empty() {
-        input.to_string()
+        input.to_owned()
     } else {
         let mut output = String::new();
         for (idx, line) in input.lines().enumerate() {

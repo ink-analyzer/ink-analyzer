@@ -123,7 +123,7 @@ pub fn code_action(
         let snippets: Vec<(String, String)> = edits
             .iter()
             .filter_map(|(text, _, snippet)| {
-                snippet.map(|snippet| ((*text).to_string(), snippet.to_string()))
+                snippet.map(|snippet| ((*text).to_owned(), snippet.to_string()))
             })
             .collect();
 
@@ -141,7 +141,7 @@ pub fn code_action(
                         .into_iter()
                         .map(|(text, range, _)| lsp_types::TextEdit {
                             range,
-                            new_text: text.to_string(),
+                            new_text: text.to_owned(),
                         })
                         .collect(),
                 )])),
@@ -155,7 +155,7 @@ pub fn code_action(
                 }
                 let mut data = serde_json::Map::with_capacity(1);
                 data.insert(
-                    "snippets".to_string(),
+                    "snippets".to_owned(),
                     serde_json::Value::Object(snippets_map),
                 );
                 serde_json::Value::Object(data)
@@ -260,7 +260,7 @@ pub fn signature_help(
                             } else {
                                 let param_text = &signature.label
                                     [param.range.start().into()..param.range.end().into()];
-                                lsp_types::ParameterLabel::Simple(param_text.to_string())
+                                lsp_types::ParameterLabel::Simple(param_text.to_owned())
                             },
                             documentation: param.detail.as_ref().map(|doc| {
                                 lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {

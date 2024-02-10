@@ -40,7 +40,7 @@ pub fn add_storage(
                 let contract_name = utils::resolve_contract_name(contract);
 
                 Action {
-                    label: "Add ink! storage `struct`.".to_string(),
+                    label: "Add ink! storage `struct`.".to_owned(),
                     kind,
                     range: utils::contract_declaration_range(contract),
                     edits: vec![TextEdit::replace_with_snippet(
@@ -90,7 +90,7 @@ pub fn add_event(
                     utils::resolve_contract_name(contract).map(|name| format!("My{name}Event"));
 
                 Action {
-                    label: "Add ink! event `struct`.".to_string(),
+                    label: "Add ink! event `struct`.".to_owned(),
                     kind,
                     range: utils::contract_declaration_range(contract),
                     edits: vec![TextEdit::replace_with_snippet(
@@ -137,7 +137,7 @@ pub fn add_topic(
                 let indent = utils::item_children_indenting(struct_item.syntax());
 
                 Action {
-                    label: "Add ink! topic `field`.".to_string(),
+                    label: "Add ink! topic `field`.".to_owned(),
                     kind,
                     range: utils::ast_item_declaration_range(&ast::Item::Struct(
                         struct_item.clone(),
@@ -246,7 +246,7 @@ pub fn add_constructor_to_contract(
         contract,
         kind,
         range_option,
-        "Add ink! constructor `fn`.".to_string(),
+        "Add ink! constructor `fn`.".to_owned(),
         CONSTRUCTOR_PLAIN,
         CONSTRUCTOR_SNIPPET,
     )
@@ -263,7 +263,7 @@ pub fn add_message_to_contract(
         contract,
         kind,
         range_option,
-        "Add ink! message `fn`.".to_string(),
+        "Add ink! message `fn`.".to_owned(),
         MESSAGE_PLAIN,
         MESSAGE_SNIPPET,
     )
@@ -314,7 +314,7 @@ pub fn add_constructor_to_impl(
         impl_item,
         kind,
         range_option,
-        "Add ink! constructor `fn`.".to_string(),
+        "Add ink! constructor `fn`.".to_owned(),
         CONSTRUCTOR_PLAIN,
         CONSTRUCTOR_SNIPPET,
     )
@@ -330,7 +330,7 @@ pub fn add_message_to_impl(
         impl_item,
         kind,
         range_option,
-        "Add ink! message `fn`.".to_string(),
+        "Add ink! message `fn`.".to_owned(),
         MESSAGE_PLAIN,
         MESSAGE_SNIPPET,
     )
@@ -356,7 +356,7 @@ pub fn add_message_to_trait_definition(
                 let indent = utils::item_children_indenting(trait_item.syntax());
 
                 Action {
-                    label: "Add ink! message `fn`.".to_string(),
+                    label: "Add ink! message `fn`.".to_owned(),
                     kind,
                     range: utils::ink_trait_declaration_range(trait_definition),
                     edits: vec![TextEdit::replace_with_snippet(
@@ -389,7 +389,7 @@ pub fn add_error_code(
                 let indent = utils::item_children_indenting(trait_item.syntax());
 
                 Action {
-                    label: "Add `ErrorCode` type for ink! chain extension.".to_string(),
+                    label: "Add `ErrorCode` type for ink! chain extension.".to_owned(),
                     kind,
                     range: utils::ink_trait_declaration_range(chain_extension),
                     edits: vec![TextEdit::replace_with_snippet(
@@ -422,7 +422,7 @@ pub fn add_extension(
                 let indent = utils::item_children_indenting(trait_item.syntax());
 
                 Action {
-                    label: "Add ink! extension `fn`.".to_string(),
+                    label: "Add ink! extension `fn`.".to_owned(),
                     kind,
                     range: utils::ink_trait_declaration_range(chain_extension),
                     edits: vec![TextEdit::replace_with_snippet(
@@ -454,7 +454,7 @@ pub fn add_ink_test(
             let indent = utils::item_children_indenting(module.syntax());
 
             Action {
-                label: "Add ink! test `fn`.".to_string(),
+                label: "Add ink! test `fn`.".to_owned(),
                 kind,
                 range: utils::ast_item_declaration_range(&ast::Item::Module(module.clone()))
                     .unwrap_or(module.syntax().text_range()),
@@ -486,7 +486,7 @@ pub fn add_ink_e2e_test(
             let indent = utils::item_children_indenting(module.syntax());
 
             Action {
-                label: "Add ink! e2e test `fn`.".to_string(),
+                label: "Add ink! e2e test `fn`.".to_owned(),
                 kind,
                 range: utils::ast_item_declaration_range(&ast::Item::Module(module.clone()))
                     .unwrap_or(module.syntax().text_range()),
@@ -509,12 +509,12 @@ fn compose_edit_with_snippet_and_indent(
     TextEdit::replace_with_snippet(
         match indent_option {
             Some(indent) => utils::apply_indenting(text, indent),
-            None => text.to_string(),
+            None => text.to_owned(),
         },
         range,
         snippet_option.map(|snippet| match indent_option {
             Some(indent) => utils::apply_indenting(snippet, indent),
-            None => snippet.to_string(),
+            None => snippet.to_owned(),
         }),
     )
 }
@@ -522,7 +522,7 @@ fn compose_edit_with_snippet_and_indent(
 /// Add an ink! contract `mod`.
 pub fn add_contract(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
     Action {
-        label: "Add ink! contract `mod`.".to_string(),
+        label: "Add ink! contract `mod`.".to_owned(),
         kind,
         range,
         edits: vec![compose_edit_with_snippet_and_indent(
@@ -541,7 +541,7 @@ pub fn add_trait_definition(
     indent_option: Option<&str>,
 ) -> Action {
     Action {
-        label: "Add ink! trait definition.".to_string(),
+        label: "Add ink! trait definition.".to_owned(),
         kind,
         range,
         edits: vec![compose_edit_with_snippet_and_indent(
@@ -560,7 +560,7 @@ pub fn add_chain_extension(
     indent_option: Option<&str>,
 ) -> Action {
     Action {
-        label: "Add ink! chain extension `trait`.".to_string(),
+        label: "Add ink! chain extension `trait`.".to_owned(),
         kind,
         range,
         edits: vec![compose_edit_with_snippet_and_indent(
@@ -575,7 +575,7 @@ pub fn add_chain_extension(
 /// Add an ink! storage item.
 pub fn add_storage_item(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
     Action {
-        label: "Add ink! storage item `ADT` (i.e. `struct`, `enum` or `union`).".to_string(),
+        label: "Add ink! storage item `ADT` (i.e. `struct`, `enum` or `union`).".to_owned(),
         kind,
         range,
         edits: vec![compose_edit_with_snippet_and_indent(
@@ -590,7 +590,7 @@ pub fn add_storage_item(range: TextRange, kind: ActionKind, indent_option: Optio
 /// Add an ink! environment.
 pub fn add_environment(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
     Action {
-        label: "Add custom ink! environment implementation.".to_string(),
+        label: "Add custom ink! environment implementation.".to_owned(),
         kind,
         range,
         edits: vec![compose_edit_with_snippet_and_indent(

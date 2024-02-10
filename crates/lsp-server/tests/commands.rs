@@ -21,12 +21,12 @@ fn create_project_command_works() {
 
     // Creates LSP execute command request.
     use lsp_types::request::Request;
-    let req_id = lsp_server::RequestId::from("create-project::hello_ink".to_string());
+    let req_id = lsp_server::RequestId::from("create-project::hello_ink".to_owned());
     let req = lsp_server::Request {
         id: req_id.clone(),
-        method: lsp_types::request::ExecuteCommand::METHOD.to_string(),
+        method: lsp_types::request::ExecuteCommand::METHOD.to_owned(),
         params: serde_json::to_value(&lsp_types::ExecuteCommandParams {
-            command: "createProject".to_string(),
+            command: "createProject".to_owned(),
             arguments: vec![serde_json::json!({
                 "name": project_name,
                 "root": project_uri

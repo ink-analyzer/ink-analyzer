@@ -111,12 +111,11 @@ mod tests {
             let code = (1..=idx)
                 .map(|i| {
                     let name = format_ident!("my_contract{i}");
-                    (quote_as_pretty_string! {
+                    quote_as_pretty_string! {
                         #[ink::contract]
                         mod #name {
                         }
-                    })
-                    .to_string()
+                    }
                 })
                 .collect::<String>();
 

@@ -69,7 +69,7 @@ impl Action {
     /// Removes an item.
     pub(crate) fn remove_item(item: &SyntaxNode) -> Self {
         Self {
-            label: "Remove item.".to_string(),
+            label: "Remove item.".to_owned(),
             kind: ActionKind::QuickFix,
             range: item.text_range(),
             edits: vec![TextEdit::delete(item.text_range())],

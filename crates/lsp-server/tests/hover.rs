@@ -75,7 +75,7 @@ fn hover_works() {
             let req_id = lsp_server::RequestId::from(idx as i32);
             let req = lsp_server::Request {
                 id: req_id.clone(),
-                method: lsp_types::request::HoverRequest::METHOD.to_string(),
+                method: lsp_types::request::HoverRequest::METHOD.to_owned(),
                 params: serde_json::to_value(&lsp_types::HoverParams {
                     text_document_position_params: lsp_types::TextDocumentPositionParams {
                         text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },

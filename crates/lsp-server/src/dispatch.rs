@@ -162,7 +162,7 @@ impl<'a> Dispatcher<'a> {
                     })
                     .collect();
                 let params = lsp_types::ApplyWorkspaceEditParams {
-                    label: Some("new ink! project".to_string()),
+                    label: Some("new ink! project".to_owned()),
                     edit: lsp_types::WorkspaceEdit {
                         document_changes: Some(lsp_types::DocumentChanges::Operations(doc_changes)),
                         ..Default::default()
@@ -173,7 +173,7 @@ impl<'a> Dispatcher<'a> {
                         "{INITIALIZE_PROJECT_ID_PREFIX}{}",
                         project.uri
                     )),
-                    lsp_types::request::ApplyWorkspaceEdit::METHOD.to_string(),
+                    lsp_types::request::ApplyWorkspaceEdit::METHOD.to_owned(),
                     params,
                 );
                 self.send(req.into())?;
@@ -232,7 +232,7 @@ impl<'a> Dispatcher<'a> {
                                 "{SHOW_DOCUMENT_ID_PREFIX}{}",
                                 lib_uri
                             )),
-                            lsp_types::request::ShowDocument::METHOD.to_string(),
+                            lsp_types::request::ShowDocument::METHOD.to_owned(),
                             params,
                         );
                         self.send(req.into())?;
@@ -284,7 +284,7 @@ impl<'a> Dispatcher<'a> {
         // Composes and sends `PublishDiagnostics` notification for document with changes.
         use lsp_types::notification::Notification;
         let notification = lsp_server::Notification::new(
-            lsp_types::notification::PublishDiagnostics::METHOD.to_string(),
+            lsp_types::notification::PublishDiagnostics::METHOD.to_owned(),
             actions::publish_diagnostics(uri, &self.snapshots)?,
         );
         self.send(notification.into())?;
@@ -325,13 +325,13 @@ mod tests {
         // Creates `DidOpenTextDocument` notification.
         use lsp_types::notification::Notification;
         let open_document_notification = lsp_server::Notification {
-            method: lsp_types::notification::DidOpenTextDocument::METHOD.to_string(),
+            method: lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
             params: serde_json::to_value(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri: uri.clone(),
-                    language_id: "rust".to_string(),
+                    language_id: "rust".to_owned(),
                     version: 0,
-                    text: "".to_string(),
+                    text: "".to_owned(),
                 },
             })
             .unwrap(),
@@ -358,7 +358,7 @@ mod tests {
         let completion_request_id = lsp_server::RequestId::from(1);
         let completion_request = lsp_server::Request {
             id: completion_request_id.clone(),
-            method: lsp_types::request::Completion::METHOD.to_string(),
+            method: lsp_types::request::Completion::METHOD.to_owned(),
             params: serde_json::to_value(lsp_types::CompletionParams {
                 text_document_position: lsp_types::TextDocumentPositionParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri },

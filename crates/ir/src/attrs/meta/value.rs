@@ -150,13 +150,13 @@ impl MetaValue {
                 value = value
                     .strip_prefix('\"')
                     .expect("Should be able to strip prefix")
-                    .to_string();
+                    .to_owned();
             }
             if value.ends_with('\"') {
                 value = value
                     .strip_suffix('\"')
                     .expect("Should be able to strip suffix")
-                    .to_string();
+                    .to_owned();
             }
             value
         })

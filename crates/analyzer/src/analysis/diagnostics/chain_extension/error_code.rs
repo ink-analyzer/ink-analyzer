@@ -52,7 +52,7 @@ fn ensure_resolvable(chain_extension: &ChainExtension) -> Option<Diagnostic> {
             Some(Diagnostic {
                 message: "`ErrorCode` associated type must implement \
                 the `ink::env::chain_extension::FromStatusCode` trait."
-                    .to_string(),
+                    .to_owned(),
                 range,
                 severity: Severity::Error,
                 quickfixes: resolution::candidate_adt_by_name_or_external_trait_impl(
@@ -98,7 +98,7 @@ fn ensure_impl_from_status_code(chain_extension: &ChainExtension) -> Option<Diag
             &INK_ENV_CHAIN_EXTENSION_QUALIFIERS,
             &chain_extension.syntax().ancestors().last()?,
         ),
-        "`ErrorCode` associated type must implement the `ink::env::chain_extension::FromStatusCode` trait.".to_string(),
+        "`ErrorCode` associated type must implement the `ink::env::chain_extension::FromStatusCode` trait.".to_owned(),
         format!("Add `ink::env::chain_extension::FromStatusCode` implementation for `{name}`."),
         FROM_STATUS_CODE_IMPL_PLAIN.replace("MyErrorCode", &name),
         Some(FROM_STATUS_CODE_IMPL_SNIPPET.replace("MyErrorCode", &name)),
@@ -136,7 +136,7 @@ fn ensure_no_self_error_code_usage(
             the `ErrorCode` associated type using `Self::ErrorCode` \
             anywhere within the chain extension and its defined methods. \
             \nUse the error code type directly instead."
-                .to_string(),
+                .to_owned(),
             range,
             severity: Severity::Error,
             quickfixes: error_code_path_option.as_ref().map(|error_code_path| {

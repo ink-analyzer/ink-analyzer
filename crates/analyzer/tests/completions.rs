@@ -57,7 +57,7 @@ fn completions_works() {
                 expected_results
                     .iter()
                     .map(|result| (
-                        test_utils::remove_whitespace(result.text.to_string()),
+                        test_utils::remove_whitespace(result.text.to_owned()),
                         TextRange::new(
                             TextSize::from(
                                 test_utils::parse_offset_at(&test_code, result.start_pat).unwrap()

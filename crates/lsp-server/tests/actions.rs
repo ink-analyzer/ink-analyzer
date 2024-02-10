@@ -106,7 +106,7 @@ fn verify_actions(test_groups: impl Iterator<Item = TestGroup>, quickfixes_only:
             let req_id = lsp_server::RequestId::from(idx as i32);
             let req = lsp_server::Request {
                 id: req_id.clone(),
-                method: lsp_types::request::CodeActionRequest::METHOD.to_string(),
+                method: lsp_types::request::CodeActionRequest::METHOD.to_owned(),
                 params: serde_json::to_value(&lsp_types::CodeActionParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
                     range: lsp_types::Range {

@@ -81,9 +81,9 @@ mod tests {
             params: serde_json::to_value(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri,
-                    language_id: "rust".to_string(),
+                    language_id: "rust".to_owned(),
                     version: 0,
-                    text: "".to_string(),
+                    text: "".to_owned(),
                 },
             })
             .unwrap(),

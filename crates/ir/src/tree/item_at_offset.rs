@@ -1142,7 +1142,7 @@ mod tests {
                 assert_eq!(
                     item.parent_attr()
                         .and_then(|attr| attr.path().map(|path| path.syntax().to_string())),
-                    parent_attr.map(|attr| attr.to_string())
+                    parent_attr.map(|attr| attr.to_owned())
                 );
 
                 // Parent ink! attribute kind.
@@ -1334,7 +1334,7 @@ mod tests {
                     .and_then(|(attr, is_covering)| attr
                         .path()
                         .map(|path| (path.syntax().to_string(), is_covering))),
-                probable_parent_attr.map(|(attr, is_covering)| (attr.to_string(), is_covering))
+                probable_parent_attr.map(|(attr, is_covering)| (attr.to_owned(), is_covering))
             );
 
             // Probable parent ink! attribute kind.
@@ -1360,7 +1360,7 @@ mod tests {
                         is_covering
                     ))),
                 normalized_parent_attr.map(|(attr, is_certain, is_covering)| (
-                    attr.to_string(),
+                    attr.to_owned(),
                     is_certain,
                     is_covering
                 ))

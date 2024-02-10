@@ -38,7 +38,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
                     range: ink_arg.name().map_or(ink_arg.text_range(), |ink_arg_name| {
                         ink_arg_name.syntax().text_range()
                     }),
-                    content: doc.to_string(),
+                    content: doc.to_owned(),
                 })
             }
             // Returns hover content based on the ink! attribute macro, ink! e2e attribute macro
@@ -58,7 +58,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
                                 path_segment.syntax().text_range()
                             }),
                     },
-                    content: doc.to_string(),
+                    content: doc.to_owned(),
                 })
             }
         }

@@ -71,7 +71,7 @@ fn completions_works() {
             let req_id = lsp_server::RequestId::from(idx as i32);
             let req = lsp_server::Request {
                 id: req_id.clone(),
-                method: lsp_types::request::Completion::METHOD.to_string(),
+                method: lsp_types::request::Completion::METHOD.to_owned(),
                 params: serde_json::to_value(&lsp_types::CompletionParams {
                     text_document_position: lsp_types::TextDocumentPositionParams {
                         text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
@@ -133,7 +133,7 @@ fn completions_works() {
                     expected_results
                         .iter()
                         .map(|result| (
-                            test_utils::remove_whitespace(result.text.to_string()),
+                            test_utils::remove_whitespace(result.text.to_owned()),
                             ink_lsp_server::translator::to_lsp::range(
                                 ink_analyzer::TextRange::new(
                                     ink_analyzer::TextSize::from(

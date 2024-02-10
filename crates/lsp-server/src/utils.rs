@@ -45,7 +45,7 @@ pub fn code_actions_kinds(client_capabilities: &ClientCapabilities) -> Option<Ve
                     &it.code_action_kind
                         .value_set
                         .iter()
-                        .map(|it| CodeActionKind::from(it.to_string()))
+                        .map(|it| CodeActionKind::from(it.to_owned()))
                         .collect::<HashSet<CodeActionKind>>(),
                 )
                 .cloned()
@@ -150,7 +150,7 @@ mod tests {
                         code_action_kind: CodeActionKindLiteralSupport {
                             value_set: code_action_kinds
                                 .into_iter()
-                                .map(|code_action| code_action.as_str().to_string())
+                                .map(|code_action| code_action.as_str().to_owned())
                                 .collect(),
                         },
                     }),

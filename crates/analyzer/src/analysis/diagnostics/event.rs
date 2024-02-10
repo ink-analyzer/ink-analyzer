@@ -58,11 +58,11 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
         .generic_param_list()
         .map(|generics| Diagnostic {
             message: "Generic types on ink! event `struct` items are not currently supported."
-                .to_string(),
+                .to_owned(),
             range: generics.syntax().text_range(),
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove generic types.".to_string(),
+                label: "Remove generic types.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range: generics.syntax().text_range(),
                 edits: vec![TextEdit::delete(generics.syntax().text_range())],
@@ -98,7 +98,7 @@ fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
                         if path.to_string() == "cfg" {
                             results.push(Diagnostic {
                                 message: "`cfg` attributes on event fields are not supported."
-                                    .to_string(),
+                                    .to_owned(),
                                 range: attr.syntax().text_range(),
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {

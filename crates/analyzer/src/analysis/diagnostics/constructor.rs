@@ -65,7 +65,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
         .unwrap_or(fn_item.syntax().text_range());
 
     (!has_return_type).then_some(Diagnostic {
-        message: "ink! constructor must have a return type.".to_string(),
+        message: "ink! constructor must have a return type.".to_owned(),
         range,
         severity: Severity::Error,
         quickfixes: fn_item
@@ -73,13 +73,13 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
             .map(|param_list| param_list.syntax().text_range().end())
             .map(|insert_offset| {
                 vec![Action {
-                    label: "Add return type.".to_string(),
+                    label: "Add return type.".to_owned(),
                     kind: ActionKind::QuickFix,
                     range,
                     edits: vec![TextEdit::insert_with_snippet(
-                        " -> Self".to_string(),
+                        " -> Self".to_owned(),
                         insert_offset,
-                        Some(" -> ${1:Self}".to_string()),
+                        Some(" -> ${1:Self}".to_owned()),
                     )],
                 }]
             }),

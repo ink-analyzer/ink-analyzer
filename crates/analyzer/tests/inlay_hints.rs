@@ -60,7 +60,7 @@ fn inlay_hints_works() {
                 expected_results
                     .iter()
                     .map(|result| (
-                        result.text.to_string(),
+                        result.text.to_owned(),
                         TextSize::from(
                             test_utils::parse_offset_at(&test_code, result.pos_pat).unwrap() as u32
                         ),

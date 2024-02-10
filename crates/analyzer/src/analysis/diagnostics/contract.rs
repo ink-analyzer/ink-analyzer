@@ -122,11 +122,11 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
                 .map_or(contract.syntax().text_range(), SyntaxToken::text_range);
             Diagnostic {
                 message: "The content of an ink! contract's `mod` item must be defined inline."
-                    .to_string(),
+                    .to_owned(),
                 range: declaration_range,
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
-                    label: "Add inline body to ink! contract `mod`.".to_string(),
+                    label: "Add inline body to ink! contract `mod`.".to_owned(),
                     kind: ActionKind::QuickFix,
                     range: declaration_range,
                     edits: vec![TextEdit::replace(
@@ -137,7 +137,7 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
             }
         }),
         None => Some(Diagnostic {
-            message: "ink! contracts must be inline `mod` items".to_string(),
+            message: "ink! contracts must be inline `mod` items".to_owned(),
             range: declaration_range,
             severity: Severity::Error,
             quickfixes: if contract.syntax().kind() == SyntaxKind::ITEM_LIST {
@@ -171,7 +171,7 @@ fn ensure_storage_quantity(results: &mut Vec<Diagnostic>, contract: &Contract) {
         &ink_analyzer_ir::ink_closest_descendants::<Storage>(contract.syntax())
             .collect::<Vec<Storage>>(),
         Diagnostic {
-            message: "Missing ink! storage definition.".to_string(),
+            message: "Missing ink! storage definition.".to_owned(),
             range: analysis_utils::contract_declaration_range(contract),
             severity: Severity::Error,
             quickfixes: entity_actions::add_storage(contract, ActionKind::QuickFix, None)
@@ -194,7 +194,7 @@ fn ensure_contains_constructor(contract: &Contract) -> Option<Diagnostic> {
         contract.constructors(),
         Diagnostic {
             message: "At least one ink! constructor must be defined for an ink! contract."
-                .to_string(),
+                .to_owned(),
             range,
             severity: Severity::Error,
             quickfixes: entity_actions::add_constructor_to_contract(
@@ -218,7 +218,7 @@ fn ensure_contains_message(contract: &Contract) -> Option<Diagnostic> {
     utils::ensure_at_least_one_item(
         contract.messages(),
         Diagnostic {
-            message: "At least one ink! message must be defined for an ink! contract.".to_string(),
+            message: "At least one ink! message must be defined for an ink! contract.".to_owned(),
             range,
             severity: Severity::Error,
             quickfixes: entity_actions::add_message_to_contract(
@@ -322,7 +322,7 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                                 &mut unavailable_ids,
                             );
                             vec![Action {
-                                label: "Replace with a unique selector.".to_string(),
+                                label: "Replace with a unique selector.".to_owned(),
                                 kind: ActionKind::QuickFix,
                                 range,
                                 edits: vec![TextEdit::replace_with_snippet(
@@ -334,7 +334,7 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                         })
                         .or(fn_name_option().map(|name| {
                             vec![Action {
-                                label: "Replace with a unique name.".to_string(),
+                                label: "Replace with a unique name.".to_owned(),
                                 kind: ActionKind::QuickFix,
                                 range: name.syntax().text_range(),
                                 edits: vec![TextEdit::replace_with_snippet(
@@ -394,7 +394,7 @@ fn ensure_at_most_one_wildcard_selector(results: &mut Vec<Diagnostic>, contract:
                         range: selector.text_range(),
                         severity: Severity::Error,
                         quickfixes: Some(vec![Action {
-                            label: "Remove wildcard selector.".to_string(),
+                            label: "Remove wildcard selector.".to_owned(),
                             kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::delete(range)],
@@ -436,7 +436,7 @@ where
                 vec![Action::move_item(
                     item.syntax(),
                     analysis_utils::item_insert_offset_by_scope_name(&item_list, ink_scope_name),
-                    "Move item to the root of the ink! contract's `mod` item.".to_string(),
+                    "Move item to the root of the ink! contract's `mod` item.".to_owned(),
                     Some(analysis_utils::item_children_indenting(contract.syntax()).as_str()),
                 )]
             }),

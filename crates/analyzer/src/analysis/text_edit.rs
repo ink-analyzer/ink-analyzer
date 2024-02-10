@@ -95,7 +95,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
     let affix_edit_between_whitespace_or_file_boundaries =
         |whitespace_before: Option<&str>, whitespace_after: Option<&str>| {
             let build_affix = |ws_text: &str| {
-                (!starts_with_two_or_more_newlines(ws_text)).then_some("\n".to_string())
+                (!starts_with_two_or_more_newlines(ws_text)).then_some("\n".to_owned())
             };
             match (
                 whitespace_before.map(|ws_before| (ws_before.contains('\n'), ws_before)),
@@ -218,7 +218,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                         // and its preceding whitespace contains a new line.
                         match token_before_option {
                             // Handles beginning of file.
-                            None => Some("\n".to_string()),
+                            None => Some("\n".to_owned()),
                             Some(token_before) => token_before.text().contains('\n').then_some(
                                 format!("\n{}", utils::end_indenting(token_before.text())),
                             ),
@@ -684,13 +684,13 @@ mod contract {}",
                 TextSize::from(parse_offset_at(source, end_pat).unwrap() as u32),
             );
             let edit = TextEdit {
-                text: input.to_string(),
+                text: input.to_owned(),
                 range,
                 snippet: None,
             };
             let result = format_edit(edit, &file);
             let expected = TextEdit {
-                text: output.to_string(),
+                text: output.to_owned(),
                 range,
                 snippet: None,
             };
@@ -1028,13 +1028,13 @@ mod contract {}",
                 });
 
             let edit = TextEdit {
-                text: "".to_string(),
+                text: "".to_owned(),
                 range: range_input,
                 snippet: None,
             };
             let result = format_edit(edit, &file);
             let expected = TextEdit {
-                text: "".to_string(),
+                text: "".to_owned(),
                 range: range_output,
                 snippet: None,
             };

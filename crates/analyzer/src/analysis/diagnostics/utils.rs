@@ -151,7 +151,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                 let range = utils::ink_arg_and_delimiter_removal_range(arg, Some(attr));
                 results.push(Diagnostic {
                     message: if arg_name_text.is_empty() {
-                        "Missing ink! attribute argument.".to_string()
+                        "Missing ink! attribute argument.".to_owned()
                     } else {
                         format!("Unknown ink! attribute argument: '{arg_name_text}'.")
                     },
@@ -902,7 +902,7 @@ pub fn ensure_at_most_one_item<T>(
     if items.len() > 1 {
         for item in &items[1..] {
             results.push(Diagnostic {
-                message: message.to_string(),
+                message: message.to_owned(),
                 range: item.syntax().text_range(),
                 severity,
                 quickfixes: Some(item.ink_attr().map_or(
@@ -946,7 +946,7 @@ where
                         .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
                     .map(|range| {
                         vec![Action {
-                            label: "Change visibility to `pub`.".to_string(),
+                            label: "Change visibility to `pub`.".to_owned(),
                             kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace(
@@ -1008,7 +1008,7 @@ pub fn ensure_no_self_receiver(fn_item: &ast::Fn, ink_scope_name: &str) -> Optio
             range: self_param.syntax().text_range(),
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove self receiver.".to_string(),
+                label: "Remove self receiver.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
@@ -1029,7 +1029,7 @@ where
         range: generics.syntax().text_range(),
         severity: Severity::Error,
         quickfixes: Some(vec![Action {
-            label: "Remove generic parameters.".to_string(),
+            label: "Remove generic parameters.".to_owned(),
             kind: ActionKind::QuickFix,
             range: generics.syntax().text_range(),
             edits: vec![TextEdit::delete(generics.syntax().text_range())],
@@ -1055,11 +1055,11 @@ where
             type_bound_list.syntax().text_range().end(),
         );
         Diagnostic {
-            message: message.to_string(),
+            message: message.to_owned(),
             range,
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove type bounds.".to_string(),
+                label: "Remove type bounds.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
@@ -1093,7 +1093,7 @@ pub fn ensure_fn_invariants(
             range: const_token.text_range(),
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove `const` keyword.".to_string(),
+                label: "Remove `const` keyword.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
@@ -1109,7 +1109,7 @@ pub fn ensure_fn_invariants(
             range: async_token.text_range(),
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove `async` keyword.".to_string(),
+                label: "Remove `async` keyword.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
@@ -1125,7 +1125,7 @@ pub fn ensure_fn_invariants(
             range: unsafe_token.text_range(),
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove `unsafe` keyword.".to_string(),
+                label: "Remove `unsafe` keyword.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
@@ -1141,7 +1141,7 @@ pub fn ensure_fn_invariants(
             range: abi.syntax().text_range(),
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove explicit ABI.".to_string(),
+                label: "Remove explicit ABI.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
@@ -1162,7 +1162,7 @@ pub fn ensure_fn_invariants(
                             range: dotdotdot.text_range(),
                             severity: Severity::Error,
                             quickfixes: Some(vec![Action {
-                                label: "Make function un-variadic.".to_string(),
+                                label: "Make function un-variadic.".to_owned(),
                                 kind: ActionKind::QuickFix,
                                 range,
                                 edits: vec![TextEdit::delete(range)],
@@ -1218,7 +1218,7 @@ pub fn ensure_callable_invariants(
                         .map_or(range, |vis| utils::node_and_trivia_range(vis.syntax()));
                     vec![
                         Action {
-                            label: "Change visibility to `pub`.".to_string(),
+                            label: "Change visibility to `pub`.".to_owned(),
                             kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace(
@@ -1227,7 +1227,7 @@ pub fn ensure_callable_invariants(
                             )],
                         },
                         Action {
-                            label: "Remove visibility.".to_string(),
+                            label: "Remove visibility.".to_owned(),
                             kind: ActionKind::QuickFix,
                             range: remove_range,
                             edits: vec![TextEdit::delete(remove_range)],
@@ -1262,7 +1262,7 @@ pub fn ensure_trait_invariants(
             range: unsafe_token.text_range(),
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove `unsafe` keyword.".to_string(),
+                label: "Remove `unsafe` keyword.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
@@ -1278,7 +1278,7 @@ pub fn ensure_trait_invariants(
             range: auto_token.text_range(),
             severity: Severity::Error,
             quickfixes: Some(vec![Action {
-                label: "Remove `auto` keyword.".to_string(),
+                label: "Remove `auto` keyword.".to_owned(),
                 kind: ActionKind::QuickFix,
                 range,
                 edits: vec![TextEdit::delete(range)],
@@ -1315,7 +1315,7 @@ pub fn ensure_trait_invariants(
                     .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
                 .map(|range| {
                     vec![Action {
-                        label: "Change visibility to `pub`.".to_string(),
+                        label: "Change visibility to `pub`.".to_owned(),
                         kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::replace(
@@ -1365,7 +1365,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                     severity: Severity::Error,
                     quickfixes: Some(vec![
                         Action {
-                            label: "Remove `const` item.".to_string(),
+                            label: "Remove `const` item.".to_owned(),
                             kind: ActionKind::QuickFix,
                             range: const_item.syntax().text_range(),
                             edits: vec![TextEdit::delete(const_item.syntax().text_range())],
@@ -1380,7 +1380,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                     severity: Severity::Error,
                     quickfixes: Some(vec![
                         Action {
-                            label: "Remove macro call.".to_string(),
+                            label: "Remove macro call.".to_owned(),
                             kind: ActionKind::QuickFix,
                             range: macro_call.syntax().text_range(),
                             edits: vec![TextEdit::delete(macro_call.syntax().text_range())],
@@ -1397,7 +1397,7 @@ pub fn ensure_trait_item_invariants<F, G>(
                             severity: Severity::Error,
                             quickfixes: Some(vec![
                                 Action {
-                                    label: "Remove function body.".to_string(),
+                                    label: "Remove function body.".to_owned(),
                                     kind: ActionKind::QuickFix,
                                     range: body.syntax().text_range(),
                                     edits: vec![TextEdit::delete(body.syntax().text_range())],
@@ -1435,7 +1435,7 @@ where
                 vec![Action::move_item(
                     item.syntax(),
                     utils::item_insert_offset_by_scope_name(&item_list, ink_scope_name),
-                    "Move item to the root of the closest ink! contract's `mod` item.".to_string(),
+                    "Move item to the root of the closest ink! contract's `mod` item.".to_owned(),
                     Some(utils::item_children_indenting(mod_item.syntax()).as_str()),
                 )]
             }),
@@ -1469,7 +1469,7 @@ where
             vec![Action::move_item(
                 item.syntax(),
                 utils::assoc_item_insert_offset_end(&assoc_item_list),
-                "Move item to the root of the closest `impl` block.".to_string(),
+                "Move item to the root of the closest `impl` block.".to_owned(),
                 Some(utils::item_children_indenting(impl_item.syntax()).as_str()),
             )]
         })
@@ -1482,7 +1482,7 @@ where
                         vec![Action::move_item_with_affixes(
                             item.syntax(),
                             insert_offset,
-                            "Move item to the root of the closest `impl` block.".to_string(),
+                            "Move item to the root of the closest `impl` block.".to_owned(),
                             Some(indent.as_str()),
                             prefix.as_deref().or(Some("")),
                             suffix.as_deref().or(Some("")),

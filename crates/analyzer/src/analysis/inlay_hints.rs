@@ -45,7 +45,7 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>) -> Vec<InlayHint> {
                             range: arg
                                 .name()
                                 .map_or(arg.text_range(), |name| name.syntax().text_range()),
-                            detail: (!doc.is_empty()).then_some(doc.to_string()),
+                            detail: (!doc.is_empty()).then_some(doc.to_owned()),
                         })
                     })?
                 })
@@ -245,7 +245,7 @@ mod tests {
                 expected_results
                     .into_iter()
                     .map(|(label, pos_pat_start, (range_pat_start, range_pat_end))| (
-                        label.to_string(),
+                        label.to_owned(),
                         TextSize::from(parse_offset_at(code, pos_pat_start).unwrap() as u32),
                         TextRange::new(
                             TextSize::from(parse_offset_at(code, range_pat_start).unwrap() as u32),

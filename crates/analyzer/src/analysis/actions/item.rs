@@ -483,7 +483,7 @@ fn flatten_attrs(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRang
         let other_arg_attrs = attrs.filter(|attr| matches!(attr.kind(), InkAttributeKind::Arg(_)));
         if other_arg_attrs.clone().next().is_some() {
             results.push(Action {
-                label: "Flatten ink! attribute arguments.".to_string(),
+                label: "Flatten ink! attribute arguments.".to_owned(),
                 kind: ActionKind::Refactor,
                 range,
                 edits: [TextEdit::replace(

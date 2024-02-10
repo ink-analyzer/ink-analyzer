@@ -82,7 +82,7 @@ pub fn diagnostics(
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221>.
 fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
     ink_impl.impl_item().is_none().then_some(Diagnostic {
-        message: "ink! impl must be an `impl` item.".to_string(),
+        message: "ink! impl must be an `impl` item.".to_owned(),
         range: analysis_utils::ink_impl_declaration_range(ink_impl),
         severity: Severity::Error,
         quickfixes: ink_impl
@@ -102,11 +102,11 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             // Edit range for quickfix.
             let range = analysis_utils::token_and_trivia_range(&default_token);
             results.push(Diagnostic {
-                message: "ink! impl must not be `default`.".to_string(),
+                message: "ink! impl must not be `default`.".to_owned(),
                 range: default_token.text_range(),
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
-                    label: "Remove `default` keyword.".to_string(),
+                    label: "Remove `default` keyword.".to_owned(),
                     kind: ActionKind::QuickFix,
                     range,
                     edits: vec![TextEdit::delete(range)],
@@ -118,11 +118,11 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             // Edit range for quickfix.
             let range = analysis_utils::token_and_trivia_range(&unsafe_token);
             results.push(Diagnostic {
-                message: "ink! impl must not be `unsafe`.".to_string(),
+                message: "ink! impl must not be `unsafe`.".to_owned(),
                 range: unsafe_token.text_range(),
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
-                    label: "Remove `unsafe` keyword.".to_string(),
+                    label: "Remove `unsafe` keyword.".to_owned(),
                     kind: ActionKind::QuickFix,
                     range,
                     edits: vec![TextEdit::delete(range)],
@@ -142,11 +142,11 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                         .filter_map(|arg| {
                             arg.generic_arg_list().map(|generic_arg_list| Diagnostic {
                                 message: "Generic types on an ink! impl are not supported."
-                                    .to_string(),
+                                    .to_owned(),
                                 range: generic_arg_list.syntax().text_range(),
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
-                                    label: "Remove generic types.".to_string(),
+                                    label: "Remove generic types.".to_owned(),
                                     kind: ActionKind::QuickFix,
                                     range: generic_arg_list.syntax().text_range(),
                                     edits: vec![TextEdit::delete(
@@ -165,11 +165,11 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             let range = analysis_utils::ink_arg_and_delimiter_removal_range(&arg, None);
             results.push(Diagnostic {
                 message: "ink! namespace argument is not allowed on trait ink! impl blocks."
-                    .to_string(),
+                    .to_owned(),
                 range: arg.text_range(),
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action {
-                    label: "Remove ink! namespace argument.".to_string(),
+                    label: "Remove ink! namespace argument.".to_owned(),
                     kind: ActionKind::QuickFix,
                     range,
                     edits: vec![TextEdit::delete(range)],
@@ -249,7 +249,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                     }))
                                 .map(|range| {
                                     vec![Action {
-                                        label: "Change visibility to `pub`.".to_string(),
+                                        label: "Change visibility to `pub`.".to_owned(),
                                         kind: ActionKind::QuickFix,
                                         range: visibility
                                             .as_ref()
@@ -285,7 +285,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
     .then_some(Diagnostic {
         message: "At least one ink! constructor or ink! message \
         must be defined for an ink! impl without an `#[ink(impl)]` annotation."
-            .to_string(),
+            .to_owned(),
         range,
         severity: Severity::Error,
         quickfixes: ink_impl.impl_item().as_ref().map(|impl_item| {
@@ -324,7 +324,7 @@ where
                 vec![Action::move_item(
                     item.syntax(),
                     analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
-                    "Move item to the root of the ink! contract's `impl` block.".to_string(),
+                    "Move item to the root of the ink! contract's `impl` block.".to_owned(),
                     Some(analysis_utils::item_children_indenting(ink_impl.syntax()).as_str()),
                 )]
             }),
@@ -493,7 +493,7 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                         results.push(Diagnostic {
                             message: "An ink! trait definition's implementation \
                             can only contain ink! messages."
-                                .to_string(),
+                                .to_owned(),
                             range: item.syntax().text_range(),
                             severity: Severity::Error,
                             quickfixes: Some(vec![Action::remove_item(item.syntax())]),
@@ -596,13 +596,13 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                 )
             };
             results.push(Diagnostic {
-                message: "Missing message(s) for ink! trait definition implementation.".to_string(),
+                message: "Missing message(s) for ink! trait definition implementation.".to_owned(),
                 range,
                 severity: Severity::Error,
                 quickfixes: edit_option.map(|edit| {
                     vec![Action {
                         label: "Add missing message(s) to ink! trait definition implementation."
-                            .to_string(),
+                            .to_owned(),
                         kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::insert_with_snippet(
@@ -710,7 +710,7 @@ fn ensure_trait_definition_impl_message_args(
             results.push(Diagnostic {
                 message:
                     "An ink! trait definition's implementation can only contain ink! messages."
-                        .to_string(),
+                        .to_owned(),
                 range: attr.syntax().text_range(),
                 severity: Severity::Error,
                 quickfixes: Some(vec![Action::remove_attribute(&attr)]),

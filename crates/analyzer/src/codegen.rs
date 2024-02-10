@@ -103,7 +103,7 @@ mod tests {
             ("-hello", Error::ContractName),
             ("_hello", Error::ContractName),
         ] {
-            assert_eq!(new_project(name.to_string()), Err(expected_error));
+            assert_eq!(new_project(name.to_owned()), Err(expected_error));
         }
     }
 
@@ -111,7 +111,7 @@ mod tests {
     fn valid_project_name_works() {
         for name in ["hello", "hello_world", "hello-world"] {
             // Generates an ink! contract project.
-            let result = new_project(name.to_string());
+            let result = new_project(name.to_owned());
             assert!(result.is_ok());
 
             // Verifies that the generated code stub is a valid contract.

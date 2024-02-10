@@ -315,11 +315,11 @@ pub fn versioned_document_sync_notification(
     let not = match version {
         // Creates `DidOpenTextDocument` notification if version is zero.
         0 => lsp_server::Notification {
-            method: lsp_types::notification::DidOpenTextDocument::METHOD.to_string(),
+            method: lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
             params: serde_json::to_value(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri,
-                    language_id: "rust".to_string(),
+                    language_id: "rust".to_owned(),
                     version,
                     text: test_code,
                 },
@@ -328,7 +328,7 @@ pub fn versioned_document_sync_notification(
         },
         // Creates `DidChangeTextDocument` notification if version is greater than zero.
         _ => lsp_server::Notification {
-            method: lsp_types::notification::DidChangeTextDocument::METHOD.to_string(),
+            method: lsp_types::notification::DidChangeTextDocument::METHOD.to_owned(),
             params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
                 text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
                 content_changes: vec![lsp_types::TextDocumentContentChangeEvent {

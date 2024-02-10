@@ -428,7 +428,7 @@ mod tests {
                 expected_results
                     .into_iter()
                     .map(|(edit, pat_start, pat_end)| (
-                        remove_whitespace(edit.to_string()),
+                        remove_whitespace(edit.to_owned()),
                         TextRange::new(
                             TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
                             TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)

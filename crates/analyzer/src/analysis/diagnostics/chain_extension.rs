@@ -104,11 +104,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                         .unwrap_or(fn_item.syntax().text_range());
                         results.push(Diagnostic {
                             message: "All ink! chain extension functions must be ink! extensions."
-                                .to_string(),
+                                .to_owned(),
                             range,
                             severity: Severity::Error,
                             quickfixes: Some(vec![Action {
-                                label: "Add ink! extension attribute.".to_string(),
+                                label: "Add ink! extension attribute.".to_owned(),
                                 kind: ActionKind::QuickFix,
                                 range,
                                 edits: [TextEdit::insert_with_snippet(
@@ -145,7 +145,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                 if !is_named_error_code {
                     results.push(Diagnostic {
                         message: "The associated type of a ink! chain extension must be named `ErrorCode`."
-                            .to_string(),
+                            .to_owned(),
                         range: name_marker
                             .as_ref()
                             // Defaults to the declaration range for the chain extension.
@@ -156,11 +156,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                         severity: Severity::Error,
                         quickfixes: name_marker.as_ref().map(|name| {
                             vec![Action {
-                                label: "Rename associated type to `ErrorCode`.".to_string(),
+                                label: "Rename associated type to `ErrorCode`.".to_owned(),
                                 kind: ActionKind::QuickFix,
                                 range: name.syntax().text_range(),
                                 edits: vec![TextEdit::replace(
-                                    "ErrorCode".to_string(),
+                                    "ErrorCode".to_owned(),
                                     name.syntax().text_range(),
                                 )],
                             }]
@@ -202,11 +202,11 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                     };
                     results.push(Diagnostic {
                         message: "ink! chain extension `ErrorCode` types must have a default type."
-                            .to_string(),
+                            .to_owned(),
                         range: type_alias.syntax().text_range(),
                         severity: Severity::Error,
                         quickfixes: Some(vec![Action {
-                            label: "Add `ErrorCode` default type.".to_string(),
+                            label: "Add `ErrorCode` default type.".to_owned(),
                             kind: ActionKind::QuickFix,
                             range: type_alias.syntax().text_range(),
                             edits: vec![TextEdit::insert_with_snippet(
@@ -248,7 +248,7 @@ fn ensure_error_code_type_quantity(
                 // Creates diagnostic and quickfix for missing `ErrorCode` type.
                 results.push(Diagnostic {
                     message: "Missing `ErrorCode` associated type for ink! chain extension."
-                        .to_string(),
+                        .to_owned(),
                     range: analysis_utils::ink_trait_declaration_range(chain_extension),
                     severity: Severity::Error,
                     quickfixes: entity_actions::add_error_code(
@@ -262,12 +262,12 @@ fn ensure_error_code_type_quantity(
                 for item in &error_codes[1..] {
                     results.push(Diagnostic {
                         message: "Duplicate `ErrorCode` associated type for ink! chain extension."
-                            .to_string(),
+                            .to_owned(),
                         range: item.syntax().text_range(),
                         severity: Severity::Error,
                         quickfixes: Some(vec![Action {
                             label: "Remove duplicate `ErrorCode` type for ink! chain extension."
-                                .to_string(),
+                                .to_owned(),
                             kind: ActionKind::QuickFix,
                             range: item.syntax().text_range(),
                             edits: vec![TextEdit::delete(item.syntax().text_range())],
@@ -301,7 +301,7 @@ fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &Ch
                 results.push(Diagnostic {
                     message: "Extension ids must be unique across all ink! extensions \
                     in an ink! chain extension."
-                        .to_string(),
+                        .to_owned(),
                     range: value_range_option
                         .or(extension.ink_attr().map(|attr| attr.syntax().text_range()))
                         .unwrap_or(extension.syntax().text_range()),
@@ -312,7 +312,7 @@ fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &Ch
                             &mut unavailable_ids,
                         );
                         vec![Action {
-                            label: "Replace with a unique extension id.".to_string(),
+                            label: "Replace with a unique extension id.".to_owned(),
                             kind: ActionKind::QuickFix,
                             range,
                             edits: vec![TextEdit::replace_with_snippet(

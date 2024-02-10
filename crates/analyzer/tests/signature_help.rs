@@ -63,7 +63,7 @@ fn signature_help_works() {
                 expected_results
                     .iter()
                     .map(|expected_result| (
-                        expected_result.label.to_string(),
+                        expected_result.label.to_owned(),
                         TextRange::new(
                             TextSize::from(
                                 test_utils::parse_offset_at(&test_code, expected_result.start_pat)

@@ -107,7 +107,7 @@ where
             &INK_ENV_QUALIFIERS,
             &item.syntax().ancestors().last()?,
         ),
-        "Environment values must implement the `ink::env::Environment` trait.".to_string(),
+        "Environment values must implement the `ink::env::Environment` trait.".to_owned(),
         format!("Add `ink::env::Environment` implementation for `{name}`."),
         ENVIRONMENT_IMPL_PLAIN.replace("MyEnvironment", &name),
         Some(ENVIRONMENT_IMPL_SNIPPET.replace("MyEnvironment", &name)),
