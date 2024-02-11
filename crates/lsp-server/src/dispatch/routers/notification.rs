@@ -83,7 +83,7 @@ mod tests {
                     uri,
                     language_id: "rust".to_owned(),
                     version: 0,
-                    text: "".to_owned(),
+                    text: String::new(),
                 },
             })
             .unwrap(),

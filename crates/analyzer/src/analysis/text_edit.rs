@@ -1028,13 +1028,13 @@ mod contract {}",
                 });
 
             let edit = TextEdit {
-                text: "".to_owned(),
+                text: String::new(),
                 range: range_input,
                 snippet: None,
             };
             let result = format_edit(edit, &file);
             let expected = TextEdit {
-                text: "".to_owned(),
+                text: String::new(),
                 range: range_output,
                 snippet: None,
             };
