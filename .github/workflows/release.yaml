@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         run: |
@@ -82,14 +82,14 @@ jobs:
           Compress-Archive .\target\${{ matrix.target }}\release\ink-lsp-server.exe .\dist\ink-lsp-server-${{ matrix.target }}.zip
 
       - name: Upload binaries (Linux and macOS)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: matrix.os != 'windows-latest'
         with:
           name: ink-lsp-server-${{ matrix.target }}.gz
           path: dist/ink-lsp-server-${{ matrix.target }}.gz
 
       - name: Upload binaries (Windows)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: matrix.os == 'windows-latest'
         with:
           name: ink-lsp-server-${{ matrix.target }}.zip
@@ -100,38 +100,38 @@ jobs:
     needs: [ test, build ]
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Download Windows binaries.
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ink-lsp-server-x86_64-pc-windows-msvc.zip
           path: dist
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ink-lsp-server-i686-pc-windows-msvc.zip
           path: dist
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ink-lsp-server-aarch64-pc-windows-msvc.zip
           path: dist
 
       # Download Linux binaries.
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ink-lsp-server-x86_64-unknown-linux-gnu.gz
           path: dist
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ink-lsp-server-aarch64-unknown-linux-gnu.gz
           path: dist
 
       # Download macOS binaries.
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ink-lsp-server-x86_64-apple-darwin.gz
           path: dist
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ink-lsp-server-aarch64-apple-darwin.gz
           path: dist
@@ -142,7 +142,7 @@ jobs:
 
       - name: Extract release notes from the changelog
         id: extract-release-notes
-        uses: ffurrer2/extract-release-notes@v1
+        uses: ffurrer2/extract-release-notes@v2
         with:
           changelog_file: crates/lsp-server/CHANGELOG.md
 
