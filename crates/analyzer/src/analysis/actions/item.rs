@@ -889,7 +889,7 @@ mod tests {
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "(env = crate::)",
+                            text: "(env = ink::env::DefaultEnvironment)",
                             start_pat: Some("#[ink::contract"),
                             end_pat: Some("#[ink::contract"),
                         }],
@@ -1655,7 +1655,7 @@ mod tests {
                     TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "(environment = crate::)",
+                            text: "(environment = ink::env::DefaultEnvironment)",
                             start_pat: Some("#[ink_e2e::test"),
                             end_pat: Some("#[ink_e2e::test"),
                         }],
@@ -1674,7 +1674,7 @@ mod tests {
                 r#"
                     #[ink_e2e::test]
                     #[ink(additional_contracts="")]
-                    #[ink(environment=crate::)]
+                    #[ink(environment=ink::env::DefaultEnvironment)]
                     #[ink(keep_attr="")]
                     fn my_fn() {
                     }
@@ -1684,7 +1684,7 @@ mod tests {
                     label: "Flatten",
                     edits: vec![
                         TestResultTextRange {
-                            text: r#"#[ink_e2e::test(additional_contracts = "", environment = crate::, keep_attr = "")]"#,
+                            text: r#"#[ink_e2e::test(additional_contracts = "", environment = ink::env::DefaultEnvironment, keep_attr = "")]"#,
                             start_pat: Some("<-#[ink_e2e::test]"),
                             end_pat: Some("#[ink_e2e::test]"),
                         },
@@ -1695,8 +1695,10 @@ mod tests {
                         },
                         TestResultTextRange {
                             text: "",
-                            start_pat: Some(r#"<-#[ink(environment=crate::)]"#),
-                            end_pat: Some(r#"#[ink(environment=crate::)]"#),
+                            start_pat: Some(
+                                r#"<-#[ink(environment=ink::env::DefaultEnvironment)]"#,
+                            ),
+                            end_pat: Some(r#"#[ink(environment=ink::env::DefaultEnvironment)]"#),
                         },
                         TestResultTextRange {
                             text: "",
@@ -2066,16 +2068,14 @@ mod tests {
                     }
                 "#,
                 Some("<-fn extension_2(&self);"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "extension = 2, ",
-                            start_pat: Some("#[ink(->"),
-                            end_pat: Some("#[ink(->"),
-                        }],
-                    },
-                ],
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "extension = 2, ",
+                        start_pat: Some("#[ink(->"),
+                        end_pat: Some("#[ink(->"),
+                    }],
+                }],
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);

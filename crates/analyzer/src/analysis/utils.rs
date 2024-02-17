@@ -15,7 +15,7 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::utils;
+use crate::{resolution, utils};
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
 ///
@@ -605,7 +605,20 @@ pub fn ink_arg_insert_text(
                 ("true".to_owned(), "${1:true}".to_owned())
             }
             InkArgKind::Env | InkArgKind::Environment => {
-                ("crate::".to_owned(), "${1:crate::}".to_owned())
+                let path = parent_attr_option
+                    .and_then(|ink_attr| {
+                        resolution::candidate_adt_by_name_or_external_trait_impl(
+                            None,
+                            "Environment",
+                            &["ink::env", "ink_env"],
+                            ink_attr.syntax(),
+                        )
+                    })
+                    .as_ref()
+                    .and_then(resolution::item_path)
+                    .unwrap_or("ink::env::DefaultEnvironment".to_owned());
+                let snippet = format!("${{1:{path}}}");
+                (path, snippet)
             }
             InkArgKind::Extension => {
                 let mut unavailable_ids = HashSet::new();

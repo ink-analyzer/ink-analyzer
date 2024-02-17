@@ -2056,7 +2056,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                     })),
                     results: TestCaseResults::Completion(vec![
                         TestResultTextRange {
-                            text: "env=crate::",
+                            text: "env=ink::env::DefaultEnvironment",
                             start_pat: Some("#[ink::contract("),
                             end_pat: Some("#[ink::contract("),
                         },
@@ -2242,7 +2242,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
                             end_pat: Some("#[ink_e2e::test("),
                         },
                         TestResultTextRange {
-                            text: "environment=crate::",
+                            text: "environment=ink::env::DefaultEnvironment",
                             start_pat: Some("#[ink_e2e::test("),
                             end_pat: Some("#[ink_e2e::test("),
                         },
@@ -2461,7 +2461,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
-                                text: "(env = crate::)",
+                                text: "(env = ink::env::DefaultEnvironment)",
                                 start_pat: Some("#[ink::contract"),
                                 end_pat: Some("#[ink::contract"),
                             }],
@@ -2485,7 +2485,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
-                                text: "(env = crate::)",
+                                text: "(env = ink::env::DefaultEnvironment)",
                                 start_pat: Some("#[ink::contract"),
                                 end_pat: Some("#[ink::contract"),
                             }],
@@ -2528,7 +2528,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     modifications: Some(vec![TestCaseModification {
                         start_pat: Some("<-#[ink::contract]"),
                         end_pat: Some("#[ink::contract]"),
-                        replacement: "#[ink::contract]\n#[ink(env=crate::Environment)]",
+                        replacement: "#[ink::contract]\n#[ink(env=ink::env::DefaultEnvironment)]",
                     }]),
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                         pat: Some("<-mod erc20"),
@@ -2546,14 +2546,14 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                             label: "Flatten",
                             edits: vec![
                                 TestResultTextRange {
-                                    text: "#[ink::contract(env = crate::Environment)]",
+                                    text: "#[ink::contract(env = ink::env::DefaultEnvironment)]",
                                     start_pat: Some("<-#[ink::contract]"),
                                     end_pat: Some("#[ink::contract]"),
                                 },
                                 TestResultTextRange {
                                     text: "",
-                                    start_pat: Some("<-#[ink(env=crate::Environment)]"),
-                                    end_pat: Some("#[ink(env=crate::Environment)]\n"),
+                                    start_pat: Some("<-#[ink(env=ink::env::DefaultEnvironment)]"),
+                                    end_pat: Some("#[ink(env=ink::env::DefaultEnvironment)]\n"),
                                 },
                             ],
                         },
@@ -3003,7 +3003,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
-                                text: "(environment = crate::)",
+                                text: "(environment = ink::env::DefaultEnvironment)",
                                 start_pat: Some("#[ink_e2e::test"),
                                 end_pat: Some("#[ink_e2e::test"),
                             }],
@@ -3035,7 +3035,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
-                                text: "(environment = crate::)",
+                                text: "(environment = ink::env::DefaultEnvironment)",
                                 start_pat: Some("#[ink_e2e::test"),
                                 end_pat: Some("#[ink_e2e::test"),
                             }],

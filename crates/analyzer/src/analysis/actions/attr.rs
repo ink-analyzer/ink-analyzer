@@ -141,7 +141,11 @@ mod tests {
                 "#,
                 Some("<-#["),
                 vec![
-                    ("(env=crate::)", Some("<-]"), Some("<-]")),
+                    (
+                        "(env=ink::env::DefaultEnvironment)",
+                        Some("<-]"),
+                        Some("<-]"),
+                    ),
                     (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
                 ],
             ),
@@ -153,7 +157,11 @@ mod tests {
                 "#,
                 Some("ink::"),
                 vec![
-                    ("(env=crate::)", Some("<-]"), Some("<-]")),
+                    (
+                        "(env=ink::env::DefaultEnvironment)",
+                        Some("<-]"),
+                        Some("<-]"),
+                    ),
                     (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
                 ],
             ),
@@ -165,7 +173,11 @@ mod tests {
                 "#,
                 Some("contract]"),
                 vec![
-                    ("(env=crate::)", Some("<-]"), Some("<-]")),
+                    (
+                        "(env=ink::env::DefaultEnvironment)",
+                        Some("<-]"),
+                        Some("<-]"),
+                    ),
                     (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
                 ],
             ),
@@ -262,7 +274,11 @@ mod tests {
                 Some("<-#["),
                 vec![
                     (r#"(additional_contracts="")"#, Some("<-]"), Some("<-]")),
-                    (r#"(environment=crate::)"#, Some("<-]"), Some("<-]")),
+                    (
+                        r#"(environment=ink::env::DefaultEnvironment)"#,
+                        Some("<-]"),
+                        Some("<-]"),
+                    ),
                     (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
                 ],
             ),

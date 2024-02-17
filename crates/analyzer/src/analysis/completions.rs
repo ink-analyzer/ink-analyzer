@@ -848,7 +848,7 @@ mod tests {
                 "#[ink::contract(",
                 None,
                 vec![
-                    ("env=crate::", Some("("), Some("(")),
+                    ("env=ink::env::DefaultEnvironment", Some("("), Some("(")),
                     (r#"keep_attr="""#, Some("("), Some("(")),
                 ],
             ),
