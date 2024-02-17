@@ -2,17 +2,18 @@
 
 mod error_code;
 
+use std::collections::HashSet;
+
 use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::{
     ast, ChainExtension, Extension, InkArg, InkArgKind, InkAttributeKind, InkEntity, IsInkTrait,
 };
-use std::collections::HashSet;
 
 use super::{extension, utils};
-use crate::analysis::actions::entity as entity_actions;
-use crate::analysis::text_edit::TextEdit;
-use crate::analysis::utils as analysis_utils;
+use crate::analysis::{
+    actions::entity as entity_actions, text_edit::TextEdit, utils as analysis_utils,
+};
 use crate::{Action, ActionKind, Diagnostic, Severity};
 
 const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
@@ -96,7 +97,8 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                             analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax());
                         // Computes a unique id for the chain extension function.
                         let suggested_id =
-                            analysis_utils::suggest_unique_id(Some(1), &mut unavailable_ids);
+                            analysis_utils::suggest_unique_id_mut(None, &mut unavailable_ids)
+                                .unwrap_or(1);
                         // Gets the declaration range for the item.
                         let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(
                             fn_item.clone(),
@@ -306,22 +308,23 @@ fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &Ch
                         .or(extension.ink_attr().map(|attr| attr.syntax().text_range()))
                         .unwrap_or(extension.syntax().text_range()),
                     severity: Severity::Error,
-                    quickfixes: value_range_option.map(|range| {
-                        let suggested_id = analysis_utils::suggest_unique_id(
+                    quickfixes: value_range_option
+                        .zip(analysis_utils::suggest_unique_id_mut(
                             Some(idx as u32 + 1),
                             &mut unavailable_ids,
-                        );
-                        vec![Action {
-                            label: "Replace with a unique extension id.".to_owned(),
-                            kind: ActionKind::QuickFix,
-                            range,
-                            edits: vec![TextEdit::replace_with_snippet(
-                                format!("{suggested_id}"),
+                        ))
+                        .map(|(range, suggested_id)| {
+                            vec![Action {
+                                label: "Replace with a unique extension id.".to_owned(),
+                                kind: ActionKind::QuickFix,
                                 range,
-                                Some(format!("${{1:{suggested_id}}}")),
-                            )],
-                        }]
-                    }),
+                                edits: vec![TextEdit::replace_with_snippet(
+                                    format!("{suggested_id}"),
+                                    range,
+                                    Some(format!("${{1:{suggested_id}}}")),
+                                )],
+                            }]
+                        }),
                 });
             }
 

@@ -3,8 +3,7 @@
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
 
-use super::utils;
-use crate::analysis::text_edit::TextEdit;
+use super::{text_edit::TextEdit, utils};
 
 /// An ink! attribute completion item.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -346,7 +345,7 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                     let (edit, snippet) = utils::ink_arg_insert_text(
                         arg_kind,
                         Some(edit_range.end()),
-                        Some(ink_attr.syntax()),
+                        Some(&ink_attr),
                     );
                     results.push(Completion {
                         label: edit.clone(),
@@ -1131,6 +1130,79 @@ mod tests {
                     ("payable", Some("("), Some("(")),
                     ("selector=1", Some("("), Some("(")),
                 ],
+            ),
+            // Unique ids.
+            (
+                r#"
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(constructor, selector=1)]
+                            pub fn constructor_1(&self) {}
+
+                            #[ink(constructor, sel)]
+                            pub fn constructor_2(&self) {}
+                        }
+                    }
+                "#,
+                Some("#[ink(constructor, sel->"),
+                vec![(
+                    "selector=2",
+                    Some("#[ink(constructor, ->"),
+                    Some("#[ink(constructor, sel->"),
+                )],
+            ),
+            (
+                r#"
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(message, selector=1)]
+                            pub fn message_1(&self) {}
+
+                            #[ink(message, sel)]
+                            pub fn message_2(&self) {}
+                        }
+                    }
+                "#,
+                Some("#[ink(message, sel->"),
+                vec![(
+                    "selector=2",
+                    Some("#[ink(message, ->"),
+                    Some("#[ink(message, sel->"),
+                )],
+            ),
+            (
+                r#"
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, selector=1)]
+                        fn message_1(&self);
+
+                        #[ink(message, sel)]
+                        fn message_2(&self);
+                    }
+                "#,
+                Some("#[ink(message, sel->"),
+                vec![(
+                    "selector=2",
+                    Some("#[ink(message, ->"),
+                    Some("#[ink(message, sel->"),
+                )],
+            ),
+            (
+                r#"
+                    #[ink::chain_extension]
+                    pub trait MyChainExtension {
+                        #[ink(extension=1)]
+                        fn extension_1(&self);
+
+                        #[ink(ext)]
+                        fn extension_2(&self);
+                    }
+                "#,
+                Some("#[ink(ext->"),
+                vec![("extension=2", Some("#[ink(->"), Some("#[ink(ext->"))],
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);

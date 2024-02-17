@@ -221,13 +221,11 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
             let (edit, snippet) = utils::ink_arg_insert_text(
                 arg_kind,
                 Some(insert_offset),
-                is_extending
-                    .then(|| {
-                        primary_ink_attr_candidate
-                            .as_ref()
-                            .map(InkAttribute::syntax)
-                    })
-                    .flatten(),
+                if is_extending {
+                    primary_ink_attr_candidate.as_ref()
+                } else {
+                    None
+                },
             );
             results.push(Action {
                 label: format!("Add ink! {arg_kind} attribute argument."),
@@ -1930,6 +1928,151 @@ mod tests {
                             text: "#[ink(message)]",
                             start_pat: Some("impl MyContract {"),
                             end_pat: Some("impl MyContract {"),
+                        }],
+                    },
+                ],
+            ),
+            // Unique ids.
+            (
+                r#"
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(constructor, selector=1)]
+                            pub fn constructor_1(&self) {}
+
+                            #[ink(constructor)]
+                            pub fn constructor_2(&self) {}
+                        }
+                    }
+                "#,
+                Some("<-fn constructor_2(&self) {}"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", default",
+                            start_pat: Some("#[ink(constructor->"),
+                            end_pat: Some("#[ink(constructor->"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", payable",
+                            start_pat: Some("#[ink(constructor->"),
+                            end_pat: Some("#[ink(constructor->"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", selector = 2",
+                            start_pat: Some("#[ink(constructor->"),
+                            end_pat: Some("#[ink(constructor->"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(message, selector=1)]
+                            pub fn message_1(&self) {}
+
+                            #[ink(message)]
+                            pub fn message_2(&self) {}
+                        }
+                    }
+                "#,
+                Some("<-fn message_2(&self) {}"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", default",
+                            start_pat: Some("#[ink(message->"),
+                            end_pat: Some("#[ink(message->"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", payable",
+                            start_pat: Some("#[ink(message->"),
+                            end_pat: Some("#[ink(message->"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", selector = 2",
+                            start_pat: Some("#[ink(message->"),
+                            end_pat: Some("#[ink(message->"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, selector=1)]
+                        fn message_1(&self);
+
+                        #[ink(message)]
+                        fn message_2(&self);
+                    }
+                "#,
+                Some("<-fn message_2(&self);"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", default",
+                            start_pat: Some("#[ink(message->"),
+                            end_pat: Some("#[ink(message->"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", payable",
+                            start_pat: Some("#[ink(message->"),
+                            end_pat: Some("#[ink(message->"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", selector = 2",
+                            start_pat: Some("#[ink(message->"),
+                            end_pat: Some("#[ink(message->"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                    #[ink::chain_extension]
+                    pub trait MyChainExtension {
+                        #[ink(extension=1)]
+                        fn extension_1(&self);
+
+                        #[ink(handle_status=true)]
+                        fn extension_2(&self);
+                    }
+                "#,
+                Some("<-fn extension_2(&self);"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "extension = 2, ",
+                            start_pat: Some("#[ink(->"),
+                            end_pat: Some("#[ink(->"),
                         }],
                     },
                 ],

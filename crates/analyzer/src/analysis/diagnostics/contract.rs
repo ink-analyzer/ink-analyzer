@@ -1,5 +1,7 @@
 //! ink! contract diagnostics.
 
+use std::collections::HashSet;
+
 use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
@@ -7,14 +9,13 @@ use ink_analyzer_ir::{
     ast, Contract, InkArg, InkArgKind, InkAttributeKind, InkEntity, InkMacroKind, IsInkCallable,
     Selector, SelectorArg, Storage,
 };
-use std::collections::HashSet;
 
 use super::{
     constructor, environment, event, ink_e2e_test, ink_impl, ink_test, message, storage, utils,
 };
-use crate::analysis::actions::entity as entity_actions;
-use crate::analysis::text_edit::TextEdit;
-use crate::analysis::utils as analysis_utils;
+use crate::analysis::{
+    actions::entity as entity_actions, text_edit::TextEdit, utils as analysis_utils,
+};
 use crate::{Action, ActionKind, Diagnostic, Severity};
 
 /// Runs all ink! contract diagnostics.
@@ -315,12 +316,12 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                         .unwrap_or(node.text_range()),
                     severity: Severity::Error,
                     quickfixes: value_range_option
+                        .zip(analysis_utils::suggest_unique_id_mut(
+                            Some(idx as u32 + 1),
+                            &mut unavailable_ids,
+                        ))
                         // Quickfix for using a unique selector value.
-                        .map(|range| {
-                            let suggested_id = analysis_utils::suggest_unique_id(
-                                Some(idx as u32 + 1),
-                                &mut unavailable_ids,
-                            );
+                        .map(|(range, suggested_id)| {
                             vec![Action {
                                 label: "Replace with a unique selector.".to_owned(),
                                 kind: ActionKind::QuickFix,

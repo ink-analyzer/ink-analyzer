@@ -1,18 +1,19 @@
 //! Utilities for ink! analysis.
 
+use std::collections::HashSet;
+
 use ink_analyzer_ir::ast::{HasAttrs, HasDocComments, HasModuleItem, HasName};
 use ink_analyzer_ir::syntax::{
     AstNode, AstToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 use ink_analyzer_ir::{
-    ast, Contract, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
-    InkAttribute, InkAttributeKind, InkEntity, InkImpl, InkMacroKind, IsInkStruct, IsInkTrait,
-    Message, Storage,
+    ast, ChainExtension, Contract, Extension, HasInkImplParent, InkArg, InkArgKind,
+    InkArgValueKind, InkAttribute, InkAttributeKind, InkEntity, InkImpl, InkMacroKind,
+    IsInkCallable, IsInkStruct, IsInkTrait, Message, Selector, Storage, TraitDefinition,
 };
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::HashSet;
 
 use crate::utils;
 
@@ -553,7 +554,7 @@ pub fn is_cfg_e2e_tests_attr(attr: &ast::Attr) -> bool {
 pub fn ink_arg_insert_text(
     arg_kind: InkArgKind,
     insert_offset_option: Option<TextSize>,
-    parent_attr_option: Option<&SyntaxNode>,
+    parent_attr_option: Option<&InkAttribute>,
 ) -> (String, Option<String>) {
     // Determines whether or not to insert the `=` symbol after the ink! attribute argument name.
     let insert_equal_token = match InkArgValueKind::from(arg_kind) {
@@ -562,6 +563,7 @@ pub fn ink_arg_insert_text(
         // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
         // the next closest non-trivia token after the insert offset.
         _ => parent_attr_option
+            .map(InkAttribute::syntax)
             .zip(insert_offset_option)
             .and_then(|(parent_node, insert_offset)| {
                 parent_node
@@ -593,42 +595,105 @@ pub fn ink_arg_insert_text(
             // Defaults to inserting the `=` symbol (e.g. if either parent attribute is `None` or the next closest non-trivia token can't be determined).
             .unwrap_or(true),
     };
-    let mut text = format!("{arg_kind}{}", if insert_equal_token { " = " } else { "" });
-    // Creates (if appropriate) a snippet with tab stops and/or placeholders where applicable.
-    let snippet = insert_equal_token.then_some(format!(
-        "{text}{}",
-        match InkArgValueKind::from(arg_kind) {
-            InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => "${1:1}",
-            InkArgValueKind::String(str_kind) => match str_kind {
-                InkArgValueStringKind::Identifier => r#""${1:my_namespace}""#,
-                _ => r#""$1""#,
-            },
-            InkArgValueKind::Bool => "${1:true}",
-            InkArgValueKind::Path(_) => "${1:crate::}",
-            // Should not be able to get here.
-            InkArgValueKind::None => "",
-        }
-    ));
-    // Add default values to insert text (if appropriate).
-    text = format!(
-        "{text}{}",
-        if insert_equal_token {
-            match InkArgValueKind::from(arg_kind) {
-                InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => "1",
-                InkArgValueKind::String(str_kind) => match str_kind {
-                    InkArgValueStringKind::Identifier => r#""my_namespace""#,
-                    _ => r#""""#,
-                },
-                InkArgValueKind::Bool => "true",
-                InkArgValueKind::Path(_) => "crate::",
-                // Should not be able to get here.
-                InkArgValueKind::None => "",
+    let prefix = format!("{arg_kind}{}", if insert_equal_token { " = " } else { "" });
+    let (text_value, snippet_value) = if insert_equal_token {
+        match arg_kind {
+            InkArgKind::AdditionalContracts | InkArgKind::KeepAttr => {
+                (r#""""#.to_owned(), r#""$1""#.to_owned())
             }
-        } else {
-            ""
-        }
-    );
+            InkArgKind::Derive | InkArgKind::HandleStatus => {
+                ("true".to_owned(), "${1:true}".to_owned())
+            }
+            InkArgKind::Env | InkArgKind::Environment => {
+                ("crate::".to_owned(), "${1:crate::}".to_owned())
+            }
+            InkArgKind::Extension => {
+                let mut unavailable_ids = HashSet::new();
+                if let Some(ink_attr) = parent_attr_option {
+                    let parent_fn = ink_attr
+                        .syntax()
+                        .parent()
+                        .filter(|parent| ast::Fn::can_cast(parent.kind()));
+                    if let Some(chain_extension) = parent_fn
+                        .as_ref()
+                        .and_then(ink_analyzer_ir::ink_parent::<ChainExtension>)
+                    {
+                        unavailable_ids = chain_extension
+                            .extensions()
+                            .iter()
+                            .filter_map(Extension::id)
+                            .collect();
+                    }
+                }
 
+                let id = suggest_unique_id(None, &unavailable_ids).unwrap_or(1);
+                (format!("{id}"), format!("${{1:{id}}}"))
+            }
+            InkArgKind::Namespace => (
+                r#""my_namespace""#.to_owned(),
+                r#""${1:my_namespace}""#.to_owned(),
+            ),
+            InkArgKind::Selector => {
+                let mut unavailable_ids = HashSet::new();
+
+                if let Some(ink_attr) = parent_attr_option {
+                    let parent_fn = ink_attr
+                        .syntax()
+                        .parent()
+                        .filter(|parent| ast::Fn::can_cast(parent.kind()));
+                    let parent_trait_def = || {
+                        parent_fn
+                            .as_ref()
+                            .and_then(ink_analyzer_ir::ink_parent::<TraitDefinition>)
+                    };
+                    let parent_contract = || {
+                        parent_fn.as_ref().and_then(|parent_fn| {
+                            ink_analyzer_ir::ink_ancestors::<Contract>(parent_fn).next()
+                        })
+                    };
+                    if let Some(trait_def) = parent_trait_def() {
+                        unavailable_ids = trait_def
+                            .messages()
+                            .iter()
+                            .filter_map(|msg| msg.composed_selector().map(Selector::into_be_u32))
+                            .collect();
+                    } else if let Some(contract) = parent_contract() {
+                        let is_ctor = ink_attr
+                            .args()
+                            .iter()
+                            .any(|arg| *arg.kind() == InkArgKind::Constructor);
+                        unavailable_ids = if is_ctor {
+                            contract
+                                .constructors()
+                                .iter()
+                                .filter_map(|ctor| {
+                                    ctor.composed_selector().map(Selector::into_be_u32)
+                                })
+                                .collect()
+                        } else {
+                            contract
+                                .messages()
+                                .iter()
+                                .filter_map(|msg| {
+                                    msg.composed_selector().map(Selector::into_be_u32)
+                                })
+                                .collect()
+                        };
+                    }
+                }
+
+                let id = suggest_unique_id(None, &unavailable_ids).unwrap_or(1);
+                (format!("{id}"), format!("${{1:{id}}}"))
+            }
+            _ => (String::new(), String::new()),
+        }
+    } else {
+        (String::new(), String::new())
+    };
+    // Creates insert text with default values (if appropriate).
+    let text = format!("{prefix}{text_value}");
+    // Creates a snippet with tab stops and/or placeholders (where applicable).
+    let snippet = insert_equal_token.then_some(format!("{prefix}{snippet_value}"));
     (text, snippet)
 }
 
@@ -1599,19 +1664,35 @@ pub fn reduce_indenting(input: &str, indent: &str) -> String {
     }
 }
 
-/// Suggests a unique/unused id for an extension function.
-pub fn suggest_unique_id(preferred_id: Option<u32>, unavailable_ids: &mut HashSet<u32>) -> u32 {
+/// Suggests a unique/unused id for an constructor, message or extension function.
+pub fn suggest_unique_id_mut(
+    preferred_id: Option<u32>,
+    unavailable_ids: &mut HashSet<u32>,
+) -> Option<u32> {
     // Finds a unique/unused id.
-    let mut suggested_id = preferred_id.unwrap_or(1);
-    while unavailable_ids.contains(&suggested_id) {
-        suggested_id += 1;
-    }
+    let suggested_id = suggest_unique_id(preferred_id, unavailable_ids)?;
 
     // Makes the id unavailable for future calls to this function.
     unavailable_ids.insert(suggested_id);
 
     // Returns the unique id.
-    suggested_id
+    Some(suggested_id)
+}
+
+/// Suggests a unique/unused id for an constructor, message or extension function.
+pub fn suggest_unique_id(preferred_id: Option<u32>, unavailable_ids: &HashSet<u32>) -> Option<u32> {
+    // Finds a unique/unused id.
+    let mut suggested_id = preferred_id.unwrap_or(1);
+    while unavailable_ids.contains(&suggested_id) {
+        if suggested_id == u32::MAX {
+            // Bail if we've already reached the max value.
+            return None;
+        }
+        suggested_id += 1;
+    }
+
+    // Returns the unique id.
+    Some(suggested_id)
 }
 
 /// Returns text range of the contract `mod` "declaration"

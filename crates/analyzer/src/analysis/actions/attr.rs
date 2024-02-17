@@ -40,11 +40,8 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                     utils::ink_arg_insert_offset_and_affixes(&ink_attr, Some(arg_kind))
                 {
                     // Adds ink! attribute argument action to accumulator.
-                    let (edit, snippet) = utils::ink_arg_insert_text(
-                        arg_kind,
-                        Some(insert_offset),
-                        Some(ink_attr.syntax()),
-                    );
+                    let (edit, snippet) =
+                        utils::ink_arg_insert_text(arg_kind, Some(insert_offset), Some(&ink_attr));
                     results.push(Action {
                         label: format!("Add ink! {arg_kind} attribute argument."),
                         kind: ActionKind::Refactor,
@@ -409,6 +406,115 @@ mod tests {
                 "#,
                 Some("<-#["),
                 vec![(", handle_status=true", Some("<-)]"), Some("<-)]"))],
+            ),
+            // Unique ids.
+            (
+                r#"
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(constructor, selector=1)]
+                            pub fn constructor_1(&self) {}
+
+                            #[ink(constructor)]
+                            pub fn constructor_2(&self) {}
+                        }
+                    }
+                "#,
+                Some("<-#[ink(constructor)]"),
+                vec![
+                    (
+                        ", default",
+                        Some("#[ink(constructor->"),
+                        Some("#[ink(constructor->"),
+                    ),
+                    (
+                        ", payable",
+                        Some("#[ink(constructor->"),
+                        Some("#[ink(constructor->"),
+                    ),
+                    (
+                        ", selector=2",
+                        Some("#[ink(constructor->"),
+                        Some("#[ink(constructor->"),
+                    ),
+                ],
+            ),
+            (
+                r#"
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(message, selector=1)]
+                            pub fn message_1(&self) {}
+
+                            #[ink(message)]
+                            pub fn message_2(&self) {}
+                        }
+                    }
+                "#,
+                Some("<-#[ink(message)]"),
+                vec![
+                    (
+                        ", default",
+                        Some("#[ink(message->"),
+                        Some("#[ink(message->"),
+                    ),
+                    (
+                        ", payable",
+                        Some("#[ink(message->"),
+                        Some("#[ink(message->"),
+                    ),
+                    (
+                        ", selector=2",
+                        Some("#[ink(message->"),
+                        Some("#[ink(message->"),
+                    ),
+                ],
+            ),
+            (
+                r#"
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, selector=1)]
+                        fn message_1(&self);
+
+                        #[ink(message)]
+                        fn message_2(&self);
+                    }
+                "#,
+                Some("<-#[ink(message)]"),
+                vec![
+                    (
+                        ", default",
+                        Some("#[ink(message->"),
+                        Some("#[ink(message->"),
+                    ),
+                    (
+                        ", payable",
+                        Some("#[ink(message->"),
+                        Some("#[ink(message->"),
+                    ),
+                    (
+                        ", selector=2",
+                        Some("#[ink(message->"),
+                        Some("#[ink(message->"),
+                    ),
+                ],
+            ),
+            (
+                r#"
+                    #[ink::chain_extension]
+                    pub trait MyChainExtension {
+                        #[ink(extension=1)]
+                        fn extension_1(&self);
+
+                        #[ink(handle_status=true)]
+                        fn extension_2(&self);
+                    }
+                "#,
+                Some("<-#[ink(handle_status=true)]"),
+                vec![("extension=2,", Some("#[ink(->"), Some("#[ink(->"))],
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
