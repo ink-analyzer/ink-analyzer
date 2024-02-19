@@ -506,8 +506,18 @@ pub fn add_extension(
                         .iter()
                         .filter_map(Extension::fn_item),
                 );
-                let (text, snippet) =
+                let (mut text, mut snippet) =
                     text_and_snippet(EXTENSION_PLAIN, EXTENSION_SNIPPET, "my_extension", &names);
+                let unavailable_ids = chain_extension
+                    .extensions()
+                    .iter()
+                    .filter_map(Extension::id)
+                    .collect();
+                let id = utils::suggest_unique_id(None, &unavailable_ids).unwrap_or(1);
+                if id > 1 {
+                    text = text.replace("1)]", &format!("{id})]"));
+                    snippet = snippet.replace("1})]", &format!("{id}}})]"));
+                }
 
                 Action {
                     label: "Add ink! extension `fn`.".to_owned(),

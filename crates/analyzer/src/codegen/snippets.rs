@@ -176,7 +176,7 @@ pub const CHAIN_EXTENSION_PLAIN: &str = r#"#[ink::chain_extension]
 pub trait ChainExtension {
     type ErrorCode = CustomErrorCode;
 
-    #[ink(extension=1)]
+    #[ink(extension = 1)]
     fn my_extension();
 }
 
@@ -198,7 +198,7 @@ pub const CHAIN_EXTENSION_SNIPPET: &str = r#"#[ink::chain_extension]
 pub trait ${1:ChainExtension} {
     type ErrorCode = ${2:CustomErrorCode};
 
-    #[ink(extension=${3:1})]
+    #[ink(extension = ${3:1})]
     fn ${4:my_extension}();
 }
 
