@@ -15,9 +15,9 @@ pub struct ${1:Event} {
 }"#;
 
 pub const TOPIC_PLAIN: &str = r#"#[ink(topic)]
-topic: bool,"#;
+my_topic: bool,"#;
 pub const TOPIC_SNIPPET: &str = r#"#[ink(topic)]
-${1:topic}: ${2:bool},"#;
+${1:my_topic}: ${2:bool},"#;
 
 pub const CONSTRUCTOR_PLAIN: &str = r#"#[ink(constructor)]
 pub fn new() -> Self {
@@ -29,26 +29,26 @@ pub fn ${1:new}() -> ${2:Self} {
 }"#;
 
 pub const MESSAGE_PLAIN: &str = r#"#[ink(message)]
-pub fn message(&self) {
+pub fn my_message(&self) {
     todo!()
 }"#;
 pub const MESSAGE_SNIPPET: &str = r#"#[ink(message)]
-pub fn ${1:message}(&${2:self}) {
+pub fn ${1:my_message}(&${2:self}) {
     ${3:todo!()}
 }"#;
 
 pub const TRAIT_MESSAGE_PLAIN: &str = r#"#[ink(message)]
-fn message(&self);"#;
+fn my_message(&self);"#;
 pub const TRAIT_MESSAGE_SNIPPET: &str = r#"#[ink(message)]
-fn ${1:message}(&${2:self});"#;
+fn ${1:my_message}(&${2:self});"#;
 
 pub const ERROR_CODE_PLAIN: &str = r#"type ErrorCode = ();"#;
 pub const ERROR_CODE_SNIPPET: &str = r#"type ErrorCode = ${1:()};"#;
 
 pub const EXTENSION_PLAIN: &str = r#"#[ink(extension = 1)]
-fn extension();"#;
+fn my_extension();"#;
 pub const EXTENSION_SNIPPET: &str = r#"#[ink(extension = ${1:1})]
-fn ${2:extension}();"#;
+fn ${2:my_extension}();"#;
 
 pub const INK_TEST_PLAIN: &str = r#"#[ink::test]
 pub fn it_works() {
@@ -86,7 +86,7 @@ pub mod my_contract {
         }
 
         #[ink(message)]
-        pub fn message(&self) {
+        pub fn my_message(&self) {
             todo!()
         }
     }
@@ -131,7 +131,7 @@ pub mod ${1:my_contract} {
         }
 
         #[ink(message)]
-        pub fn ${7:message}(&${8:self}) {
+        pub fn ${7:my_message}(&${8:self}) {
             ${9:todo!()}
         }
     }
@@ -164,12 +164,12 @@ pub mod ${1:my_contract} {
 pub const TRAIT_DEFINITION_PLAIN: &str = r#"#[ink::trait_definition]
 pub trait TraitDefinition {
     #[ink(message)]
-    fn message(&self);
+    fn my_message(&self);
 }"#;
 pub const TRAIT_DEFINITION_SNIPPET: &str = r#"#[ink::trait_definition]
 pub trait ${1:TraitDefinition} {
     #[ink(message)]
-    fn ${2:message}(&${3:self});
+    fn ${2:my_message}(&${3:self});
 }"#;
 
 pub const CHAIN_EXTENSION_PLAIN: &str = r#"#[ink::chain_extension]
@@ -177,7 +177,7 @@ pub trait ChainExtension {
     type ErrorCode = CustomErrorCode;
 
     #[ink(extension=1)]
-    fn extension();
+    fn my_extension();
 }
 
 #[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]
@@ -199,7 +199,7 @@ pub trait ${1:ChainExtension} {
     type ErrorCode = ${2:CustomErrorCode};
 
     #[ink(extension=${3:1})]
-    fn ${4:extension}();
+    fn ${4:my_extension}();
 }
 
 #[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]

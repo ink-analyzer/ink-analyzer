@@ -1,8 +1,12 @@
 //! ink! entity code/intent actions.
 
-use ink_analyzer_ir::syntax::{AstNode, TextRange};
+use std::collections::HashSet;
+
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, Event, InkEntity, IsInkStruct, IsInkTrait, TraitDefinition,
+    ast::{self, HasModuleItem, HasName},
+    syntax::{AstNode, TextRange},
+    ChainExtension, Constructor, Contract, Event, Extension, InkEntity, IsInkFn, IsInkStruct,
+    IsInkTrait, Message, TraitDefinition,
 };
 
 use super::{Action, ActionKind};
@@ -67,6 +71,33 @@ pub fn add_storage(
     })
 }
 
+macro_rules! mod_item_names {
+    ($mod: ident, $ty: ident) => {
+        $mod.item_list()
+            .into_iter()
+            .flat_map(|item_list| {
+                item_list.items().filter_map(|item| match item {
+                    ast::Item::$ty(item) => item.name().as_ref().map(ToString::to_string),
+                    _ => None,
+                })
+            })
+            .collect()
+    };
+}
+
+fn text_and_snippet(
+    text: &str,
+    snippet: &str,
+    preferred_name: &str,
+    unavailable_names: &HashSet<String>,
+) -> (String, String) {
+    let suggested_name = utils::suggest_unique_name(preferred_name, unavailable_names);
+    (
+        text.replace(preferred_name, &suggested_name),
+        snippet.replace(preferred_name, &suggested_name),
+    )
+}
+
 /// Adds an ink! event `struct` to an ink! contract `mod` item.
 pub fn add_event(
     contract: &Contract,
@@ -83,34 +114,19 @@ pub fn add_event(
                 .map(utils::item_insert_offset_after_last_struct_or_start)
                 .map(|offset| TextRange::new(offset, offset)))
             .map(|range| {
-                // Sets insert indent.
+                // Sets insert indent and suggested name.
                 let indent = utils::item_children_indenting(module.syntax());
-                // Suggests an event name based on the "resolved" contract name.
-                let suggested_event_name =
-                    utils::resolve_contract_name(contract).map(|name| format!("My{name}Event"));
+                let names = mod_item_names!(module, Struct);
+                let (text, snippet) = text_and_snippet(EVENT_PLAIN, EVENT_SNIPPET, "Event", &names);
 
                 Action {
                     label: "Add ink! event `struct`.".to_owned(),
                     kind,
                     range: utils::contract_declaration_range(contract),
                     edits: vec![TextEdit::replace_with_snippet(
-                        utils::apply_indenting(
-                            suggested_event_name
-                                .as_deref()
-                                .map(|name| EVENT_PLAIN.replace("Event", name))
-                                .as_deref()
-                                .unwrap_or(EVENT_PLAIN),
-                            &indent,
-                        ),
+                        utils::apply_indenting(&text, &indent),
                         range,
-                        Some(utils::apply_indenting(
-                            suggested_event_name
-                                .as_deref()
-                                .map(|name| EVENT_SNIPPET.replace("Event", name))
-                                .as_deref()
-                                .unwrap_or(EVENT_SNIPPET),
-                            &indent,
-                        )),
+                        Some(utils::apply_indenting(&snippet, &indent)),
                     )],
                 }
             })
@@ -133,8 +149,23 @@ pub fn add_topic(
                 .map(utils::field_insert_offset_end_and_affixes)
                 .map(|(offset, prefix, suffix)| (TextRange::new(offset, offset), prefix, suffix)))
             .map(|(range, prefix, suffix)| {
-                // Sets insert indent.
+                // Sets insert indent and suggested name.
                 let indent = utils::item_children_indenting(struct_item.syntax());
+                let names: HashSet<_> = struct_item
+                    .field_list()
+                    .and_then(|field_list| match field_list {
+                        ast::FieldList::RecordFieldList(record_list) => Some(record_list),
+                        _ => None,
+                    })
+                    .into_iter()
+                    .flat_map(|field_list| {
+                        field_list
+                            .fields()
+                            .filter_map(|field| field.name().as_ref().map(ToString::to_string))
+                    })
+                    .collect();
+                let (text, snippet) =
+                    text_and_snippet(TOPIC_PLAIN, TOPIC_SNIPPET, "my_topic", &names);
 
                 Action {
                     label: "Add ink! topic `field`.".to_owned(),
@@ -147,14 +178,14 @@ pub fn add_topic(
                         format!(
                             "{}{}{}",
                             prefix.as_deref().unwrap_or_default(),
-                            utils::apply_indenting(TOPIC_PLAIN, &indent),
+                            utils::apply_indenting(&text, &indent),
                             suffix.as_deref().unwrap_or_default()
                         ),
                         range,
                         Some(format!(
                             "{}{}{}",
                             prefix.as_deref().unwrap_or_default(),
-                            utils::apply_indenting(TOPIC_SNIPPET, &indent),
+                            utils::apply_indenting(&snippet, &indent),
                             suffix.as_deref().unwrap_or_default()
                         )),
                     )],
@@ -235,6 +266,20 @@ fn add_callable_to_contract(
             }))
 }
 
+fn fn_names<'a>(fns: impl Iterator<Item = &'a ast::Fn>) -> HashSet<String> {
+    fns.filter_map(|fn_item| fn_item.name().as_ref().map(ToString::to_string))
+        .collect()
+}
+
+fn contract_fn_names(contract: &Contract) -> HashSet<String> {
+    let fns = contract
+        .constructors()
+        .iter()
+        .filter_map(Constructor::fn_item)
+        .chain(contract.messages().iter().filter_map(Message::fn_item));
+    fn_names(fns)
+}
+
 /// Adds an ink! constructor `fn` to the first non-trait `impl` block or
 /// creates a new `impl` block if necessary.
 pub fn add_constructor_to_contract(
@@ -242,13 +287,15 @@ pub fn add_constructor_to_contract(
     kind: ActionKind,
     range_option: Option<TextRange>,
 ) -> Option<Action> {
+    let names = contract_fn_names(contract);
+    let (text, snippet) = text_and_snippet(CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, "new", &names);
     add_callable_to_contract(
         contract,
         kind,
         range_option,
         "Add ink! constructor `fn`.".to_owned(),
-        CONSTRUCTOR_PLAIN,
-        CONSTRUCTOR_SNIPPET,
+        &text,
+        &snippet,
     )
 }
 
@@ -259,13 +306,15 @@ pub fn add_message_to_contract(
     kind: ActionKind,
     range_option: Option<TextRange>,
 ) -> Option<Action> {
+    let names = contract_fn_names(contract);
+    let (text, snippet) = text_and_snippet(MESSAGE_PLAIN, MESSAGE_SNIPPET, "my_message", &names);
     add_callable_to_contract(
         contract,
         kind,
         range_option,
         "Add ink! message `fn`.".to_owned(),
-        MESSAGE_PLAIN,
-        MESSAGE_SNIPPET,
+        &text,
+        &snippet,
     )
 }
 
@@ -304,19 +353,36 @@ fn add_callable_to_impl(
         })
 }
 
+fn impl_fn_names(impl_item: &ast::Impl) -> HashSet<String> {
+    impl_item
+        .assoc_item_list()
+        .into_iter()
+        .flat_map(|assoc_item_list| {
+            assoc_item_list
+                .assoc_items()
+                .filter_map(|assoc_item| match assoc_item {
+                    ast::AssocItem::Fn(fn_item) => fn_item.name().as_ref().map(ToString::to_string),
+                    _ => None,
+                })
+        })
+        .collect()
+}
+
 /// Adds an ink! constructor `fn` to an `impl` block.
 pub fn add_constructor_to_impl(
     impl_item: &ast::Impl,
     kind: ActionKind,
     range_option: Option<TextRange>,
 ) -> Option<Action> {
+    let names = impl_fn_names(impl_item);
+    let (text, snippet) = text_and_snippet(CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, "new", &names);
     add_callable_to_impl(
         impl_item,
         kind,
         range_option,
         "Add ink! constructor `fn`.".to_owned(),
-        CONSTRUCTOR_PLAIN,
-        CONSTRUCTOR_SNIPPET,
+        &text,
+        &snippet,
     )
 }
 
@@ -326,13 +392,15 @@ pub fn add_message_to_impl(
     kind: ActionKind,
     range_option: Option<TextRange>,
 ) -> Option<Action> {
+    let names = impl_fn_names(impl_item);
+    let (text, snippet) = text_and_snippet(MESSAGE_PLAIN, MESSAGE_SNIPPET, "my_message", &names);
     add_callable_to_impl(
         impl_item,
         kind,
         range_option,
         "Add ink! message `fn`.".to_owned(),
-        MESSAGE_PLAIN,
-        MESSAGE_SNIPPET,
+        &text,
+        &snippet,
     )
 }
 
@@ -352,17 +420,29 @@ pub fn add_message_to_trait_definition(
                 .map(utils::assoc_item_insert_offset_end)
                 .map(|offset| TextRange::new(offset, offset)))
             .map(|range| {
-                // Sets insert indent.
+                // Sets insert indent and suggested name.
                 let indent = utils::item_children_indenting(trait_item.syntax());
+                let names = fn_names(
+                    trait_definition
+                        .messages()
+                        .iter()
+                        .filter_map(Message::fn_item),
+                );
+                let (text, snippet) = text_and_snippet(
+                    TRAIT_MESSAGE_PLAIN,
+                    TRAIT_MESSAGE_SNIPPET,
+                    "my_message",
+                    &names,
+                );
 
                 Action {
                     label: "Add ink! message `fn`.".to_owned(),
                     kind,
                     range: utils::ink_trait_declaration_range(trait_definition),
                     edits: vec![TextEdit::replace_with_snippet(
-                        utils::apply_indenting(TRAIT_MESSAGE_PLAIN, &indent),
+                        utils::apply_indenting(&text, &indent),
                         range,
-                        Some(utils::apply_indenting(TRAIT_MESSAGE_SNIPPET, &indent)),
+                        Some(utils::apply_indenting(&snippet, &indent)),
                     )],
                 }
             })
@@ -418,17 +498,25 @@ pub fn add_extension(
                 .map(utils::assoc_item_insert_offset_end)
                 .map(|offset| TextRange::new(offset, offset)))
             .map(|range| {
-                // Sets insert indent.
+                // Sets insert indent and suggested name.
                 let indent = utils::item_children_indenting(trait_item.syntax());
+                let names = fn_names(
+                    chain_extension
+                        .extensions()
+                        .iter()
+                        .filter_map(Extension::fn_item),
+                );
+                let (text, snippet) =
+                    text_and_snippet(EXTENSION_PLAIN, EXTENSION_SNIPPET, "my_extension", &names);
 
                 Action {
                     label: "Add ink! extension `fn`.".to_owned(),
                     kind,
                     range: utils::ink_trait_declaration_range(chain_extension),
                     edits: vec![TextEdit::replace_with_snippet(
-                        utils::apply_indenting(EXTENSION_PLAIN, &indent),
+                        utils::apply_indenting(&text, &indent),
                         range,
-                        Some(utils::apply_indenting(EXTENSION_SNIPPET, &indent)),
+                        Some(utils::apply_indenting(&snippet, &indent)),
                     )],
                 }
             })
@@ -450,8 +538,11 @@ pub fn add_ink_test(
             .map(utils::item_insert_offset_end)
             .map(|offset| TextRange::new(offset, offset)))
         .map(|range| {
-            // Sets insert indent.
+            // Sets insert indent and suggested name.
             let indent = utils::item_children_indenting(module.syntax());
+            let names = mod_item_names!(module, Fn);
+            let (text, snippet) =
+                text_and_snippet(INK_TEST_PLAIN, INK_TEST_SNIPPET, "it_works", &names);
 
             Action {
                 label: "Add ink! test `fn`.".to_owned(),
@@ -459,9 +550,9 @@ pub fn add_ink_test(
                 range: utils::ast_item_declaration_range(&ast::Item::Module(module.clone()))
                     .unwrap_or(module.syntax().text_range()),
                 edits: vec![TextEdit::replace_with_snippet(
-                    utils::apply_indenting(INK_TEST_PLAIN, &indent),
+                    utils::apply_indenting(&text, &indent),
                     range,
-                    Some(utils::apply_indenting(INK_TEST_SNIPPET, &indent)),
+                    Some(utils::apply_indenting(&snippet, &indent)),
                 )],
             }
         })
@@ -482,8 +573,11 @@ pub fn add_ink_e2e_test(
             .map(utils::item_insert_offset_end)
             .map(|offset| TextRange::new(offset, offset)))
         .map(|range| {
-            // Sets insert indent.
+            // Sets insert indent and suggested name.
             let indent = utils::item_children_indenting(module.syntax());
+            let names = mod_item_names!(module, Fn);
+            let (text, snippet) =
+                text_and_snippet(INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET, "it_works", &names);
 
             Action {
                 label: "Add ink! e2e test `fn`.".to_owned(),
@@ -491,9 +585,9 @@ pub fn add_ink_e2e_test(
                 range: utils::ast_item_declaration_range(&ast::Item::Module(module.clone()))
                     .unwrap_or(module.syntax().text_range()),
                 edits: vec![TextEdit::replace_with_snippet(
-                    utils::apply_indenting(INK_E2E_TEST_PLAIN, &indent),
+                    utils::apply_indenting(&text, &indent),
                     range,
-                    Some(utils::apply_indenting(INK_E2E_TEST_SNIPPET, &indent)),
+                    Some(utils::apply_indenting(&snippet, &indent)),
                 )],
             }
         })

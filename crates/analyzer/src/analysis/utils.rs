@@ -1708,6 +1708,25 @@ pub fn suggest_unique_id(preferred_id: Option<u32>, unavailable_ids: &HashSet<u3
     Some(suggested_id)
 }
 
+/// Suggests a unique/unused name for an constructor, message or extension function.
+pub fn suggest_unique_name(preferred_name: &str, unavailable_names: &HashSet<String>) -> String {
+    // Finds a unique/unused name.
+    let mut suggested_name = preferred_name.to_owned();
+    let mut suffix = 2;
+    while unavailable_names.contains(&suggested_name) {
+        if suffix == u8::MAX {
+            // Bail if we can't find a unique name after all these tries and use the preferred name.
+            suggested_name = preferred_name.to_owned();
+            break;
+        }
+        suggested_name = format!("{preferred_name}{suffix}");
+        suffix += 1;
+    }
+
+    // Returns the suggested name.
+    suggested_name
+}
+
 /// Returns text range of the contract `mod` "declaration"
 /// (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
 pub fn contract_declaration_range(contract: &Contract) -> TextRange {
