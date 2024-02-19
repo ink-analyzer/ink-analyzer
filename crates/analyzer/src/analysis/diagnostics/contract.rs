@@ -277,7 +277,7 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
         ),
     ] {
         let mut seen_selectors: HashSet<u32> = HashSet::new();
-        for (idx, (selector, node, selector_arg)) in selectors.iter().enumerate() {
+        for (selector, node, selector_arg) in selectors {
             let selector_value = selector.into_be_u32();
 
             if seen_selectors.get(&selector_value).is_some() {
@@ -317,7 +317,7 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                     severity: Severity::Error,
                     quickfixes: value_range_option
                         .zip(analysis_utils::suggest_unique_id_mut(
-                            Some(idx as u32 + 1),
+                            None,
                             &mut unavailable_ids,
                         ))
                         // Quickfix for using a unique selector value.

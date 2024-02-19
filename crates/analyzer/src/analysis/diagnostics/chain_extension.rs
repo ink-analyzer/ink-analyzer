@@ -287,7 +287,7 @@ fn ensure_error_code_type_quantity(
 fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
     let mut seen_ids: HashSet<u32> = HashSet::new();
     let mut unavailable_ids = init_unavailable_ids(chain_extension);
-    for (idx, extension) in chain_extension.extensions().iter().enumerate() {
+    for extension in chain_extension.extensions() {
         if let Some(id) = extension.id() {
             if seen_ids.get(&id).is_some() {
                 // Determines text range for the argument value.
@@ -310,7 +310,7 @@ fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &Ch
                     severity: Severity::Error,
                     quickfixes: value_range_option
                         .zip(analysis_utils::suggest_unique_id_mut(
-                            Some(idx as u32 + 1),
+                            None,
                             &mut unavailable_ids,
                         ))
                         .map(|(range, suggested_id)| {
