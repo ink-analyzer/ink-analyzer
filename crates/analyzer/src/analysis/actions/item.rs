@@ -39,9 +39,11 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                     Some(ast_item) => {
                         // Gets the covering struct record field (if any).
                         let record_field: Option<ast::RecordField> =
-                            matches!(&ast_item, ast::Item::Struct(_))
-                                .then(|| ink_analyzer_ir::closest_ancestor_ast_type(&focused_elem))
-                                .flatten();
+                            if matches!(ast_item, ast::Item::Struct(_)) {
+                                ink_analyzer_ir::closest_ancestor_ast_type(&focused_elem)
+                            } else {
+                                None
+                            };
 
                         // Only computes ink! attribute actions if the focus is on either a
                         // struct record field or an AST item's declaration (i.e not on attributes
@@ -230,14 +232,14 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
             results.push(Action {
                 label: format!("Add ink! {arg_kind} attribute argument."),
                 kind: ActionKind::Refactor,
-                range: is_extending
-                    .then(|| {
-                        primary_ink_attr_candidate
-                            .as_ref()
-                            .map(|it| it.syntax().text_range())
-                    })
-                    .flatten()
-                    .unwrap_or(range),
+                range: if is_extending {
+                    primary_ink_attr_candidate
+                        .as_ref()
+                        .map(|it| it.syntax().text_range())
+                } else {
+                    None
+                }
+                .unwrap_or(range),
                 edits: vec![TextEdit::insert_with_snippet(
                     format!(
                         "{}{}{}",

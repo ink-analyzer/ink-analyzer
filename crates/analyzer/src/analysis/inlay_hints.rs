@@ -27,12 +27,8 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>) -> Vec<InlayHint> {
                 .iter()
                 .filter_map(|arg| {
                     // Filters out ink! attribute arguments that aren't in the selection range.
-                    (range.is_none()
-                        || matches!(
-                            range.as_ref().map(|it| it.contains_range(arg.text_range())),
-                            Some(true)
-                        ))
-                    .then(|| {
+                    // Note that range of `None` means entire file is in range.
+                    if range.map_or(true, |it| it.contains_range(arg.text_range())) {
                         // Creates inlay hint if a non-empty label is defined for the ink! attribute argument.
                         let arg_value_kind = InkArgValueKind::from(*arg.kind());
                         let label = arg_value_kind.to_string();
@@ -47,7 +43,9 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>) -> Vec<InlayHint> {
                                 .map_or(arg.text_range(), |name| name.syntax().text_range()),
                             detail: (!doc.is_empty()).then_some(doc.to_owned()),
                         })
-                    })?
+                    } else {
+                        None
+                    }
                 })
                 .collect::<Vec<InlayHint>>()
         })

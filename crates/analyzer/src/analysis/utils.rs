@@ -1191,22 +1191,21 @@ pub fn token_and_delimiter_range(token: &SyntaxToken, delimiter: SyntaxKind) -> 
     TextRange::new(
         // Either the start of the previous delimiter token (if any and there's no next delimiter)
         // or the start of the target token.
-        next_delimiter
-            .is_none()
-            .then(|| {
-                // Returns the previous delimiter token (if any).
-                ink_analyzer_ir::closest_item_which(
-                    token,
-                    SyntaxToken::prev_token,
-                    |subject| subject.kind() == delimiter,
-                    |subject| !subject.kind().is_trivia(),
-                )
-            })
-            .flatten()
-            .as_ref()
-            .unwrap_or(token)
-            .text_range()
-            .start(),
+        if next_delimiter.is_none() {
+            // Returns the previous delimiter token (if any).
+            ink_analyzer_ir::closest_item_which(
+                token,
+                SyntaxToken::prev_token,
+                |subject| subject.kind() == delimiter,
+                |subject| !subject.kind().is_trivia(),
+            )
+        } else {
+            None
+        }
+        .as_ref()
+        .unwrap_or(token)
+        .text_range()
+        .start(),
         // Either the end of the next delimiter token (if any) or the end of the target token.
         next_delimiter
             .as_ref()
@@ -1228,17 +1227,17 @@ pub fn node_and_delimiter_range(node: &SyntaxNode, delimiter: SyntaxKind) -> Tex
     TextRange::new(
         // Either the start of the previous delimiter token (if any and there's no next delimiter)
         // or the start of the target node.
-        (end == node.text_range().end())
-            .then(|| {
-                // Returns a text range including previous delimiter token (if any).
-                // Previous is implied because we know there's no next delimiter
-                // because `end == node.text_range().end()`.
-                node.first_token()
-                    .map(|token| token_and_delimiter_range(&token, delimiter))
-            })
-            .flatten()
-            .unwrap_or(node.text_range())
-            .start(),
+        if end == node.text_range().end() {
+            // Returns a text range including previous delimiter token (if any).
+            // Previous is implied because we know there's no next delimiter
+            // because `end == node.text_range().end()`.
+            node.first_token()
+                .map(|token| token_and_delimiter_range(&token, delimiter))
+        } else {
+            None
+        }
+        .unwrap_or(node.text_range())
+        .start(),
         // Either the end of the next delimiter token or the end of the target node.
         end,
     )
@@ -1313,48 +1312,48 @@ pub fn ink_arg_and_delimiter_removal_range(
 
     // Returns the text range of attribute argument + delimiter (if any) .
     TextRange::new(
-        (end == arg.text_range().end())
-            .then(|| {
-                // Gets the first token of the ink! attribute argument (if any).
-                arg.meta()
-                    // Argument name.
-                    .name()
+        if end == arg.text_range().end() {
+            // Gets the first token of the ink! attribute argument (if any).
+            arg.meta()
+                // Argument name.
+                .name()
+                .option()
+                .and_then(|result| match result {
+                    Ok(name) => Some(name.syntax().clone()),
+                    Err(elements) => elements.last().and_then(|elem| match elem {
+                        SyntaxElement::Node(node) => node.first_token(),
+                        SyntaxElement::Token(token) => Some(token.clone()),
+                    }),
+                })
+                // Equal token ("=") if no name is present.
+                .or(arg.meta().eq().map(|eq| eq.syntax().clone()))
+                // First token argument value if no name nor equal symbol is present.
+                .or(arg
+                    .meta()
+                    .value()
                     .option()
-                    .and_then(|result| match result {
-                        Ok(name) => Some(name.syntax().clone()),
-                        Err(elements) => elements.last().and_then(|elem| match elem {
-                            SyntaxElement::Node(node) => node.first_token(),
-                            SyntaxElement::Token(token) => Some(token.clone()),
-                        }),
+                    .and_then(|result| {
+                        match result {
+                            Ok(value) => value.elements(),
+                            Err(elements) => elements,
+                        }
+                        .first()
                     })
-                    // Equal token ("=") if no name is present.
-                    .or(arg.meta().eq().map(|eq| eq.syntax().clone()))
-                    // First token argument value if no name nor equal symbol is present.
-                    .or(arg
-                        .meta()
-                        .value()
-                        .option()
-                        .and_then(|result| {
-                            match result {
-                                Ok(value) => value.elements(),
-                                Err(elements) => elements,
-                            }
-                            .first()
-                        })
-                        .and_then(|elem| match elem {
-                            SyntaxElement::Node(node) => node.first_token(),
-                            SyntaxElement::Token(token) => Some(token.clone()),
-                        }))
-            })
-            .flatten()
-            .as_ref()
-            // Returns a text range including previous delimiter token (if any).
-            // Previous is implied because we know there's no next delimiter
-            // because `end == arg.text_range().end()`.
-            .map_or(arg.text_range(), |token| {
-                token_and_delimiter_range(token, SyntaxKind::COMMA)
-            })
-            .start(),
+                    .and_then(|elem| match elem {
+                        SyntaxElement::Node(node) => node.first_token(),
+                        SyntaxElement::Token(token) => Some(token.clone()),
+                    }))
+        } else {
+            None
+        }
+        .as_ref()
+        // Returns a text range including previous delimiter token (if any).
+        // Previous is implied because we know there's no next delimiter
+        // because `end == arg.text_range().end()`.
+        .map_or(arg.text_range(), |token| {
+            token_and_delimiter_range(token, SyntaxKind::COMMA)
+        })
+        .start(),
         // Either the end of the next delimiter token or the end of the ink! attribute argument.
         end,
     )

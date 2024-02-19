@@ -286,14 +286,14 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                                 } else {
                                     "\n"
                                 },
-                                (!edit.text.starts_with(' ') && !edit.text.starts_with('\t'))
-                                    .then(|| {
-                                        ink_analyzer_ir::parent_ast_item(&token_before)
-                                            .and_then(|it| utils::item_indenting(it.syntax()))
-                                    })
-                                    .flatten()
-                                    .as_deref()
-                                    .unwrap_or_default()
+                                if !edit.text.starts_with(' ') && !edit.text.starts_with('\t') {
+                                    ink_analyzer_ir::parent_ast_item(&token_before)
+                                        .and_then(|it| utils::item_indenting(it.syntax()))
+                                } else {
+                                    None
+                                }
+                                .as_deref()
+                                .unwrap_or_default(),
                             )
                         }),
                         // No formatting suffix.

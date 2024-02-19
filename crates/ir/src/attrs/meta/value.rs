@@ -20,7 +20,7 @@ impl MetaValue {
     ///
     /// Ref: <https://doc.rust-lang.org/reference/attributes.html#meta-item-attribute-syntax>.
     pub fn parse(elems: &[SyntaxElement]) -> Option<Self> {
-        (!elems.is_empty()).then(|| {
+        if !elems.is_empty() {
             let arg_text = elems.iter().map(ToString::to_string).join("");
 
             // Try to parse as an expression.
@@ -42,7 +42,9 @@ impl MetaValue {
                     elements: elems.to_owned(),
                 })
             })
-        })?
+        } else {
+            None
+        }
     }
 
     /// Returns the syntax elements.
@@ -120,7 +122,7 @@ impl MetaValue {
 
     /// Converts the value if it's an integer literal (decimal or hexadecimal) into a `u32`.
     pub fn as_u32(&self) -> Option<u32> {
-        (self.kind() == SyntaxKind::INT_NUMBER).then(|| {
+        if self.kind() == SyntaxKind::INT_NUMBER {
             let value = self.to_string();
             if value.starts_with("0x") {
                 // Check as hex.
@@ -129,7 +131,9 @@ impl MetaValue {
                 // Check as decimal.
                 value.parse::<u32>().ok()
             }
-        })?
+        } else {
+            None
+        }
     }
 
     /// Converts the value if it's a boolean literal (true or false keyword) into a `bool`.
