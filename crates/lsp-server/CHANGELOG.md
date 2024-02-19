@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.25] - 2024-02-19
+
+- Improve contextual awareness for completions, code/intent actions and quickfixes (e.g. suggest unique ids and names for ink! entities).
+
 ## [0.2.24] - 2024-02-04
 
 - General robustness updates.
