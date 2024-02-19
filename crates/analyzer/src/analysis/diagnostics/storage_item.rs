@@ -37,10 +37,14 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, storage_item: &StorageItem) {
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/codegen/src/generator/storage_item.rs#L50-L54>.
 fn ensure_adt(storage_item: &StorageItem) -> Option<Diagnostic> {
-    storage_item.adt().is_none().then_some(Diagnostic {
+    storage_item.adt().is_none().then(|| Diagnostic {
         message: format!(
             "`{}` can only be applied to an `enum`, `struct` or `union` item.",
-            storage_item.ink_attr()?.syntax()
+            storage_item
+                .ink_attr()
+                .map(|attr| attr.syntax().to_string())
+                .as_deref()
+                .unwrap_or("#[ink::storage_item]")
         ),
         range: storage_item.syntax().text_range(),
         severity: Severity::Error,

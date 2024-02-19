@@ -56,14 +56,12 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                 let range = TextRange::new(
                     token_tree
                         .l_paren_token()
-                        .map_or(token_tree.syntax().text_range().start(), |l_paren| {
-                            l_paren.text_range().end()
-                        }),
+                        .map(|l_paren| l_paren.text_range().end())
+                        .unwrap_or_else(|| token_tree.syntax().text_range().start()),
                     token_tree
                         .r_paren_token()
-                        .map_or(token_tree.syntax().text_range().end(), |r_paren| {
-                            r_paren.text_range().start()
-                        }),
+                        .map(|r_paren| r_paren.text_range().start())
+                        .unwrap_or_else(|| token_tree.syntax().text_range().end()),
                 );
 
                 // Determines the current argument in focus if any.

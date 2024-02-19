@@ -81,7 +81,7 @@ pub fn diagnostics(
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L221>.
 fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
-    ink_impl.impl_item().is_none().then_some(Diagnostic {
+    ink_impl.impl_item().is_none().then(|| Diagnostic {
         message: "ink! impl must be an `impl` item.".to_owned(),
         range: analysis_utils::ink_impl_declaration_range(ink_impl),
         severity: Severity::Error,
@@ -219,17 +219,19 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
 
                     if !has_pub_visibility {
                         // Gets the declaration range for the `fn` item.
-                        let fn_declaration_range = analysis_utils::ast_item_declaration_range(
-                            &ast::Item::Fn(fn_item.clone()),
-                        )
-                        .unwrap_or(fn_item.syntax().text_range());
+                        let fn_declaration_range = || {
+                            analysis_utils::ast_item_declaration_range(&ast::Item::Fn(
+                                fn_item.clone(),
+                            ))
+                            .unwrap_or(fn_item.syntax().text_range())
+                        };
                         results.push(Diagnostic {
                             message: format!(
                                 "ink! {name}s in inherent ink! impl blocks must have `pub` visibility."
                             ),
                             range: visibility
                                 .as_ref()
-                                .map_or(fn_declaration_range, |it| it.syntax().text_range()),
+                                .map(|it| it.syntax().text_range()).unwrap_or_else(fn_declaration_range),
                             severity: Severity::Error,
                             quickfixes: visibility
                                 .as_ref()
@@ -253,9 +255,9 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                                         kind: ActionKind::QuickFix,
                                         range: visibility
                                             .as_ref()
-                                            .map_or(fn_declaration_range, |it| {
+                                            .map(|it| {
                                                 it.syntax().text_range()
-                                            }),
+                                            }).unwrap_or_else(fn_declaration_range),
                                         edits: vec![TextEdit::replace(
                                             format!(
                                                 "pub{}",
@@ -282,7 +284,7 @@ fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnost
     (ink_impl.impl_attr().is_none()
         && ink_impl.constructors().is_empty()
         && ink_impl.messages().is_empty())
-    .then_some(Diagnostic {
+    .then(|| Diagnostic {
         message: "At least one ink! constructor or ink! message \
         must be defined for an ink! impl without an `#[ink(impl)]` annotation."
             .to_owned(),
@@ -310,7 +312,7 @@ where
         .parent_impl_item()
         .is_some_and(|parent_impl_item| parent_impl_item.syntax() == ink_impl.syntax());
 
-    (!is_parent).then_some(Diagnostic {
+    (!is_parent).then(|| Diagnostic {
         message: format!(
             "ink! {ink_scope_name}s must be defined in the root of an ink! contract's `impl` block."
         ),
@@ -427,16 +429,17 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                                         // Verifies that param list matches the declaration.
                                         let diagnostic_range = fn_item
                                             .param_list()
-                                            .map_or(fn_name.syntax().text_range(), |it| {
-                                                it.syntax().text_range()
+                                            .map(|it| it.syntax().text_range())
+                                            .unwrap_or_else(|| fn_name.syntax().text_range());
+                                        let replace_range = fn_item
+                                            .param_list()
+                                            .map(|it| it.syntax().text_range())
+                                            .unwrap_or_else(|| {
+                                                TextRange::new(
+                                                    fn_name.syntax().text_range().end(),
+                                                    fn_name.syntax().text_range().end(),
+                                                )
                                             });
-                                        let replace_range = fn_item.param_list().map_or(
-                                            TextRange::new(
-                                                fn_name.syntax().text_range().end(),
-                                                fn_name.syntax().text_range().end(),
-                                            ),
-                                            |it| it.syntax().text_range(),
-                                        );
                                         verify_signature_part_match(
                                             results,
                                             fn_declaration
@@ -453,24 +456,27 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                                         // Verifies that return type matches the declaration.
                                         let fallback_insert_offset = fn_item
                                             .param_list()
-                                            .map_or(fn_name.syntax().text_range(), |it| {
-                                                it.syntax().text_range()
-                                            })
+                                            .map(|it| it.syntax().text_range())
+                                            .unwrap_or_else(|| fn_name.syntax().text_range())
                                             .end();
-                                        let diagnostic_range = fn_item.ret_type().map_or(
-                                            TextRange::new(
-                                                fn_name.syntax().text_range().start(),
-                                                fallback_insert_offset,
-                                            ),
-                                            |it| it.syntax().text_range(),
-                                        );
-                                        let replace_range = fn_item.ret_type().map_or(
-                                            TextRange::new(
-                                                fallback_insert_offset,
-                                                fallback_insert_offset,
-                                            ),
-                                            |it| it.syntax().text_range(),
-                                        );
+                                        let diagnostic_range = fn_item
+                                            .ret_type()
+                                            .map(|it| it.syntax().text_range())
+                                            .unwrap_or_else(|| {
+                                                TextRange::new(
+                                                    fn_name.syntax().text_range().start(),
+                                                    fallback_insert_offset,
+                                                )
+                                            });
+                                        let replace_range = fn_item
+                                            .ret_type()
+                                            .map(|it| it.syntax().text_range())
+                                            .unwrap_or_else(|| {
+                                                TextRange::new(
+                                                    fallback_insert_offset,
+                                                    fallback_insert_offset,
+                                                )
+                                            });
                                         verify_signature_part_match(
                                             results,
                                             fn_declaration
@@ -517,8 +523,17 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
             })
         });
         if let Some(fn_item) = missing_messages.next() {
-            let (insert_offset, indent_option, prefix_option, suffix_option) =
-                impl_item.assoc_item_list().map_or(
+            let (insert_offset, indent_option, prefix_option, suffix_option) = impl_item
+                .assoc_item_list()
+                .map(|assoc_item_list| {
+                    (
+                        analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
+                        Some(analysis_utils::item_children_indenting(impl_item.syntax())),
+                        None,
+                        None,
+                    )
+                })
+                .unwrap_or_else(|| {
                     (
                         impl_item.syntax().text_range().end(),
                         Some(analysis_utils::item_children_indenting(impl_item.syntax())),
@@ -529,16 +544,8 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                                 .as_deref()
                                 .unwrap_or_default()
                         )),
-                    ),
-                    |assoc_item_list| {
-                        (
-                            analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
-                            Some(analysis_utils::item_children_indenting(impl_item.syntax())),
-                            None,
-                            None,
-                        )
-                    },
-                );
+                    )
+                });
             let range = analysis_utils::ink_impl_declaration_range(ink_impl);
             let mut edit_option = None;
             let mut snippet_option = None;
@@ -589,9 +596,10 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                 format!(
                     "{}{}{}",
                     prefix_option.unwrap_or_default(),
-                    indent_option.as_ref().map_or(edit.clone(), |indent| {
-                        analysis_utils::apply_indenting(&edit, indent)
-                    }),
+                    indent_option
+                        .as_ref()
+                        .map(|indent| { analysis_utils::apply_indenting(&edit, indent) })
+                        .unwrap_or_else(|| edit.clone()),
                     suffix_option.as_deref().unwrap_or_default()
                 )
             };
@@ -701,7 +709,7 @@ fn ensure_trait_definition_impl_message_args(
     // Verifies that `fn` item has attributes that match the equivalent ink! trait definition method.
     let ink_arg_index: HashMap<InkArgKind, InkArg> =
         ink_analyzer_ir::ink_args(message_declaration.syntax())
-            .filter_map(|arg| (*arg.kind() != InkArgKind::Unknown).then_some((*arg.kind(), arg)))
+            .filter_map(|arg| (*arg.kind() != InkArgKind::Unknown).then(|| (*arg.kind(), arg)))
             .collect();
     let mut seen_arg_kinds: HashSet<InkArgKind> = HashSet::new();
     for attr in ink_analyzer_ir::ink_attrs(fn_item.syntax()) {
@@ -905,12 +913,14 @@ fn ensure_trait_definition_impl_message_args(
             ),
             range,
             severity: Severity::Error,
-            quickfixes: (!missing_arg_edits.is_empty()).then_some(vec![Action {
-                label: format!("Add missing ink! argument(s): {missing_args_help}."),
-                kind: ActionKind::QuickFix,
-                range,
-                edits: missing_arg_edits,
-            }]),
+            quickfixes: (!missing_arg_edits.is_empty()).then(|| {
+                vec![Action {
+                    label: format!("Add missing ink! argument(s): {missing_args_help}."),
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: missing_arg_edits,
+                }]
+            }),
         });
     }
 }

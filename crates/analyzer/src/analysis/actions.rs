@@ -97,9 +97,11 @@ impl Action {
     ) -> Self {
         // Gets the unindented insert text.
         // NOTE: removes item's top-level indenting (if any).
-        let mut insert_text = utils::item_indenting(item).map_or(item.to_string(), |item_indent| {
-            utils::reduce_indenting(item.to_string().as_str(), item_indent.as_str())
-        });
+        let mut insert_text = utils::item_indenting(item)
+            .map(|item_indent| {
+                utils::reduce_indenting(item.to_string().as_str(), item_indent.as_str())
+            })
+            .unwrap_or_else(|| item.to_string());
 
         // Applies indenting based on insert location (if specified).
         if let Some(indent) = indent_option {

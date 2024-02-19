@@ -3,8 +3,8 @@
 use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, Event, InkArgKind, InkAttribute, InkAttributeKind, InkEntity,
-    InkFile, InkImpl, InkMacroKind, TraitDefinition,
+    ast, ChainExtension, Contract, Event, InkArgKind, InkAttributeKind, InkEntity, InkFile,
+    InkImpl, InkMacroKind, TraitDefinition,
 };
 use itertools::Itertools;
 
@@ -56,7 +56,8 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                             // (if present) or the parent AST item (for all other cases).
                             let target = record_field
                                 .as_ref()
-                                .map_or(ast_item.syntax(), AstNode::syntax);
+                                .map(AstNode::syntax)
+                                .unwrap_or_else(|| ast_item.syntax());
 
                             // Determines text range for item "declaration"
                             // (fallbacks to range of the entire item).
@@ -88,7 +89,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                             item_ink_entity_actions(
                                 results,
                                 &ast_item,
-                                is_focused_on_body.then_some(focused_elem_edit_range()),
+                                is_focused_on_body.then(focused_elem_edit_range),
                             );
                         }
                     }
@@ -185,12 +186,9 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
     // Filters out invalid ink! attribute argument actions based on parent ink! scope
     // if there's either no valid ink! attribute macro or only ink! attribute arguments
     // applied to the item.
-    if primary_ink_attr_candidate.is_none()
-        || !matches!(
-            primary_ink_attr_candidate.as_ref().map(InkAttribute::kind),
-            Some(InkAttributeKind::Macro(_))
-        )
-    {
+    if primary_ink_attr_candidate.as_ref().map_or(true, |attr| {
+        !matches!(attr.kind(), InkAttributeKind::Macro(_))
+    }) {
         utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
             &mut ink_arg_suggestions,
             target,

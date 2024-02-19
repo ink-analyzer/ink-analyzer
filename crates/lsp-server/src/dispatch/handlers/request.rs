@@ -38,13 +38,13 @@ pub fn handle_completion(
                 .collect();
 
             // Compose LSP completion response.
-            Ok((!completion_items.is_empty()).then_some(
+            Ok((!completion_items.is_empty()).then(|| {
                 lsp_types::CompletionList {
                     is_incomplete: true,
                     items: completion_items,
                 }
-                .into(),
-            ))
+                .into()
+            }))
         }
         // Empty response for missing documents.
         None => Ok(None),

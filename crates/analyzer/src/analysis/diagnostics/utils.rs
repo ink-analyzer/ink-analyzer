@@ -77,16 +77,18 @@ fn ensure_no_ink_identifiers<T: InkEntity>(results: &mut Vec<Diagnostic>, item: 
                     message: format!("Invalid identifier starting with __ink_: {}", ident.text()),
                     range: ident.syntax().text_range(),
                     severity: Severity::Error,
-                    quickfixes: (!suggested_name.is_empty()).then_some(vec![Action {
-                        label: format!("Rename identifier to `{suggested_name}`"),
-                        kind: ActionKind::QuickFix,
-                        range: ident.syntax().text_range(),
-                        edits: vec![TextEdit::replace_with_snippet(
-                            suggested_name.clone(),
-                            ident.syntax().text_range(),
-                            Some(format!("${{1:{suggested_name}}}")),
-                        )],
-                    }]),
+                    quickfixes: (!suggested_name.is_empty()).then(|| {
+                        vec![Action {
+                            label: format!("Rename identifier to `{suggested_name}`"),
+                            kind: ActionKind::QuickFix,
+                            range: ident.syntax().text_range(),
+                            edits: vec![TextEdit::replace_with_snippet(
+                                suggested_name.clone(),
+                                ident.syntax().text_range(),
+                                Some(format!("${{1:{suggested_name}}}")),
+                            )],
+                        }]
+                    }),
                 });
             }
         }
@@ -905,15 +907,16 @@ pub fn ensure_at_most_one_item<T>(
                 message: message.to_owned(),
                 range: item.syntax().text_range(),
                 severity,
-                quickfixes: Some(item.ink_attr().map_or(
-                    vec![Action::remove_item(item.syntax())],
-                    |attr| {
-                        vec![
-                            Action::remove_attribute(attr),
-                            Action::remove_item(item.syntax()),
-                        ]
-                    },
-                )),
+                quickfixes: Some(
+                    item.ink_attr()
+                        .map(|attr| {
+                            vec![
+                                Action::remove_attribute(attr),
+                                Action::remove_item(item.syntax()),
+                            ]
+                        })
+                        .unwrap_or_else(|| vec![Action::remove_item(item.syntax())]),
+                ),
             });
         }
     }
@@ -931,11 +934,12 @@ where
                 None => (false, None),
             };
 
-            (!has_pub_visibility).then_some(Diagnostic {
+            (!has_pub_visibility).then(|| Diagnostic {
                 message: format!("ink! {ink_scope_name} must have `pub` visibility.",),
                 range: visibility
                     .as_ref()
-                    .map_or(item.syntax(), AstNode::syntax)
+                    .map(AstNode::syntax)
+                    .unwrap_or_else(|| item.syntax())
                     .text_range(),
                 severity: Severity::Error,
                 quickfixes: visibility
@@ -973,7 +977,7 @@ pub fn ensure_fn<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: IsInkFn,
 {
-    item.fn_item().is_none().then_some(Diagnostic {
+    item.fn_item().is_none().then(|| Diagnostic {
         message: format!("ink! {ink_scope_name} must be an `fn` item.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
@@ -988,7 +992,7 @@ pub fn ensure_trait<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: IsInkTrait,
 {
-    item.trait_item().is_none().then_some(Diagnostic {
+    item.trait_item().is_none().then(|| Diagnostic {
         message: format!("ink! {ink_scope_name} must be a `trait` item.",),
         range: item.syntax().text_range(),
         severity: Severity::Error,
@@ -1047,10 +1051,8 @@ where
         let range = TextRange::new(
             item.colon_token()
                 .as_ref()
-                .map_or(
-                    type_bound_list.syntax().text_range(),
-                    SyntaxToken::text_range,
-                )
+                .map(SyntaxToken::text_range)
+                .unwrap_or_else(|| type_bound_list.syntax().text_range())
                 .start(),
             type_bound_list.syntax().text_range().end(),
         );
@@ -1198,7 +1200,8 @@ pub fn ensure_callable_invariants(
             message: format!("ink! {ink_scope_name} must have `pub` or inherited visibility."),
             range: visibility
                 .as_ref()
-                .map_or(fn_item.syntax(), AstNode::syntax)
+                .map(AstNode::syntax)
+                .unwrap_or_else(|| fn_item.syntax())
                 .text_range(),
             severity: Severity::Error,
             quickfixes: visibility
@@ -1302,7 +1305,8 @@ pub fn ensure_trait_invariants(
             message: format!("ink! {ink_scope_name} must have `pub` visibility."),
             range: visibility
                 .as_ref()
-                .map_or(trait_item.syntax(), AstNode::syntax)
+                .map(AstNode::syntax)
+                .unwrap_or_else(|| trait_item.syntax())
                 .text_range(),
             severity: Severity::Error,
             quickfixes: visibility
@@ -1419,7 +1423,7 @@ where
     T: InkEntity,
 {
     let has_contract_parent = ink_analyzer_ir::ink_parent::<Contract>(item.syntax()).is_some();
-    (!has_contract_parent).then_some(Diagnostic {
+    (!has_contract_parent).then(|| Diagnostic {
         message: format!(
             "ink! {ink_scope_name} must be defined in the root of an ink! contract `mod`.",
         ),
@@ -1447,7 +1451,7 @@ pub fn ensure_impl_parent<T>(item: &T, ink_scope_name: &str) -> Option<Diagnosti
 where
     T: HasInkImplParent,
 {
-    item.parent_impl_item().is_none().then_some(Diagnostic {
+    item.parent_impl_item().is_none().then(|| Diagnostic {
         message: format!("ink! {ink_scope_name} must be defined in the root of an `impl` block."),
         range: item.syntax().text_range(),
         severity: Severity::Error,
@@ -1526,15 +1530,16 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
                 message: format!("Invalid scope for an `{}` item.", attr.syntax()),
                 range: attr.syntax().text_range(),
                 severity: Severity::Error,
-                quickfixes: Some(ink_analyzer_ir::parent_ast_item(attr.syntax()).map_or(
-                    vec![Action::remove_attribute(&attr)],
-                    |item| {
-                        vec![
-                            Action::remove_attribute(&attr),
-                            Action::remove_item(item.syntax()),
-                        ]
-                    },
-                )),
+                quickfixes: Some(
+                    ink_analyzer_ir::parent_ast_item(attr.syntax())
+                        .map(|item| {
+                            vec![
+                                Action::remove_attribute(&attr),
+                                Action::remove_item(item.syntax()),
+                            ]
+                        })
+                        .unwrap_or_else(|| vec![Action::remove_attribute(&attr)]),
+                ),
             });
         }
     }
@@ -1559,15 +1564,16 @@ where
             ),
             range: attr.syntax().text_range(),
             severity: Severity::Error,
-            quickfixes: Some(ink_analyzer_ir::parent_ast_item(attr.syntax()).map_or(
-                vec![Action::remove_attribute(&attr)],
-                |item| {
-                    vec![
-                        Action::remove_attribute(&attr),
-                        Action::remove_item(item.syntax()),
-                    ]
-                },
-            )),
+            quickfixes: Some(
+                ink_analyzer_ir::parent_ast_item(attr.syntax())
+                    .map(|item| {
+                        vec![
+                            Action::remove_attribute(&attr),
+                            Action::remove_item(item.syntax()),
+                        ]
+                    })
+                    .unwrap_or_else(|| vec![Action::remove_attribute(&attr)]),
+            ),
         });
     }
 }
@@ -1757,25 +1763,9 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
             .map(|path| format!("`{path}`"))
             .join(", ");
         // Either updates an existing standalone derive attribute or creates a new one.
-        let (insert_text, insert_range, insert_snippet) = standalone_derive_attr.as_ref().map_or(
-            (
-                format!("#[derive({trait_paths_plain})]"),
-                TextRange::empty(
-                    adt.attrs()
-                        .last()
-                        .and_then(|attr| attr.syntax().last_token())
-                        // Finds the first non-(attribute/rustdoc/trivia) token for the item.
-                        .and_then(|it| {
-                            ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token)
-                        })
-                        .as_ref()
-                        // Defaults to the start of the custom type.
-                        .map_or(adt.syntax().text_range(), SyntaxToken::text_range)
-                        .start(),
-                ),
-                format!("#[derive({trait_paths_snippet})]"),
-            ),
-            |attr| {
+        let (insert_text, insert_range, insert_snippet) = standalone_derive_attr
+            .as_ref()
+            .map(|attr| {
                 let meta_prefix = standalone_derive_meta.as_ref().map(|meta| {
                     format!(
                         "{meta}{}",
@@ -1797,8 +1787,29 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
                         meta_prefix.as_deref().unwrap_or_default()
                     ),
                 )
-            },
-        );
+            })
+            .unwrap_or_else(|| {
+                (
+                    format!("#[derive({trait_paths_plain})]"),
+                    TextRange::empty(
+                        adt.attrs()
+                            .last()
+                            .and_then(|attr| attr.syntax().last_token())
+                            // Finds the first non-(attribute/rustdoc/trivia) token for the item.
+                            .and_then(|it| {
+                                ink_analyzer_ir::closest_non_trivia_token(
+                                    &it,
+                                    SyntaxToken::next_token,
+                                )
+                            })
+                            .as_ref()
+                            // Defaults to the start of the custom type.
+                            .map_or(adt.syntax().text_range(), SyntaxToken::text_range)
+                            .start(),
+                    ),
+                    format!("#[derive({trait_paths_snippet})]"),
+                )
+            });
         // Determines text range for item "declaration" (fallbacks to range of the entire item).
         let item_declaration_text_range = utils::ast_item_declaration_range(&match adt.clone() {
             ast::Adt::Enum(it) => ast::Item::Enum(it),

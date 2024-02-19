@@ -306,7 +306,7 @@ fn external_crate_uses_and_aliases_in_scope(
 
     while let Some(use_path_str) = use_paths
         .iter()
-        .find_map(|use_path| (!is_crate_item_path(use_path, crates)).then_some(use_path.to_owned()))
+        .find_map(|use_path| (!is_crate_item_path(use_path, crates)).then(|| use_path.to_owned()))
     {
         // Removes path.
         use_paths.remove(&use_path_str);
@@ -318,7 +318,7 @@ fn external_crate_uses_and_aliases_in_scope(
     }
 
     while let Some((alias, item_path_str)) = item_aliases.iter().find_map(|(alias, item_path)| {
-        (!is_crate_item_path(item_path, crates)).then_some((alias.to_owned(), item_path.to_owned()))
+        (!is_crate_item_path(item_path, crates)).then(|| (alias.to_owned(), item_path.to_owned()))
     }) {
         // Removes alias.
         item_aliases.remove(&alias);
@@ -358,7 +358,7 @@ fn match_path_to_external_crate_in_scope(
                 .map(ToString::to_string)
                 .or((ink_analyzer_ir::path_to_string(&path)
                     == format!("{}::*", ink_analyzer_ir::path_to_string(&qualifier)))
-                .then_some(String::from("*")));
+                .then(|| String::from("*")));
 
             target_name_option.zip(ink_analyzer_ir::resolve_qualifier(&qualifier, ref_node))
         })

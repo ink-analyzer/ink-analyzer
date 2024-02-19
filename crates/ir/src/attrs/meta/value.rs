@@ -33,11 +33,11 @@ impl MetaValue {
             // Ref: <https://doc.rust-lang.org/reference/expressions/underscore-expr.html>.
             // 3. Underscore expressions/Wildcard i.e _ (e.g for wildcard selectors).
             ra_ap_syntax::hacks::parse_expr_from_str(&arg_text).and_then(|expr| {
-                (matches!(
+                matches!(
                     expr,
                     ast::Expr::Literal(_) | ast::Expr::PathExpr(_) | ast::Expr::UnderscoreExpr(_)
-                ))
-                .then_some(Self {
+                )
+                .then(|| Self {
                     expr,
                     elements: elems.to_owned(),
                 })

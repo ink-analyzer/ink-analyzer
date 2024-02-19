@@ -127,7 +127,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                                                 InkArgKind::Extension | InkArgKind::HandleStatus
                                             )
                                         ))
-                                        .then_some(TextEdit::delete(attr.syntax().text_range()))
+                                        .then(|| TextEdit::delete(attr.syntax().text_range()))
                                     },
                                 ))
                                 .collect(),
@@ -151,10 +151,9 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                         range: name_marker
                             .as_ref()
                             // Defaults to the declaration range for the chain extension.
-                            .map_or(
-                                analysis_utils::ink_trait_declaration_range(chain_extension),
+                            .map(
                                 |it| it.syntax().text_range(),
-                            ),
+                            ).unwrap_or_else(|| analysis_utils::ink_trait_declaration_range(chain_extension)),
                         severity: Severity::Error,
                         quickfixes: name_marker.as_ref().map(|name| {
                             vec![Action {

@@ -40,49 +40,37 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
         // Only computes completions for attributes.
         if let Some((attr, ..)) = item_at_offset.normalized_parent_attr() {
             let focused_token_is_left_bracket = focused_token.kind() == SyntaxKind::L_BRACK;
-            let prev_token_is_left_bracket = matches!(
-                item_at_offset
-                    .prev_non_trivia_token()
-                    .map(|prev_token| prev_token.kind()),
-                Some(SyntaxKind::L_BRACK)
-            );
+            let prev_token_is_left_bracket = item_at_offset
+                .prev_non_trivia_token()
+                .map_or(false, |prev_token| prev_token.kind() == SyntaxKind::L_BRACK);
             let focused_token_is_ink_crate_name = matches!(focused_token.text(), "ink" | "ink_e2e");
             let focused_token_is_ink_crate_name_or_colon_prefix =
                 focused_token_is_ink_crate_name || matches!(focused_token.text(), "::" | ":");
             let focused_token_is_in_ink_crate_path_segment =
                 (matches!(focused_token.text(), "ink" | "ink_e2e")
-                    && matches!(
-                        item_at_offset
-                            .prev_non_trivia_token()
-                            .map(|prev_token| prev_token.kind()),
-                        Some(SyntaxKind::L_BRACK)
-                    ))
+                    && item_at_offset
+                        .prev_non_trivia_token()
+                        .map_or(false, |prev_token| prev_token.kind() == SyntaxKind::L_BRACK))
                     || (matches!(focused_token.text(), "::" | ":")
-                        && matches!(
-                            item_at_offset
-                                .prev_non_trivia_token()
-                                .as_ref()
-                                .map(SyntaxToken::text),
-                            Some("ink" | "ink_e2e")
-                        ))
-                    || (matches!(
-                        item_at_offset
+                        && item_at_offset
                             .prev_non_trivia_token()
                             .as_ref()
-                            .map(SyntaxToken::text),
-                        Some("::")
-                    ) && matches!(
-                        item_at_offset
+                            .map_or(false, |token| matches!(token.text(), "ink" | "ink_e2e")))
+                    || (item_at_offset
+                        .prev_non_trivia_token()
+                        .as_ref()
+                        .map_or(false, |token| token.text() == "::")
+                        && item_at_offset
                             .prev_non_trivia_token()
                             .as_ref()
-                            .and_then(|prev_token| ink_analyzer_ir::closest_non_trivia_token(
-                                prev_token,
-                                SyntaxToken::prev_token
-                            ))
+                            .and_then(|prev_token| {
+                                ink_analyzer_ir::closest_non_trivia_token(
+                                    prev_token,
+                                    SyntaxToken::prev_token,
+                                )
+                            })
                             .as_ref()
-                            .map(SyntaxToken::text),
-                        Some("ink" | "ink_e2e")
-                    ));
+                            .map_or(false, |token| matches!(token.text(), "ink" | "ink_e2e")));
 
             // Only computes completions if the focused token is in an attribute macro path context.
             if focused_token_is_left_bracket
@@ -253,19 +241,13 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
         // Only computes completions for ink! attributes.
         if let Some((ink_attr, ..)) = item_at_offset.normalized_parent_ink_attr() {
             let focused_token_is_left_parenthesis = focused_token.kind() == SyntaxKind::L_PAREN;
-            let prev_non_trivia_token_is_left_parenthesis = matches!(
-                item_at_offset
-                    .prev_non_trivia_token()
-                    .map(|prev_token| prev_token.kind()),
-                Some(SyntaxKind::L_PAREN)
-            );
+            let prev_non_trivia_token_is_left_parenthesis = item_at_offset
+                .prev_non_trivia_token()
+                .map_or(false, |prev_token| prev_token.kind() == SyntaxKind::L_PAREN);
             let focused_token_is_comma = focused_token.kind() == SyntaxKind::COMMA;
-            let prev_non_trivia_token_is_comma = matches!(
-                item_at_offset
-                    .prev_non_trivia_token()
-                    .map(|prev_token| prev_token.kind()),
-                Some(SyntaxKind::COMMA)
-            );
+            let prev_non_trivia_token_is_comma = item_at_offset
+                .prev_non_trivia_token()
+                .map_or(false, |prev_token| prev_token.kind() == SyntaxKind::COMMA);
             let prev_token_is_whitespace = focused_token.prev_token().map_or(true, |prev_token| {
                 prev_token.kind() == SyntaxKind::WHITESPACE
             });

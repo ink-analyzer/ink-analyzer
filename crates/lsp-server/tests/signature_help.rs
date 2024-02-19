@@ -143,28 +143,24 @@ fn signature_help_works() {
                         .iter()
                         .map(|result| (
                             result.label,
-                            (!result.params.is_empty()).then_some(
-                                result
-                                    .params
-                                    .iter()
-                                    .map(|expected_param| {
-                                        [
-                                            test_utils::parse_offset_at(
-                                                result.label,
-                                                expected_param.start_pat,
-                                            )
-                                            .unwrap()
-                                                as u32,
-                                            test_utils::parse_offset_at(
-                                                result.label,
-                                                expected_param.end_pat,
-                                            )
-                                            .unwrap()
-                                                as u32,
-                                        ]
-                                    })
-                                    .collect()
-                            ),
+                            (!result.params.is_empty()).then(|| result
+                                .params
+                                .iter()
+                                .map(|expected_param| {
+                                    [
+                                        test_utils::parse_offset_at(
+                                            result.label,
+                                            expected_param.start_pat,
+                                        )
+                                        .unwrap() as u32,
+                                        test_utils::parse_offset_at(
+                                            result.label,
+                                            expected_param.end_pat,
+                                        )
+                                        .unwrap() as u32,
+                                    ]
+                                })
+                                .collect()),
                             result.active_param.map(|active_param| active_param as u32)
                         ))
                         .collect::<Vec<(&str, Option<Vec<[u32; 2]>>, Option<u32>)>>(),

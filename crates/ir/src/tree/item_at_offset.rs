@@ -280,17 +280,15 @@ impl ItemAtOffset {
                             (matches!(
                                 parent.kind(),
                                 SyntaxKind::RECORD_FIELD | SyntaxKind::RECORD_FIELD_LIST
-                            ) && matches!(
-                                ast_ext::parent_ast_item(&parent),
-                                Some(ast::Item::Struct(_))
-                            ))
-                            .then_some(
+                            ) && ast_ext::parent_ast_item(&parent)
+                                .map_or(false, |item| matches!(item, ast::Item::Struct(_))))
+                            .then(|| {
                                 if ink_attr.ast().r_brack_token().is_some() {
                                     parent.kind()
                                 } else {
                                     SyntaxKind::RECORD_FIELD
-                                },
-                            )
+                                }
+                            })
                         })
                     })
             }

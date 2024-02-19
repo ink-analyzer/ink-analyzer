@@ -39,7 +39,7 @@ impl EnvArg {
 
     /// Converts an ink! attribute argument into an inK! environment argument.
     pub fn cast(arg: InkArg) -> Option<Self> {
-        Self::can_cast(&arg).then_some(Self {
+        Self::can_cast(&arg).then(|| Self {
             kind: if let Some(value) = arg.value() {
                 match value.kind() {
                     SyntaxKind::PATH | SyntaxKind::PATH_EXPR => EnvArgKind::Path,

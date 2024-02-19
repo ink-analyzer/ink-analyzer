@@ -50,7 +50,7 @@ impl Memory {
 
     /// Retrieves the document identifiers for documents with unprocessed changes and clears the change tracker.
     pub fn take_changes(&mut self) -> Option<HashSet<String>> {
-        (!self.changes.is_empty()).then_some(mem::take(&mut self.changes))
+        (!self.changes.is_empty()).then(|| mem::take(&mut self.changes))
     }
 }
 

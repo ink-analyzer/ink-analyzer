@@ -153,7 +153,7 @@ where
 /// Resolves current module (defaults to the file root if there's no `mod` item).
 pub fn resolve_current_module(node: &SyntaxNode) -> Option<SyntaxNode> {
     ast::Module::can_cast(node.kind())
-        .then_some(node.clone())
+        .then(|| node.clone())
         .or(node
             .ancestors()
             .find(|it| ast::Module::can_cast(it.kind()))

@@ -54,7 +54,7 @@ where
                 &INK_ENV_QUALIFIERS,
                 item.syntax(),
             );
-            (!is_default_env).then_some(Diagnostic {
+            (!is_default_env).then(|| Diagnostic {
                 message: format!(
                     "`{arg_name}` argument value should be a path to a custom type \
                     that implements the `ink::env::Environment` trait."

@@ -41,7 +41,7 @@ pub fn text_range(
 ) -> Option<ink_analyzer::TextRange> {
     let start = offset(range.start, context)?;
     let end = offset(range.end, context)?;
-    (start <= end).then_some(ink_analyzer::TextRange::new(start, end))
+    (start <= end).then(|| ink_analyzer::TextRange::new(start, end))
 }
 
 #[cfg(test)]

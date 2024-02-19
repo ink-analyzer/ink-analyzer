@@ -64,7 +64,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
     let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
         .unwrap_or(fn_item.syntax().text_range());
 
-    (!has_self_ref_receiver).then_some(Diagnostic {
+    (!has_self_ref_receiver).then(|| Diagnostic {
         message: "ink! message must have a self reference receiver (i.e `&self` or `&mut self`)."
             .to_owned(),
         range,
@@ -111,7 +111,7 @@ fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
     let return_type = fn_item.ret_type()?.ty()?;
     // Edit range for quickfix.
     let range = analysis_utils::node_and_trivia_range(fn_item.ret_type()?.syntax());
-    (return_type.to_string() == "Self").then_some(Diagnostic {
+    (return_type.to_string() == "Self").then(|| Diagnostic {
         message: "ink! message must not return `Self`.".to_owned(),
         range: return_type.syntax().text_range(),
         severity: Severity::Error,

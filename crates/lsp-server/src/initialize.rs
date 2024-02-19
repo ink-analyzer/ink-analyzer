@@ -66,16 +66,17 @@ pub fn server_capabilities(
             work_done_progress_options: Default::default(),
             completion_item: Default::default(),
         }),
-        code_action_provider: Some(utils::code_actions_kinds(client_capabilities).map_or(
-            lsp_types::CodeActionProviderCapability::Simple(true),
-            |code_action_kinds| {
-                lsp_types::CodeActionProviderCapability::Options(lsp_types::CodeActionOptions {
-                    code_action_kinds: Some(code_action_kinds),
-                    work_done_progress_options: Default::default(),
-                    resolve_provider: None,
+        code_action_provider: Some(
+            utils::code_actions_kinds(client_capabilities)
+                .map(|code_action_kinds| {
+                    lsp_types::CodeActionProviderCapability::Options(lsp_types::CodeActionOptions {
+                        code_action_kinds: Some(code_action_kinds),
+                        work_done_progress_options: Default::default(),
+                        resolve_provider: None,
+                    })
                 })
-            },
-        )),
+                .unwrap_or_else(|| lsp_types::CodeActionProviderCapability::Simple(true)),
+        ),
         inlay_hint_provider: Some(lsp_types::OneOf::Right(
             lsp_types::InlayHintServerCapabilities::Options(lsp_types::InlayHintOptions {
                 work_done_progress_options: Default::default(),

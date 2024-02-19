@@ -120,7 +120,8 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
             // Edit range for quickfix.
             let quickfix_range = semicolon_token
                 .as_ref()
-                .map_or(contract.syntax().text_range(), SyntaxToken::text_range);
+                .map(SyntaxToken::text_range)
+                .unwrap_or_else(|| contract.syntax().text_range());
             Diagnostic {
                 message: "The content of an ink! contract's `mod` item must be defined inline."
                     .to_owned(),
@@ -423,7 +424,7 @@ where
         None => false,
     };
 
-    (!is_parent).then_some(Diagnostic {
+    (!is_parent).then(|| Diagnostic {
         message: format!(
             "ink! {ink_scope_name}s must be defined in the root of the ink! contract's `mod` item."
         ),

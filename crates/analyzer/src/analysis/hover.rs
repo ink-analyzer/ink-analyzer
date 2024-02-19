@@ -34,10 +34,11 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
             Some(ink_arg) => {
                 let attr_kind = InkAttributeKind::Arg(*ink_arg.kind());
                 let doc = content(&attr_kind);
-                (!doc.is_empty()).then_some(Hover {
-                    range: ink_arg.name().map_or(ink_arg.text_range(), |ink_arg_name| {
-                        ink_arg_name.syntax().text_range()
-                    }),
+                (!doc.is_empty()).then(|| Hover {
+                    range: ink_arg
+                        .name()
+                        .map(|ink_arg_name| ink_arg_name.syntax().text_range())
+                        .unwrap_or_else(|| ink_arg.text_range()),
                     content: doc.to_owned(),
                 })
             }
@@ -45,18 +46,16 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
             // or "primary" ink! attribute argument for the ink! attribute.
             None => {
                 let doc = content(ink_attr.kind());
-                (!doc.is_empty()).then_some(Hover {
+                (!doc.is_empty()).then(|| Hover {
                     range: match ink_attr.kind() {
                         InkAttributeKind::Arg(_) => ink_attr
                             .ink_arg_name()
-                            .map_or(ink_attr.syntax().text_range(), |ink_arg_name| {
-                                ink_arg_name.syntax().text_range()
-                            }),
+                            .map(|ink_arg_name| ink_arg_name.syntax().text_range())
+                            .unwrap_or_else(|| ink_attr.syntax().text_range()),
                         InkAttributeKind::Macro(_) => ink_attr
                             .ink_macro()
-                            .map_or(ink_attr.syntax().text_range(), |path_segment| {
-                                path_segment.syntax().text_range()
-                            }),
+                            .map(|path_segment| path_segment.syntax().text_range())
+                            .unwrap_or_else(|| ink_attr.syntax().text_range()),
                     },
                     content: doc.to_owned(),
                 })

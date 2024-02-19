@@ -95,7 +95,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
     let affix_edit_between_whitespace_or_file_boundaries =
         |whitespace_before: Option<&str>, whitespace_after: Option<&str>| {
             let build_affix = |ws_text: &str| {
-                (!starts_with_two_or_more_newlines(ws_text)).then_some("\n".to_owned())
+                (!starts_with_two_or_more_newlines(ws_text)).then(|| "\n".to_owned())
             };
             match (
                 whitespace_before.map(|ws_before| (ws_before.contains('\n'), ws_before)),
@@ -219,9 +219,9 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                         match token_before_option {
                             // Handles beginning of file.
                             None => Some("\n".to_owned()),
-                            Some(token_before) => token_before.text().contains('\n').then_some(
-                                format!("\n{}", utils::end_indenting(token_before.text())),
-                            ),
+                            Some(token_before) => token_before.text().contains('\n').then(|| {
+                                format!("\n{}", utils::end_indenting(token_before.text()))
+                            }),
                         },
                     )
                 } else {
@@ -261,14 +261,16 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                             ((token_after.kind() != SyntaxKind::WHITESPACE
                                 || !starts_with_two_or_more_newlines(token_after.text()))
                                 && !edit.text.ends_with("\n\n"))
-                            .then_some(format!(
-                                "\n{}",
-                                if token_after.text().starts_with('\n') {
-                                    ""
-                                } else {
-                                    "\n"
-                                }
-                            ))
+                            .then(|| {
+                                format!(
+                                    "\n{}",
+                                    if token_after.text().starts_with('\n') {
+                                        ""
+                                    } else {
+                                        "\n"
+                                    }
+                                )
+                            })
                         }),
                     )
                 }

@@ -111,7 +111,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                                             | InkArgKind::Selector
                                     )
                                 ))
-                                .then_some(TextEdit::delete(attr.syntax().text_range()))
+                                .then(|| TextEdit::delete(attr.syntax().text_range()))
                             }),
                         )
                         .collect(),

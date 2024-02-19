@@ -64,7 +64,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
     let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
         .unwrap_or(fn_item.syntax().text_range());
 
-    (!has_return_type).then_some(Diagnostic {
+    (!has_return_type).then(|| Diagnostic {
         message: "ink! constructor must have a return type.".to_owned(),
         range,
         severity: Severity::Error,

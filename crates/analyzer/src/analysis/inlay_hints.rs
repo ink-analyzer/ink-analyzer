@@ -33,15 +33,17 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>) -> Vec<InlayHint> {
                         let arg_value_kind = InkArgValueKind::from(*arg.kind());
                         let label = arg_value_kind.to_string();
                         let doc = arg_value_kind.detail();
-                        (!label.is_empty()).then_some(InlayHint {
+                        (!label.is_empty()).then(|| InlayHint {
                             label,
-                            position: arg.name().map_or(arg.text_range().end(), |name| {
-                                name.syntax().text_range().end()
-                            }),
+                            position: arg
+                                .name()
+                                .map(|name| name.syntax().text_range().end())
+                                .unwrap_or_else(|| arg.text_range().end()),
                             range: arg
                                 .name()
-                                .map_or(arg.text_range(), |name| name.syntax().text_range()),
-                            detail: (!doc.is_empty()).then_some(doc.to_owned()),
+                                .map(|name| name.syntax().text_range())
+                                .unwrap_or_else(|| arg.text_range()),
+                            detail: (!doc.is_empty()).then(|| doc.to_owned()),
                         })
                     } else {
                         None

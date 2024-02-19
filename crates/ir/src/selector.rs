@@ -109,7 +109,8 @@ impl Selector {
                     trait_path
                         .segments()
                         .last()
-                        .map_or(String::new(), |segment| segment.to_string())
+                        .map(|segment| segment.to_string())
+                        .unwrap_or_else(String::new)
                 };
                 (!trait_ident.is_empty()).then_some(trait_ident)
             }
@@ -145,7 +146,7 @@ impl SelectorArg {
 
     /// Converts an ink! attribute argument into a ink! selector argument.
     pub fn cast(arg: InkArg) -> Option<Self> {
-        Self::can_cast(&arg).then_some(Self {
+        Self::can_cast(&arg).then(|| Self {
             kind: if let Some(value) = arg.value() {
                 match value.kind() {
                     SyntaxKind::INT_NUMBER => SelectorArgKind::Integer,

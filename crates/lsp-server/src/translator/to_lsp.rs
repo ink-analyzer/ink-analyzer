@@ -73,7 +73,7 @@ pub fn completion(
         label: completion.label,
         kind: Some(lsp_types::CompletionItemKind::FUNCTION),
         detail: completion.detail,
-        insert_text_format: snippet_support.then_some(match completion.edit.snippet.as_ref() {
+        insert_text_format: snippet_support.then_some(match completion.edit.snippet {
             Some(_) => lsp_types::InsertTextFormat::SNIPPET,
             None => lsp_types::InsertTextFormat::PLAIN_TEXT,
         }),
@@ -232,7 +232,7 @@ pub fn signature_help(
         .or(signatures.first().map(|signature| (0, signature)));
 
     // Returns LSP signature help (if any).
-    (!signatures.is_empty()).then_some(lsp_types::SignatureHelp {
+    (!signatures.is_empty()).then(|| lsp_types::SignatureHelp {
         signatures: signatures
             .iter()
             .map(|signature| lsp_types::SignatureInformation {
@@ -243,7 +243,7 @@ pub fn signature_help(
                         value: doc.clone(),
                     })
                 }),
-                parameters: (!signature.parameters.is_empty()).then_some(
+                parameters: (!signature.parameters.is_empty()).then(|| {
                     signature
                         .parameters
                         .iter()
@@ -269,11 +269,11 @@ pub fn signature_help(
                                 })
                             }),
                         })
-                        .collect(),
-                ),
+                        .collect()
+                }),
                 active_parameter: signature_support
                     .active_parameter_support
-                    .then_some(signature.active_parameter.map(|idx| idx as u32))
+                    .then(|| signature.active_parameter.map(|idx| idx as u32))
                     .flatten(),
             })
             .collect(),

@@ -23,7 +23,7 @@ pub fn position_encoding(client_capabilities: &ClientCapabilities) -> PositionEn
             // Prefer the first of UTF-8 or UTF-32 if supported by the client
             // because they don't require any re-encoding.
             (encoding == &PositionEncodingKind::UTF8 || encoding == &PositionEncodingKind::UTF32)
-                .then_some(encoding.clone())
+                .then(|| encoding.clone())
         })
         // Fallback to UTF-16 if either no encoding where sent by client or
         // if neither UTF-8 nor UTF-32 are supported by the client.
@@ -79,20 +79,18 @@ pub fn signature_support(client_capabilities: &ClientCapabilities) -> SignatureS
         .as_ref()
         .and_then(|it| it.signature_help.as_ref())
         .and_then(|it| it.signature_information.as_ref())
-        .map_or(
-            SignatureSupport {
-                active_parameter_support: false,
-                label_offset_support: false,
-            },
-            |it| SignatureSupport {
-                active_parameter_support: it.active_parameter_support.unwrap_or(false),
-                label_offset_support: it
-                    .parameter_information
-                    .as_ref()
-                    .and_then(|it| it.label_offset_support)
-                    .unwrap_or(false),
-            },
-        )
+        .map(|it| SignatureSupport {
+            active_parameter_support: it.active_parameter_support.unwrap_or(false),
+            label_offset_support: it
+                .parameter_information
+                .as_ref()
+                .and_then(|it| it.label_offset_support)
+                .unwrap_or(false),
+        })
+        .unwrap_or_else(|| SignatureSupport {
+            active_parameter_support: false,
+            label_offset_support: false,
+        })
 }
 
 /// Returns a string representation of the request id
