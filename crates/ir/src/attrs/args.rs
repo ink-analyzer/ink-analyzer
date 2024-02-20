@@ -136,6 +136,8 @@ pub enum InkArgKind {
     RuntimeOnly,
     /// `#[ink(selector)]`
     Selector,
+    /// `#[ink(signature_topic)]`
+    SignatureTopic,
     /// `#[ink(storage)]`
     Storage,
     /// `#[ink(topic)]`
@@ -198,6 +200,8 @@ impl From<&str> for InkArgKind {
             "runtime_only" => InkArgKind::RuntimeOnly,
             // `#[ink(selector)]`
             "selector" => InkArgKind::Selector,
+            // `#[ink(signature_topic)]`
+            "signature_topic" => InkArgKind::SignatureTopic,
             // `#[ink(storage)]`
             "storage" => InkArgKind::Storage,
             // `#[ink(topic)]`
@@ -264,6 +268,8 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::RuntimeOnly => "runtime_only",
                 // `#[ink(selector)]`
                 InkArgKind::Selector => "selector",
+                // `#[ink(signature_topic)]`
+                InkArgKind::SignatureTopic => "signature_topic",
                 // `#[ink(storage)]`
                 InkArgKind::Storage => "storage",
                 // `#[ink(topic)]`
@@ -317,6 +323,7 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         | InkArgKind::Runtime
         | InkArgKind::RuntimeOnly
         | InkArgKind::Selector
+        | InkArgKind::SignatureTopic
         | InkArgKind::TypeInfo => 1,
         // "Unknown" gets a special priority level.
         InkArgKind::Unknown => 10,
@@ -369,6 +376,7 @@ impl InkArgKind {
             InkArgKind::Selector => "The `u32` variant specifies a concrete dispatch selector for the flagged entity, \
             which allows a contract author to precisely control the selectors of their APIs making it possible to rename their API without breakage.\n\n\
             While the `_` variant specifies a fallback message that is invoked if no other ink! message matches a selector.",
+            InkArgKind::SignatureTopic => "Specifies custom signature topic of the event that allows to use manually specified shared event definition.",
             InkArgKind::Storage => "Defines the ink! storage `struct`.",
             InkArgKind::Topic => "Tells the ink! codegen to provide a topic hash for the given field.",
             InkArgKind::TypeInfo => "Derives an implementation of the `ink::scale_info::TypeInfo` trait.",
@@ -412,6 +420,7 @@ pub enum InkArgValueKind {
 pub enum InkArgValueStringKind {
     CommaList,
     Default,
+    Hex,
     Identifier,
     SpaceList,
     Url,
@@ -458,6 +467,7 @@ impl From<InkArgKind> for InkArgValueKind {
             }
             // TODO: Set to `InkArgValueKind::U32OrWildcardOrAt` for ink! v5.
             InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
+            InkArgKind::SignatureTopic => InkArgValueKind::String(InkArgValueStringKind::Hex),
             _ => InkArgValueKind::None,
         }
     }
@@ -507,6 +517,7 @@ impl InkArgValueKind {
                 "A `drink::SandboxConfig` implementation."
             }
             InkArgValueKind::String(InkArgValueStringKind::CommaList) => "A comma separated list.",
+            InkArgValueKind::String(InkArgValueStringKind::Hex) => "A 32 byte hex string.",
             InkArgValueKind::String(InkArgValueStringKind::Identifier) => {
                 "A valid Rust identifier."
             }
