@@ -112,6 +112,8 @@ pub enum InkArgKind {
     Event,
     /// `#[ink(extension)]`
     Extension,
+    /// `#[ink(function)]`
+    Function,
     /// `#[ink(full)]`
     Full,
     /// `#[ink(handle_status)]`
@@ -172,6 +174,8 @@ impl From<&str> for InkArgKind {
             "event" => InkArgKind::Event,
             // `#[ink(extension)]`
             "extension" => InkArgKind::Extension,
+            // `#[ink(function)]`
+            "function" => InkArgKind::Function,
             // `#[ink(full)]`
             "full" => InkArgKind::Full,
             // `#[ink(handle_status)]`
@@ -236,6 +240,8 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::Event => "event",
                 // `#[ink(extension)]`
                 InkArgKind::Extension => "extension",
+                // `#[ink(function)]`
+                InkArgKind::Function => "function",
                 // `#[ink(full)]`
                 InkArgKind::Full => "full",
                 // `#[ink(handle_status)]`
@@ -282,6 +288,7 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         InkArgKind::Constructor
         | InkArgKind::Event
         | InkArgKind::Extension
+        | InkArgKind::Function
         | InkArgKind::Impl
         | InkArgKind::Message
         | InkArgKind::Storage
@@ -347,7 +354,8 @@ impl InkArgKind {
             InkArgKind::Env => "Tells the ink! code generator which environment to use for the ink! smart contract.",
             InkArgKind::Environment => "Tells the ink! code generator which environment to use for the ink! smart contract.",
             InkArgKind::Event => "Defines an ink! event.",
-            InkArgKind::Extension => "Determines the unique function ID of the chain extension function.",
+            // TODO: Add ink! v5 description for extension.
+            InkArgKind::Extension | InkArgKind::Function => "Determines the unique function ID of the chain extension function.",
             InkArgKind::Full => "Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.",
             InkArgKind::HandleStatus => "Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.",
             InkArgKind::Impl => "Tells the ink! codegen that some implementation block shall be granted access to ink! internals even without it containing any ink! messages or ink! constructors.",
@@ -388,6 +396,7 @@ impl PartialOrd for InkArgKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InkArgValueKind {
     None,
+    U16,
     U32,
     U32OrWildcard,
     U32OrWildcardOrAt,
@@ -436,7 +445,9 @@ impl From<InkArgKind> for InkArgValueKind {
             InkArgKind::Env | InkArgKind::Environment => {
                 InkArgValueKind::Path(InkArgValuePathKind::Environment)
             }
+            // TODO: Set to `InkArgValueKind::U16` for ink! v5.
             InkArgKind::Extension => InkArgValueKind::U32,
+            InkArgKind::Function => InkArgValueKind::U16,
             InkArgKind::HandleStatus | InkArgKind::Derive => InkArgValueKind::Bool,
             InkArgKind::KeepAttr => InkArgValueKind::String(InkArgValueStringKind::CommaList),
             InkArgKind::Namespace => InkArgValueKind::String(InkArgValueStringKind::Identifier),
@@ -459,6 +470,7 @@ impl fmt::Display for InkArgValueKind {
             "{}",
             match self {
                 InkArgValueKind::None | InkArgValueKind::Arg(_, _) => "",
+                InkArgValueKind::U16 => "u16",
                 InkArgValueKind::U32 => "u32",
                 InkArgValueKind::U32OrWildcard => "u32 | _",
                 InkArgValueKind::U32OrWildcardOrAt => "u32 | _ | @",

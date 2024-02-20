@@ -197,6 +197,8 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         }
                     }
                     // Arguments that should have an integer (`u32` to be specific) value.
+                    // TODO: Implement validation of u16 symbol for ink! v5.
+                    InkArgValueKind::U16 => (),
                     // TODO: Implement validation of `@` symbol for ink! v5.
                     InkArgValueKind::U32
                     | InkArgValueKind::U32OrWildcard

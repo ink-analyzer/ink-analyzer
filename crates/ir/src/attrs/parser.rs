@@ -259,6 +259,15 @@ mod tests {
                     Some(SyntaxKind::INT_NUMBER),
                 )])],
             ),
+            (
+                quote_as_str! {
+                    #[ink(function=1)]
+                },
+                vec![NestedArg::new(&[(
+                    InkArgKind::Function,
+                    Some(SyntaxKind::INT_NUMBER),
+                )])],
+            ),
             // Argument with wildcard/underscore value.
             (
                 quote_as_str! {
@@ -269,6 +278,7 @@ mod tests {
                     Some(SyntaxKind::UNDERSCORE),
                 )])],
             ),
+            // Argument with `@` symbol as value.
             (
                 quote_as_str! {
                     #[ink(selector=@)]
