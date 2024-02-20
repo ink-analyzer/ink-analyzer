@@ -1,7 +1,7 @@
 //! ink! attribute IR utilities.
 
 use itertools::Itertools;
-use ra_ap_syntax::{ast, AstNode, AstToken, SyntaxElement, T};
+use ra_ap_syntax::{ast, AstNode, AstToken, SyntaxElement, SyntaxKind, T};
 
 use super::meta::{MetaName, MetaNameValue, MetaOption, MetaSeparator, MetaValue};
 use crate::InkArg;
@@ -48,23 +48,47 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
             } else {
                 let mut arg_tokens = group;
                 let mut eq = None;
-                let name: Vec<_> = arg_tokens
+                let mut nested_token_tree = None;
+                let mut n_nested_tts = 0;
+
+                let mut name: Vec<_> = arg_tokens
                     .by_ref()
-                    .take_while(|it| {
-                        let is_sep = it.kind() == T![=];
+                    .take_while(|elem| {
+                        let is_sep = elem.kind() == T![=];
                         if is_sep {
                             // Sets the equal sign (`=`) if its present (before its consumed).
-                            eq = it.clone().into_token().and_then(MetaSeparator::cast);
+                            eq = elem.clone().into_token().and_then(MetaSeparator::cast);
+                        } else if elem.kind() == SyntaxKind::TOKEN_TREE {
+                            // Tracks the number of token trees and stores the first one.
+                            n_nested_tts += 1;
+                            if nested_token_tree.is_none() {
+                                nested_token_tree =
+                                    elem.as_node().cloned().and_then(ast::TokenTree::cast);
+                            }
                         }
                         !is_sep
                     })
                     .collect();
                 let value: Vec<_> = arg_tokens.collect();
 
+                let mut nested_meta = None;
+                if n_nested_tts == 1 {
+                    if let Some(nested_token_tree) = nested_token_tree {
+                        let nested_meta_items = parse_meta_items(&nested_token_tree);
+                        // At the moment, ink! syntax (specifically v5) only nests a single meta item
+                        if nested_meta_items.len() == 1 {
+                            nested_meta = Some(Box::new(nested_meta_items[0].to_owned()));
+                            // Remove the nested token tree from the name.
+                            name.retain(|elem| elem.kind() != SyntaxKind::TOKEN_TREE);
+                        }
+                    }
+                }
+
                 Some(MetaNameValue::new(
                     parse_meta_name(&name),
                     eq,
                     parse_meta_value(&value),
+                    nested_meta,
                     last_separator_offset,
                 ))
             }
@@ -115,6 +139,32 @@ mod tests {
 
     #[test]
     fn parse_ink_args_works() {
+        #[derive(Debug, PartialEq, Eq)]
+        struct NestedArg(InkArgKind, Option<SyntaxKind>, Option<Box<NestedArg>>);
+
+        impl NestedArg {
+            fn new(args: &[(InkArgKind, Option<SyntaxKind>)]) -> Self {
+                let mut args_rev_iter = args.into_iter().cloned().rev();
+                let (arg_kind, syntax_kind) = args_rev_iter.next().unwrap();
+                let mut nested_arg = Self(arg_kind, syntax_kind, None);
+                for (arg_kind, syntax_kind) in args_rev_iter {
+                    nested_arg = Self(arg_kind, syntax_kind, Some(Box::new(nested_arg)))
+                }
+                nested_arg
+            }
+        }
+
+        impl From<InkArg> for NestedArg {
+            fn from(arg: InkArg) -> Self {
+                Self(
+                    *arg.kind(),
+                    arg.value().map(MetaValue::kind),
+                    arg.nested()
+                        .map(|nested_arg| Box::new(NestedArg::from(nested_arg))),
+                )
+            }
+        }
+
         for (code, expected_args) in [
             // No arguments.
             (
@@ -135,18 +185,36 @@ mod tests {
                     #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
                 },
                 vec![
-                    (InkArgKind::Env, Some(SyntaxKind::PATH)),
-                    (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
+                    NestedArg::new(&[(InkArgKind::Env, Some(SyntaxKind::PATH))]),
+                    NestedArg::new(&[(InkArgKind::KeepAttr, Some(SyntaxKind::STRING))]),
                 ],
             ),
             (
                 quote_as_str! {
-                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=my::env::Types, keep_attr="foo,bar")]
+                    #[ink::scale_derive(Encode, Decode, TypeInfo)]
                 },
                 vec![
-                    (InkArgKind::AdditionalContracts, Some(SyntaxKind::STRING)),
-                    (InkArgKind::Environment, Some(SyntaxKind::PATH)),
-                    (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
+                    NestedArg::new(&[(InkArgKind::Encode, None)]),
+                    NestedArg::new(&[(InkArgKind::Decode, None)]),
+                    NestedArg::new(&[(InkArgKind::TypeInfo, None)]),
+                ],
+            ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test(
+                        additional_contracts="adder/Cargo.toml flipper/Cargo.toml",
+                        environment=my::env::Types,
+                        keep_attr="foo,bar",
+                        backend(full),
+                        node_url = "ws://127.0.0.1:8000"
+                    )]
+                },
+                vec![
+                    NestedArg::new(&[(InkArgKind::AdditionalContracts, Some(SyntaxKind::STRING))]),
+                    NestedArg::new(&[(InkArgKind::Environment, Some(SyntaxKind::PATH))]),
+                    NestedArg::new(&[(InkArgKind::KeepAttr, Some(SyntaxKind::STRING))]),
+                    NestedArg::new(&[(InkArgKind::Backend, None), (InkArgKind::Full, None)]),
+                    NestedArg::new(&[(InkArgKind::NodeUrl, Some(SyntaxKind::STRING))]),
                 ],
             ),
             // Argument with no value.
@@ -154,67 +222,97 @@ mod tests {
                 quote_as_str! {
                     #[ink(storage)]
                 },
-                vec![(InkArgKind::Storage, None)],
+                vec![NestedArg::new(&[(InkArgKind::Storage, None)])],
             ),
             (
                 quote_as_str! {
                     #[ink(anonymous)]
                 },
-                vec![(InkArgKind::Anonymous, None)],
+                vec![NestedArg::new(&[(InkArgKind::Anonymous, None)])],
             ),
             // Compound arguments with no value.
             (
                 quote_as_str! {
                     #[ink(event, anonymous)]
                 },
-                vec![(InkArgKind::Event, None), (InkArgKind::Anonymous, None)],
+                vec![
+                    NestedArg::new(&[(InkArgKind::Event, None)]),
+                    NestedArg::new(&[(InkArgKind::Anonymous, None)]),
+                ],
             ),
             // Argument with integer value.
             (
                 quote_as_str! {
                     #[ink(selector=1)] // Decimal.
                 },
-                vec![(InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER))],
+                vec![NestedArg::new(&[(
+                    InkArgKind::Selector,
+                    Some(SyntaxKind::INT_NUMBER),
+                )])],
             ),
             (
                 quote_as_str! {
                     #[ink(extension=0x1)] // Hexadecimal.
                 },
-                vec![(InkArgKind::Extension, Some(SyntaxKind::INT_NUMBER))],
+                vec![NestedArg::new(&[(
+                    InkArgKind::Extension,
+                    Some(SyntaxKind::INT_NUMBER),
+                )])],
             ),
             // Argument with wildcard/underscore value.
             (
                 quote_as_str! {
                     #[ink(selector=_)]
                 },
-                vec![(InkArgKind::Selector, Some(SyntaxKind::UNDERSCORE))],
+                vec![NestedArg::new(&[(
+                    InkArgKind::Selector,
+                    Some(SyntaxKind::UNDERSCORE),
+                )])],
+            ),
+            (
+                quote_as_str! {
+                    #[ink(selector=@)]
+                },
+                vec![NestedArg::new(&[(
+                    InkArgKind::Selector,
+                    Some(SyntaxKind::AT),
+                )])],
             ),
             // Argument with string value.
             (
                 quote_as_str! {
                     #[ink(namespace="my_namespace")]
                 },
-                vec![(InkArgKind::Namespace, Some(SyntaxKind::STRING))],
+                vec![NestedArg::new(&[(
+                    InkArgKind::Namespace,
+                    Some(SyntaxKind::STRING),
+                )])],
             ),
             // Argument with boolean value.
             (
                 quote_as_str! {
                     #[ink(handle_status=true)]
                 },
-                vec![(InkArgKind::HandleStatus, Some(SyntaxKind::TRUE_KW))],
+                vec![NestedArg::new(&[(
+                    InkArgKind::HandleStatus,
+                    Some(SyntaxKind::TRUE_KW),
+                )])],
             ),
             (
                 quote_as_str! {
                     #[ink(derive=false)]
                 },
-                vec![(InkArgKind::Derive, Some(SyntaxKind::FALSE_KW))],
+                vec![NestedArg::new(&[(
+                    InkArgKind::Derive,
+                    Some(SyntaxKind::FALSE_KW),
+                )])],
             ),
             // Argument with path value.
             (
                 quote_as_str! {
                     #[ink(env=my::env::Types)]
                 },
-                vec![(InkArgKind::Env, Some(SyntaxKind::PATH))],
+                vec![NestedArg::new(&[(InkArgKind::Env, Some(SyntaxKind::PATH))])],
             ),
             // Compound arguments of different kinds.
             (
@@ -222,9 +320,9 @@ mod tests {
                     #[ink(message, payable, selector=1)]
                 },
                 vec![
-                    (InkArgKind::Message, None),
-                    (InkArgKind::Payable, None),
-                    (InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER)),
+                    NestedArg::new(&[(InkArgKind::Message, None)]),
+                    NestedArg::new(&[(InkArgKind::Payable, None)]),
+                    NestedArg::new(&[(InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER))]),
                 ],
             ),
             (
@@ -232,45 +330,102 @@ mod tests {
                     #[ink(extension=1, handle_status=false)]
                 },
                 vec![
-                    (InkArgKind::Extension, Some(SyntaxKind::INT_NUMBER)),
-                    (InkArgKind::HandleStatus, Some(SyntaxKind::FALSE_KW)),
+                    NestedArg::new(&[(InkArgKind::Extension, Some(SyntaxKind::INT_NUMBER))]),
+                    NestedArg::new(&[(InkArgKind::HandleStatus, Some(SyntaxKind::FALSE_KW))]),
                 ],
+            ),
+            // Nested arguments.
+            (
+                quote_as_str! {
+                    #[ink_e2e::test(
+                        backend(full),
+                    )]
+                },
+                vec![NestedArg::new(&[
+                    (InkArgKind::Backend, None),
+                    (InkArgKind::Full, None),
+                ])],
+            ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test(
+                        backend(runtime_only),
+                    )]
+                },
+                vec![NestedArg::new(&[
+                    (InkArgKind::Backend, None),
+                    (InkArgKind::RuntimeOnly, None),
+                ])],
+            ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test(
+                        backend(runtime_only(default)),
+                    )]
+                },
+                vec![NestedArg::new(&[
+                    (InkArgKind::Backend, None),
+                    (InkArgKind::RuntimeOnly, None),
+                    (InkArgKind::Default, None),
+                ])],
+            ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test(
+                        backend(runtime_only(runtime = ::ink_e2e::MinimalRuntime)),
+                    )]
+                },
+                vec![NestedArg::new(&[
+                    (InkArgKind::Backend, None),
+                    (InkArgKind::RuntimeOnly, None),
+                    (InkArgKind::Runtime, Some(SyntaxKind::PATH)),
+                ])],
             ),
             // Unknown argument.
             (
                 quote_as_str! {
                     #[ink(unknown)]
                 },
-                vec![(InkArgKind::Unknown, None)],
+                vec![NestedArg::new(&[(InkArgKind::Unknown, None)])],
             ),
             (
                 quote_as_str! {
                     #[ink(xyz)]
                 },
-                vec![(InkArgKind::Unknown, None)],
+                vec![NestedArg::new(&[(InkArgKind::Unknown, None)])],
             ),
             (
                 quote_as_str! {
                     #[ink(xyz="abc")]
                 },
-                vec![(InkArgKind::Unknown, Some(SyntaxKind::STRING))],
+                vec![NestedArg::new(&[(
+                    InkArgKind::Unknown,
+                    Some(SyntaxKind::STRING),
+                )])],
             ),
             // Non-ink argument.
             (
                 quote_as_str! {
                     #[cfg_attr(not(feature = "std"), no_std)]
                 },
-                vec![(InkArgKind::Unknown, None), (InkArgKind::Unknown, None)],
+                vec![
+                    NestedArg::new(&[
+                        (InkArgKind::Unknown, None),
+                        (InkArgKind::Unknown, Some(SyntaxKind::STRING)),
+                    ]),
+                    NestedArg::new(&[(InkArgKind::Unknown, None)]),
+                ],
             ),
         ] {
             // Parse attribute.
             let attr = parse_first_attribute(code);
 
-            // Parse ink! attribute arguments from attribute and convert to an array of tuples with
-            // ink! attribute argument kind and meta value syntax kind for easy comparisons.
-            let actual_args: Vec<(InkArgKind, Option<SyntaxKind>)> = parse_ink_args(&attr)
-                .iter()
-                .map(|arg| (*arg.kind(), arg.value().map(|value| value.kind())))
+            // Parse ink! attribute arguments from attribute and convert to
+            // an array-like structure of tuples with ink! attribute argument kind and
+            // meta value syntax kind for easy comparisons.
+            let actual_args: Vec<_> = parse_ink_args(&attr)
+                .into_iter()
+                .map(NestedArg::from)
                 .collect();
 
             // actual arguments should match expected arguments.
@@ -360,6 +515,18 @@ mod tests {
                     #[ink::contract(keep_attr="foo,bar", env=my::env::Types)]
                 },
                 vec![InkArgKind::KeepAttr, InkArgKind::Env],
+            ),
+            (
+                quote_as_str! {
+                    #[ink::scale_derive(Encode, Decode, TypeInfo)]
+                },
+                vec![InkArgKind::Encode, InkArgKind::Decode, InkArgKind::TypeInfo],
+            ),
+            (
+                quote_as_str! {
+                    #[ink::scale_derive(TypeInfo, Decode, Encode)]
+                },
+                vec![InkArgKind::TypeInfo, InkArgKind::Decode, InkArgKind::Encode],
             ),
             // Unknown arguments are always last.
             (

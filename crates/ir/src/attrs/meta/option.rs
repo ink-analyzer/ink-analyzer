@@ -73,7 +73,7 @@ impl<T: fmt::Display> fmt::Display for MetaOption<T> {
                 "{}",
                 value.iter().map(ToString::to_string).collect::<String>()
             ),
-            Self::None => write!(f, "{}", String::new()),
+            Self::None => write!(f, ""),
         }
     }
 }

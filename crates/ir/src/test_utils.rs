@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use ra_ap_syntax::{ast, NodeOrToken, SyntaxKind, SyntaxNode};
-use ra_ap_syntax::{AstNode, SourceFile, SyntaxElement, SyntaxToken};
+use ra_ap_syntax::{AstNode, SourceFile, SyntaxToken};
 
 use crate::{InkAttribute, InkEntity};
 
@@ -66,13 +66,4 @@ where
         .descendants()
         .find_map(T::cast)
         .unwrap()
-}
-
-/// Returns all syntax elements for the code snippet.
-pub fn parse_syntax_elements(code: &str) -> Vec<SyntaxElement> {
-    SourceFile::parse(code)
-        .tree()
-        .syntax()
-        .children_with_tokens()
-        .collect()
 }

@@ -26,6 +26,8 @@ pub struct MetaNameValue {
     eq: Option<MetaSeparator>,
     /// Value of meta item.
     value: MetaOption<MetaValue>,
+    /// Nested meta item.
+    nested: Option<Box<MetaNameValue>>,
     /// Offset of meta item.
     // Useful in case where the meta item is empty.
     offset: TextSize,
@@ -37,24 +39,26 @@ impl MetaNameValue {
         name: MetaOption<MetaName>,
         eq: Option<MetaSeparator>,
         value: MetaOption<MetaValue>,
+        nested: Option<Box<MetaNameValue>>,
         offset: TextSize,
     ) -> Self {
         Self {
             name,
             eq,
             value,
+            nested,
             offset,
         }
     }
 
     /// Create an empty meta item.
     pub fn empty(offset: TextSize) -> Self {
-        Self::new(MetaOption::None, None, MetaOption::None, offset)
+        Self::new(MetaOption::None, None, MetaOption::None, None, offset)
     }
 
     /// Returns true if the meta item is empty.
     pub fn is_empty(&self) -> bool {
-        self.name.is_none() && self.eq.is_none() && self.value.is_none()
+        self.name.is_none() && self.eq.is_none() && self.value.is_none() && self.nested.is_none()
     }
 
     /// Returns the name of meta item.
@@ -70,6 +74,11 @@ impl MetaNameValue {
     /// Returns the value of meta item.
     pub fn value(&self) -> &MetaOption<MetaValue> {
         &self.value
+    }
+
+    /// Returns the nested meta item.
+    pub fn nested(&self) -> Option<&MetaNameValue> {
+        self.nested.as_ref().map(Box::as_ref)
     }
 
     /// Returns the text range of meta item.
@@ -109,6 +118,11 @@ impl MetaNameValue {
             update_start_and_end(token.syntax().text_range());
         }
 
+        // Parse start and end from nested meta item.
+        if let Some(nested_meta) = &self.nested {
+            update_start_and_end(nested_meta.text_range());
+        }
+
         // Parse start and end from value field.
         match &self.value {
             MetaOption::Ok(meta_value) => {
@@ -134,8 +148,14 @@ impl fmt::Display for MetaNameValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}{}{}",
+            "{}{}{}{}",
             self.name,
+            match &self.nested {
+                Some(nested_meta) => {
+                    nested_meta.to_string()
+                }
+                None => "".to_owned(),
+            },
             match self.eq {
                 Some(_) => " = ",
                 None => "",

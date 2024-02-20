@@ -213,6 +213,10 @@ pub enum InkMacroKind {
     ChainExtension,
     /// `#[ink::contract]`
     Contract,
+    /// `#[ink::event]`
+    Event,
+    /// `#[ink::scale_derive]`
+    ScaleDerive,
     /// `#[ink::storage_item]`
     StorageItem,
     /// `#[ink::test]`
@@ -234,6 +238,10 @@ impl From<(&str, &str)> for InkMacroKind {
                 "chain_extension" => InkMacroKind::ChainExtension,
                 // `#[ink::contract]`
                 "contract" => InkMacroKind::Contract,
+                // `#[ink::event]`
+                "event" => InkMacroKind::Event,
+                // `#[ink::scale_derive]`
+                "scale_derive" => InkMacroKind::ScaleDerive,
                 // `#[ink::storage_item]`
                 "storage_item" => InkMacroKind::StorageItem,
                 // `#[ink::test]`
@@ -261,6 +269,10 @@ impl fmt::Display for InkMacroKind {
                 InkMacroKind::ChainExtension => "chain_extension",
                 // `#[ink::contract]`
                 InkMacroKind::Contract => "contract",
+                // `#[ink::event]`
+                InkMacroKind::Event => "event",
+                // `#[ink::scale_derive]`
+                InkMacroKind::ScaleDerive => "scale_derive",
                 // `#[ink::storage_item]`
                 InkMacroKind::StorageItem => "storage_item",
                 // `#[ink::test]`
@@ -369,6 +381,18 @@ mod tests {
                     #[ink::contract]
                 },
                 Some((InkAttributeKind::Macro(InkMacroKind::Contract), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::event]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::Event), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::scale_derive]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::ScaleDerive), vec![])),
             ),
             (
                 quote_as_str! {
@@ -709,7 +733,7 @@ mod tests {
                 )),
             ),
             // Non-ink attributes.
-            // These simply return none.
+            // These simply return `None`.
             (
                 quote_as_str! {
                     #[cfg_attr(not(feature = "std"), no_std)]

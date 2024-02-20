@@ -44,18 +44,25 @@ impl InkArg {
         self.meta.text_range()
     }
 
-    /// Returns valid meta name (if any).
+    /// Returns meta name (if valid).
     ///
     /// Convenience method for cases when we only care about valid names.
     pub fn name(&self) -> Option<&MetaName> {
         self.meta.name().result().ok()
     }
 
-    /// Returns the valid meta value (if any).
+    /// Returns meta value (if valid).
     ///
     /// Convenience method for cases when we only care about valid values.
     pub fn value(&self) -> Option<&MetaValue> {
         self.meta.value().result().ok()
+    }
+
+    /// Returns a nested ink! arg (if any).
+    ///
+    /// Convenience method for cases when we only care about nested ink! args.
+    pub fn nested(&self) -> Option<InkArg> {
+        self.meta.nested().map(|meta| InkArg::from(meta.to_owned()))
     }
 }
 
@@ -85,12 +92,18 @@ pub enum InkArgKind {
     AdditionalContracts,
     /// `#[ink(anonymous)]`
     Anonymous,
+    /// `#[ink(backend)]`
+    Backend,
     /// `#[ink(constructor)]`
     Constructor,
+    /// `#[ink(Decode)]`
+    Decode,
     /// `#[ink(default)]`
     Default,
     /// `#[ink(derive)]`
     Derive,
+    /// `#[ink(Encode)]`
+    Encode,
     /// `#[ink(env)]`
     Env,
     /// `#[ink(environment)]`
@@ -99,6 +112,8 @@ pub enum InkArgKind {
     Event,
     /// `#[ink(extension)]`
     Extension,
+    /// `#[ink(full)]`
+    Full,
     /// `#[ink(handle_status)]`
     HandleStatus,
     /// `#[ink(impl)]`
@@ -109,14 +124,22 @@ pub enum InkArgKind {
     Message,
     /// `#[ink(namespace)]`
     Namespace,
+    /// `#[ink(node_url)]`
+    NodeUrl,
     /// `#[ink(payable)]`
     Payable,
+    /// `#[ink(runtime)]`
+    Runtime,
+    /// `#[ink(runtime_only)]`
+    RuntimeOnly,
     /// `#[ink(selector)]`
     Selector,
     /// `#[ink(storage)]`
     Storage,
     /// `#[ink(topic)]`
     Topic,
+    /// `#[ink(TypeInfo)]`
+    TypeInfo,
     /// Unknown ink! attribute argument.
     Unknown,
 }
@@ -129,12 +152,18 @@ impl From<&str> for InkArgKind {
             "additional_contracts" => InkArgKind::AdditionalContracts,
             // `#[ink(anonymous)]`
             "anonymous" => InkArgKind::Anonymous,
+            // `#[ink(backend)]`
+            "backend" => InkArgKind::Backend,
             // `#[ink(constructor)]`
             "constructor" => InkArgKind::Constructor,
+            // `#[ink(Decode)]`
+            "Decode" => InkArgKind::Decode,
             // `#[ink(default)]`
             "default" => InkArgKind::Default,
             // `#[ink(derive)]`
             "derive" => InkArgKind::Derive,
+            // `#[ink(Encode)]`
+            "Encode" => InkArgKind::Encode,
             // `#[ink(env)]`
             "env" => InkArgKind::Env,
             // `#[ink(environment)]`
@@ -143,6 +172,8 @@ impl From<&str> for InkArgKind {
             "event" => InkArgKind::Event,
             // `#[ink(extension)]`
             "extension" => InkArgKind::Extension,
+            // `#[ink(full)]`
+            "full" => InkArgKind::Full,
             // `#[ink(handle_status)]`
             "handle_status" => InkArgKind::HandleStatus,
             // `#[ink(impl)]`
@@ -153,14 +184,22 @@ impl From<&str> for InkArgKind {
             "message" => InkArgKind::Message,
             // `#[ink(namespace)]`
             "namespace" => InkArgKind::Namespace,
+            // `#[ink(node_url)]`
+            "node_url" => InkArgKind::NodeUrl,
             // `#[ink(payable)]`
             "payable" => InkArgKind::Payable,
+            // `#[ink(runtime)]`
+            "runtime" => InkArgKind::Runtime,
+            // `#[ink(runtime_only)]`
+            "runtime_only" => InkArgKind::RuntimeOnly,
             // `#[ink(selector)]`
             "selector" => InkArgKind::Selector,
             // `#[ink(storage)]`
             "storage" => InkArgKind::Storage,
             // `#[ink(topic)]`
             "topic" => InkArgKind::Topic,
+            // `#[ink(TypeInfo)]`
+            "TypeInfo" => InkArgKind::TypeInfo,
             // unknown ink! attribute argument.
             _ => InkArgKind::Unknown,
         }
@@ -177,12 +216,18 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::AdditionalContracts => "additional_contracts",
                 // `#[ink(anonymous)]`
                 InkArgKind::Anonymous => "anonymous",
+                // `#[ink(backend)]`
+                InkArgKind::Backend => "backend",
                 // `#[ink(constructor)]`
                 InkArgKind::Constructor => "constructor",
+                // `#[ink(Decode)]`
+                InkArgKind::Decode => "Decode",
                 // `#[ink(default)]`
                 InkArgKind::Default => "default",
                 // `#[ink(derive)]`
                 InkArgKind::Derive => "derive",
+                // `#[ink(Encode)]`
+                InkArgKind::Encode => "Encode",
                 // `#[ink(env)]`
                 InkArgKind::Env => "env",
                 // `#[ink(environment)]`
@@ -191,6 +236,8 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::Event => "event",
                 // `#[ink(extension)]`
                 InkArgKind::Extension => "extension",
+                // `#[ink(full)]`
+                InkArgKind::Full => "full",
                 // `#[ink(handle_status)]`
                 InkArgKind::HandleStatus => "handle_status",
                 // `#[ink(impl)]`
@@ -201,14 +248,22 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::Message => "message",
                 // `#[ink(namespace)]`
                 InkArgKind::Namespace => "namespace",
+                // `#[ink(node_url)]`
+                InkArgKind::NodeUrl => "node_url",
                 // `#[ink(payable)]`
                 InkArgKind::Payable => "payable",
+                // `#[ink(runtime)]`
+                InkArgKind::Runtime => "runtime",
+                // `#[ink(runtime_only)]`
+                InkArgKind::RuntimeOnly => "runtime_only",
                 // `#[ink(selector)]`
                 InkArgKind::Selector => "selector",
                 // `#[ink(storage)]`
                 InkArgKind::Storage => "storage",
                 // `#[ink(topic)]`
                 InkArgKind::Topic => "topic",
+                // `#[ink(TypeInfo)]`
+                InkArgKind::TypeInfo => "TypeInfo",
                 // unknown ink! attribute argument.
                 InkArgKind::Unknown => "unknown",
             }
@@ -239,15 +294,23 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         // the priority level of new `InkArgKind` additions.
         InkArgKind::AdditionalContracts
         | InkArgKind::Anonymous
+        | InkArgKind::Backend
+        | InkArgKind::Decode
         | InkArgKind::Default
         | InkArgKind::Derive
+        | InkArgKind::Encode
         | InkArgKind::Env
         | InkArgKind::Environment
+        | InkArgKind::Full
         | InkArgKind::HandleStatus
         | InkArgKind::KeepAttr
         | InkArgKind::Namespace
+        | InkArgKind::NodeUrl
         | InkArgKind::Payable
-        | InkArgKind::Selector => 1,
+        | InkArgKind::Runtime
+        | InkArgKind::RuntimeOnly
+        | InkArgKind::Selector
+        | InkArgKind::TypeInfo => 1,
         // "Unknown" gets a special priority level.
         InkArgKind::Unknown => 10,
     }
@@ -275,24 +338,32 @@ impl InkArgKind {
         match self {
             InkArgKind::AdditionalContracts => "Tells the ink! e2e test runner which additional contracts to build before executing the test.",
             InkArgKind::Anonymous => "Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.",
+            InkArgKind::Backend => "Tells the ink! e2e test runner which type of architecture to use to execute the test.",
             InkArgKind::Constructor => "Flags a function for the ink! storage `struct` as a constructor making it available to the API for instantiating the contract.",
+            InkArgKind::Decode => "Derives an implementation of the `ink::scale::Decode` trait.",
             InkArgKind::Default => "Tells UI to treat the ink! message or ink! constructor as the default choice in selection widgets (e.g dropdowns).",
             InkArgKind::Derive => "A configuration parameter used to enable/disable auto deriving of all required storage traits.",
+            InkArgKind::Encode => "Derives an implementation of the `ink::scale::Encode` trait.",
             InkArgKind::Env => "Tells the ink! code generator which environment to use for the ink! smart contract.",
             InkArgKind::Environment => "Tells the ink! code generator which environment to use for the ink! smart contract.",
             InkArgKind::Event => "Defines an ink! event.",
             InkArgKind::Extension => "Determines the unique function ID of the chain extension function.",
+            InkArgKind::Full => "Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.",
             InkArgKind::HandleStatus => "Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.",
             InkArgKind::Impl => "Tells the ink! codegen that some implementation block shall be granted access to ink! internals even without it containing any ink! messages or ink! constructors.",
             InkArgKind::KeepAttr => "Tells the ink! code generator which attributes should be passed to call builders.",
             InkArgKind::Message => "Flags a method for the ink! storage `struct` as a message making it available to the API for calling the contract.",
             InkArgKind::Namespace => "Changes the resulting selectors of all the ink! messages and ink! constructors within the trait implementation.",
+            InkArgKind::NodeUrl => "Tells the ink! e2e test runner which node url to connect to before executing the test",
             InkArgKind::Payable => "Allows receiving value as part of the call of the ink! message.",
+            InkArgKind::Runtime => "Tells the ink! e2e test runner which runtime emulator to use when executing the test.",
+            InkArgKind::RuntimeOnly => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.",
             InkArgKind::Selector => "The `u32` variant specifies a concrete dispatch selector for the flagged entity, \
             which allows a contract author to precisely control the selectors of their APIs making it possible to rename their API without breakage.\n\n\
             While the `_` variant specifies a fallback message that is invoked if no other ink! message matches a selector.",
             InkArgKind::Storage => "Defines the ink! storage `struct`.",
             InkArgKind::Topic => "Tells the ink! codegen to provide a topic hash for the given field.",
+            InkArgKind::TypeInfo => "Derives an implementation of the `ink::scale_info::TypeInfo` trait.",
             InkArgKind::Unknown => "",
         }
     }
@@ -319,9 +390,11 @@ pub enum InkArgValueKind {
     None,
     U32,
     U32OrWildcard,
+    U32OrWildcardOrAt,
     String(InkArgValueStringKind),
     Bool,
     Path(InkArgValuePathKind),
+    Arg(InkArgKind, InkArgKind),
 }
 
 /// The ink! attribute argument value string kind.
@@ -332,6 +405,7 @@ pub enum InkArgValueStringKind {
     Default,
     Identifier,
     SpaceList,
+    Url,
 }
 
 /// The ink! attribute argument value path kind.
@@ -340,6 +414,7 @@ pub enum InkArgValueStringKind {
 pub enum InkArgValuePathKind {
     Default,
     Environment,
+    Runtime,
 }
 
 /// Converts an ink! attribute argument kind to an ink! attribute argument value kind.
@@ -357,6 +432,7 @@ impl From<InkArgKind> for InkArgValueKind {
             InkArgKind::AdditionalContracts => {
                 InkArgValueKind::String(InkArgValueStringKind::SpaceList)
             }
+            InkArgKind::Backend => InkArgValueKind::Arg(InkArgKind::Full, InkArgKind::RuntimeOnly),
             InkArgKind::Env | InkArgKind::Environment => {
                 InkArgValueKind::Path(InkArgValuePathKind::Environment)
             }
@@ -364,6 +440,12 @@ impl From<InkArgKind> for InkArgValueKind {
             InkArgKind::HandleStatus | InkArgKind::Derive => InkArgValueKind::Bool,
             InkArgKind::KeepAttr => InkArgValueKind::String(InkArgValueStringKind::CommaList),
             InkArgKind::Namespace => InkArgValueKind::String(InkArgValueStringKind::Identifier),
+            InkArgKind::NodeUrl => InkArgValueKind::String(InkArgValueStringKind::Url),
+            InkArgKind::Runtime => InkArgValueKind::Path(InkArgValuePathKind::Runtime),
+            InkArgKind::RuntimeOnly => {
+                InkArgValueKind::Arg(InkArgKind::Default, InkArgKind::Runtime)
+            }
+            // TODO: Set to `InkArgValueKind::U32OrWildcardOrAt` for ink! v5.
             InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
             _ => InkArgValueKind::None,
         }
@@ -376,13 +458,15 @@ impl fmt::Display for InkArgValueKind {
             f,
             "{}",
             match self {
-                InkArgValueKind::None => "",
+                InkArgValueKind::None | InkArgValueKind::Arg(_, _) => "",
                 InkArgValueKind::U32 => "u32",
                 InkArgValueKind::U32OrWildcard => "u32 | _",
+                InkArgValueKind::U32OrWildcardOrAt => "u32 | _ | @",
                 InkArgValueKind::String(_) => "&str",
                 InkArgValueKind::Bool => "bool",
                 InkArgValueKind::Path(path_kind) => match path_kind {
                     InkArgValuePathKind::Environment => "impl Environment",
+                    InkArgValuePathKind::Runtime => "impl drink::SandboxConfig",
                     _ => "Path",
                 },
             }
@@ -404,11 +488,25 @@ impl InkArgValueKind {
     /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L85>.
     pub fn detail(&self) -> &str {
         match self {
+            InkArgValueKind::Path(InkArgValuePathKind::Environment) => {
+                "A `ink::env::Environment` implementation."
+            }
+            InkArgValueKind::Path(InkArgValuePathKind::Runtime) => {
+                "A `drink::SandboxConfig` implementation."
+            }
             InkArgValueKind::String(InkArgValueStringKind::CommaList) => "A comma separated list.",
             InkArgValueKind::String(InkArgValueStringKind::Identifier) => {
                 "A valid Rust identifier."
             }
             InkArgValueKind::String(InkArgValueStringKind::SpaceList) => "A space separated list.",
+            InkArgValueKind::String(InkArgValueStringKind::Url) => "A URL.",
+            InkArgValueKind::Arg(kind_1, kind_2) => match (kind_1, kind_2) {
+                (InkArgKind::Full, InkArgKind::RuntimeOnly) => "full | runtime_only",
+                (InkArgKind::Default, InkArgKind::Runtime) => {
+                    "default | runtime = impl drink::SandboxConfig"
+                }
+                _ => "",
+            },
             _ => "",
         }
     }

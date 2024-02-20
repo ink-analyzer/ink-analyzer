@@ -42,7 +42,7 @@ impl EnvArg {
         Self::can_cast(&arg).then(|| Self {
             kind: if let Some(value) = arg.value() {
                 match value.kind() {
-                    SyntaxKind::PATH | SyntaxKind::PATH_EXPR => EnvArgKind::Path,
+                    SyntaxKind::PATH => EnvArgKind::Path,
                     _ => EnvArgKind::Other,
                 }
             } else {

@@ -197,8 +197,14 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         }
                     }
                     // Arguments that should have an integer (`u32` to be specific) value.
-                    InkArgValueKind::U32 | InkArgValueKind::U32OrWildcard => {
-                        let can_be_wildcard = arg_value_type == InkArgValueKind::U32OrWildcard;
+                    // TODO: Implement validation of `@` symbol for ink! v5.
+                    InkArgValueKind::U32
+                    | InkArgValueKind::U32OrWildcard
+                    | InkArgValueKind::U32OrWildcardOrAt => {
+                        let can_be_wildcard = matches!(
+                            arg_value_type,
+                            InkArgValueKind::U32OrWildcard | InkArgValueKind::U32OrWildcardOrAt
+                        );
                         if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| {
@@ -320,12 +326,7 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                     InkArgValueKind::Path(_) => {
                         if !ensure_valid_attribute_arg_value(
                             arg,
-                            |meta_value| {
-                                matches!(
-                                    meta_value.kind(),
-                                    SyntaxKind::PATH | SyntaxKind::PATH_EXPR
-                                )
-                            },
+                            |meta_value| meta_value.kind() == SyntaxKind::PATH,
                             |_| false,
                             false,
                         ) {
@@ -348,6 +349,9 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                             });
                         }
                     }
+                    // Nested arguments.
+                    // TODO: Implement validation for nested attributes for ink! v5.
+                    InkArgValueKind::Arg(_, _) => (),
                 }
             }
         };

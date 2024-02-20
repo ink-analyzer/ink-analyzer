@@ -150,9 +150,8 @@ impl SelectorArg {
             kind: if let Some(value) = arg.value() {
                 match value.kind() {
                     SyntaxKind::INT_NUMBER => SelectorArgKind::Integer,
-                    SyntaxKind::UNDERSCORE | SyntaxKind::UNDERSCORE_EXPR => {
-                        SelectorArgKind::Wildcard
-                    }
+                    SyntaxKind::UNDERSCORE => SelectorArgKind::Wildcard,
+                    SyntaxKind::AT => SelectorArgKind::Complement,
                     _ => SelectorArgKind::Other,
                 }
             } else {
@@ -177,6 +176,11 @@ impl SelectorArg {
         self.kind == SelectorArgKind::Wildcard
     }
 
+    /// Returns true if the value is a wildcard/underscore expression.
+    pub fn is_wildcard_complement(&self) -> bool {
+        self.kind == SelectorArgKind::Complement
+    }
+
     /// Converts the value if it's an integer literal (decimal or hexadecimal) into a `u32`.
     pub fn as_u32(&self) -> Option<u32> {
         self.arg.value()?.as_u32()
@@ -192,7 +196,9 @@ impl SelectorArg {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SelectorArgKind {
     Integer,
+    // See <https://github.com/paritytech/ink/pull/1708> for rationale for naming scheme of fallback/wildcard variants.
     Wildcard,
+    Complement,
     Other,
 }
 

@@ -760,12 +760,7 @@ fn ensure_trait_definition_impl_message_args(
                             }
                             // Replaces value that doesn't match declaration.
                             Some(value) => {
-                                if !analysis_utils::is_trivia_insensitive_eq(
-                                    value.as_expr_with_inaccurate_text_range().syntax(),
-                                    value_declaration
-                                        .as_expr_with_inaccurate_text_range()
-                                        .syntax(),
-                                ) {
+                                if !value.trivia_insensitive_eq(value_declaration) {
                                     results.push(Diagnostic {
                                         message: format!("ink! {} argument value mismatch: {value} vs {value_declaration}, \
                                         based on the trait definition declaration for this method.", arg.kind()),
@@ -1056,7 +1051,7 @@ mod tests {
                     // Traits + Args.
                     (
                         quote! {
-                        #[ink::trait_definition]
+                            #[ink::trait_definition]
                             pub trait MyTrait {
                                 #[ink(message, payable, default, selector=1)]
                                 fn minimal_message(&self);
@@ -1514,7 +1509,22 @@ mod tests {
 
     #[test]
     fn valid_trait_definition_impl_works() {
-        for code in valid_ink_impls!() {
+        for code in valid_ink_impls!().chain([
+            // Order and trivia (i.e. whitespace and comments) don't matter for matching
+            // ink! attribute arguments.
+            quote! {
+                #[ink::trait_definition]
+                pub trait MyTrait {
+                    #[ink(message, payable, default, selector=0x1 /* i.e. 1 */)]
+                    fn message(&self);
+                }
+
+                impl MyTrait for MyContract {
+                    #[ink(message, selector = 0x1, default, payable)]
+                    fn message(&self) {}
+                }
+            },
+        ]) {
             let ink_impl = parse_first_ink_impl(quote_as_str! {
                 #code
             });
