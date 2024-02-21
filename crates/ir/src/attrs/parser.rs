@@ -205,16 +205,14 @@ mod tests {
                         additional_contracts="adder/Cargo.toml flipper/Cargo.toml",
                         environment=my::env::Types,
                         keep_attr="foo,bar",
-                        backend(full),
-                        node_url = "ws://127.0.0.1:8000"
+                        backend(node),
                     )]
                 },
                 vec![
                     NestedArg::new(&[(InkArgKind::AdditionalContracts, Some(SyntaxKind::STRING))]),
                     NestedArg::new(&[(InkArgKind::Environment, Some(SyntaxKind::PATH))]),
                     NestedArg::new(&[(InkArgKind::KeepAttr, Some(SyntaxKind::STRING))]),
-                    NestedArg::new(&[(InkArgKind::Backend, None), (InkArgKind::Full, None)]),
-                    NestedArg::new(&[(InkArgKind::NodeUrl, Some(SyntaxKind::STRING))]),
+                    NestedArg::new(&[(InkArgKind::Backend, None), (InkArgKind::Node, None)]),
                 ],
             ),
             // Argument with no value.
@@ -348,12 +346,24 @@ mod tests {
             (
                 quote_as_str! {
                     #[ink_e2e::test(
-                        backend(full),
+                        backend(node),
                     )]
                 },
                 vec![NestedArg::new(&[
                     (InkArgKind::Backend, None),
-                    (InkArgKind::Full, None),
+                    (InkArgKind::Node, None),
+                ])],
+            ),
+            (
+                quote_as_str! {
+                    #[ink_e2e::test(
+                        backend(node(url = "ws://127.0.0.1:8000")),
+                    )]
+                },
+                vec![NestedArg::new(&[
+                    (InkArgKind::Backend, None),
+                    (InkArgKind::Node, None),
+                    (InkArgKind::Url, Some(SyntaxKind::STRING)),
                 ])],
             ),
             (
@@ -365,18 +375,6 @@ mod tests {
                 vec![NestedArg::new(&[
                     (InkArgKind::Backend, None),
                     (InkArgKind::RuntimeOnly, None),
-                ])],
-            ),
-            (
-                quote_as_str! {
-                    #[ink_e2e::test(
-                        backend(runtime_only(default)),
-                    )]
-                },
-                vec![NestedArg::new(&[
-                    (InkArgKind::Backend, None),
-                    (InkArgKind::RuntimeOnly, None),
-                    (InkArgKind::Default, None),
                 ])],
             ),
             (

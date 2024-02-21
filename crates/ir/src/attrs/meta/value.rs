@@ -130,7 +130,7 @@ impl MetaValue {
     }
 
     /// Returns true if the value is a wildcard complement/`@` symbol.
-    /// Ref: <<https://github.com/paritytech/ink/pull/1708>>
+    /// Ref: <https://github.com/paritytech/ink/pull/1708>
     pub fn is_wildcard_complement(&self) -> bool {
         self.kind() == SyntaxKind::AT
     }

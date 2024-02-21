@@ -353,7 +353,8 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                     }
                     // Nested arguments.
                     // TODO: Implement validation for nested attributes for ink! v5.
-                    InkArgValueKind::Arg(_, _) => (),
+                    InkArgValueKind::Arg(_) => (),
+                    InkArgValueKind::Choice(_, _) => (),
                 }
             }
         };
