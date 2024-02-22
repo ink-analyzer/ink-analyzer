@@ -2,7 +2,8 @@
 
 pub mod snippets;
 
-use crate::utils;
+use crate::codegen::snippets::{CARGO_TOML_PLAIN_V5, CARGO_TOML_SNIPPET_V5};
+use crate::{utils, Version};
 use snippets::{CARGO_TOML_PLAIN, CARGO_TOML_SNIPPET, CONTRACT_PLAIN, CONTRACT_SNIPPET};
 
 /// Code stubs/snippets for creating an ink! project
@@ -40,7 +41,7 @@ pub enum Error {
 }
 
 /// Returns code stubs/snippets for creating a new ink! project given a name.
-pub fn new_project(name: String) -> Result<Project, Error> {
+pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
     // Validates that name is a valid Rust package name.
     // Ref: <https://doc.rust-lang.org/cargo/reference/manifest.html#the-name-field>.
     if name.is_empty()
@@ -76,8 +77,20 @@ pub fn new_project(name: String) -> Result<Project, Error> {
         },
         // Generates `Cargo.toml`.
         cargo: ProjectFile {
-            plain: CARGO_TOML_PLAIN.replace("my_contract", &name),
-            snippet: Some(CARGO_TOML_SNIPPET.replace("my_contract", &name)),
+            plain: if version == Version::V5 {
+                CARGO_TOML_PLAIN_V5
+            } else {
+                CARGO_TOML_PLAIN
+            }
+            .replace("my_contract", &name),
+            snippet: Some(
+                if version == Version::V5 {
+                    CARGO_TOML_SNIPPET_V5
+                } else {
+                    CARGO_TOML_SNIPPET
+                }
+                .replace("my_contract", &name),
+            ),
         },
     })
 }
@@ -85,7 +98,7 @@ pub fn new_project(name: String) -> Result<Project, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Analysis, Version};
+    use crate::Analysis;
 
     // Ref: <https://doc.rust-lang.org/cargo/reference/manifest.html#the-name-field>.
     // Ref: <https://github.com/paritytech/cargo-contract/blob/v3.2.0/crates/build/src/new.rs#L34-L52>.
@@ -103,7 +116,10 @@ mod tests {
             ("-hello", Error::ContractName),
             ("_hello", Error::ContractName),
         ] {
-            assert_eq!(new_project(name.to_owned()), Err(expected_error));
+            assert_eq!(
+                new_project(name.to_owned(), Version::V4),
+                Err(expected_error)
+            );
         }
     }
 
@@ -111,12 +127,33 @@ mod tests {
     fn valid_project_name_works() {
         for name in ["hello", "hello_world", "hello-world"] {
             // Generates an ink! contract project.
-            let result = new_project(name.to_owned());
+            let result = new_project(name.to_owned(), Version::V4);
             assert!(result.is_ok());
 
             // Verifies that the generated code stub is a valid contract.
             let contract_code = result.unwrap().lib.plain;
             let analysis = Analysis::new(&contract_code, Version::V4);
+            assert_eq!(analysis.diagnostics().len(), 0);
+        }
+    }
+
+    #[test]
+    fn new_project_works() {
+        for version in [Version::V4, Version::V5] {
+            // Generates an ink! contract project.
+            let result = new_project("hello_world".to_owned(), version);
+            assert!(result.is_ok());
+
+            // Verifies the generated code stub and `Cargo.toml` file.
+            let project = result.unwrap();
+            let cargo_toml = project.cargo.plain;
+            assert!(cargo_toml.contains(if version == Version::V5 {
+                r#"ink = { version = "5"#
+            } else {
+                r#"ink = { version = "4"#
+            }));
+            let contract_code = project.lib.plain;
+            let analysis = Analysis::new(&contract_code, version);
             assert_eq!(analysis.diagnostics().len(), 0);
         }
     }
