@@ -5,7 +5,7 @@
 //! Analyzing ink! smart contract code.
 //!
 //! ```
-//! use ink_analyzer::{Analysis, TextSize, TextRange};
+//! use ink_analyzer::{Analysis, TextSize, TextRange, Version};
 //!
 //! fn do_analysis() {
 //!     // Smart contract code.
@@ -23,7 +23,7 @@
 //!     "#;
 //!
 //!     // Creates analysis snapshot.
-//!     let analysis = Analysis::new(code);
+//!     let analysis = Analysis::new(code, Version::V4);
 //!
 //!     // Computes diagnostics.
 //!     let diagnostics = analysis.diagnostics();
@@ -78,3 +78,10 @@ pub use self::{
     codegen::{new_project, Error, Project, ProjectFile},
 };
 pub use ink_analyzer_ir::syntax::{TextRange, TextSize};
+
+/// The ink! language version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Version {
+    V4,
+    V5,
+}

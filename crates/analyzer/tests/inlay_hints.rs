@@ -1,6 +1,6 @@
 //! integration tests for ink! analyzer inlay hints.
 
-use ink_analyzer::{Analysis, TextRange, TextSize};
+use ink_analyzer::{Analysis, TextRange, TextSize, Version};
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for inlay hints test cases is:
@@ -44,7 +44,7 @@ fn inlay_hints_works() {
             });
 
             // Computes inlay hints.
-            let results = Analysis::new(&test_code).inlay_hints(range);
+            let results = Analysis::new(&test_code, Version::V4).inlay_hints(range);
 
             // Verifies actions results.
             let expected_results = match test_case.results {

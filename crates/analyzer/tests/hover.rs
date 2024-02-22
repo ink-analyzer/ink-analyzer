@@ -1,6 +1,6 @@
 //! integration tests for ink! analyzer hover content.
 
-use ink_analyzer::{Analysis, TextRange, TextSize};
+use ink_analyzer::{Analysis, TextRange, TextSize, Version};
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for hover content test cases is:
@@ -43,7 +43,7 @@ fn hover_works() {
             );
 
             // Get hover content.
-            let results = Analysis::new(&test_code).hover(range);
+            let results = Analysis::new(&test_code, Version::V4).hover(range);
 
             // Verifies hover content.
             let expected_results = match test_case.results {

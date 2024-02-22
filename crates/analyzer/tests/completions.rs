@@ -1,6 +1,6 @@
 //! integration tests for ink! analyzer completions.
 
-use ink_analyzer::{Analysis, TextRange, TextSize};
+use ink_analyzer::{Analysis, TextRange, TextSize, Version};
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for completions test cases is:
@@ -38,7 +38,7 @@ fn completions_works() {
                 TextSize::from(test_utils::parse_offset_at(&test_code, offset_pat).unwrap() as u32);
 
             // Computes completions.
-            let results = Analysis::new(&test_code).completions(offset);
+            let results = Analysis::new(&test_code, Version::V4).completions(offset);
 
             // Verifies completion results.
             let expected_results = match test_case.results {

@@ -1,6 +1,6 @@
 //! integration tests for ink! analyzer actions.
 
-use ink_analyzer::{Analysis, TextRange, TextSize};
+use ink_analyzer::{Analysis, TextRange, TextSize, Version};
 use test_utils::{PartialMatchStr, TestCaseParams, TestCaseResults};
 
 // The high-level methodology for code/intent actions test cases is:
@@ -39,7 +39,7 @@ fn actions_works() {
             let range = TextRange::new(offset, offset);
 
             // Computes actions.
-            let results = Analysis::new(&test_code).actions(range);
+            let results = Analysis::new(&test_code, Version::V4).actions(range);
 
             // Verifies actions results.
             let expected_results = match test_case.results {

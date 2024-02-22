@@ -9,6 +9,7 @@ mod signature_help;
 mod text_edit;
 mod utils;
 
+use crate::Version;
 use ink_analyzer_ir::syntax::{TextRange, TextSize};
 use ink_analyzer_ir::InkFile;
 use itertools::Itertools;
@@ -26,13 +27,16 @@ pub use text_edit::TextEdit;
 pub struct Analysis {
     /// The ink! smart contract code being analyzed.
     file: InkFile,
+    /// The ink! language version.
+    version: Version,
 }
 
 impl Analysis {
     /// Creates an analysis instance from smart contract code.
-    pub fn new(code: &str) -> Self {
+    pub fn new(code: &str, version: Version) -> Self {
         Self {
             file: InkFile::parse(code),
+            version,
         }
     }
 
@@ -71,7 +75,7 @@ impl Analysis {
 
     /// Returns descriptive/informational text for the ink! attribute at the given text range (if any).
     pub fn hover(&self, range: TextRange) -> Option<Hover> {
-        hover::hover(&self.file, range)
+        hover::hover(&self.file, range, self.version)
     }
 
     /// Computes ink! attribute argument inlay hints for the given text range (if any).

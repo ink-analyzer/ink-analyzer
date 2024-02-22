@@ -2,8 +2,8 @@
 
 pub mod snippets;
 
-use self::snippets::{CARGO_TOML_PLAIN, CARGO_TOML_SNIPPET, CONTRACT_PLAIN, CONTRACT_SNIPPET};
 use crate::utils;
+use snippets::{CARGO_TOML_PLAIN, CARGO_TOML_SNIPPET, CONTRACT_PLAIN, CONTRACT_SNIPPET};
 
 /// Code stubs/snippets for creating an ink! project
 /// (i.e. code stubs/snippets for `lib.rs` and `Cargo.toml`).
@@ -85,7 +85,7 @@ pub fn new_project(name: String) -> Result<Project, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Analysis;
+    use crate::{Analysis, Version};
 
     // Ref: <https://doc.rust-lang.org/cargo/reference/manifest.html#the-name-field>.
     // Ref: <https://github.com/paritytech/cargo-contract/blob/v3.2.0/crates/build/src/new.rs#L34-L52>.
@@ -116,7 +116,7 @@ mod tests {
 
             // Verifies that the generated code stub is a valid contract.
             let contract_code = result.unwrap().lib.plain;
-            let analysis = Analysis::new(&contract_code);
+            let analysis = Analysis::new(&contract_code, Version::V4);
             assert_eq!(analysis.diagnostics().len(), 0);
         }
     }

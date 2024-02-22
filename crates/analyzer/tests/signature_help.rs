@@ -1,6 +1,6 @@
 //! integration tests for ink! analyzer signature help.
 
-use ink_analyzer::{Analysis, TextRange, TextSize};
+use ink_analyzer::{Analysis, TextRange, TextSize, Version};
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for signature help test cases is:
@@ -38,7 +38,7 @@ fn signature_help_works() {
                 TextSize::from(test_utils::parse_offset_at(&test_code, offset_pat).unwrap() as u32);
 
             // Computes signature help.
-            let results = Analysis::new(&test_code).signature_help(offset);
+            let results = Analysis::new(&test_code, Version::V4).signature_help(offset);
 
             // Verifies signature help results.
             let expected_results = match test_case.results {

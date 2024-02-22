@@ -1,6 +1,6 @@
 //! integration tests for ink! analyzer diagnostics.
 
-use ink_analyzer::{Analysis, TextRange, TextSize};
+use ink_analyzer::{Analysis, TextRange, TextSize, Version};
 use test_utils::{PartialMatchStr, TestCaseResults};
 
 // The high-level methodology for diagnostics test cases is:
@@ -28,7 +28,7 @@ fn diagnostics_works() {
             }
 
             // Runs diagnostics.
-            let results = Analysis::new(&test_code).diagnostics();
+            let results = Analysis::new(&test_code, Version::V4).diagnostics();
 
             // Verifies diagnostics results.
             let expected_results = match test_case.results {

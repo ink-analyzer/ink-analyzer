@@ -7,6 +7,7 @@ use ink_analyzer_ir::syntax::{AstNode, AstToken, TextRange};
 use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkFile, InkMacroKind};
 
 use crate::analysis::utils;
+use crate::Version;
 
 /// An ink! attribute hover result.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,7 +19,7 @@ pub struct Hover {
 }
 
 /// Returns descriptive/informational text for the ink! attribute at the given position (if any).
-pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
+pub fn hover(file: &InkFile, range: TextRange, version: Version) -> Option<Hover> {
     // Finds the covering ink! attribute for the text range (if any).
     let covering_ink_attr = utils::covering_ink_attribute(file, range);
 
@@ -33,7 +34,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
             // Returns hover content for the covered ink! attribute argument if it's valid.
             Some(ink_arg) => {
                 let attr_kind = InkAttributeKind::Arg(*ink_arg.kind());
-                let doc = content(&attr_kind);
+                let doc = content(&attr_kind, version);
                 (!doc.is_empty()).then(|| Hover {
                     range: ink_arg
                         .name()
@@ -45,7 +46,7 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
             // Returns hover content based on the ink! attribute macro, ink! e2e attribute macro
             // or "primary" ink! attribute argument for the ink! attribute.
             None => {
-                let doc = content(ink_attr.kind());
+                let doc = content(ink_attr.kind(), version);
                 (!doc.is_empty()).then(|| Hover {
                     range: match ink_attr.kind() {
                         InkAttributeKind::Arg(_) => ink_attr
@@ -65,31 +66,56 @@ pub fn hover(file: &InkFile, range: TextRange) -> Option<Hover> {
 }
 
 /// Returns documentation for the ink! attribute kind.
-pub fn content(attr_kind: &InkAttributeKind) -> &str {
+pub fn content(attr_kind: &InkAttributeKind, version: Version) -> &str {
     match attr_kind {
         InkAttributeKind::Arg(arg_kind) => match arg_kind {
             InkArgKind::AdditionalContracts => args::ADDITIONAL_CONTRACTS_DOC,
+            InkArgKind::Anonymous if version == Version::V5 => args::ANONYMOUS_DOC_V5,
             InkArgKind::Anonymous => args::ANONYMOUS_DOC,
+            // We enumerate the nested args for `backend` arg here, but, at the moment,
+            // only the "top-level" `backend` arg is ever sent even when focused on a nested arg.
+            InkArgKind::Backend
+            | InkArgKind::Node
+            | InkArgKind::Url
+            | InkArgKind::RuntimeOnly
+            | InkArgKind::Runtime
+                if version == Version::V5 =>
+            {
+                args::BACKEND_DOC
+            }
             InkArgKind::Constructor => args::CONSTRUCTOR_DOC,
+            InkArgKind::Decode if version == Version::V5 => args::DECODE_DOC,
             InkArgKind::Default => args::DEFAULT_DOC,
             InkArgKind::Derive => args::DERIVE_DOC,
+            InkArgKind::Encode if version == Version::V5 => args::ENCODE_DOC,
             InkArgKind::Env | InkArgKind::Environment => args::ENV_DOC,
             InkArgKind::Event => args::EVENT_DOC,
+            InkArgKind::Extension if version == Version::V5 => args::EXTENSION_DOC_V5,
             InkArgKind::Extension => args::EXTENSION_DOC,
+            InkArgKind::Function if version == Version::V5 => args::FUNCTION_DOC,
             InkArgKind::HandleStatus => args::HANDLE_STATUS_DOC,
             InkArgKind::Impl => args::IMPL_DOC,
             InkArgKind::KeepAttr => args::KEEP_ATTR_DOC,
             InkArgKind::Message => args::MESSAGE_DOC,
             InkArgKind::Namespace => args::NAMESPACE_DOC,
             InkArgKind::Payable => args::PAYABLE_DOC,
+            InkArgKind::Selector if version == Version::V5 => args::SELECTOR_DOC_V5,
             InkArgKind::Selector => args::SELECTOR_DOC,
+            InkArgKind::SignatureTopic if version == Version::V5 => args::SIGNATURE_TOPIC,
             InkArgKind::Storage => args::STORAGE_DOC,
+            InkArgKind::Topic if version == Version::V5 => args::TOPIC_DOC_V5,
             InkArgKind::Topic => args::TOPIC_DOC,
+            InkArgKind::TypeInfo if version == Version::V5 => args::TYPE_INFO_DOC,
             _ => "",
         },
         InkAttributeKind::Macro(macro_kind) => match macro_kind {
+            InkMacroKind::ChainExtension if version == Version::V5 => {
+                macros::CHAIN_EXTENSION_DOC_V5
+            }
             InkMacroKind::ChainExtension => macros::CHAIN_EXTENSION_DOC,
             InkMacroKind::Contract => macros::CONTRACT_DOC,
+            InkMacroKind::Event if version == Version::V5 => macros::EVENT_DOC,
+            InkMacroKind::ScaleDerive if version == Version::V5 => macros::SCALE_DERIVE_DOC,
             InkMacroKind::StorageItem => macros::STORAGE_ITEM_DOC,
             InkMacroKind::Test => macros::TEST_DOC,
             InkMacroKind::TraitDefinition => macros::TRAIT_DEFINITION_DOC,
@@ -105,6 +131,13 @@ mod tests {
     use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::{InkArgKind, InkMacroKind};
     use test_utils::parse_offset_at;
+
+    fn content(attr_kind: &InkAttributeKind) -> (&str, &str) {
+        (
+            super::content(attr_kind, Version::V4),
+            super::content(attr_kind, Version::V5),
+        )
+    }
 
     #[test]
     fn hover_works() {
@@ -472,19 +505,39 @@ mod tests {
                     TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32),
                 );
 
-                let result = hover(&InkFile::parse(code), range);
+                let result_v4 = hover(&InkFile::parse(code), range, Version::V4);
+                let result_v5 = hover(&InkFile::parse(code), range, Version::V5);
 
                 assert_eq!(
-                    result
+                    result_v4
                         .as_ref()
                         .map(|hover_result| (hover_result.content.as_str(), hover_result.range)),
-                    expect_result.map(|(content, pat_start, pat_end)| (
-                        content,
+                    expect_result.map(|((content_v4, _), pat_start, pat_end)| (
+                        content_v4,
                         TextRange::new(
                             TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
                             TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
                         )
-                    ))
+                    )),
+                    "code: {code}, start: {:?}, end: {:?}",
+                    pat_start,
+                    pat_end
+                );
+
+                assert_eq!(
+                    result_v5
+                        .as_ref()
+                        .map(|hover_result| (hover_result.content.as_str(), hover_result.range)),
+                    expect_result.map(|((_, content_v5), pat_start, pat_end)| (
+                        content_v5,
+                        TextRange::new(
+                            TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
+                            TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
+                        )
+                    )),
+                    "code: {code}, start: {:?}, end: {:?}",
+                    pat_start,
+                    pat_end
                 );
             }
         }

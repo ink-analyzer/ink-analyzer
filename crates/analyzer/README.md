@@ -29,7 +29,7 @@ cargo add ink-analyzer
 Analyzing ink! smart contract code.
 
 ```rust
-use ink_analyzer::{Analysis, TextSize, TextRange};
+use ink_analyzer::{Analysis, TextSize, TextRange, Version};
 
 fn do_analysis() {
     // Smart contract code.
@@ -47,7 +47,7 @@ fn do_analysis() {
     "#;
 
     // Creates analysis snapshot.
-    let analysis = Analysis::new(code);
+    let analysis = Analysis::new(code, Version::V4);
 
     // Computes diagnostics.
     let diagnostics = analysis.diagnostics();

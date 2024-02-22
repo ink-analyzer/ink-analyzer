@@ -5,7 +5,7 @@ mod handlers;
 mod routers;
 
 use crossbeam_channel::Sender;
-use ink_analyzer::Analysis;
+use ink_analyzer::{Analysis, Version};
 use lsp_types::request::Request;
 use std::collections::HashMap;
 
@@ -79,7 +79,7 @@ impl Snapshot {
         version: Option<i32>,
     ) -> Self {
         Self {
-            analysis: Analysis::new(&content),
+            analysis: Analysis::new(&content, Version::V4),
             context: PositionTranslationContext::new(&content, encoding),
             version,
         }
