@@ -40,12 +40,6 @@ fn generate_ir() {
                 value: bool,
             }
 
-            #[ink(event)]
-            pub struct MyEvent {
-                #[ink(topic)]
-                value: bool,
-            }
-
             // --snip--
         }
     "#);
@@ -55,8 +49,8 @@ fn generate_ir() {
     dbg!(&contracts);
 
     if let Some(contract) = contracts.first() {
-        let events = contract.events();
-        dbg!(&events);
+        let storage = contract.storage();
+        dbg!(&storage);
     }
 }
 ```

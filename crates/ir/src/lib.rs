@@ -17,12 +17,6 @@
 //!                     value: bool,
 //!                 }
 //!
-//!                 #[ink(event)]
-//!                 pub struct MyEvent {
-//!                     #[ink(topic)]
-//!                     value: bool,
-//!                 }
-//!
 //!                 // --snip--
 //!             }
 //!         "#);
@@ -32,8 +26,8 @@
 //!         dbg!(&contracts);
 //!
 //!         if let Some(contract) = contracts.first() {
-//!             let events = contract.events();
-//!             dbg!(&events);
+//!             let storage = contract.storage();
+//!             dbg!(&storage);
 //!         }
 //!     }
 //! ```
@@ -46,6 +40,7 @@ mod chain_extension;
 mod constructor;
 mod contract;
 mod event;
+mod event_v2;
 mod extension;
 mod file;
 mod ink_e2e_test;
@@ -76,6 +71,7 @@ pub use self::{
     contract::Contract,
     environment::{EnvArg, Environment},
     event::Event,
+    event_v2::EventV2,
     extension::Extension,
     file::InkFile,
     ink_e2e_test::InkE2ETest,

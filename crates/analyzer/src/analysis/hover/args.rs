@@ -1013,7 +1013,7 @@ mod my_contract {
 pub const SIGNATURE_TOPIC: &str = r#"
 # Attribute
 
-`#[ink::event(signature_topic)]`
+`#[ink::event(signature_topic = S: string)]`
 
 # Description
 
