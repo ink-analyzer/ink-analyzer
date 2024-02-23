@@ -47,6 +47,7 @@ mod ink_e2e_test;
 mod ink_impl;
 mod ink_test;
 mod message;
+mod scale_derive;
 mod storage;
 mod storage_item;
 mod topic;
@@ -78,6 +79,7 @@ pub use self::{
     ink_impl::InkImpl,
     ink_test::InkTest,
     message::Message,
+    scale_derive::ScaleDerive,
     selector::{Selector, SelectorArg, SelectorArgKind},
     storage::Storage,
     storage_item::StorageItem,
