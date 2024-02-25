@@ -43,6 +43,7 @@ mod event;
 mod event_v2;
 mod extension;
 mod file;
+mod function;
 mod ink_e2e_test;
 mod ink_impl;
 mod ink_test;
@@ -75,6 +76,7 @@ pub use self::{
     event_v2::EventV2,
     extension::Extension,
     file::InkFile,
+    function::Function,
     ink_e2e_test::InkE2ETest,
     ink_impl::InkImpl,
     ink_test::InkTest,
