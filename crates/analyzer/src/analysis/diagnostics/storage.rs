@@ -3,7 +3,7 @@
 use ink_analyzer_ir::Storage;
 
 use super::utils;
-use crate::Diagnostic;
+use crate::{Diagnostic, Version};
 
 const STORAGE_SCOPE_NAME: &str = "storage";
 
@@ -12,9 +12,9 @@ const STORAGE_SCOPE_NAME: &str = "storage";
 /// The entry point for finding ink! storage semantic rules is the storage module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81-L101>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, storage: &Storage) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, storage: &Storage, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, storage);
+    utils::run_generic_diagnostics(results, storage, version);
 
     // Ensures that ink! storage is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81>.
@@ -302,7 +302,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &storage);
+            diagnostics(&mut results, &storage, Version::V4);
             assert!(results.is_empty(), "storage: {code}");
         }
     }

@@ -318,6 +318,32 @@ pub fn add_message_to_contract(
     )
 }
 
+/// Adds an ink! message `fn` with the specified selector to the first non-trait `impl` block or
+/// creates a new `impl` block if necessary.
+pub fn add_message_selector_to_contract(
+    contract: &Contract,
+    kind: ActionKind,
+    selector: &str,
+    fn_name: &str,
+    range_option: Option<TextRange>,
+    label_option: Option<String>,
+) -> Option<Action> {
+    let names = contract_fn_names(contract);
+    let (mut text, mut snippet) = text_and_snippet(MESSAGE_PLAIN, MESSAGE_SNIPPET, fn_name, &names);
+    let selector_attr = format!("#[ink(message, selector = {selector})]");
+    text = text.replace("#[ink(message)]", &selector_attr);
+    snippet = snippet.replace("#[ink(message)]", &selector_attr);
+    add_callable_to_contract(
+        contract,
+        kind,
+        range_option,
+        label_option
+            .unwrap_or_else(|| format!("Add ink! message `fn` with `selector = {selector}`.")),
+        &text,
+        &snippet,
+    )
+}
+
 /// Adds an ink! callable `fn` to an `impl` block.
 fn add_callable_to_impl(
     impl_item: &ast::Impl,

@@ -48,7 +48,7 @@ use ink_analyzer_ir::InkFile;
 use itertools::Itertools;
 
 use crate::analysis::text_edit;
-use crate::{Action, TextEdit};
+use crate::{Action, TextEdit, Version};
 
 /// A diagnostic error or warning.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,9 +73,9 @@ pub enum Severity {
 }
 
 /// Runs diagnostics for the source file.
-pub fn diagnostics(file: &InkFile) -> Vec<Diagnostic> {
+pub fn diagnostics(file: &InkFile, version: Version) -> Vec<Diagnostic> {
     let mut results = Vec::new();
-    file::diagnostics(&mut results, file);
+    file::diagnostics(&mut results, file, version);
     results
         .into_iter()
         // Deduplicate by range, severity and quickfix edits.

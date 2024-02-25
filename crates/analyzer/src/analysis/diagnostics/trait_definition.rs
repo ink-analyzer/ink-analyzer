@@ -9,7 +9,7 @@ use super::{message, utils};
 use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, ActionKind, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
 
@@ -20,9 +20,13 @@ const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/mod.rs#L42-L49>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L64-L84>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, trait_definition: &TraitDefinition) {
+pub fn diagnostics(
+    results: &mut Vec<Diagnostic>,
+    trait_definition: &TraitDefinition,
+    version: Version,
+) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, trait_definition);
+    utils::run_generic_diagnostics(results, trait_definition, version);
 
     // Ensures that ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
@@ -38,12 +42,12 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, trait_definition: &TraitDefini
 
         // Ensures that ink! trait definition `trait` item's associated items satisfy all invariants,
         // see `ensure_trait_item_invariants` doc.
-        ensure_trait_item_invariants(results, trait_item);
+        ensure_trait_item_invariants(results, trait_item, version);
     }
 
     // Runs ink! message diagnostics, see `message::diagnostics` doc.
     for item in trait_definition.messages() {
-        message::diagnostics(results, item);
+        message::diagnostics(results, item, version);
     }
 
     // Ensures that at least one ink! message, see `ensure_contains_message` doc.
@@ -64,7 +68,11 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, trait_definition: &TraitDefini
 ///
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
 /// This utility also runs `message::diagnostics` on trait methods with a ink! message attribute.
-fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast::Trait) {
+fn ensure_trait_item_invariants(
+    results: &mut Vec<Diagnostic>,
+    trait_item: &ast::Trait,
+    version: Version,
+) {
     utils::ensure_trait_item_invariants(
         results,
         trait_item,
@@ -78,7 +86,7 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, trait_item: &ast:
                 .find_map(ink_analyzer_ir::ink_attr_to_entity::<Message>)
             {
                 // Runs ink! message diagnostics, see `message::diagnostics` doc.
-                message::diagnostics(results, &message_item);
+                message::diagnostics(results, &message_item, version);
             } else {
                 // Determines the insertion offset and affixes for the quickfix.
                 let insert_offset =
@@ -505,7 +513,11 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            ensure_trait_item_invariants(&mut results, trait_definition.trait_item().unwrap());
+            ensure_trait_item_invariants(
+                &mut results,
+                trait_definition.trait_item().unwrap(),
+                Version::V4,
+            );
             assert!(results.is_empty(), "trait definition: {code}");
         }
     }
@@ -883,7 +895,11 @@ mod tests {
             let trait_definition = parse_first_trait_definition(&code);
 
             let mut results = Vec::new();
-            ensure_trait_item_invariants(&mut results, trait_definition.trait_item().unwrap());
+            ensure_trait_item_invariants(
+                &mut results,
+                trait_definition.trait_item().unwrap(),
+                Version::V4,
+            );
 
             // Verifies diagnostics.
             assert_eq!(results.len(), 1, "trait definition: {items}");
@@ -1062,7 +1078,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &trait_definition);
+            diagnostics(&mut results, &trait_definition, Version::V4);
             assert!(results.is_empty(), "trait definition: {code}");
         }
     }

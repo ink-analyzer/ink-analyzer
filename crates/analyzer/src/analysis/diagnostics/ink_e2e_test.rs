@@ -3,7 +3,7 @@
 use ink_analyzer_ir::InkE2ETest;
 
 use super::{environment, utils};
-use crate::Diagnostic;
+use crate::{Diagnostic, Version};
 
 const E2E_TEST_SCOPE_NAME: &str = "e2e test";
 
@@ -12,9 +12,9 @@ const E2E_TEST_SCOPE_NAME: &str = "e2e test";
 /// The entry point for finding ink! e2e test semantic rules is the `ir` module of the `ink_e2e_macro` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/ir.rs#L37-L48>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_e2e_test: &InkE2ETest) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_e2e_test: &InkE2ETest, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, ink_e2e_test);
+    utils::run_generic_diagnostics(results, ink_e2e_test, version);
 
     // Ensures that ink! e2e test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/ir.rs#L42>.
@@ -212,7 +212,7 @@ mod tests {
         });
 
         let mut results = Vec::new();
-        diagnostics(&mut results, &ink_e2e_test);
+        diagnostics(&mut results, &ink_e2e_test, Version::V4);
         assert!(results.is_empty());
     }
 }

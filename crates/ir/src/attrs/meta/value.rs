@@ -129,9 +129,12 @@ impl MetaValue {
         self.kind() == SyntaxKind::UNDERSCORE
     }
 
-    /// Returns true if the value is a wildcard complement/`@` symbol.
-    /// Ref: <https://github.com/paritytech/ink/pull/1708>
-    pub fn is_wildcard_complement(&self) -> bool {
+    /// Returns true if the value is an `@` symbol.
+    ///
+    /// NOTE: We intentionally don't use the "wildcard complement" language here because that needs
+    /// to be able to recognize the well-known value as well.
+    /// See [`SelectorArg::is_wildcard_complement`] for details.
+    pub fn is_at_symbol(&self) -> bool {
         self.kind() == SyntaxKind::AT
     }
 

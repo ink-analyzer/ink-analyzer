@@ -3,7 +3,7 @@
 use ink_analyzer_ir::InkTest;
 
 use super::utils;
-use crate::Diagnostic;
+use crate::{Diagnostic, Version};
 
 const TEST_SCOPE_NAME: &str = "test";
 
@@ -14,9 +14,9 @@ const TEST_SCOPE_NAME: &str = "test";
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L34-L44>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27-L30>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_test: &InkTest) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_test: &InkTest, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, ink_test);
+    utils::run_generic_diagnostics(results, ink_test, version);
 
     // Ensures that ink! test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
@@ -202,7 +202,7 @@ mod tests {
             let ink_test = parse_first_ink_test(code);
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &ink_test);
+            diagnostics(&mut results, &ink_test, Version::V4);
             assert!(results.is_empty(), "ink test: {code}");
         }
     }

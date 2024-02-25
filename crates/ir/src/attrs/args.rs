@@ -407,7 +407,8 @@ pub enum InkArgValueKind {
     U16,
     U32,
     U32OrWildcard,
-    U32OrWildcardOrAt,
+    // See <https://github.com/paritytech/ink/pull/1708>
+    U32OrWildcardOrComplement,
     String(InkArgValueStringKind),
     Bool,
     Path(InkArgValuePathKind),
@@ -466,11 +467,21 @@ impl From<InkArgKind> for InkArgValueKind {
             InkArgKind::Node => InkArgValueKind::Arg(InkArgKind::Url),
             InkArgKind::Runtime => InkArgValueKind::Path(InkArgValuePathKind::Runtime),
             InkArgKind::RuntimeOnly => InkArgValueKind::Arg(InkArgKind::Runtime),
-            // TODO: Set to `InkArgValueKind::U32OrWildcardOrAt` for ink! v5.
+            // TODO: Set to `InkArgValueKind::U32OrWildcardOrComplement` for ink! v5.
             InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
             InkArgKind::SignatureTopic => InkArgValueKind::String(InkArgValueStringKind::Hex),
             InkArgKind::Url => InkArgValueKind::String(InkArgValueStringKind::Url),
             _ => InkArgValueKind::None,
+        }
+    }
+}
+
+impl InkArgValueKind {
+    pub fn from_v5(arg_kind: InkArgKind) -> Self {
+        match arg_kind {
+            InkArgKind::Extension => InkArgValueKind::U16,
+            InkArgKind::Selector => InkArgValueKind::U32OrWildcardOrComplement,
+            _ => InkArgValueKind::from(arg_kind),
         }
     }
 }
@@ -486,7 +497,7 @@ impl fmt::Display for InkArgValueKind {
                 InkArgValueKind::U16 => "u16",
                 InkArgValueKind::U32 => "u32",
                 InkArgValueKind::U32OrWildcard => "u32 | _",
-                InkArgValueKind::U32OrWildcardOrAt => "u32 | _ | @",
+                InkArgValueKind::U32OrWildcardOrComplement => "u32 | _ | @",
                 InkArgValueKind::String(_) => "&str",
                 InkArgValueKind::Bool => "bool",
                 InkArgValueKind::Path(path_kind) => match path_kind {

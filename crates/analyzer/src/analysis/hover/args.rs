@@ -877,9 +877,7 @@ While the `#[ink(selector = _)]` variant specifies a fallback message that is in
 
 # Usage
 
-The `#[ink(selector = S:u32)]` variant is applicable to ink! messages and ink! constructors.
-
-While the `#[ink(selector = _)]` variant is applicable to ink! messages.
+Applicable to ink! messages and ink! constructors.
 
 # Example
 
@@ -930,13 +928,13 @@ The `#[ink(selector = S:u32)]` variant specifies a concrete dispatch selector fo
 This allows a contract author to precisely control the selectors of their APIs making it possible to rename their API without breakage.
 
 While the `#[ink(selector = _)]` variant specifies a fallback message that is invoked if no other ink! message matches a selector
-and requires exactly one other message with annotated with the complementary `#[ink(selector = @)]` variant to be defined.
+and requires exactly one other message annotated with the complementary `#[ink(selector = @)]` variant to be defined.
 
 # Usage
 
-The `#[ink(selector = S:u32)]` variant is applicable to ink! messages and ink! constructors.
+The `#[ink(selector = S:u32)]` and `#[ink(selector = _)]` variants are applicable to ink! messages and ink! constructors.
 
-While the `#[ink(selector = _)]` and `#[ink(selector = @)]` variants are applicable to ink! messages.
+While the `#[ink(selector = @)]` variant is only applicable to ink! messages.
 
 # Example
 

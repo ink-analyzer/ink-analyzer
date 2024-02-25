@@ -6,9 +6,18 @@ use blake2::Blake2b;
 use ra_ap_syntax::ast::HasName;
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, TextRange};
 
+use crate::meta::MetaValue;
 use crate::traits::{HasInkImplParent, IsInkCallable};
 use crate::tree::utils;
 use crate::{InkArg, InkArgKind};
+
+/// A well known selector reserved for the message required to be defined
+/// alongside a wildcard selector. See [IIP-2](https://github.com/paritytech/ink/issues/1676).
+///
+/// Calculated from `selector_bytes!("IIP2_WILDCARD_COMPLEMENT")`
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/prelude/src/lib.rs#L34-L38>
+pub const IIP2_WILDCARD_COMPLEMENT_SELECTOR: [u8; 4] = [0x9B, 0xAE, 0x9D, 0x5E];
 
 /// The selector of an ink! callable entity.
 ///
@@ -31,31 +40,42 @@ impl Selector {
         let selector_bytes: Option<[u8; 4]> = match Self::provided_int_selector(callable) {
             // Manually provided integer selector is converted into bytes.
             Some(manual_int_selector) => Some(manual_int_selector.to_be_bytes()),
-            // Otherwise the selector has to be computed, but only if the callable is a valid `fn` item.
+            // Otherwise the selector has to be computed.
             None => {
-                Self::ident(callable).map(|callable_ident| {
-                    let trait_ident = Self::trait_ident(callable);
-                    let namespace = Self::namespace(callable);
+                // Use well-known selector for wildcard complements.
+                // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/attrs.rs#L599>
+                let wildcard_complement_selector = callable.selector_arg().and_then(|arg| {
+                    arg.is_wildcard_complement()
+                        .then_some(IIP2_WILDCARD_COMPLEMENT_SELECTOR)
+                });
+                // Compute selector if the callable is a valid `fn` item.
+                let compute_selector = || {
+                    Self::ident(callable).map(|callable_ident| {
+                        let trait_ident = Self::trait_ident(callable);
+                        let namespace = Self::namespace(callable);
 
-                    let pre_hash_bytes = [namespace, trait_ident, Some(callable_ident)]
-                        .into_iter()
-                        .flatten()
-                        .collect::<Vec<String>>()
-                        .join("::")
-                        .into_bytes();
+                        let pre_hash_bytes = [namespace, trait_ident, Some(callable_ident)]
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<String>>()
+                            .join("::")
+                            .into_bytes();
 
-                    // Computes the BLAKE-2b 256-bit hash for the given input and stores it in output.
-                    let mut hasher = <Blake2b<U32>>::new();
-                    hasher.update(pre_hash_bytes);
-                    let hashed_bytes = hasher.finalize();
+                        // Computes the BLAKE-2b 256-bit hash for the given input and stores it in output.
+                        let mut hasher = <Blake2b<U32>>::new();
+                        hasher.update(pre_hash_bytes);
+                        let hashed_bytes = hasher.finalize();
 
-                    [
-                        hashed_bytes[0],
-                        hashed_bytes[1],
-                        hashed_bytes[2],
-                        hashed_bytes[3],
-                    ]
-                })
+                        [
+                            hashed_bytes[0],
+                            hashed_bytes[1],
+                            hashed_bytes[2],
+                            hashed_bytes[3],
+                        ]
+                    })
+                };
+
+                wildcard_complement_selector.or_else(compute_selector)
             }
         };
 
@@ -171,14 +191,24 @@ impl SelectorArg {
         &self.arg
     }
 
-    /// Returns true if the value is a wildcard/underscore expression.
+    /// Returns true if the value is a wildcard/underscore symbol.
     pub fn is_wildcard(&self) -> bool {
         self.kind == SelectorArgKind::Wildcard
     }
 
-    /// Returns true if the value is a wildcard/underscore expression.
+    /// Returns true if the value is a wildcard complement selector or `@` symbol.
+    ///
+    /// Ref: <https://github.com/paritytech/ink/pull/1708>
+    /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/prelude/src/lib.rs#L34-L38>
+    /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/attrs.rs#L560-L563>
+    /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/attrs.rs#L599>
     pub fn is_wildcard_complement(&self) -> bool {
         self.kind == SelectorArgKind::Complement
+            || self
+                .arg
+                .value()
+                .and_then(MetaValue::as_u32)
+                .is_some_and(|value| value.to_be_bytes() == IIP2_WILDCARD_COMPLEMENT_SELECTOR)
     }
 
     /// Converts the value if it's an integer literal (decimal or hexadecimal) into a `u32`.
@@ -250,6 +280,19 @@ mod tests {
                 },
                 0xE11C2FAF, // First 4-bytes of Blake2b-256 hash of "my_constructor"
                 0x6A469E03, // First 4-bytes of Blake2b-256 hash of "my_message"
+            ),
+            (
+                quote_as_str! {
+                    impl MyContract {
+                        #[ink(constructor)]
+                        pub fn my_constructor() -> Self {}
+
+                        #[ink(message, selector=@)]
+                        pub fn my_message(&self) {}
+                    }
+                },
+                0xE11C2FAF, // First 4-bytes of Blake2b-256 hash of "my_constructor"
+                0x9BAE9D5E, // `IIP2_WILDCARD_COMPLEMENT_SELECTOR`
             ),
             (
                 quote_as_str! {
@@ -349,12 +392,19 @@ mod tests {
 
     #[test]
     fn cast_arg_works() {
-        for (code, expected_kind, expected_is_wildcard, expected_u32_value) in [
+        for (
+            code,
+            expected_kind,
+            expected_is_wildcard,
+            expected_is_wildcard_complement,
+            expected_u32_value,
+        ) in [
             (
                 quote_as_str! {
                     #[ink(selector=10)]
                 },
                 SelectorArgKind::Integer,
+                false,
                 false,
                 Some(10u32),
             ),
@@ -364,6 +414,7 @@ mod tests {
                 },
                 SelectorArgKind::Integer,
                 false,
+                false,
                 Some(10u32),
             ),
             (
@@ -372,7 +423,26 @@ mod tests {
                 },
                 SelectorArgKind::Wildcard,
                 true,
+                false,
                 None,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(selector=@)]
+                },
+                SelectorArgKind::Complement,
+                false,
+                true,
+                None,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(selector=0x9BAE9D5E)]
+                },
+                SelectorArgKind::Integer,
+                false,
+                true, // IIP2_WILDCARD_COMPLEMENT_SELECTOR
+                Some(0x9BAE9D5Eu32),
             ),
         ] {
             // Parse ink! selector argument.
@@ -389,6 +459,11 @@ mod tests {
             assert_eq!(*selector_arg.kind(), expected_kind);
 
             assert_eq!(selector_arg.is_wildcard(), expected_is_wildcard);
+
+            assert_eq!(
+                selector_arg.is_wildcard_complement(),
+                expected_is_wildcard_complement
+            );
 
             assert_eq!(selector_arg.as_u32(), expected_u32_value);
         }

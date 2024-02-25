@@ -3,7 +3,7 @@
 use ink_analyzer_ir::{InkEntity, StorageItem};
 
 use super::utils;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, Diagnostic, Severity, Version};
 
 const STORAGE_ITEM_SCOPE_NAME: &str = "storage_item";
 
@@ -12,9 +12,9 @@ const STORAGE_ITEM_SCOPE_NAME: &str = "storage_item";
 /// The entry point for finding ink! storage item semantic rules is the `storage_item` module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/mod.rs#L33-L54>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, storage_item: &StorageItem) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, storage_item: &StorageItem, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, storage_item);
+    utils::run_generic_diagnostics(results, storage_item, version);
 
     // Ensures that ink! storage item is applied to an `adt` (i.e `enum`, `struct` or `union`) item., see `ensure_adt` doc.
     if let Some(diagnostic) = ensure_adt(storage_item) {
@@ -273,7 +273,7 @@ mod tests {
             let storage_item = parse_first_storage_item(code);
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &storage_item);
+            diagnostics(&mut results, &storage_item, Version::V4);
             assert!(results.is_empty(), "storage_item: {code}");
         }
     }

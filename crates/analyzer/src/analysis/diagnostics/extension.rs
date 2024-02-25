@@ -5,7 +5,7 @@ use ink_analyzer_ir::{ast, Extension, InkEntity, IsInkFn};
 use itertools::Itertools;
 
 use super::utils;
-use crate::Diagnostic;
+use crate::{Diagnostic, Version};
 
 const EXTENSION_SCOPE_NAME: &str = "extension";
 
@@ -16,9 +16,9 @@ const EXTENSION_SCOPE_NAME: &str = "extension";
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L500>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L859-L860>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, extension: &Extension) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, extension: &Extension, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, extension);
+    utils::run_generic_diagnostics(results, extension, version);
 
     // Ensures that ink! extension is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L473>.
@@ -680,7 +680,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &extension);
+            diagnostics(&mut results, &extension, Version::V4);
             assert!(results.is_empty(), "extension: {code}");
         }
     }

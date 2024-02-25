@@ -14,7 +14,7 @@ use super::{constructor, message, utils};
 use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, ActionKind, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const IMPL_SCOPE_NAME: &str = "impl";
 
@@ -26,10 +26,11 @@ const IMPL_SCOPE_NAME: &str = "impl";
 pub fn diagnostics(
     results: &mut Vec<Diagnostic>,
     ink_impl: &InkImpl,
+    version: Version,
     skip_callable_diagnostics: bool,
 ) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, ink_impl);
+    utils::run_generic_diagnostics(results, ink_impl, version);
 
     // Ensures that ink! impl is an `impl` item, see `ensure_impl` doc.
     if let Some(diagnostic) = ensure_impl(ink_impl) {
@@ -49,12 +50,12 @@ pub fn diagnostics(
     if !skip_callable_diagnostics {
         // Runs ink! constructor diagnostics, see `constructor::diagnostics` doc.
         for item in ink_impl.constructors() {
-            constructor::diagnostics(results, item);
+            constructor::diagnostics(results, item, version);
         }
 
         // Runs ink! message diagnostics, see `message::diagnostics` doc.
         for item in ink_impl.messages() {
-            message::diagnostics(results, item);
+            message::diagnostics(results, item, version);
         }
     }
 
@@ -1943,7 +1944,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &ink_impl, false);
+            diagnostics(&mut results, &ink_impl, Version::V4, false);
             assert!(results.is_empty(), "impl: {code}");
         }
     }

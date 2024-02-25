@@ -3,7 +3,7 @@
 use ink_analyzer_ir::{InkEntity, Topic};
 
 use super::utils;
-use crate::{Action, Diagnostic, Severity};
+use crate::{Action, Diagnostic, Severity, Version};
 
 const TOPIC_SCOPE_NAME: &str = "topic";
 
@@ -12,9 +12,9 @@ const TOPIC_SCOPE_NAME: &str = "topic";
 /// The entry point for finding ink! topic semantic rules is the event module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86-L148>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, topic: &Topic) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, topic: &Topic, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, topic);
+    utils::run_generic_diagnostics(results, topic, version);
 
     // Ensures that ink! topic is a `struct` field, see `ensure_struct_field` doc.
     if let Some(diagnostic) = ensure_struct_field(topic) {
@@ -115,7 +115,7 @@ mod tests {
         });
 
         let mut results = Vec::new();
-        diagnostics(&mut results, &topic);
+        diagnostics(&mut results, &topic, Version::V4);
         assert!(results.is_empty());
     }
 }

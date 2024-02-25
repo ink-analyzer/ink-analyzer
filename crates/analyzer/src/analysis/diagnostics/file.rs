@@ -5,44 +5,44 @@ use ink_analyzer_ir::{InkAttributeKind, InkFile};
 use super::{
     chain_extension, contract, ink_e2e_test, ink_test, storage_item, trait_definition, utils,
 };
-use crate::{Diagnostic, Severity};
+use crate::{Diagnostic, Severity, Version};
 
 /// Runs ink! file level diagnostics.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile, version: Version) {
     // Runs generic diagnostics `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, file);
+    utils::run_generic_diagnostics(results, file, version);
 
     // Ensures that at most one ink! contract, See `ensure_contract_quantity`.
     ensure_contract_quantity(results, file);
 
     // ink! contract diagnostics.
     for item in file.contracts() {
-        contract::diagnostics(results, item);
+        contract::diagnostics(results, item, version);
     }
 
     // Runs ink! trait definition diagnostics, see `trait_definition::diagnostics` doc.
     for item in file.trait_definitions() {
-        trait_definition::diagnostics(results, item);
+        trait_definition::diagnostics(results, item, version);
     }
 
     // Runs ink! chain extension diagnostics, see `chain_extension::diagnostics` doc.
     for item in file.chain_extensions() {
-        chain_extension::diagnostics(results, item);
+        chain_extension::diagnostics(results, item, version);
     }
 
     // Runs ink! storage item diagnostics, see `storage_item::diagnostics` doc.
     for item in file.storage_items() {
-        storage_item::diagnostics(results, item);
+        storage_item::diagnostics(results, item, version);
     }
 
     // Runs ink! test diagnostics, see `ink_test::diagnostics` doc.
     for item in file.tests() {
-        ink_test::diagnostics(results, item);
+        ink_test::diagnostics(results, item, version);
     }
 
     // Runs ink! e2e test diagnostics, see `ink_e2e_test::diagnostics` doc.
     for item in file.e2e_tests() {
-        ink_e2e_test::diagnostics(results, item);
+        ink_e2e_test::diagnostics(results, item, version);
     }
 
     // Ensures that only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors),

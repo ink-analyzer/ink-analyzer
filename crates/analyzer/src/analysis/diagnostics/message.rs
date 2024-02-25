@@ -6,7 +6,7 @@ use ink_analyzer_ir::{ast, IsInkFn, Message};
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, ActionKind, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const MESSAGE_SCOPE_NAME: &str = "message";
 
@@ -15,9 +15,9 @@ const MESSAGE_SCOPE_NAME: &str = "message";
 /// The entry point for finding ink! message semantic rules is the message module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201-L216>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, message);
+    utils::run_generic_diagnostics(results, message, version);
 
     // Ensures that ink! message is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
@@ -880,7 +880,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &message);
+            diagnostics(&mut results, &message, Version::V4);
             assert!(results.is_empty(), "message: {code}");
         }
     }

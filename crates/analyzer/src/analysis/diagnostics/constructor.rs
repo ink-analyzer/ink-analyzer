@@ -6,7 +6,7 @@ use ink_analyzer_ir::{ast, Constructor, IsInkFn};
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
-use crate::{Action, ActionKind, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
 
@@ -15,9 +15,9 @@ const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
 /// The entry point for finding ink! constructor semantic rules is the constructor module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155-L170>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, constructor);
+    utils::run_generic_diagnostics(results, constructor, version);
 
     // Ensures that ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155>.
@@ -681,7 +681,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &constructor);
+            diagnostics(&mut results, &constructor, Version::V4);
             assert!(results.is_empty(), "constructor: {code}");
         }
     }

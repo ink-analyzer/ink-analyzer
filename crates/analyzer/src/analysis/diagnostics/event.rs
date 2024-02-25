@@ -5,7 +5,7 @@ use ink_analyzer_ir::{ast, Event, InkArgKind, InkAttributeKind, InkEntity, IsInk
 
 use super::{topic, utils};
 use crate::analysis::text_edit::TextEdit;
-use crate::{Action, ActionKind, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const EVENT_SCOPE_NAME: &str = "event";
 
@@ -14,9 +14,9 @@ const EVENT_SCOPE_NAME: &str = "event";
 /// The entry point for finding ink! event semantic rules is the event module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86-L148>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event) {
+pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, event);
+    utils::run_generic_diagnostics(results, event, version);
 
     // Ensures that ink! event is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86>.
@@ -42,7 +42,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event) {
 
     // Runs ink! topic diagnostics, see `topic::diagnostics` doc.
     for item in event.topics() {
-        topic::diagnostics(results, item);
+        topic::diagnostics(results, item, version);
     }
 
     // Ensures that ink! event fields are not annotated with `cfg` attributes, see `ensure_no_cfg_event_fields` doc.
@@ -489,7 +489,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &event);
+            diagnostics(&mut results, &event, Version::V4);
             assert!(results.is_empty(), "event: {code}");
         }
     }

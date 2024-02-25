@@ -47,7 +47,7 @@ impl Analysis {
 
     /// Runs diagnostics for the smart contract code.
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
-        diagnostics::diagnostics(&self.file)
+        diagnostics::diagnostics(&self.file, self.version)
     }
 
     /// Computes ink! attribute completions at the given position.
@@ -58,7 +58,7 @@ impl Analysis {
     /// Computes ink! attribute code/intent actions for the given text range.
     pub fn actions(&self, range: TextRange) -> Vec<Action> {
         // Returns quickfixes (for diagnostics) + generic code actions.
-        diagnostics::diagnostics(&self.file)
+        diagnostics::diagnostics(&self.file, self.version)
             .into_iter()
             .filter_map(|it| it.quickfixes)
             .flatten()

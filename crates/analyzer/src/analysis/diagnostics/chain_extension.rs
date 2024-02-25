@@ -14,7 +14,7 @@ use super::{extension, utils};
 use crate::analysis::{
     actions::entity as entity_actions, text_edit::TextEdit, utils as analysis_utils,
 };
-use crate::{Action, ActionKind, Diagnostic, Severity};
+use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 
@@ -25,9 +25,13 @@ const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L201-L211>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L188-L197>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
+pub fn diagnostics(
+    results: &mut Vec<Diagnostic>,
+    chain_extension: &ChainExtension,
+    version: Version,
+) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, chain_extension);
+    utils::run_generic_diagnostics(results, chain_extension, version);
 
     // Ensures that ink! chain extension is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L222>.
@@ -44,11 +48,11 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
 
     // Ensures that ink! chain extension `trait` item's associated items satisfy all invariants,
     // see `ensure_trait_item_invariants` doc.
-    ensure_trait_item_invariants(results, chain_extension);
+    ensure_trait_item_invariants(results, chain_extension, version);
 
     // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
     for item in chain_extension.extensions() {
-        extension::diagnostics(results, item);
+        extension::diagnostics(results, item, version);
     }
 
     // Ensures that exactly one `ErrorCode` associated type is defined, see `ensure_error_code_quantity` doc.
@@ -73,7 +77,11 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
 ///
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
 /// This utility also runs `extension::diagnostics` on trait functions with a ink! extension attribute.
-fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
+fn ensure_trait_item_invariants(
+    results: &mut Vec<Diagnostic>,
+    chain_extension: &ChainExtension,
+    version: Version,
+) {
     // Tracks already used and suggested ids for quickfixes.
     let mut unavailable_ids = init_unavailable_ids(chain_extension);
     if let Some(trait_item) = chain_extension.trait_item() {
@@ -89,7 +97,9 @@ fn ensure_trait_item_invariants(results: &mut Vec<Diagnostic>, chain_extension: 
                     .find_map(ink_analyzer_ir::ink_attr_to_entity::<Extension>)
                 {
                     // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
-                    Some(extension_item) => extension::diagnostics(results, &extension_item),
+                    Some(extension_item) => {
+                        extension::diagnostics(results, &extension_item, version)
+                    }
                     // Add diagnostic if function isn't an ink! extension.
                     None => {
                         // Determines quickfix insertion offset and affixes.
@@ -658,7 +668,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            ensure_trait_item_invariants(&mut results, &chain_extension);
+            ensure_trait_item_invariants(&mut results, &chain_extension, Version::V4);
             assert!(results.is_empty(), "chain extension: {code}");
         }
     }
@@ -1033,7 +1043,7 @@ mod tests {
             let chain_extension = parse_first_chain_extension(&code);
 
             let mut results = Vec::new();
-            ensure_trait_item_invariants(&mut results, &chain_extension);
+            ensure_trait_item_invariants(&mut results, &chain_extension, Version::V4);
 
             // Verifies diagnostics.
             assert_eq!(results.len(), 1, "chain extension: {items}");
@@ -1292,7 +1302,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &chain_extension);
+            diagnostics(&mut results, &chain_extension, Version::V4);
             assert!(results.is_empty(), "chain extension: {code}");
         }
     }

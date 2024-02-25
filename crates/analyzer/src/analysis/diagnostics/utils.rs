@@ -16,12 +16,16 @@ use std::collections::HashSet;
 
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils;
-use crate::{resolution, Action, ActionKind, Diagnostic, Severity};
+use crate::{resolution, Action, ActionKind, Diagnostic, Severity, Version};
 
 /// Runs generic diagnostics that apply to all ink! entities.
 /// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
 /// `ensure_no_duplicate_attributes_and_arguments`, `ensure_valid_attribute_arguments`).
-pub fn run_generic_diagnostics<T: InkEntity>(results: &mut Vec<Diagnostic>, item: &T) {
+pub fn run_generic_diagnostics<T: InkEntity>(
+    results: &mut Vec<Diagnostic>,
+    item: &T,
+    version: Version,
+) {
     // Ensures that no `__ink_` prefixed identifiers, see `ensure_no_ink_identifiers` doc.
     ensure_no_ink_identifiers(results, item);
 
@@ -38,7 +42,7 @@ pub fn run_generic_diagnostics<T: InkEntity>(results: &mut Vec<Diagnostic>, item
     // and have values are of the correct type (if any),
     // See `ensure_valid_attribute_arguments` doc.
     for attr in item.tree().ink_attrs_in_scope() {
-        ensure_valid_attribute_arguments(results, &attr);
+        ensure_valid_attribute_arguments(results, &attr, version);
     }
 
     // Iterates over all ink! parent nodes in scope.
@@ -143,7 +147,11 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
-fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAttribute) {
+fn ensure_valid_attribute_arguments(
+    results: &mut Vec<Diagnostic>,
+    attr: &InkAttribute,
+    version: Version,
+) {
     for arg in attr.args() {
         let arg_name_text = arg.meta().name().to_string();
         match arg.kind() {
@@ -176,7 +184,11 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                 });
             }
             arg_kind => {
-                let arg_value_type = InkArgValueKind::from(*arg_kind);
+                let arg_value_type = if version == Version::V5 {
+                    InkArgValueKind::from_v5(*arg_kind)
+                } else {
+                    InkArgValueKind::from(*arg_kind)
+                };
                 match arg_value_type {
                     // Arguments that must have no value.
                     InkArgValueKind::None => {
@@ -197,27 +209,32 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                         }
                     }
                     // Arguments that should have an integer (`u32` to be specific) value.
-                    // TODO: Implement validation of u16 symbol for ink! v5.
-                    InkArgValueKind::U16 => (),
-                    // TODO: Implement validation of `@` symbol for ink! v5.
-                    InkArgValueKind::U32
+                    // TODO: Implement validation of u16 for ink! v5.
+                    InkArgValueKind::U16
+                    | InkArgValueKind::U32
                     | InkArgValueKind::U32OrWildcard
-                    | InkArgValueKind::U32OrWildcardOrAt => {
+                    | InkArgValueKind::U32OrWildcardOrComplement => {
                         let can_be_wildcard = matches!(
                             arg_value_type,
-                            InkArgValueKind::U32OrWildcard | InkArgValueKind::U32OrWildcardOrAt
+                            InkArgValueKind::U32OrWildcard
+                                | InkArgValueKind::U32OrWildcardOrComplement
                         );
+                        let can_be_wildcard_complement =
+                            arg_value_type == InkArgValueKind::U32OrWildcardOrComplement;
                         if !ensure_valid_attribute_arg_value(
                             arg,
                             |meta_value| {
-                                // Ensures that the meta value is either a decimal or hex encoded `u32`.
+                                // Ensures that the meta value is either:
+                                // - a decimal or hex encoded `u32`.
                                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
                                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
+                                // - a wildcard/underscore (`_`) symbol (i.e. for selectors).
+                                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
+                                // - a wildcard complement/at (`@`) symbol (i.e. for message selectors).
+                                // Ref: <https://github.com/paritytech/ink/pull/1708>.
                                 meta_value.as_u32().is_some()
-                                        // A wildcard/underscore (`_`) is also valid value for selectors.
-                                        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
-                                        || (can_be_wildcard
-                                        && meta_value.is_wildcard())
+                                    || (can_be_wildcard && meta_value.is_wildcard())
+                                    || (can_be_wildcard_complement && meta_value.is_at_symbol())
                             },
                             |_| false,
                             false,
@@ -225,7 +242,9 @@ fn ensure_valid_attribute_arguments(results: &mut Vec<Diagnostic>, attr: &InkAtt
                             results.push(Diagnostic {
                                 message: format!(
                                     "`{arg_name_text}` argument should have an `integer` (`u32`) {} value.",
-                                    if can_be_wildcard {
+                                    if can_be_wildcard_complement {
+                                        ", wildcard/underscore (`_`) or wildcard complement (`@`) symbol"
+                                    } else if can_be_wildcard {
                                         "or wildcard/underscore (`_`)"
                                     } else {
                                         ""
@@ -1904,8 +1923,20 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L476-L487>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L316-L321>.
+    macro_rules! valid_attributes_versioned {
+        (v4) => {
+            []
+        };
+        (v5) => {
+            [
+                quote_as_str! {
+                    #[ink(message, selector=@)] // message is required, otherwise this would be incomplete.
+                },
+            ]
+        };
+    }
     macro_rules! valid_attributes {
-        () => {
+        ($version: tt) => {
             [
                 // ink! attribute macros.
                 quote_as_str! {
@@ -1959,9 +1990,18 @@ mod tests {
                 quote_as_str! {
                     #[ink(message, selector=0xA)] // message is required, otherwise this would be incomplete.
                 },
+                quote_as_str! {
+                    #[ink(constructor, selector=1)] // constructor is required, otherwise this would be incomplete.
+                },
+                quote_as_str! {
+                    #[ink(constructor, selector=0xA)] // constructor is required, otherwise this would be incomplete.
+                },
                 // Arguments that can have a wildcard/underscore value.
                 quote_as_str! {
                     #[ink(message, selector=_)] // message is required, otherwise this would be incomplete.
+                },
+                quote_as_str! {
+                    #[ink(constructor, selector=_)] // constructor is required, otherwise this would be incomplete.
                 },
                 // Arguments that should have a string value.
                 quote_as_str! {
@@ -2024,6 +2064,11 @@ mod tests {
                     #[ink(default, selector=2)]
                 },
             ]
+            .into_iter()
+            .chain(valid_attributes_versioned!($version))
+        };
+        () => {
+            valid_attributes!(v4)
         };
     }
 
@@ -2189,12 +2234,21 @@ mod tests {
     fn valid_attribute_argument_format_and_value_type_works() {
         // NOTE: This test only cares about ink! attribute arguments not macros,
         // See `ensure_valid_attribute_arguments` doc.
-        for code in valid_attributes!() {
-            let attr = parse_first_ink_attr(code);
+        for (version, attributes) in [
+            (Version::V4, valid_attributes!().collect::<Vec<_>>()),
+            (Version::V5, valid_attributes!(v5).collect::<Vec<_>>()),
+        ] {
+            for code in attributes {
+                let attr = parse_first_ink_attr(code);
 
-            let mut results = Vec::new();
-            ensure_valid_attribute_arguments(&mut results, &attr);
-            assert!(results.is_empty(), "attribute: {code}");
+                let mut results = Vec::new();
+                ensure_valid_attribute_arguments(&mut results, &attr, version);
+                assert!(
+                    results.is_empty(),
+                    "attribute: {code}, version: {:?}",
+                    version
+                );
+            }
         }
     }
 
@@ -2557,18 +2611,30 @@ mod tests {
         ] {
             let attr = parse_first_ink_attr(code);
 
-            let mut results = Vec::new();
-            ensure_valid_attribute_arguments(&mut results, &attr);
+            for version in [Version::V4, Version::V5] {
+                let mut results = Vec::new();
+                ensure_valid_attribute_arguments(&mut results, &attr, version);
 
-            // Verifies diagnostics.
-            assert_eq!(results.len(), 1, "attribute: {code}");
-            assert_eq!(results[0].severity, Severity::Error, "attribute: {code}");
-            // Verifies quickfixes.
-            verify_actions(
-                code,
-                results[0].quickfixes.as_ref().unwrap(),
-                &expected_quickfixes,
-            );
+                // Verifies diagnostics.
+                assert_eq!(
+                    results.len(),
+                    1,
+                    "attribute: {code}, version: {:?}",
+                    version
+                );
+                assert_eq!(
+                    results[0].severity,
+                    Severity::Error,
+                    "attribute: {code}, version: {:?}",
+                    version
+                );
+                // Verifies quickfixes.
+                verify_actions(
+                    code,
+                    results[0].quickfixes.as_ref().unwrap(),
+                    &expected_quickfixes,
+                );
+            }
         }
     }
 
