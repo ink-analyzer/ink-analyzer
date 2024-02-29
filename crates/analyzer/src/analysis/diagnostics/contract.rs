@@ -699,12 +699,8 @@ fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, cont
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use quote::{format_ident, quote};
-    use test_utils::{
-        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
-        TestResultTextRange,
-    };
+    use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
     fn parse_first_contract(code: &str) -> Contract {
         parse_first_ink_entity_of_type(code)
@@ -1224,16 +1220,16 @@ mod tests {
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
         // Verifies quickfixes.
-        let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
-        assert!(fix.label.contains("inline body"));
-        assert!(&fix.edits[0].text.contains("{}"));
-        assert_eq!(
-            fix.edits[0].range,
-            TextRange::new(
-                TextSize::from(parse_offset_at(&code, Some("<-;")).unwrap() as u32),
-                TextSize::from(parse_offset_at(&code, Some(";")).unwrap() as u32)
-            )
-        );
+        let expected_quickfixes = [TestResultAction {
+            label: "inline body",
+            edits: vec![TestResultTextRange {
+                text: "{}",
+                start_pat: Some("<-;"),
+                end_pat: Some(";"),
+            }],
+        }];
+        let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+        verify_actions(&code, quickfixes, &expected_quickfixes);
     }
 
     #[test]
@@ -2179,10 +2175,7 @@ mod tests {
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L593-L640>.
     fn compound_diagnostic_works() {
-        for (version, contracts) in [
-            (Version::V4, valid_contracts!().collect::<Vec<_>>()),
-            (Version::V5, valid_contracts!(v5).collect::<Vec<_>>()),
-        ] {
+        for (version, contracts) in versioned_fixtures!(valid_contracts) {
             for code in contracts {
                 let contract = parse_first_contract(quote_as_str! {
                     #code

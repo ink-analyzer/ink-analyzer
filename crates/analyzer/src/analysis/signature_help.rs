@@ -5,6 +5,7 @@ use ink_analyzer_ir::{InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, Ink
 use itertools::Itertools;
 
 use crate::analysis::utils;
+use crate::Version;
 
 /// An ink! attribute signature help.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,7 +32,7 @@ pub struct SignatureParameter {
 }
 
 /// Computes ink! attribute signature help for the given offset.
-pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
+pub fn signature_help(file: &InkFile, offset: TextSize, version: Version) -> Vec<SignatureHelp> {
     let mut results = Vec::new();
     let item_at_offset = file.item_at_offset(offset);
 
@@ -76,7 +77,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                     InkAttributeKind::Arg(arg_kind) => {
                         if arg_kind.is_entity_type() {
                             // Computes signature based on primary argument.
-                            anchor_signature(&mut results, arg_kind, focused_arg, range);
+                            anchor_signature(&mut results, arg_kind, focused_arg, range, version);
                         } else if let Some(separate_entity_arg_kind) = item_at_offset
                             .parent_ast_item()
                             // Finds separate primary ink! attribute.
@@ -99,10 +100,17 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                                 &separate_entity_arg_kind,
                                 focused_arg,
                                 range,
+                                version,
                             );
                         } else if *arg_kind != InkArgKind::Unknown {
                             // Computes signature based on complementary argument.
-                            complementary_signature(&mut results, arg_kind, focused_arg, range);
+                            complementary_signature(
+                                &mut results,
+                                arg_kind,
+                                focused_arg,
+                                range,
+                                version,
+                            );
                         } else if let Some(parent_item_kind) =
                             item_at_offset.normalized_parent_item_syntax_kind()
                         {
@@ -144,6 +152,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                                             .into_iter()
                                             .chain(utils::valid_sibling_ink_args(
                                                 InkAttributeKind::Arg(*arg_kind),
+                                                version,
                                             ))
                                             .filter(|arg_kind| arg_kind.is_entity_type())
                                             .collect();
@@ -157,12 +166,15 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                                 .sorted()
                                 // Deduplicates arguments by lite signature equivalence.
                                 .unique_by(|arg_kind| {
-                                    utils::valid_sibling_ink_args(InkAttributeKind::Arg(*arg_kind))
-                                        .iter()
-                                        .chain([arg_kind])
-                                        .map(ToString::to_string)
-                                        .sorted()
-                                        .join(",")
+                                    utils::valid_sibling_ink_args(
+                                        InkAttributeKind::Arg(*arg_kind),
+                                        version,
+                                    )
+                                    .iter()
+                                    .chain([arg_kind])
+                                    .map(ToString::to_string)
+                                    .sorted()
+                                    .join(",")
                                 })
                             {
                                 if possible_arg_kind.is_entity_type() {
@@ -172,6 +184,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                                         &possible_arg_kind,
                                         focused_arg,
                                         range,
+                                        version,
                                     );
                                 } else if possible_arg_kind.is_complementary() {
                                     // Computes signature based on possible complementary argument.
@@ -180,6 +193,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                                         &possible_arg_kind,
                                         focused_arg,
                                         range,
+                                        version,
                                     );
                                 }
                             }
@@ -187,7 +201,8 @@ pub fn signature_help(file: &InkFile, offset: TextSize) -> Vec<SignatureHelp> {
                     }
                     // Computes signatures based on attribute macros.
                     InkAttributeKind::Macro(_) => {
-                        let optional_args = utils::valid_sibling_ink_args(*ink_attr.kind());
+                        let optional_args =
+                            utils::valid_sibling_ink_args(*ink_attr.kind(), version);
                         if !optional_args.is_empty() {
                             add_signature(&mut results, &optional_args, focused_arg, range);
                         }
@@ -294,13 +309,15 @@ fn anchor_signature(
     anchor_arg: &InkArgKind,
     focused_arg: Option<&InkArg>,
     range: TextRange,
+    version: Version,
 ) {
     // Adds valid sibling arguments and computes signature help.
     let args: Vec<InkArgKind> = [*anchor_arg]
         .into_iter()
-        .chain(utils::valid_sibling_ink_args(InkAttributeKind::Arg(
-            *anchor_arg,
-        )))
+        .chain(utils::valid_sibling_ink_args(
+            InkAttributeKind::Arg(*anchor_arg),
+            version,
+        ))
         .collect();
     add_signature(results, &args, focused_arg, range);
 }
@@ -311,6 +328,7 @@ fn complementary_signature(
     arg_kind: &InkArgKind,
     focused_arg: Option<&InkArg>,
     range: TextRange,
+    version: Version,
 ) {
     // Namespace is not entity-level but it can be used alone,
     // or be used with ink! impl argument and ink! trait definition macro.
@@ -324,18 +342,19 @@ fn complementary_signature(
     // Determines the complementary argument's related primary arguments (if any).
     let mut primary_args = [*arg_kind]
         .into_iter()
-        .chain(utils::valid_sibling_ink_args(InkAttributeKind::Arg(
-            *arg_kind,
-        )))
+        .chain(utils::valid_sibling_ink_args(
+            InkAttributeKind::Arg(*arg_kind),
+            version,
+        ))
         .filter(|arg_kind| arg_kind.is_entity_type());
     if let Some(first_arg) = primary_args.next() {
         // Computes signature based on the complementary argument's related primary argument(s).
         for primary_arg in [first_arg].into_iter().chain(primary_args) {
-            anchor_signature(results, &primary_arg, focused_arg, range);
+            anchor_signature(results, &primary_arg, focused_arg, range, version);
         }
     } else {
         // Computes signature directly based on only the complementary argument.
-        anchor_signature(results, arg_kind, focused_arg, range);
+        anchor_signature(results, arg_kind, focused_arg, range, version);
     }
 }
 
@@ -784,7 +803,7 @@ mod tests {
             ),
         ] {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
-            let results = signature_help(&InkFile::parse(code), offset);
+            let results = signature_help(&InkFile::parse(code), offset, Version::V4);
 
             // Verifies expected results.
             assert_eq!(results.len(), expected_results.len(), "code: {code}");

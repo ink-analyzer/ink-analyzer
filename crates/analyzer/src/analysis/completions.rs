@@ -4,6 +4,7 @@ use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextS
 use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
 
 use super::{text_edit::TextEdit, utils};
+use crate::Version;
 
 /// An ink! attribute completion item.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,14 +20,14 @@ pub struct Completion {
 }
 
 /// Computes ink! attribute completions at the given offset.
-pub fn completions(file: &InkFile, offset: TextSize) -> Vec<Completion> {
+pub fn completions(file: &InkFile, offset: TextSize, version: Version) -> Vec<Completion> {
     let mut results = Vec::new();
 
     // Compute ink! attribute macro completions.
     macro_completions(&mut results, file, offset);
 
     // Compute ink! attribute argument completions.
-    argument_completions(&mut results, file, offset);
+    argument_completions(&mut results, file, offset, version);
 
     results
 }
@@ -233,7 +234,12 @@ pub fn macro_completions(results: &mut Vec<Completion>, file: &InkFile, offset: 
 }
 
 /// Computes ink! attribute argument completions at the given offset.
-pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offset: TextSize) {
+pub fn argument_completions(
+    results: &mut Vec<Completion>,
+    file: &InkFile,
+    offset: TextSize,
+    version: Version,
+) {
     let item_at_offset = file.item_at_offset(offset);
 
     // Only computes completions if a focused token can be determined.
@@ -297,13 +303,14 @@ pub fn argument_completions(results: &mut Vec<Completion>, file: &InkFile, offse
                         }
                     }
                     // For known/valid primary ink! attribute kinds, only suggest valid ink! attribute siblings.
-                    kind => utils::valid_sibling_ink_args(*kind),
+                    kind => utils::valid_sibling_ink_args(*kind, version),
                 };
 
                 // Filters out duplicates, conflicting and invalidly scoped ink! arguments.
                 utils::remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
                     &mut ink_arg_suggestions,
                     &ink_attr,
+                    version,
                 );
 
                 // Filters suggestions by the focused prefix if the focused token is not a delimiter.
@@ -1190,7 +1197,7 @@ mod tests {
             let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
 
             let mut results = Vec::new();
-            argument_completions(&mut results, &InkFile::parse(code), offset);
+            argument_completions(&mut results, &InkFile::parse(code), offset, Version::V4);
 
             assert_eq!(
                 results

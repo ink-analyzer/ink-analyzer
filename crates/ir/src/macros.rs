@@ -1,4 +1,4 @@
-//! Declarative macros used through out the crate.
+//! Declarative macros used throughout the crate.
 
 macro_rules! impl_ast_type_getter {
     ($fn_name: ident, $ast_type: ident $(, $vis: vis, $doc: ident)?) => {
@@ -55,6 +55,26 @@ macro_rules! impl_has_ink_environment {
     ($entity: ty, $variant: ident) => {
         impl $crate::traits::HasInkEnvironment for $entity {
             const ENV_ARG_KIND: $crate::InkArgKind = $crate::InkArgKind::$variant;
+        }
+    };
+}
+
+macro_rules! impl_is_chain_extension_fn {
+    ($entity: ty, $variant: ident) => {
+        impl $crate::traits::IsChainExtensionFn for $entity {
+            const ID_ARG_KIND: $crate::InkArgKind = $crate::InkArgKind::$variant;
+        }
+    };
+}
+
+macro_rules! impl_is_int_id {
+    ($entity: ty) => {
+        impl $crate::traits::IsIntId for $entity {
+            const MAX: Self = <$entity>::MAX;
+
+            fn from_str_radix(src: &str, radix: u32) -> Result<Self, std::num::ParseIntError> {
+                <$entity>::from_str_radix(src, radix)
+            }
         }
     };
 }

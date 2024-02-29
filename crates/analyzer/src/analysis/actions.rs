@@ -10,7 +10,7 @@ use itertools::Itertools;
 
 use super::utils;
 use crate::analysis::text_edit;
-use crate::TextEdit;
+use crate::{TextEdit, Version};
 
 /// An ink! attribute code/intent action.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,14 +34,14 @@ pub enum ActionKind {
 }
 
 /// Computes ink! attribute actions for the text range.
-pub fn actions(file: &InkFile, range: TextRange) -> Vec<Action> {
+pub fn actions(file: &InkFile, range: TextRange, version: Version) -> Vec<Action> {
     let mut results = Vec::new();
 
     // Compute AST item-based ink! attribute actions.
-    item::actions(&mut results, file, range);
+    item::actions(&mut results, file, range, version);
 
     // Compute ink! attribute actions based on focused ink! attribute.
-    attr::actions(&mut results, file, range);
+    attr::actions(&mut results, file, range, version);
 
     results
         .into_iter()

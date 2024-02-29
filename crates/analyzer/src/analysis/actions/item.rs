@@ -11,10 +11,10 @@ use itertools::Itertools;
 use super::entity;
 use super::{Action, ActionKind};
 use crate::analysis::utils;
-use crate::TextEdit;
+use crate::{TextEdit, Version};
 
 /// Computes AST item-based ink! attribute actions at the given text range.
-pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
+pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, version: Version) {
     match utils::focused_element(file, range) {
         // Computes actions based on focused element (if it can be determined).
         Some(focused_elem) => {
@@ -71,7 +71,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
                             ink_macro_actions(results, target, item_declaration_text_range);
 
                             // Suggests ink! attribute arguments based on the context.
-                            ink_arg_actions(results, target, item_declaration_text_range);
+                            ink_arg_actions(results, target, item_declaration_text_range, version);
 
                             // Suggests actions for "flattening" ink! attributes (if any).
                             flatten_attrs(results, target, item_declaration_text_range);
@@ -158,7 +158,12 @@ fn ink_macro_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: Text
 }
 
 /// Computes AST item-based ink! attribute argument actions.
-fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRange) {
+fn ink_arg_actions(
+    results: &mut Vec<Action>,
+    target: &SyntaxNode,
+    range: TextRange,
+    version: Version,
+) {
     // No ink! attribute argument suggestions for trait definition implementation messages.
     if utils::is_trait_definition_impl_message(target) {
         return;
@@ -172,7 +177,7 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
     // Suggests ink! attribute arguments based on the context.
     let mut ink_arg_suggestions = match primary_ink_attr_candidate.as_ref() {
         // Make suggestions based on the "primary" valid ink! attribute (if any).
-        Some(ink_attr) => utils::valid_sibling_ink_args(*ink_attr.kind()),
+        Some(ink_attr) => utils::valid_sibling_ink_args(*ink_attr.kind(), version),
         // Otherwise make suggestions based on the AST item's syntax kind.
         None => utils::valid_ink_args_by_syntax_kind(target.kind()),
     };
@@ -180,7 +185,7 @@ fn ink_arg_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRa
     // Filters out duplicate ink! attribute argument actions.
     utils::remove_duplicate_ink_arg_suggestions(&mut ink_arg_suggestions, target);
     // Filters out conflicting ink! attribute argument actions.
-    utils::remove_conflicting_ink_arg_suggestions(&mut ink_arg_suggestions, target);
+    utils::remove_conflicting_ink_arg_suggestions(&mut ink_arg_suggestions, target, version);
     // Filters out invalid ink! arguments from suggestions based on parent item's invariants.
     utils::remove_invalid_ink_arg_suggestions_for_parent_item(&mut ink_arg_suggestions, target);
     // Filters out invalid ink! attribute argument actions based on parent ink! scope
@@ -2082,7 +2087,7 @@ mod tests {
             let range = TextRange::new(offset, offset);
 
             let mut results = Vec::new();
-            actions(&mut results, &InkFile::parse(code), range);
+            actions(&mut results, &InkFile::parse(code), range, Version::V4);
 
             // Verifies actions.
             verify_actions(code, &results, &expected_results);
@@ -2097,7 +2102,7 @@ mod tests {
             // pat = substring used to find the cursor offset
             //       (see `test_utils::parse_offset_at` doc),
             // result = expected result from calling `is_focused_on_ast_item_declaration`
-            //          (i.e whether or not an AST item's declaration is in focus),
+            //          (i.e. whether or not an AST item's declaration is in focus),
 
             // Module.
             (

@@ -1,11 +1,11 @@
 //! ink! attribute meta item value.
 
 use std::fmt;
-use std::num::ParseIntError;
-use std::str::FromStr;
 
 use itertools::Itertools;
 use ra_ap_syntax::{ast, AstNode, SyntaxElement, SyntaxKind, SyntaxToken, TextRange, TextSize};
+
+use crate::IsIntId;
 
 /// An ink! attribute meta item value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -133,33 +133,33 @@ impl MetaValue {
     ///
     /// NOTE: We intentionally don't use the "wildcard complement" language here because that needs
     /// to be able to recognize the well-known value as well.
-    /// See [`SelectorArg::is_wildcard_complement`] for details.
+    /// See [`SelectorArg::is_wildcard_complement`][crate::SelectorArg::is_wildcard_complement] for details.
     pub fn is_at_symbol(&self) -> bool {
         self.kind() == SyntaxKind::AT
     }
 
     /// Converts the value if it's an integer literal (decimal or hexadecimal) into a `u16`.
     pub fn as_u16(&self) -> Option<u16> {
-        self.as_int(u16::from_str_radix)
+        self.as_int()
     }
 
     /// Converts the value if it's an integer literal (decimal or hexadecimal) into a `u32`.
     pub fn as_u32(&self) -> Option<u32> {
-        self.as_int(u32::from_str_radix)
+        self.as_int()
     }
 
     /// Converts the value if it's an integer literal (decimal or hexadecimal) into a integer.
-    fn as_int<T>(&self, from_str_radix: fn(&str, u32) -> Result<T, ParseIntError>) -> Option<T>
+    pub fn as_int<T>(&self) -> Option<T>
     where
-        T: FromStr,
+        T: IsIntId,
     {
         if self.kind() == SyntaxKind::INT_NUMBER {
             let value = self.to_string();
             if value.starts_with("0x") {
-                // Check as hex.
-                from_str_radix(value.strip_prefix("0x").unwrap(), 16).ok()
+                // Parse as hex.
+                T::from_str_radix(value.strip_prefix("0x").unwrap(), 16).ok()
             } else {
-                // Check as decimal.
+                // Parse as decimal.
                 value.parse::<T>().ok()
             }
         } else {
@@ -168,7 +168,7 @@ impl MetaValue {
     }
 
     /// Converts the value if it's a boolean literal (true or false keyword) into a `bool`.
-    pub fn as_boolean(&self) -> Option<bool> {
+    pub fn as_bool(&self) -> Option<bool> {
         match self.kind() {
             SyntaxKind::TRUE_KW => Some(true),
             SyntaxKind::FALSE_KW => Some(false),

@@ -196,11 +196,15 @@ impl SelectorArg {
         self.kind == SelectorArgKind::Wildcard
     }
 
-    /// Returns true if the value is a wildcard complement selector or `@` symbol.
+    /// Returns true if the value is the wildcard complement selector (i.e. `@` symbol or
+    /// [`IIP2_WILDCARD_COMPLEMENT_SELECTOR`](https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/prelude/src/lib.rs#L34-L38)).
     ///
     /// Ref: <https://github.com/paritytech/ink/pull/1708>
+    ///
     /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/prelude/src/lib.rs#L34-L38>
+    ///
     /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/attrs.rs#L560-L563>
+    ///
     /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/attrs.rs#L599>
     pub fn is_wildcard_complement(&self) -> bool {
         self.kind == SelectorArgKind::Complement

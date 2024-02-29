@@ -63,12 +63,13 @@
 //! }
 //! ```
 
+#[macro_use]
+mod test_utils;
+
 mod analysis;
 mod codegen;
 mod resolution;
 mod utils;
-
-mod test_utils;
 
 pub use self::{
     analysis::{

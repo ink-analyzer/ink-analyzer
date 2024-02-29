@@ -3,10 +3,8 @@
 use ink_analyzer_ir::ast::{
     AstNode, AstToken, HasAttrs, HasGenericParams, HasName, HasTypeBounds, HasVisibility,
 };
-use ink_analyzer_ir::meta::{MetaOption, MetaValue};
-use ink_analyzer_ir::syntax::{
-    SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
-};
+use ink_analyzer_ir::meta::MetaValue;
+use ink_analyzer_ir::syntax::{SourceFile, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
     ast, Contract, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
     InkAttribute, InkAttributeKind, InkEntity, InkMacroKind, IsInkFn, IsInkStruct, IsInkTrait,
@@ -62,7 +60,7 @@ pub fn run_generic_diagnostics<T: InkEntity>(
 
             // Ensures that no conflicting ink! attributes and/or arguments,
             // see `ensure_no_conflicting_attributes_and_arguments` doc.
-            ensure_no_conflicting_attributes_and_arguments(results, &attrs);
+            ensure_no_conflicting_attributes_and_arguments(results, &attrs, version);
         }
     }
 }
@@ -208,10 +206,31 @@ fn ensure_valid_attribute_arguments(
                             });
                         }
                     }
-                    // Arguments that should have an integer (`u32` to be specific) value.
-                    // TODO: Implement validation of u16 for ink! v5.
-                    InkArgValueKind::U16
-                    | InkArgValueKind::U32
+                    // Arguments that should have an integer (`u16` or `u32` to be specific) value.
+                    // `u16` values (i.e. ink! v5 chain extension and extension method ids).
+                    InkArgValueKind::U16 => {
+                        if arg.value().and_then(MetaValue::as_u16).is_none() {
+                            results.push(Diagnostic {
+                                message: format!(
+                                    "`{arg_name_text}` argument should have an `integer` (`u16`) value.",
+                                ),
+                                range: arg.text_range(),
+                                severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: format!("Add `{arg_name_text}` argument value"),
+                                    kind: ActionKind::QuickFix,
+                                    range: arg.text_range(),
+                                    edits: vec![TextEdit::replace_with_snippet(
+                                        format!("{arg_name_text} = 1"),
+                                        arg.text_range(),
+                                        Some(format!("{arg_name_text} = ${{1:1}}")),
+                                    )],
+                                }]),
+                            });
+                        }
+                    }
+                    // `u32` values and wildcards (i.e `_` and `@` for selectors).
+                    InkArgValueKind::U32
                     | InkArgValueKind::U32OrWildcard
                     | InkArgValueKind::U32OrWildcardOrComplement => {
                         let can_be_wildcard = matches!(
@@ -221,24 +240,20 @@ fn ensure_valid_attribute_arguments(
                         );
                         let can_be_wildcard_complement =
                             arg_value_type == InkArgValueKind::U32OrWildcardOrComplement;
-                        if !ensure_valid_attribute_arg_value(
-                            arg,
-                            |meta_value| {
-                                // Ensures that the meta value is either:
-                                // - a decimal or hex encoded `u32`.
-                                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
-                                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
-                                // - a wildcard/underscore (`_`) symbol (i.e. for selectors).
-                                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
-                                // - a wildcard complement/at (`@`) symbol (i.e. for message selectors).
-                                // Ref: <https://github.com/paritytech/ink/pull/1708>.
-                                meta_value.as_u32().is_some()
-                                    || (can_be_wildcard && meta_value.is_wildcard())
-                                    || (can_be_wildcard_complement && meta_value.is_at_symbol())
-                            },
-                            |_| false,
-                            false,
-                        ) {
+                        let is_u32_or_valid_wildcard = arg.value().is_some_and(|value| {
+                            // Ensures that the meta value is either:
+                            // - a decimal or hex encoded `u32`.
+                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
+                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
+                            // - a wildcard/underscore (`_`) symbol (i.e. for selectors).
+                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
+                            // - a wildcard complement/at (`@`) symbol (i.e. for message selectors).
+                            // Ref: <https://github.com/paritytech/ink/pull/1708>.
+                            value.as_u32().is_some()
+                                || (can_be_wildcard && value.is_wildcard())
+                                || (can_be_wildcard_complement && value.is_at_symbol())
+                        });
+                        if !is_u32_or_valid_wildcard {
                             results.push(Diagnostic {
                                 message: format!(
                                     "`{arg_name_text}` argument should have an `integer` (`u32`) {} value.",
@@ -267,17 +282,17 @@ fn ensure_valid_attribute_arguments(
                     }
                     // Arguments that should have a string value.
                     InkArgValueKind::String(str_kind) => {
-                        if !ensure_valid_attribute_arg_value(
-                            arg,
-                            |meta_value| {
-                                meta_value.as_string().is_some()
-                                    // For namespace arguments, ensure the meta value is a valid Rust identifier.
-                                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
-                                    && (str_kind != InkArgValueStringKind::Identifier || meta_value.as_string().and_then(|value| parse_ident(value.as_str())).is_some())
-                            },
-                            |_| false,
-                            false,
-                        ) {
+                        let is_valid_string = arg.value().is_some_and(|value| {
+                            // For namespace arguments, ensure the meta value is a valid Rust identifier.
+                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
+                            value.as_string().is_some()
+                                && (str_kind != InkArgValueStringKind::Identifier
+                                    || value
+                                        .as_string()
+                                        .and_then(|value| parse_ident(value.as_str()))
+                                        .is_some())
+                        });
+                        if !is_valid_string {
                             results.push(Diagnostic {
                                 message: format!(
                                     "`{arg_name_text}` argument should have a {} `string` (`&str`) value.",
@@ -318,12 +333,7 @@ fn ensure_valid_attribute_arguments(
                     }
                     // Arguments that should have a boolean value.
                     InkArgValueKind::Bool => {
-                        if !ensure_valid_attribute_arg_value(
-                            arg,
-                            |meta_value| meta_value.as_boolean().is_some(),
-                            |_| false,
-                            false,
-                        ) {
+                        if arg.value().and_then(MetaValue::as_bool).is_none() {
                             results.push(Diagnostic {
                                 message: format!(
                                     "`{arg_name_text}` argument should have a `boolean` (`bool`) value."
@@ -345,12 +355,11 @@ fn ensure_valid_attribute_arguments(
                     }
                     // Arguments that should have a path value.
                     InkArgValueKind::Path(_) => {
-                        if !ensure_valid_attribute_arg_value(
-                            arg,
-                            |meta_value| meta_value.kind() == SyntaxKind::PATH,
-                            |_| false,
-                            false,
-                        ) {
+                        let is_path = arg
+                            .value()
+                            .filter(|value| value.kind() == SyntaxKind::PATH)
+                            .is_some();
+                        if !is_path {
                             results.push(Diagnostic {
                                 message: format!(
                                     "`{arg_name_text}` argument should have a `path` (e.g `my::env::Types`) value."
@@ -393,24 +402,6 @@ fn parse_ident(value: &str) -> Option<ast::Ident> {
 
     // Parsed identifier must be equal to the sanitized meta value.
     (ident.text() == value).then_some(ident)
-}
-
-/// Ensures the validity of an ink! argument value using provided ok and err handlers and none outcome.
-fn ensure_valid_attribute_arg_value<F, G>(
-    arg: &InkArg,
-    ok_handler: F,
-    err_handler: G,
-    none_outcome: bool,
-) -> bool
-where
-    F: Fn(&MetaValue) -> bool,
-    G: Fn(&[SyntaxElement]) -> bool,
-{
-    match &arg.meta().value() {
-        MetaOption::Ok(meta_value) => ok_handler(meta_value),
-        MetaOption::Err(items) => err_handler(items),
-        MetaOption::None => none_outcome,
-    }
 }
 
 /// Ensures that no duplicate ink! attributes and/or arguments.
@@ -486,6 +477,7 @@ fn ensure_no_duplicate_attributes_and_arguments(
 fn ensure_no_conflicting_attributes_and_arguments(
     results: &mut Vec<Diagnostic>,
     attrs: &[InkAttribute],
+    version: Version,
 ) {
     // We can only move forward if there is at least one "valid" attribute.
     // We get the primary ink! attribute candidate (if any) that other attributes and arguments shouldn't conflict with.
@@ -494,7 +486,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
     {
         // sibling arguments are arguments that don't conflict with the primary attribute's kind,
         // see `utils::valid_sibling_ink_args` doc.
-        let valid_sibling_args = utils::valid_sibling_ink_args(*primary_ink_attr_candidate.kind());
+        let valid_sibling_args =
+            utils::valid_sibling_ink_args(*primary_ink_attr_candidate.kind(), version);
 
         // We want to suggest a primary attribute in case the current one is either incomplete or ambiguous
         // (See [`utils::primary_ink_attribute_kind_suggestions`] doc).
@@ -1067,7 +1060,7 @@ where
     })
 }
 
-/// Ensures that item is has no trait bounds.
+/// Ensures that item has no trait bounds.
 pub fn ensure_no_trait_bounds<T>(item: &T, message: &str) -> Option<Diagnostic>
 where
     T: HasTypeBounds,
@@ -1932,6 +1925,12 @@ mod tests {
                 quote_as_str! {
                     #[ink(message, selector=@)] // message is required, otherwise this would be incomplete.
                 },
+                quote_as_str! {
+                    #[ink(function = 1)]
+                },
+                quote_as_str! {
+                    #[ink(function = 0x1)]
+                },
             ]
         };
     }
@@ -2234,10 +2233,7 @@ mod tests {
     fn valid_attribute_argument_format_and_value_type_works() {
         // NOTE: This test only cares about ink! attribute arguments not macros,
         // See `ensure_valid_attribute_arguments` doc.
-        for (version, attributes) in [
-            (Version::V4, valid_attributes!().collect::<Vec<_>>()),
-            (Version::V5, valid_attributes!(v5).collect::<Vec<_>>()),
-        ] {
+        for (version, attributes) in versioned_fixtures!(valid_attributes) {
             for code in attributes {
                 let attr = parse_first_ink_attr(code);
 
@@ -2751,7 +2747,7 @@ mod tests {
             let attrs = parse_all_ink_attrs(code);
 
             let mut results = Vec::new();
-            ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs);
+            ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs, Version::V4);
             assert!(results.is_empty(), "attributes: {code}");
         }
     }
@@ -3280,7 +3276,7 @@ mod tests {
             let attrs = parse_all_ink_attrs(code);
 
             let mut results = Vec::new();
-            ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs);
+            ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs, Version::V4);
 
             // Verifies diagnostics.
             assert_eq!(results.len(), 1, "attributes: {code}");

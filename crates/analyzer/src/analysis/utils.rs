@@ -9,24 +9,29 @@ use ink_analyzer_ir::syntax::{
 use ink_analyzer_ir::{
     ast, ChainExtension, Contract, Extension, HasInkImplParent, InkArg, InkArgKind,
     InkArgValueKind, InkAttribute, InkAttributeKind, InkEntity, InkImpl, InkMacroKind,
-    IsInkCallable, IsInkStruct, IsInkTrait, Message, Selector, Storage, TraitDefinition,
+    IsInkCallable, IsInkStruct, IsInkTrait, IsIntId, Message, Selector, Storage, TraitDefinition,
 };
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::{resolution, utils};
+use crate::{resolution, utils, Version};
 
 /// Returns valid sibling ink! argument kinds for the given ink! attribute kind.
 ///
-/// (i.e argument kinds that don't conflict with the given ink! attribute kind,
-/// e.g for the `contract` attribute macro kind, this would be `env` and `keep_attr`
+/// (i.e. argument kinds that don't conflict with the given ink! attribute kind,
+/// e.g. for the `contract` attribute macro kind, this would be `env` and `keep_attr`
 /// while for the `storage` attribute argument kind, this would be `default`, `payable` and `selector`).
-pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
+pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> Vec<InkArgKind> {
     match attr_kind {
         // Returns valid sibling args (if any) for ink! attribute macros.
         InkAttributeKind::Macro(macro_kind) => {
             match macro_kind {
+                // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L897-L1337>.
+                // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html>.
+                InkMacroKind::ChainExtension if version == Version::V5 => {
+                    vec![InkArgKind::Extension]
+                }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L188-L197>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L848-L1280>.
                 InkMacroKind::ChainExtension => Vec::new(),
@@ -86,8 +91,13 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
                 ],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
                 InkArgKind::Env => vec![InkArgKind::KeepAttr],
+                // In ink! v5, `extension` is a sole/required attribute argument for the `chain_extension` macro attribute,
+                // see `chain_extension` macro pattern for details.
+                InkArgKind::Extension if version == Version::V5 => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L476-L487>.
                 InkArgKind::Extension => vec![InkArgKind::HandleStatus],
+                // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/chain_extension.rs#L601-L613>
+                InkArgKind::Function if version == Version::V5 => vec![InkArgKind::HandleStatus],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
                 InkArgKind::Derive => Vec::new(),
 
@@ -101,6 +111,8 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L316-L321>.
                 // See `trait_definition` and `impl` patterns above for more references.
                 InkArgKind::Namespace => vec![InkArgKind::KeepAttr, InkArgKind::Impl],
+                // See `function` pattern above for references.
+                InkArgKind::HandleStatus if version == Version::V5 => vec![InkArgKind::Function],
                 // See `extension` pattern above for references.
                 InkArgKind::HandleStatus => vec![InkArgKind::Extension],
                 // See `constructor` and `message` patterns above for references.
@@ -402,16 +414,17 @@ pub fn remove_duplicate_ink_macro_suggestions(
 }
 
 /// Filters out conflicting ink! arguments from suggestions
-/// (i.e ink! arguments that aren't valid siblings of the best candidate for primary ink! attribute kind of the parent node).
+/// (i.e. ink! arguments that aren't valid siblings of the best candidate for primary ink! attribute kind of the parent node).
 pub fn remove_conflicting_ink_arg_suggestions(
     suggestions: &mut Vec<InkArgKind>,
     attr_parent: &SyntaxNode,
+    version: Version,
 ) {
     // Gets the primary ink! attribute candidate (if any).
     if let Some((primary_ink_attr, ..)) =
         primary_ink_attribute_candidate(ink_analyzer_ir::ink_attrs(attr_parent))
     {
-        let valid_siblings = valid_sibling_ink_args(*primary_ink_attr.kind());
+        let valid_siblings = valid_sibling_ink_args(*primary_ink_attr.kind(), version);
         // Filters out invalid siblings.
         suggestions.retain(|arg_kind| valid_siblings.contains(arg_kind));
     }
@@ -460,13 +473,14 @@ pub fn remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
 pub fn remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
     suggestions: &mut Vec<InkArgKind>,
     ink_attr: &InkAttribute,
+    version: Version,
 ) {
     if let Some(attr_parent) = ink_attr.syntax().parent() {
         // Filters out duplicate ink! attribute argument suggestions.
         remove_duplicate_ink_arg_suggestions(suggestions, &attr_parent);
 
         // Filters out conflicting ink! attribute argument actions.
-        remove_conflicting_ink_arg_suggestions(suggestions, &attr_parent);
+        remove_conflicting_ink_arg_suggestions(suggestions, &attr_parent, version);
 
         // Filters out invalid (based on parent ink! scope) ink! attribute argument actions,
         // Doesn't apply to ink! attribute macros as their arguments are not influenced by the parent scope.
@@ -748,7 +762,7 @@ pub fn ink_arg_insert_offset_and_affixes(
     ink_attr: &InkAttribute,
     arg_kind_option: Option<InkArgKind>,
 ) -> Option<(TextSize, Option<&str>, Option<&str>)> {
-    // Determines if its a "primary" attribute argument
+    // Determines if it's a "primary" attribute argument
     // as those get inserted at the beginning of the argument list while everything else gets inserted at the end.
     let is_primary = arg_kind_option
         .as_ref()
@@ -1685,10 +1699,13 @@ pub fn reduce_indenting(input: &str, indent: &str) -> String {
 }
 
 /// Suggests a unique/unused id for an constructor, message or extension function.
-pub fn suggest_unique_id_mut(
-    preferred_id: Option<u32>,
-    unavailable_ids: &mut HashSet<u32>,
-) -> Option<u32> {
+pub fn suggest_unique_id_mut<T>(
+    preferred_id: Option<T>,
+    unavailable_ids: &mut HashSet<T>,
+) -> Option<T>
+where
+    T: IsIntId,
+{
     // Finds a unique/unused id.
     let suggested_id = suggest_unique_id(preferred_id, unavailable_ids)?;
 
@@ -1700,15 +1717,18 @@ pub fn suggest_unique_id_mut(
 }
 
 /// Suggests a unique/unused id for an constructor, message or extension function.
-pub fn suggest_unique_id(preferred_id: Option<u32>, unavailable_ids: &HashSet<u32>) -> Option<u32> {
+pub fn suggest_unique_id<T>(preferred_id: Option<T>, unavailable_ids: &HashSet<T>) -> Option<T>
+where
+    T: IsIntId,
+{
     // Finds a unique/unused id.
-    let mut suggested_id = preferred_id.unwrap_or(1);
+    let mut suggested_id = preferred_id.unwrap_or(1.into());
     while unavailable_ids.contains(&suggested_id) {
-        if suggested_id == u32::MAX {
+        if suggested_id == T::MAX {
             // Bail if we've already reached the max value.
             return None;
         }
-        suggested_id += 1;
+        suggested_id += 1.into();
     }
 
     // Returns the unique id.
@@ -1744,7 +1764,7 @@ pub fn contract_declaration_range(contract: &Contract) -> TextRange {
 }
 
 /// Returns text range of the ink! `impl` "declaration"
-/// (i.e tokens between meta - attributes/rustdoc - and the start of the item list).
+/// (i.e. tokens between meta - attributes/rustdoc - and the start of the item list).
 pub fn ink_impl_declaration_range(ink_impl: &InkImpl) -> TextRange {
     ink_impl
         .impl_item()
@@ -1753,7 +1773,7 @@ pub fn ink_impl_declaration_range(ink_impl: &InkImpl) -> TextRange {
 }
 
 /// Returns text range of the `trait` "declaration"
-/// (i.e tokens between meta - attributes/rustdoc - and the start of the item list) for a trait-based ink! entity.
+/// (i.e. tokens between meta - attributes/rustdoc - and the start of the item list) for a trait-based ink! entity.
 pub fn ink_trait_declaration_range<T>(ink_trait_item: &T) -> TextRange
 where
     T: IsInkTrait,

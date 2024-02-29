@@ -12,6 +12,8 @@ pub struct Function {
 
 impl_ast_type_trait!(Function, IsInkFn);
 
+impl_is_chain_extension_fn!(Function, Function);
+
 impl Function {
     /// Returns the function id (if any).
     pub fn id(&self) -> Option<u32> {

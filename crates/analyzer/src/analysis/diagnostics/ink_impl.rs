@@ -71,7 +71,7 @@ pub fn diagnostics(
     }
 
     // Ensures that `impl` satisfies all invariants of the ink! trait definition it implements (if any).
-    ensure_trait_definition_impl_invariants(results, ink_impl);
+    ensure_trait_definition_impl_invariants(results, ink_impl, version);
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
@@ -362,7 +362,11 @@ fn ensure_callables_in_root(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
 ///
 /// (i.e. ink! trait definition `impl` block must implement all associated methods (with expected signatures)
 /// and have no other associated items).
-fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
+fn ensure_trait_definition_impl_invariants(
+    results: &mut Vec<Diagnostic>,
+    ink_impl: &InkImpl,
+    version: Version,
+) {
     if let Some((impl_item, trait_definition)) =
         ink_impl.impl_item().zip(ink_impl.trait_definition())
     {
@@ -424,6 +428,7 @@ fn ensure_trait_definition_impl_invariants(results: &mut Vec<Diagnostic>, ink_im
                                         results,
                                         fn_item,
                                         message_declaration,
+                                        version,
                                     );
 
                                     if let Some(fn_declaration) = message_declaration.fn_item() {
@@ -698,12 +703,14 @@ fn ensure_trait_definition_impl_message_args(
     results: &mut Vec<Diagnostic>,
     fn_item: &ast::Fn,
     message_declaration: &Message,
+    version: Version,
 ) {
     // Only ink! message (and it's complementary arguments) are allowed.
     let allowed_arg_kinds: HashSet<InkArgKind> = [InkArgKind::Message]
         .into_iter()
         .chain(analysis_utils::valid_sibling_ink_args(
             InkAttributeKind::Arg(InkArgKind::Message),
+            version,
         ))
         .collect();
 
@@ -1531,7 +1538,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            ensure_trait_definition_impl_invariants(&mut results, &ink_impl);
+            ensure_trait_definition_impl_invariants(&mut results, &ink_impl, Version::V4);
             assert!(results.is_empty(), "impl: {code}");
         }
     }
@@ -1771,7 +1778,7 @@ mod tests {
             let ink_impl = parse_first_ink_impl(&code);
 
             let mut results = Vec::new();
-            ensure_trait_definition_impl_invariants(&mut results, &ink_impl);
+            ensure_trait_definition_impl_invariants(&mut results, &ink_impl, Version::V4);
 
             // Verifies diagnostics.
             assert_eq!(results.len(), 1, "impl: {code}");

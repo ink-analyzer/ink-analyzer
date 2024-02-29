@@ -33,7 +33,7 @@ mod constructor;
 mod contract;
 mod environment;
 mod event;
-mod extension;
+mod extension_fn;
 mod ink_e2e_test;
 mod ink_impl;
 mod ink_test;

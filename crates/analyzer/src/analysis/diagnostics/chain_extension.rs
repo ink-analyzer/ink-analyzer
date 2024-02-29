@@ -7,14 +7,15 @@ use std::collections::HashSet;
 use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::{
-    ast, ChainExtension, Extension, InkArg, InkArgKind, InkAttributeKind, InkEntity, IsInkTrait,
+    ast, ChainExtension, Extension, Function, InkArg, InkArgKind, InkAttributeKind, InkEntity,
+    IsChainExtensionFn, IsInkTrait, IsIntId,
 };
 
-use super::{extension, utils};
+use super::{extension_fn, utils};
 use crate::analysis::{
     actions::entity as entity_actions, text_edit::TextEdit, utils as analysis_utils,
 };
-use crate::{Action, ActionKind, Diagnostic, Severity, Version};
+use crate::{Action, ActionKind, Diagnostic, Severity, TextRange, Version};
 
 const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
 
@@ -33,6 +34,14 @@ pub fn diagnostics(
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::run_generic_diagnostics(results, chain_extension, version);
 
+    if version == Version::V5 {
+        // For ink! v5, ensures that ink! chain extension has an ink! extension attribute argument,
+        // see `ensure_extension_arg` doc.
+        if let Some(diagnostic) = ensure_extension_arg(chain_extension) {
+            results.push(diagnostic);
+        }
+    }
+
     // Ensures that ink! chain extension is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L222>.
     if let Some(diagnostic) = utils::ensure_trait(chain_extension, CHAIN_EXTENSION_SCOPE_NAME) {
@@ -50,23 +59,76 @@ pub fn diagnostics(
     // see `ensure_trait_item_invariants` doc.
     ensure_trait_item_invariants(results, chain_extension, version);
 
-    // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
+    // Runs ink! extension diagnostics, see `extension_fn::diagnostics` doc.
     for item in chain_extension.extensions() {
-        extension::diagnostics(results, item, version);
+        extension_fn::diagnostics(results, item, version);
     }
 
     // Ensures that exactly one `ErrorCode` associated type is defined, see `ensure_error_code_quantity` doc.
     ensure_error_code_type_quantity(results, chain_extension);
 
     // Ensures that no ink! extension ids are overlapping, see `ensure_no_overlapping_ids` doc.
-    ensure_no_overlapping_ids(results, chain_extension);
+    ensure_no_overlapping_ids(results, chain_extension, version);
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // see `ensure_valid_quasi_direct_ink_descendants` doc.
-    ensure_valid_quasi_direct_ink_descendants(results, chain_extension);
+    ensure_valid_quasi_direct_ink_descendants(results, chain_extension, version);
 
     // Runs ink! chain extension `ErrorCode` type diagnostics, see `error_code::diagnostics` doc.
     error_code::diagnostics(results, chain_extension);
+}
+
+/// Ensures that ink! chain extension has an ink! extension attribute argument,
+/// see `ensure_extension_arg` doc.
+///
+/// Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html#macro-attributes>
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/chain_extension.rs#L117-L121>
+///
+/// NOTE: Should only be used for ink! v5.
+fn ensure_extension_arg(chain_extension: &ChainExtension) -> Option<Diagnostic> {
+    chain_extension.extension_arg().is_none().then(|| {
+        // Text range for the diagnostic.
+        let range = chain_extension
+            .ink_attr()
+            .map(|attr| attr.syntax().text_range())
+            .unwrap_or_else(|| analysis_utils::ink_trait_declaration_range(chain_extension));
+        Diagnostic {
+            message: "An ink! chain extension must have a ink! extension argument.".to_owned(),
+            range,
+            severity: Severity::Error,
+            quickfixes: chain_extension
+                .ink_attr()
+                .and_then(|attr| analysis_utils::ink_arg_insert_offset_and_affixes(attr, None))
+                .map(|(insert_offset, insert_prefix, insert_suffix)| {
+                    // Range for the quickfix.
+                    let range = TextRange::new(insert_offset, insert_offset);
+                    // Suggested id for the extension.
+                    let unavailable_ids = HashSet::new();
+                    let suggested_id =
+                        analysis_utils::suggest_unique_id(None, &unavailable_ids).unwrap_or(1u16);
+
+                    vec![Action {
+                        label: "Add ink! extension argument.".to_owned(),
+                        kind: ActionKind::QuickFix,
+                        range,
+                        edits: vec![TextEdit::insert_with_snippet(
+                            format!(
+                                "{}extension = {suggested_id}{}",
+                                insert_prefix.unwrap_or_default(),
+                                insert_suffix.unwrap_or_default()
+                            ),
+                            insert_offset,
+                            Some(format!(
+                                "{}extension = ${{1:{suggested_id}}}{}",
+                                insert_prefix.unwrap_or_default(),
+                                insert_suffix.unwrap_or_default()
+                            )),
+                        )],
+                    }]
+                }),
+        }
+    })
 }
 
 /// Ensures that ink! chain extension is a `trait` item whose associated items satisfy all invariants.
@@ -76,160 +138,172 @@ pub fn diagnostics(
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
 ///
 /// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
-/// This utility also runs `extension::diagnostics` on trait functions with a ink! extension attribute.
+/// This utility also runs `extension_fn::diagnostics` on trait functions with an ink! extension attribute.
 fn ensure_trait_item_invariants(
     results: &mut Vec<Diagnostic>,
     chain_extension: &ChainExtension,
     version: Version,
 ) {
-    // Tracks already used and suggested ids for quickfixes.
-    let mut unavailable_ids = init_unavailable_ids(chain_extension);
+    let assoc_type_validator = |results: &mut Vec<Diagnostic>, type_alias: &ast::TypeAlias| {
+        // Associated type invariants.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L256-L307>.
+        let (is_named_error_code, name_marker) = match type_alias.name() {
+            Some(name) => (name.to_string() == "ErrorCode", Some(name)),
+            None => (false, None),
+        };
+
+        if !is_named_error_code {
+            results.push(Diagnostic {
+                message: "The associated type of a ink! chain extension must be named `ErrorCode`."
+                    .to_owned(),
+                range: name_marker
+                    .as_ref()
+                    // Defaults to the declaration range for the chain extension.
+                    .map(|it| it.syntax().text_range())
+                    .unwrap_or_else(|| {
+                        analysis_utils::ink_trait_declaration_range(chain_extension)
+                    }),
+                severity: Severity::Error,
+                quickfixes: name_marker.as_ref().map(|name| {
+                    vec![Action {
+                        label: "Rename associated type to `ErrorCode`.".to_owned(),
+                        kind: ActionKind::QuickFix,
+                        range: name.syntax().text_range(),
+                        edits: vec![TextEdit::replace(
+                            "ErrorCode".to_owned(),
+                            name.syntax().text_range(),
+                        )],
+                    }]
+                }),
+            });
+        }
+
+        if let Some(diagnostic) =
+            utils::ensure_no_generics(type_alias, "chain extension `ErrorCode` type")
+        {
+            results.push(diagnostic);
+        }
+
+        if let Some(diagnostic) = utils::ensure_no_trait_bounds(
+            type_alias,
+            "Trait bounds on ink! chain extension `ErrorCode` types are not supported.",
+        ) {
+            results.push(diagnostic);
+        }
+
+        if type_alias.ty().is_none() {
+            // Get the insert offset and affixes for the quickfix.
+            let insert_offset = type_alias
+                .eq_token()
+                .map(|it| it.text_range().end())
+                .or(type_alias
+                    .semicolon_token()
+                    .map(|it| it.text_range().start()))
+                .unwrap_or(type_alias.syntax().text_range().start());
+            let insert_prefix = if type_alias.eq_token().is_none() {
+                " = "
+            } else {
+                ""
+            };
+            let insert_suffix = if type_alias.semicolon_token().is_none() {
+                ";"
+            } else {
+                ""
+            };
+            results.push(Diagnostic {
+                message: "ink! chain extension `ErrorCode` types must have a default type."
+                    .to_owned(),
+                range: type_alias.syntax().text_range(),
+                severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: "Add `ErrorCode` default type.".to_owned(),
+                    kind: ActionKind::QuickFix,
+                    range: type_alias.syntax().text_range(),
+                    edits: vec![TextEdit::insert_with_snippet(
+                        format!("{insert_prefix}(){insert_suffix}"),
+                        insert_offset,
+                        Some(format!("{insert_prefix}${{1:()}}{insert_suffix}")),
+                    )],
+                }]),
+            });
+        }
+    };
+    macro_rules! trait_item_validator {
+        ($trait_item: ident, $entity: ty, $id_arg_kind: ident, $id_type: ty) => {
+            // Tracks already used and suggested ids for quickfixes.
+            let mut unavailable_ids: HashSet<$id_type> = init_unavailable_ids(chain_extension, version);
+            utils::ensure_trait_item_invariants(
+                results,
+                $trait_item,
+                "chain extension",
+                |results, fn_item| {
+                    // All trait functions should be ink! extensions.
+                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L447-L464>.
+                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L501>.
+                    let extension_fn = ink_analyzer_ir::ink_attrs(fn_item.syntax())
+                        .find_map(ink_analyzer_ir::ink_attr_to_entity::<$entity>);
+                    if let Some(extension_fn) = extension_fn {
+                        // Runs ink! function/extension diagnostics, see `extension_fn::diagnostics` doc.
+                        extension_fn::diagnostics(results, &extension_fn, version);
+                    } else {
+                        // Add diagnostic if function isn't an ink! function/extension.
+                        assoc_fn_validator(results, fn_item, &mut unavailable_ids, InkArgKind::$id_arg_kind)
+                    }
+                },
+                assoc_type_validator,
+            );
+        };
+    }
+
     if let Some(trait_item) = chain_extension.trait_item() {
-        utils::ensure_trait_item_invariants(
-            results,
-            trait_item,
-            "chain extension",
-            |results, fn_item| {
-                // All trait functions should be ink! extensions.
-                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L447-L464>.
-                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L467-L501>.
-                match ink_analyzer_ir::ink_attrs(fn_item.syntax())
-                    .find_map(ink_analyzer_ir::ink_attr_to_entity::<Extension>)
-                {
-                    // Runs ink! extension diagnostics, see `extension::diagnostics` doc.
-                    Some(extension_item) => {
-                        extension::diagnostics(results, &extension_item, version)
-                    }
-                    // Add diagnostic if function isn't an ink! extension.
-                    None => {
-                        // Determines quickfix insertion offset and affixes.
-                        let insert_offset =
-                            analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax());
-                        // Computes a unique id for the chain extension function.
-                        let suggested_id =
-                            analysis_utils::suggest_unique_id_mut(None, &mut unavailable_ids)
-                                .unwrap_or(1);
-                        // Gets the declaration range for the item.
-                        let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(
-                            fn_item.clone(),
-                        ))
-                        .unwrap_or(fn_item.syntax().text_range());
-                        results.push(Diagnostic {
-                            message: "All ink! chain extension functions must be ink! extensions."
-                                .to_owned(),
-                            range,
-                            severity: Severity::Error,
-                            quickfixes: Some(vec![Action {
-                                label: "Add ink! extension attribute.".to_owned(),
-                                kind: ActionKind::QuickFix,
-                                range,
-                                edits: [TextEdit::insert_with_snippet(
-                                    format!("#[ink(extension = {suggested_id})]"),
-                                    insert_offset,
-                                    Some(format!("#[ink(extension = ${{1:{suggested_id}}})]")),
-                                )]
-                                .into_iter()
-                                .chain(ink_analyzer_ir::ink_attrs(fn_item.syntax()).filter_map(
-                                    |attr| {
-                                        (!matches!(
-                                            attr.kind(),
-                                            InkAttributeKind::Arg(
-                                                InkArgKind::Extension | InkArgKind::HandleStatus
-                                            )
-                                        ))
-                                        .then(|| TextEdit::delete(attr.syntax().text_range()))
-                                    },
-                                ))
-                                .collect(),
-                            }]),
-                        });
-                    }
-                }
-            },
-            |results, type_alias| {
-                // Associated type invariants.
-                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L256-L307>.
-                let (is_named_error_code, name_marker) = match type_alias.name() {
-                    Some(name) => (name.to_string() == "ErrorCode", Some(name)),
-                    None => (false, None),
-                };
+        if version == Version::V5 {
+            trait_item_validator!(trait_item, Function, Function, u16);
+        } else {
+            trait_item_validator!(trait_item, Extension, Extension, u32);
+        }
+    }
 
-                if !is_named_error_code {
-                    results.push(Diagnostic {
-                        message: "The associated type of a ink! chain extension must be named `ErrorCode`."
-                            .to_owned(),
-                        range: name_marker
-                            .as_ref()
-                            // Defaults to the declaration range for the chain extension.
-                            .map(
-                                |it| it.syntax().text_range(),
-                            ).unwrap_or_else(|| analysis_utils::ink_trait_declaration_range(chain_extension)),
-                        severity: Severity::Error,
-                        quickfixes: name_marker.as_ref().map(|name| {
-                            vec![Action {
-                                label: "Rename associated type to `ErrorCode`.".to_owned(),
-                                kind: ActionKind::QuickFix,
-                                range: name.syntax().text_range(),
-                                edits: vec![TextEdit::replace(
-                                    "ErrorCode".to_owned(),
-                                    name.syntax().text_range(),
-                                )],
-                            }]
-                        }),
-                    });
-                }
+    fn assoc_fn_validator<T>(
+        results: &mut Vec<Diagnostic>,
+        fn_item: &ast::Fn,
+        unavailable_ids: &mut HashSet<T>,
+        id_arg_kind: InkArgKind,
+    ) where
+        T: IsIntId,
+    {
+        // Determines quickfix insertion offset and affixes.
+        let insert_offset = analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax());
+        // Computes a unique id for the chain extension function.
+        let suggested_id =
+            analysis_utils::suggest_unique_id_mut(None, unavailable_ids).unwrap_or(1.into());
+        // Gets the declaration range for the item.
+        let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+            .unwrap_or(fn_item.syntax().text_range());
 
-                if let Some(diagnostic) =
-                    utils::ensure_no_generics(type_alias, "chain extension `ErrorCode` type")
-                {
-                    results.push(diagnostic);
-                }
-
-                if let Some(diagnostic) = utils::ensure_no_trait_bounds(
-                    type_alias,
-                    "Trait bounds on ink! chain extension `ErrorCode` types are not supported.",
-                ) {
-                    results.push(diagnostic);
-                }
-
-                if type_alias.ty().is_none() {
-                    // Get the insert offset and affixes for the quickfix.
-                    let insert_offset = type_alias
-                        .eq_token()
-                        .map(|it| it.text_range().end())
-                        .or(type_alias
-                            .semicolon_token()
-                            .map(|it| it.text_range().start()))
-                        .unwrap_or(type_alias.syntax().text_range().start());
-                    let insert_prefix = if type_alias.eq_token().is_none() {
-                        " = "
-                    } else {
-                        ""
-                    };
-                    let insert_suffix = if type_alias.semicolon_token().is_none() {
-                        ";"
-                    } else {
-                        ""
-                    };
-                    results.push(Diagnostic {
-                        message: "ink! chain extension `ErrorCode` types must have a default type."
-                            .to_owned(),
-                        range: type_alias.syntax().text_range(),
-                        severity: Severity::Error,
-                        quickfixes: Some(vec![Action {
-                            label: "Add `ErrorCode` default type.".to_owned(),
-                            kind: ActionKind::QuickFix,
-                            range: type_alias.syntax().text_range(),
-                            edits: vec![TextEdit::insert_with_snippet(
-                                format!("{insert_prefix}(){insert_suffix}"),
-                                insert_offset,
-                                Some(format!("{insert_prefix}${{1:()}}{insert_suffix}")),
-                            )],
-                        }]),
-                    });
-                }
-            },
-        );
+        results.push(Diagnostic {
+            message: format!("All ink! chain extension functions must be ink! {id_arg_kind}s."),
+            range,
+            severity: Severity::Error,
+            quickfixes: Some(vec![Action {
+                label: format!("Add ink! {id_arg_kind} attribute."),
+                kind: ActionKind::QuickFix,
+                range,
+                edits: [TextEdit::insert_with_snippet(
+                    format!("#[ink({id_arg_kind} = {suggested_id})]"),
+                    insert_offset,
+                    Some(format!("#[ink({id_arg_kind} = ${{1:{suggested_id}}})]")),
+                )]
+                .into_iter()
+                .chain(
+                    ink_analyzer_ir::ink_attrs(fn_item.syntax()).filter_map(|attr| {
+                        (*attr.kind() != InkAttributeKind::Arg(id_arg_kind)
+                            && *attr.kind() != InkAttributeKind::Arg(InkArgKind::HandleStatus))
+                        .then(|| TextEdit::delete(attr.syntax().text_range()))
+                    }),
+                )
+                .collect(),
+            }]),
+        });
     }
 }
 
@@ -293,77 +367,134 @@ fn ensure_error_code_type_quantity(
 /// Ensures that no ink! extension ids are overlapping.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L292-L306>.
-fn ensure_no_overlapping_ids(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
-    let mut seen_ids: HashSet<u32> = HashSet::new();
-    let mut unavailable_ids = init_unavailable_ids(chain_extension);
-    for extension in chain_extension.extensions() {
-        if let Some(id) = extension.id() {
-            if seen_ids.get(&id).is_some() {
-                // Determines text range for the argument value.
-                let value_range_option = extension
-                    .ink_attr()
-                    .and_then(|attr| {
-                        attr.args()
-                            .iter()
-                            .find(|it| *it.kind() == InkArgKind::Extension)
-                    })
-                    .and_then(InkArg::value)
-                    .map(MetaValue::text_range);
-                results.push(Diagnostic {
-                    message: "Extension ids must be unique across all ink! extensions \
-                    in an ink! chain extension."
-                        .to_owned(),
-                    range: value_range_option
-                        .or(extension.ink_attr().map(|attr| attr.syntax().text_range()))
-                        .unwrap_or(extension.syntax().text_range()),
-                    severity: Severity::Error,
-                    quickfixes: value_range_option
-                        .zip(analysis_utils::suggest_unique_id_mut(
-                            None,
-                            &mut unavailable_ids,
-                        ))
-                        .map(|(range, suggested_id)| {
-                            vec![Action {
-                                label: "Replace with a unique extension id.".to_owned(),
-                                kind: ActionKind::QuickFix,
-                                range,
-                                edits: vec![TextEdit::replace_with_snippet(
-                                    format!("{suggested_id}"),
-                                    range,
-                                    Some(format!("${{1:{suggested_id}}}")),
-                                )],
-                            }]
-                        }),
-                });
-            }
+fn ensure_no_overlapping_ids(
+    results: &mut Vec<Diagnostic>,
+    chain_extension: &ChainExtension,
+    version: Version,
+) {
+    if version == Version::V5 {
+        let mut unavailable_ids = init_unavailable_ids(chain_extension, version);
+        ensure_no_overlapping_ids_inner::<_, u16>(
+            results,
+            chain_extension.functions(),
+            &mut unavailable_ids,
+            version,
+        );
+    } else {
+        let mut unavailable_ids = init_unavailable_ids(chain_extension, version);
+        ensure_no_overlapping_ids_inner::<_, u32>(
+            results,
+            chain_extension.extensions(),
+            &mut unavailable_ids,
+            version,
+        );
+    }
 
-            seen_ids.insert(id);
+    fn ensure_no_overlapping_ids_inner<E, I>(
+        results: &mut Vec<Diagnostic>,
+        extension_fns: &[E],
+        unavailable_ids: &mut HashSet<I>,
+        version: Version,
+    ) where
+        E: IsChainExtensionFn,
+        I: IsIntId,
+    {
+        let mut seen_ids: HashSet<I> = HashSet::new();
+        for extension_fn in extension_fns {
+            if let Some(id) = extension_fn.id() {
+                if seen_ids.get(&id).is_some() {
+                    // Determines text range for the argument value.
+                    let value_range_option = extension_fn
+                        .id_arg()
+                        .as_ref()
+                        .and_then(InkArg::value)
+                        .map(MetaValue::text_range);
+                    results.push(Diagnostic {
+                        message: format!(
+                            "{} ids must be unique across all associated functions \
+                            in an ink! chain extension.",
+                            if version == Version::V5 {
+                                "Function"
+                            } else {
+                                "Extension"
+                            }
+                        ),
+                        range: value_range_option
+                            .or(extension_fn
+                                .ink_attr()
+                                .map(|attr| attr.syntax().text_range()))
+                            .unwrap_or(extension_fn.syntax().text_range()),
+                        severity: Severity::Error,
+                        quickfixes: value_range_option
+                            .zip(analysis_utils::suggest_unique_id_mut(None, unavailable_ids))
+                            .map(|(range, suggested_id)| {
+                                vec![Action {
+                                    label: format!(
+                                        "Replace with a unique {} id.",
+                                        if version == Version::V5 {
+                                            "function"
+                                        } else {
+                                            "extension"
+                                        }
+                                    ),
+                                    kind: ActionKind::QuickFix,
+                                    range,
+                                    edits: vec![TextEdit::replace_with_snippet(
+                                        format!("{suggested_id}"),
+                                        range,
+                                        Some(format!("${{1:{suggested_id}}}")),
+                                    )],
+                                }]
+                            }),
+                    });
+                }
+
+                seen_ids.insert(id);
+            }
         }
     }
 }
 
-/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants
+/// (i.e. ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L476-L487>.
 fn ensure_valid_quasi_direct_ink_descendants(
     results: &mut Vec<Diagnostic>,
     chain_extension: &ChainExtension,
+    version: Version,
 ) {
     utils::ensure_valid_quasi_direct_ink_descendants(results, chain_extension, |attr| {
-        matches!(
-            attr.kind(),
-            InkAttributeKind::Arg(InkArgKind::Extension | InkArgKind::HandleStatus)
-        )
+        let id_arg_kind = match version {
+            Version::V4 => InkArgKind::Extension,
+            Version::V5 => InkArgKind::Function,
+        };
+        *attr.kind() == InkAttributeKind::Arg(id_arg_kind)
+            || *attr.kind() == InkAttributeKind::Arg(InkArgKind::HandleStatus)
     });
 }
 
 /// Initializes unavailable extension ids.
-fn init_unavailable_ids(chain_extension: &ChainExtension) -> HashSet<u32> {
-    chain_extension
-        .extensions()
-        .iter()
-        .filter_map(Extension::id)
-        .collect()
+fn init_unavailable_ids<T>(chain_extension: &ChainExtension, version: Version) -> HashSet<T>
+where
+    T: IsIntId,
+{
+    fn init_unavailable_ids_inner<E, I>(assoc_fns: &[E]) -> HashSet<I>
+    where
+        E: IsChainExtensionFn,
+        I: IsIntId,
+    {
+        assoc_fns
+            .iter()
+            .filter_map(IsChainExtensionFn::id)
+            .collect()
+    }
+
+    if version == Version::V5 {
+        init_unavailable_ids_inner(chain_extension.functions())
+    } else {
+        init_unavailable_ids_inner(chain_extension.extensions())
+    }
 }
 
 #[cfg(test)]
@@ -371,7 +502,6 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use ink_analyzer_ir::syntax::{TextRange, TextSize};
-    use ink_analyzer_ir::IsInkTrait;
     use quote::quote;
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -387,6 +517,15 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L923-L940>.
     macro_rules! valid_chain_extensions {
         () => {
+            valid_chain_extensions!(v4)
+        };
+        (v4) => {
+            valid_chain_extensions!(extension)
+        };
+        (v5) => {
+            valid_chain_extensions!(function, extension=1)
+        };
+        ($id_arg_kind: expr $(, $macro_args: meta)?) => {
             [
                 // No functions.
                 quote! {
@@ -394,56 +533,56 @@ mod tests {
                 },
                 // Simple.
                 quote! {
-                    #[ink(extension=1)]
+                    #[ink($id_arg_kind=1)]
                     fn my_extension();
 
-                    #[ink(extension=2)]
+                    #[ink($id_arg_kind=2)]
                     fn my_extension2();
                 },
                 // Input + output variations.
                 quote! {
-                    #[ink(extension=1)]
+                    #[ink($id_arg_kind=1)]
                     fn my_extension();
 
-                    #[ink(extension=2)]
+                    #[ink($id_arg_kind=2)]
                     fn my_extension2(a: i32);
 
-                    #[ink(extension=3)]
+                    #[ink($id_arg_kind=3)]
                     fn my_extension3() -> bool;
 
-                    #[ink(extension=4)]
+                    #[ink($id_arg_kind=4)]
                     fn my_extension4(a: i32) -> bool;
 
-                    #[ink(extension=5)]
+                    #[ink($id_arg_kind=5)]
                     fn my_extension5(a: i32) -> (i32, u64, bool);
 
-                    #[ink(extension=6)]
+                    #[ink($id_arg_kind=6)]
                     fn my_extension6(a: i32, b: u64, c: [u8; 32]) -> bool;
 
-                    #[ink(extension=7)]
+                    #[ink($id_arg_kind=7)]
                     fn my_extension7(a: i32, b: u64, c: [u8; 32]) -> (i32, u64, bool);
                 },
                 // Handle status.
                 quote! {
-                    #[ink(extension=1, handle_status=true)]
+                    #[ink($id_arg_kind=1, handle_status=true)]
                     fn my_extension();
 
-                    #[ink(extension=2, handle_status=false)]
+                    #[ink($id_arg_kind=2, handle_status=false)]
                     fn my_extension2(a: i32);
 
-                    #[ink(extension=3, handle_status=true)]
+                    #[ink($id_arg_kind=3, handle_status=true)]
                     fn my_extension3() -> bool;
 
-                    #[ink(extension=4, handle_status=false)]
+                    #[ink($id_arg_kind=4, handle_status=false)]
                     fn my_extension4(a: i32) -> bool;
 
-                    #[ink(extension=5, handle_status=true)]
+                    #[ink($id_arg_kind=5, handle_status=true)]
                     fn my_extension5(a: i32) -> (i32, u64, bool);
 
-                    #[ink(extension=6, handle_status=false)]
+                    #[ink($id_arg_kind=6, handle_status=false)]
                     fn my_extension6(a: i32, b: u64, c: [u8; 32]) -> bool;
 
-                    #[ink(extension=7, handle_status=true)]
+                    #[ink($id_arg_kind=7, handle_status=true)]
                     fn my_extension7(a: i32, b: u64, c: [u8; 32]) -> (i32, u64, bool);
                 },
             ]
@@ -452,7 +591,7 @@ mod tests {
                 [
                     // Simple.
                     quote! {
-                        #[ink::chain_extension]
+                        #[ink::chain_extension$(($macro_args))?]
                         pub trait MyChainExtension {
                             type ErrorCode = MyErrorCode;
 
@@ -481,6 +620,44 @@ mod tests {
                 ]
             })
         };
+    }
+
+    #[test]
+    fn v5_extension_arg_works() {
+        for code in valid_chain_extensions!(v5) {
+            let chain_extension = parse_first_chain_extension(quote_as_str! {
+                #code
+            });
+
+            let result = ensure_extension_arg(&chain_extension);
+            assert!(result.is_none(), "chain extension: {code}");
+        }
+    }
+
+    #[test]
+    fn v5_missing_extension_arg_fails() {
+        let code = quote_as_pretty_string! {
+            #[ink::chain_extension]
+            pub trait MyChainExtension {}
+        };
+        let chain_extension = parse_first_chain_extension(&code);
+
+        let result = ensure_extension_arg(&chain_extension);
+
+        // Verifies diagnostics.
+        assert!(result.is_some());
+        assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+        // Verifies quickfixes.
+        let expected_quickfixes = [TestResultAction {
+            label: "Add ink! extension",
+            edits: vec![TestResultTextRange {
+                text: "(extension = 1)",
+                start_pat: Some("#[ink::chain_extension"),
+                end_pat: Some("#[ink::chain_extension"),
+            }],
+        }];
+        let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+        verify_actions(&code, quickfixes, &expected_quickfixes);
     }
 
     #[test]
@@ -662,402 +839,419 @@ mod tests {
 
     #[test]
     fn valid_trait_items_works() {
-        for code in valid_chain_extensions!() {
-            let chain_extension = parse_first_chain_extension(quote_as_str! {
-                #code
-            });
+        for (version, chain_extensions) in versioned_fixtures!(valid_chain_extensions) {
+            for code in chain_extensions {
+                let chain_extension = parse_first_chain_extension(quote_as_str! {
+                    #code
+                });
 
-            let mut results = Vec::new();
-            ensure_trait_item_invariants(&mut results, &chain_extension, Version::V4);
-            assert!(results.is_empty(), "chain extension: {code}");
+                let mut results = Vec::new();
+                ensure_trait_item_invariants(&mut results, &chain_extension, version);
+                assert!(
+                    results.is_empty(),
+                    "chain extension: {code}, version: {:?}",
+                    version
+                );
+            }
         }
     }
 
     #[test]
     fn invalid_trait_items_fails() {
-        for (items, expected_quickfixes) in [
-            // Const.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L567-L575>.
+        for (version, id_arg_name, id_arg_kind, macro_args) in [
+            (Version::V4, "extension", quote! { extension }, quote! {}),
             (
-                quote! {
-                    const T: i32;
-                },
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-const"),
-                        end_pat: Some("i32;"),
-                    }],
-                }],
-            ),
-            // Associated type name.
-            // NOTE: default type set to `()` to test only the name.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L577-L585>.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L587-L620>.
-            (
-                quote! {
-                    type Type = ();
-                },
-                vec![TestResultAction {
-                    label: "`ErrorCode`",
-                    edits: vec![TestResultTextRange {
-                        text: "ErrorCode",
-                        start_pat: Some("<-Type"),
-                        end_pat: Some("Type"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    type IncorrectName  = ();
-                },
-                vec![TestResultAction {
-                    label: "`ErrorCode`",
-                    edits: vec![TestResultTextRange {
-                        text: "ErrorCode",
-                        start_pat: Some("<-IncorrectName"),
-                        end_pat: Some("IncorrectName"),
-                    }],
-                }],
-            ),
-            // Associated type invariants.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L587-L620>.
-            (
-                quote! {
-                    type ErrorCode<T> = (); // generics.
-                },
-                vec![TestResultAction {
-                    label: "Remove generic",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-<T>"),
-                        end_pat: Some("<T>"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    type ErrorCode: Copy = (); // trait bounds.
-                },
-                vec![TestResultAction {
-                    label: "Remove type",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-: Copy"),
-                        end_pat: Some(": Copy"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    type ErrorCode; // no default type.
-                },
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "=",
-                        start_pat: Some("ErrorCode"),
-                        end_pat: Some("ErrorCode"),
-                    }],
-                }],
-            ),
-            // Macro.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L622-L630>.
-            (
-                quote! {
-                    my_macro_call!();
-                },
-                vec![TestResultAction {
-                    label: "Remove macro",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-my_macro_call"),
-                        end_pat: Some("my_macro_call!();"),
-                    }],
-                }],
-            ),
-            // Non-flagged function.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L632-L652>.
-            (
-                quote! {
-                    fn non_flagged();
-                },
-                vec![TestResultAction {
-                    label: "Add ink! extension",
-                    edits: vec![TestResultTextRange {
-                        text: "extension",
-                        start_pat: Some("<-fn"),
-                        end_pat: Some("<-fn"),
-                    }],
-                }],
-            ),
-            // Default implementation.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L654-L663>.
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    fn default_implemented() {}
-                },
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-{}"),
-                        end_pat: Some("{}"),
-                    }],
-                }],
-            ),
-            // Const function.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L665-L674>.
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    const fn const_extension();
-                },
-                vec![TestResultAction {
-                    label: "Remove `const`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-const"),
-                        end_pat: Some("const "),
-                    }],
-                }],
-            ),
-            // Async function.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L676-L685>.
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    async fn async_extension();
-                },
-                vec![TestResultAction {
-                    label: "Remove `async`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-async"),
-                        end_pat: Some("async "),
-                    }],
-                }],
-            ),
-            // Unsafe function.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L687-L696>.
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    unsafe fn unsafe_extension();
-                },
-                vec![TestResultAction {
-                    label: "Remove `unsafe`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-unsafe"),
-                        end_pat: Some("unsafe "),
-                    }],
-                }],
-            ),
-            // Explicit ABI.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L698-L707>.
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    extern fn extern_extension();
-                },
-                vec![TestResultAction {
-                    label: "Remove explicit ABI",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-extern"),
-                        end_pat: Some("extern "),
-                    }],
-                }],
-            ),
-            // Variadic function.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L709-L718>.
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    fn variadic_extension(...);
-                },
-                vec![TestResultAction {
-                    label: "un-variadic",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-..."),
-                        end_pat: Some("..."),
-                    }],
-                }],
-            ),
-            // Generic function.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L720-L729>.
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    fn generic_message<T>();
-                },
-                vec![TestResultAction {
-                    label: "Remove generic",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-<T>"),
-                        end_pat: Some("<T>"),
-                    }],
-                }],
-            ),
-            // Unsupported ink! attribute.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L731-L749>.
-            (
-                quote! {
-                    #[ink(constructor)]
-                    fn my_constructor() -> Self;
-                },
-                vec![TestResultAction {
-                    label: "Add ink! extension",
-                    edits: vec![
-                        // Add ink! extension attribute.
-                        TestResultTextRange {
-                            text: "extension",
-                            start_pat: Some("<-#[ink(constructor)]"),
-                            end_pat: Some("<-#[ink(constructor)]"),
-                        },
-                        // Remove ink! constructor attribute.
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(constructor)]"),
-                            end_pat: Some("#[ink(constructor)]"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                quote! {
-                    #[ink(message)]
-                    fn my_message();
-                },
-                vec![TestResultAction {
-                    label: "Add ink! extension",
-                    edits: vec![
-                        // Add ink! extension attribute.
-                        TestResultTextRange {
-                            text: "extension",
-                            start_pat: Some("<-#[ink(message)]"),
-                            end_pat: Some("<-#[ink(message)]"),
-                        },
-                        // Remove ink! message attribute.
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(message)]"),
-                            end_pat: Some("#[ink(message)]"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                quote! {
-                    #[ink(unknown)]
-                    fn unknown_fn();
-                },
-                vec![TestResultAction {
-                    label: "Add ink! extension",
-                    edits: vec![
-                        // Add ink! extension attribute.
-                        TestResultTextRange {
-                            text: "extension",
-                            start_pat: Some("<-#[ink(unknown)]"),
-                            end_pat: Some("<-#[ink(unknown)]"),
-                        },
-                        // Remove unknown ink! attribute.
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(unknown)]"),
-                            end_pat: Some("#[ink(unknown)]"),
-                        },
-                    ],
-                }],
-            ),
-            // self receiver.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L810-L857>.
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    fn has_self_receiver(self);
-                },
-                vec![TestResultAction {
-                    label: "Remove self",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-self)"),
-                        end_pat: Some("(self"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    fn has_self_receiver(mut self);
-                },
-                vec![TestResultAction {
-                    label: "Remove self",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-mut self"),
-                        end_pat: Some("mut self"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    fn has_self_receiver(&self);
-                },
-                vec![TestResultAction {
-                    label: "Remove self",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-&self"),
-                        end_pat: Some("&self"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    #[ink(extension=1)]
-                    fn has_self_receiver(&mut self);
-                },
-                vec![TestResultAction {
-                    label: "Remove self",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-&mut self"),
-                        end_pat: Some("&mut self"),
-                    }],
-                }],
+                Version::V5,
+                "function",
+                quote! { function },
+                quote! { (extension=1) },
             ),
         ] {
-            let code = quote_as_pretty_string! {
-                #[ink::chain_extension]
-                pub trait MyChainExtension {
-                    #items
-                }
-            };
-            let chain_extension = parse_first_chain_extension(&code);
+            for (items, expected_quickfixes) in [
+                // Const.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L567-L575>.
+                (
+                    quote! {
+                        const T: i32;
+                    },
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-const"),
+                            end_pat: Some("i32;"),
+                        }],
+                    }],
+                ),
+                // Associated type name.
+                // NOTE: default type set to `()` to test only the name.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L577-L585>.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L587-L620>.
+                (
+                    quote! {
+                        type Type = ();
+                    },
+                    vec![TestResultAction {
+                        label: "`ErrorCode`",
+                        edits: vec![TestResultTextRange {
+                            text: "ErrorCode",
+                            start_pat: Some("<-Type"),
+                            end_pat: Some("Type"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! {
+                        type IncorrectName  = ();
+                    },
+                    vec![TestResultAction {
+                        label: "`ErrorCode`",
+                        edits: vec![TestResultTextRange {
+                            text: "ErrorCode",
+                            start_pat: Some("<-IncorrectName"),
+                            end_pat: Some("IncorrectName"),
+                        }],
+                    }],
+                ),
+                // Associated type invariants.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L587-L620>.
+                (
+                    quote! {
+                        type ErrorCode<T> = (); // generics.
+                    },
+                    vec![TestResultAction {
+                        label: "Remove generic",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-<T>"),
+                            end_pat: Some("<T>"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! {
+                        type ErrorCode: Copy = (); // trait bounds.
+                    },
+                    vec![TestResultAction {
+                        label: "Remove type",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-: Copy"),
+                            end_pat: Some(": Copy"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! {
+                        type ErrorCode; // no default type.
+                    },
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "=",
+                            start_pat: Some("ErrorCode"),
+                            end_pat: Some("ErrorCode"),
+                        }],
+                    }],
+                ),
+                // Macro.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L622-L630>.
+                (
+                    quote! {
+                        my_macro_call!();
+                    },
+                    vec![TestResultAction {
+                        label: "Remove macro",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-my_macro_call"),
+                            end_pat: Some("my_macro_call!();"),
+                        }],
+                    }],
+                ),
+                // Non-flagged function.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L632-L652>.
+                (
+                    quote! {
+                        fn non_flagged();
+                    },
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: id_arg_name,
+                            start_pat: Some("<-fn"),
+                            end_pat: Some("<-fn"),
+                        }],
+                    }],
+                ),
+                // Default implementation.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L654-L663>.
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        fn default_implemented() {}
+                    },
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-{}"),
+                            end_pat: Some("{}"),
+                        }],
+                    }],
+                ),
+                // Const function.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L665-L674>.
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        const fn const_extension();
+                    },
+                    vec![TestResultAction {
+                        label: "Remove `const`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-const"),
+                            end_pat: Some("const "),
+                        }],
+                    }],
+                ),
+                // Async function.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L676-L685>.
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        async fn async_extension();
+                    },
+                    vec![TestResultAction {
+                        label: "Remove `async`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-async"),
+                            end_pat: Some("async "),
+                        }],
+                    }],
+                ),
+                // Unsafe function.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L687-L696>.
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        unsafe fn unsafe_extension();
+                    },
+                    vec![TestResultAction {
+                        label: "Remove `unsafe`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-unsafe"),
+                            end_pat: Some("unsafe "),
+                        }],
+                    }],
+                ),
+                // Explicit ABI.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L698-L707>.
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        extern fn extern_extension();
+                    },
+                    vec![TestResultAction {
+                        label: "Remove explicit ABI",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-extern"),
+                            end_pat: Some("extern "),
+                        }],
+                    }],
+                ),
+                // Variadic function.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L709-L718>.
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        fn variadic_extension(...);
+                    },
+                    vec![TestResultAction {
+                        label: "un-variadic",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-..."),
+                            end_pat: Some("..."),
+                        }],
+                    }],
+                ),
+                // Generic function.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L720-L729>.
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        fn generic_message<T>();
+                    },
+                    vec![TestResultAction {
+                        label: "Remove generic",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-<T>"),
+                            end_pat: Some("<T>"),
+                        }],
+                    }],
+                ),
+                // Unsupported ink! attribute.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L731-L749>.
+                (
+                    quote! {
+                        #[ink(constructor)]
+                        fn my_constructor() -> Self;
+                    },
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![
+                            // Add ink! extension attribute.
+                            TestResultTextRange {
+                                text: id_arg_name,
+                                start_pat: Some("<-#[ink(constructor)]"),
+                                end_pat: Some("<-#[ink(constructor)]"),
+                            },
+                            // Remove ink! constructor attribute.
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(constructor)]"),
+                                end_pat: Some("#[ink(constructor)]"),
+                            },
+                        ],
+                    }],
+                ),
+                (
+                    quote! {
+                        #[ink(message)]
+                        fn my_message();
+                    },
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![
+                            // Add ink! extension/function attribute.
+                            TestResultTextRange {
+                                text: id_arg_name,
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("<-#[ink(message)]"),
+                            },
+                            // Remove ink! message attribute.
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("#[ink(message)]"),
+                            },
+                        ],
+                    }],
+                ),
+                (
+                    quote! {
+                        #[ink(unknown)]
+                        fn unknown_fn();
+                    },
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![
+                            // Add ink! extension/function attribute.
+                            TestResultTextRange {
+                                text: id_arg_name,
+                                start_pat: Some("<-#[ink(unknown)]"),
+                                end_pat: Some("<-#[ink(unknown)]"),
+                            },
+                            // Remove unknown ink! attribute.
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(unknown)]"),
+                                end_pat: Some("#[ink(unknown)]"),
+                            },
+                        ],
+                    }],
+                ),
+                // self receiver.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L810-L857>.
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        fn has_self_receiver(self);
+                    },
+                    vec![TestResultAction {
+                        label: "Remove self",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-self)"),
+                            end_pat: Some("(self"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        fn has_self_receiver(mut self);
+                    },
+                    vec![TestResultAction {
+                        label: "Remove self",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-mut self"),
+                            end_pat: Some("mut self"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        fn has_self_receiver(&self);
+                    },
+                    vec![TestResultAction {
+                        label: "Remove self",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-&self"),
+                            end_pat: Some("&self"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! {
+                        #[ink(#id_arg_kind=1)]
+                        fn has_self_receiver(&mut self);
+                    },
+                    vec![TestResultAction {
+                        label: "Remove self",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-&mut self"),
+                            end_pat: Some("&mut self"),
+                        }],
+                    }],
+                ),
+            ] {
+                let code = quote_as_pretty_string! {
+                    #[ink::chain_extension #macro_args]
+                    pub trait MyChainExtension {
+                        #items
+                    }
+                };
+                let chain_extension = parse_first_chain_extension(&code);
 
-            let mut results = Vec::new();
-            ensure_trait_item_invariants(&mut results, &chain_extension, Version::V4);
+                let mut results = Vec::new();
+                ensure_trait_item_invariants(&mut results, &chain_extension, version);
 
-            // Verifies diagnostics.
-            assert_eq!(results.len(), 1, "chain extension: {items}");
-            assert_eq!(
-                results[0].severity,
-                Severity::Error,
-                "chain extension: {items}"
-            );
-            // Verifies quickfixes.
-            verify_actions(
-                &code,
-                results[0].quickfixes.as_ref().unwrap(),
-                &expected_quickfixes,
-            );
+                // Verifies diagnostics.
+                assert_eq!(results.len(), 1, "chain extension: {items}");
+                assert_eq!(
+                    results[0].severity,
+                    Severity::Error,
+                    "chain extension: {code}, version: {:?}",
+                    version
+                );
+                // Verifies quickfixes.
+                verify_actions(
+                    &code,
+                    results[0].quickfixes.as_ref().unwrap(),
+                    &expected_quickfixes,
+                );
+            }
         }
     }
 
@@ -1142,82 +1336,107 @@ mod tests {
 
     #[test]
     fn non_overlapping_ids_works() {
-        for code in valid_chain_extensions!() {
-            let chain_extension = parse_first_chain_extension(quote_as_str! {
-                #code
-            });
+        for (version, chain_extensions) in versioned_fixtures!(valid_chain_extensions) {
+            for code in chain_extensions {
+                let chain_extension = parse_first_chain_extension(quote_as_str! {
+                    #code
+                });
 
-            let mut results = Vec::new();
-            ensure_no_overlapping_ids(&mut results, &chain_extension);
-            assert!(results.is_empty(), "chain extension: {code}");
+                let mut results = Vec::new();
+                ensure_no_overlapping_ids(&mut results, &chain_extension, version);
+                assert!(
+                    results.is_empty(),
+                    "chain extension: {code}, version: {:?}",
+                    version
+                );
+            }
         }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L859-L870>.
     fn overlapping_ids_fails() {
-        for code in [
-            // Overlapping decimal.
-            quote! {
-                #[ink(extension=1)]
-                fn my_extension();
-
-                #[ink(extension=1)]
-                fn my_extension2();
-            },
-            // Overlapping hexadecimal.
-            quote! {
-                #[ink(extension=0x1)]
-                fn my_extension();
-
-                #[ink(extension=0x1)]
-                fn my_extension2();
-            },
-            // Overlapping detected across decimal and hex representations.
-            quote! {
-                #[ink(extension=1)]
-                fn my_extension();
-
-                #[ink(extension=0x1)]
-                fn my_extension2();
-            },
+        for (version, id_arg_kind, macro_args) in [
+            (Version::V4, quote! { extension }, quote! {}),
+            (Version::V5, quote! { function }, quote! { (extension=1) }),
         ] {
-            let chain_extension = parse_first_chain_extension(quote_as_str! {
-                #[ink::chain_extension]
-                pub trait MyChainExtension {
-                    #code
-                }
-            });
+            for code in [
+                // Overlapping decimal.
+                quote! {
+                    #[ink(#id_arg_kind=1)]
+                    fn my_extension();
 
-            let mut results = Vec::new();
-            ensure_no_overlapping_ids(&mut results, &chain_extension);
-            // 1 error the overlapping extension id.
-            assert_eq!(results.len(), 1, "chain extension: {code}");
-            // All diagnostics should be errors.
-            assert_eq!(
-                results[0].severity,
-                Severity::Error,
-                "chain extension: {code}"
-            );
-            // Verifies quickfixes.
-            let quick_fix_label = &results[0].quickfixes.as_ref().unwrap()[0].label;
-            assert!(
-                quick_fix_label.contains("Replace")
-                    && quick_fix_label.contains("unique extension id")
-            );
+                    #[ink(#id_arg_kind=1)]
+                    fn my_extension2();
+                },
+                // Overlapping hexadecimal.
+                quote! {
+                    #[ink(#id_arg_kind=0x1)]
+                    fn my_extension();
+
+                    #[ink(#id_arg_kind=0x1)]
+                    fn my_extension2();
+                },
+                // Overlapping detected across decimal and hex representations.
+                quote! {
+                    #[ink(#id_arg_kind=1)]
+                    fn my_extension();
+
+                    #[ink(#id_arg_kind=0x1)]
+                    fn my_extension2();
+                },
+            ] {
+                let chain_extension = parse_first_chain_extension(quote_as_str! {
+                    #[ink::chain_extension #macro_args]
+                    pub trait MyChainExtension {
+                        #code
+                    }
+                });
+
+                let mut results = Vec::new();
+                ensure_no_overlapping_ids(&mut results, &chain_extension, version);
+                // 1 error the overlapping extension id.
+                assert_eq!(
+                    results.len(),
+                    1,
+                    "chain extension: {code}, version: {:?}",
+                    version
+                );
+                // All diagnostics should be errors.
+                assert_eq!(
+                    results[0].severity,
+                    Severity::Error,
+                    "chain extension: {code}, version: {:?}",
+                    version
+                );
+                // Verifies quickfixes.
+                let quick_fix_label = &results[0].quickfixes.as_ref().unwrap()[0].label;
+                assert!(
+                    quick_fix_label.contains("Replace") && quick_fix_label.contains("unique"),
+                    "chain extension: {code}, version: {:?}",
+                    version
+                );
+            }
         }
     }
 
     #[test]
     fn valid_quasi_direct_descendant_works() {
-        for code in valid_chain_extensions!() {
-            let chain_extension = parse_first_chain_extension(quote_as_str! {
-                #code
-            });
+        for (version, chain_extensions) in versioned_fixtures!(valid_chain_extensions) {
+            for code in chain_extensions {
+                let chain_extension = parse_first_chain_extension(quote_as_str! {
+                    #code
+                });
 
-            let mut results = Vec::new();
-            ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension);
-            assert!(results.is_empty(), "chain extension: {code}");
+                let mut results = Vec::new();
+                ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension, version);
+                dbg!(&results);
+                assert!(
+                    results.is_empty(),
+                    "chain extension: {code}, version: {:?}",
+                    version
+                );
+            }
         }
     }
 
@@ -1236,74 +1455,89 @@ mod tests {
         };
         let chain_extension = parse_first_chain_extension(&code);
 
-        let mut results = Vec::new();
-        ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension);
+        for version in [Version::V4, Version::V5] {
+            let mut results = Vec::new();
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension, version);
 
-        // 1 diagnostic each for `constructor` and `message`.
-        assert_eq!(results.len(), 2);
-        // All diagnostics should be errors.
-        assert_eq!(
-            results
-                .iter()
-                .filter(|item| item.severity == Severity::Error)
-                .count(),
-            2
-        );
-        // Verifies quickfixes.
-        let expected_quickfixes = vec![
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(constructor)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(constructor)]"),
-                        end_pat: Some("#[ink(constructor)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(constructor)]"),
-                        end_pat: Some("fn my_constructor() -> Self;"),
-                    }],
-                },
-            ],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(message)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(message)]"),
-                        end_pat: Some("#[ink(message)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(message)]"),
-                        end_pat: Some("fn my_message(&self);"),
-                    }],
-                },
-            ],
-        ];
-        for (idx, item) in results.iter().enumerate() {
-            let quickfixes = item.quickfixes.as_ref().unwrap();
-            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            // 1 diagnostic each for `constructor` and `message`.
+            assert_eq!(
+                results.len(),
+                2,
+                "chain extension: {code}, version: {:?}",
+                version
+            );
+            // All diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                2,
+                "chain extension: {code}, version: {:?}",
+                version
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(constructor)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("fn my_constructor() -> Self;"),
+                        }],
+                    },
+                ],
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(message)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("#[ink(message)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(message)]"),
+                            end_pat: Some("fn my_message(&self);"),
+                        }],
+                    },
+                ],
+            ];
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            }
         }
     }
 
     #[test]
     fn compound_diagnostic_works() {
-        for code in valid_chain_extensions!() {
-            let chain_extension = parse_first_chain_extension(quote_as_str! {
-                #code
-            });
+        for (version, chain_extensions) in versioned_fixtures!(valid_chain_extensions) {
+            for code in chain_extensions {
+                let chain_extension = parse_first_chain_extension(quote_as_str! {
+                    #code
+                });
 
-            let mut results = Vec::new();
-            diagnostics(&mut results, &chain_extension, Version::V4);
-            assert!(results.is_empty(), "chain extension: {code}");
+                let mut results = Vec::new();
+                diagnostics(&mut results, &chain_extension, version);
+                assert!(
+                    results.is_empty(),
+                    "chain extension: {code}, version: {:?}",
+                    version
+                );
+            }
         }
     }
 }

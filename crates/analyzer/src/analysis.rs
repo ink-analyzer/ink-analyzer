@@ -52,7 +52,7 @@ impl Analysis {
 
     /// Computes ink! attribute completions at the given position.
     pub fn completions(&self, position: TextSize) -> Vec<Completion> {
-        completions::completions(&self.file, position)
+        completions::completions(&self.file, position, self.version)
     }
 
     /// Computes ink! attribute code/intent actions for the given text range.
@@ -67,7 +67,7 @@ impl Analysis {
                 range.contains_range(action.range) || action.range.contains_range(range)
             })
             // Combines quickfixes and generic actions (with quickfixes taking priority).
-            .chain(actions::actions(&self.file, range))
+            .chain(actions::actions(&self.file, range, self.version))
             // Deduplicate by edits.
             .unique_by(|item| item.edits.clone())
             .collect()
@@ -85,6 +85,6 @@ impl Analysis {
 
     /// Computes ink! attribute signature help for the given position.
     pub fn signature_help(&self, position: TextSize) -> Vec<SignatureHelp> {
-        signature_help::signature_help(&self.file, position)
+        signature_help::signature_help(&self.file, position, self.version)
     }
 }

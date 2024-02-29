@@ -74,3 +74,12 @@ where
         .find_map(T::cast)
         .unwrap()
 }
+
+macro_rules! versioned_fixtures {
+    ($call: tt) => {
+        [
+            (crate::Version::V4, $call!(v4).collect::<Vec<_>>()),
+            (crate::Version::V5, $call!(v5).collect::<Vec<_>>()),
+        ]
+    };
+}

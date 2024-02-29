@@ -5,10 +5,10 @@ use ink_analyzer_ir::InkFile;
 
 use super::Action;
 use crate::analysis::utils;
-use crate::{ActionKind, TextEdit};
+use crate::{ActionKind, TextEdit, Version};
 
 /// Computes ink! attribute-based actions at the given text range.
-pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
+pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, version: Version) {
     // Only computes actions if the focused range is part of/covered by an ink! attribute.
     if let Some(ink_attr) = utils::covering_ink_attribute(file, range) {
         // Only computes actions for closed attributes because
@@ -25,12 +25,13 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
             }
 
             // Suggests ink! attribute arguments based on the context.
-            let mut ink_arg_suggestions = utils::valid_sibling_ink_args(*ink_attr.kind());
+            let mut ink_arg_suggestions = utils::valid_sibling_ink_args(*ink_attr.kind(), version);
 
             // Filters out duplicates, conflicting and invalidly scoped ink! arguments.
             utils::remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
                 &mut ink_arg_suggestions,
                 &ink_attr,
+                version,
             );
 
             // Adds ink! attribute argument actions to accumulator.
@@ -537,7 +538,7 @@ mod tests {
             let range = TextRange::new(offset, offset);
 
             let mut results = Vec::new();
-            actions(&mut results, &InkFile::parse(code), range);
+            actions(&mut results, &InkFile::parse(code), range, Version::V4);
 
             assert_eq!(
                 results

@@ -12,6 +12,8 @@ pub struct Extension {
 
 impl_ast_type_trait!(Extension, IsInkFn);
 
+impl_is_chain_extension_fn!(Extension, Extension);
+
 impl Extension {
     /// Returns the extension id (if any).
     pub fn id(&self) -> Option<u32> {
