@@ -1918,18 +1918,31 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L316-L321>.
     macro_rules! valid_attributes_versioned {
         (v4) => {
-            []
+            [
+                quote_as_str! {
+                    #[ink(extension=1, handle_status=true)] // `handle_status` is incomplete without `extension`.
+                },
+            ]
         };
         (v5) => {
             [
                 quote_as_str! {
-                    #[ink(message, selector=@)] // message is required, otherwise this would be incomplete.
+                    #[ink(message, selector=@)] // message is required, otherwise this would be incomplete/invalid.
+                },
+                quote_as_str! {
+                    #[ink::chain_extension(extension = 1)]
+                },
+                quote_as_str! {
+                    #[ink::chain_extension(extension = 0x1)]
                 },
                 quote_as_str! {
                     #[ink(function = 1)]
                 },
                 quote_as_str! {
                     #[ink(function = 0x1)]
+                },
+                quote_as_str! {
+                    #[ink(function=1, handle_status=true)] // `handle_status` is incomplete without `function`.
                 },
             ]
         };
@@ -2020,9 +2033,6 @@ mod tests {
                 },
                 // Arguments that should have a boolean value.
                 quote_as_str! {
-                    #[ink(extension=1, handle_status=true)] // `handle_status` is incomplete without `extension`.
-                },
-                quote_as_str! {
                     #[ink::storage_item(derive=false)]
                 },
                 // Arguments that should have a path value.
@@ -2041,9 +2051,6 @@ mod tests {
                 },
                 quote_as_str! {
                     #[ink(event, anonymous)]
-                },
-                quote_as_str! {
-                    #[ink(extension=1, handle_status=true)]
                 },
                 quote_as_str! {
                     #[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]
@@ -2743,12 +2750,18 @@ mod tests {
     fn no_conflicting_attributes_and_arguments_works() {
         // NOTE: Unknown attributes are ignored by this test,
         // See `ensure_no_duplicate_attributes_and_arguments` doc.
-        for code in valid_attributes!() {
-            let attrs = parse_all_ink_attrs(code);
+        for (version, attributes) in versioned_fixtures!(valid_attributes) {
+            for code in attributes {
+                let attrs = parse_all_ink_attrs(code);
 
-            let mut results = Vec::new();
-            ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs, Version::V4);
-            assert!(results.is_empty(), "attributes: {code}");
+                let mut results = Vec::new();
+                ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs, version);
+                assert!(
+                    results.is_empty(),
+                    "attributes: {code}, version: {:?}",
+                    version
+                );
+            }
         }
     }
 
