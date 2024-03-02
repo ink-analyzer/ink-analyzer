@@ -8,7 +8,7 @@ use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::{
     ast, ChainExtension, Extension, Function, InkArg, InkArgKind, InkAttributeKind, InkEntity,
-    IsChainExtensionFn, IsInkTrait, IsIntId,
+    InkFile, IsChainExtensionFn, IsInkTrait, IsIntId,
 };
 
 use super::{extension_fn, utils};
@@ -104,9 +104,20 @@ fn ensure_extension_arg(chain_extension: &ChainExtension) -> Option<Diagnostic> 
                     // Range for the quickfix.
                     let range = TextRange::new(insert_offset, insert_offset);
                     // Suggested id for the extension.
-                    let unavailable_ids = HashSet::new();
-                    let suggested_id =
-                        analysis_utils::suggest_unique_id(None, &unavailable_ids).unwrap_or(1u16);
+                    let suggested_id = chain_extension
+                        .syntax()
+                        .ancestors()
+                        .last()
+                        .and_then(InkFile::cast)
+                        .and_then(|file| {
+                            let unavailable_ids = file
+                                .chain_extensions()
+                                .iter()
+                                .filter_map(ChainExtension::id)
+                                .collect();
+                            analysis_utils::suggest_unique_id(None, &unavailable_ids)
+                        })
+                        .unwrap_or(1);
 
                     vec![Action {
                         label: "Add ink! extension argument.".to_owned(),

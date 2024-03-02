@@ -22,8 +22,8 @@ impl_ast_type_trait!(ChainExtension, IsInkTrait);
 
 impl ChainExtension {
     /// Returns the ink! v5 extension id (if any).
-    pub fn id(&self) -> Option<u32> {
-        self.extension_arg()?.value()?.as_u32()
+    pub fn id(&self) -> Option<u16> {
+        self.extension_arg()?.value()?.as_u16()
     }
 
     impl_pub_ink_arg_getter!(extension_arg, Extension, extension);
