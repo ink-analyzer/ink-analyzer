@@ -1926,9 +1926,28 @@ mod tests {
         };
         (v5) => {
             [
+                // Wildcard complement selector.
+                // Ref: <https://github.com/paritytech/ink/pull/1708>
                 quote_as_str! {
                     #[ink(message, selector=@)] // message is required, otherwise this would be incomplete/invalid.
                 },
+                // Events 2.0
+                // Ref: <https://github.com/paritytech/ink/pull/1827>
+                // Ref: <https://github.com/paritytech/ink/pull/2031>
+                quote_as_str! {
+                    #[ink::event]
+                },
+                quote_as_str! {
+                    #[ink::event(anonymous)]
+                },
+                quote_as_str! {
+                    #[ink::event(signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]
+                },
+                quote_as_str! {
+                    #[ink(event, signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]
+                },
+                // Chain extension API changes.
+                // Ref: <https://github.com/paritytech/ink/pull/1958>
                 quote_as_str! {
                     #[ink::chain_extension(extension = 1)]
                 },

@@ -38,6 +38,12 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
                 InkMacroKind::Contract => vec![InkArgKind::Env, InkArgKind::KeepAttr],
+                // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/event/mod.rs#L129-L141>
+                // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>
+                // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
+                InkMacroKind::Event if version == Version::V5 => {
+                    vec![InkArgKind::Anonymous, InkArgKind::SignatureTopic]
+                }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L772-L799>.
                 InkMacroKind::StorageItem => vec![InkArgKind::Derive],
@@ -64,6 +70,11 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Unambiguous `arg_kind`.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L83-L93>.
                 InkArgKind::Storage => Vec::new(),
+                // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/event/mod.rs#L129-L141>
+                InkArgKind::Event if version == Version::V5 => {
+                    vec![InkArgKind::Anonymous, InkArgKind::SignatureTopic]
+                }
+                InkArgKind::SignatureTopic if version == Version::V5 => vec![InkArgKind::Event],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L88-L98>.
                 InkArgKind::Event => vec![InkArgKind::Anonymous],
                 InkArgKind::Anonymous => vec![InkArgKind::Event],
@@ -142,8 +153,8 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
 
 /// Returns valid quasi-direct descendant ink! argument kinds for the given ink! attribute kind.
 ///
-/// (i.e argument kinds that are allowed in the scope of the given ink! attribute kind,
-/// e.g for the `chain_extension` attribute macro kind, this would be `extension` and `handle_status`
+/// (i.e. argument kinds that are allowed in the scope of the given ink! attribute kind,
+/// e.g. for the `chain_extension` attribute macro kind, this would be `extension` and `handle_status`
 /// while for the `event` attribute argument kind, this would be `topic`).
 pub fn valid_quasi_direct_descendant_ink_args(attr_kind: InkAttributeKind) -> Vec<InkArgKind> {
     match attr_kind {

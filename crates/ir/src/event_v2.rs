@@ -1,4 +1,4 @@
-//! ink! event IR.
+//! ink! event 2.0 IR.
 
 use ra_ap_syntax::ast;
 
@@ -17,6 +17,8 @@ pub struct EventV2 {
 }
 
 impl_ast_type_trait!(EventV2, IsInkStruct);
+
+impl_is_ink_event!(EventV2);
 
 impl EventV2 {
     impl_pub_ink_arg_getter!(anonymous_arg, Anonymous, anonymous);
@@ -58,17 +60,6 @@ mod tests {
                     pub struct MyEvent {}
                 },
                 false,
-                Some("1111111111111111111111111111111111111111111111111111111111111111"),
-                0,
-            ),
-            (
-                quote_as_str! {
-                    #[ink::event]
-                    #[ink(anonymous)]
-                    #[ink(signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]
-                    pub struct MyEvent {}
-                },
-                true,
                 Some("1111111111111111111111111111111111111111111111111111111111111111"),
                 0,
             ),

@@ -1,7 +1,7 @@
 //! ink! event diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasAttrs, HasGenericParams};
-use ink_analyzer_ir::{ast, Event, InkArgKind, InkAttributeKind, InkEntity, IsInkStruct};
+use ink_analyzer_ir::{ast, InkArgKind, InkAttributeKind, IsInkEvent};
 
 use super::{topic, utils};
 use crate::analysis::text_edit::TextEdit;
@@ -14,7 +14,10 @@ const EVENT_SCOPE_NAME: &str = "event";
 /// The entry point for finding ink! event semantic rules is the event module of the `ink_ir` crate.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86-L148>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event, version: Version) {
+pub fn diagnostics<T>(results: &mut Vec<Diagnostic>, event: &T, version: Version)
+where
+    T: IsInkEvent,
+{
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::run_generic_diagnostics(results, event, version);
 
@@ -25,11 +28,17 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event, version: Versio
         results.push(diagnostic);
     }
 
-    // Ensures that ink! event is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L475>.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L79>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(event, EVENT_SCOPE_NAME) {
-        results.push(diagnostic);
+    if version == Version::V4
+        || event
+            .ink_attr()
+            .is_some_and(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
+    {
+        // Ensures that ink! event is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L475>.
+        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L79>.
+        if let Some(diagnostic) = utils::ensure_contract_parent(event, EVENT_SCOPE_NAME) {
+            results.push(diagnostic);
+        }
     }
 
     // Ensures that ink! event struct has no generic parameters, see `ensure_no_generics_on_struct` doc.
@@ -52,7 +61,10 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, event: &Event, version: Versio
 /// Ensures that ink! event `struct` has no generic parameters.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L99-L104>.
-fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
+fn ensure_no_generics_on_struct<T>(event: &T) -> Option<Diagnostic>
+where
+    T: IsInkEvent,
+{
     event
         .struct_item()?
         .generic_param_list()
@@ -73,7 +85,10 @@ fn ensure_no_generics_on_struct(event: &Event) -> Option<Diagnostic> {
 /// Ensures that ink! event has only ink! topic annotations (if any) on it's descendants.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L126-L139>.
-fn ensure_only_ink_topic_descendants(results: &mut Vec<Diagnostic>, item: &Event) {
+fn ensure_only_ink_topic_descendants<T>(results: &mut Vec<Diagnostic>, item: &T)
+where
+    T: IsInkEvent,
+{
     for attr in item.tree().ink_attrs_descendants() {
         if *attr.kind() != InkAttributeKind::Arg(InkArgKind::Topic) {
             results.push(Diagnostic {
@@ -89,7 +104,10 @@ fn ensure_only_ink_topic_descendants(results: &mut Vec<Diagnostic>, item: &Event
 /// Ensures that ink! event fields are not annotated with cfg attributes.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L112-L117>.
-fn ensure_no_cfg_event_fields(results: &mut Vec<Diagnostic>, event: &Event) {
+fn ensure_no_cfg_event_fields<T>(results: &mut Vec<Diagnostic>, event: &T)
+where
+    T: IsInkEvent,
+{
     if let Some(struct_item) = event.struct_item() {
         if let Some(ast::FieldList::RecordFieldList(field_list)) = struct_item.field_list() {
             for field in field_list.fields() {
@@ -121,12 +139,9 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use crate::Severity;
-    use ink_analyzer_ir::syntax::{TextRange, TextSize};
+    use ink_analyzer_ir::{Event, EventV2};
     use quote::quote;
-    use test_utils::{
-        parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
-        TestResultTextRange,
-    };
+    use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
     fn parse_first_event(code: &str) -> Event {
         parse_first_ink_entity_of_type(code)
@@ -136,33 +151,17 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L251-L257>.
     macro_rules! valid_events {
         () => {
-            [quote! {
-                pub struct MyEvent {
-                    #[ink(topic)]
-                    field_1: i32,
-                    field_2: bool,
-                }
-            }]
-            .iter()
-            .flat_map(|code| {
-                [
-                    // Simple.
-                    quote! {
-                        #[ink(event)]
-                        #code
-                    },
-                    // Anonymous.
-                    quote! {
-                        #[ink(event, anonymous)]
-                        #code
-                    },
-                    quote! {
-                        #[ink(event)]
-                        #[ink(anonymous)]
-                        #code
-                    },
-                ]
-            })
+            valid_events!(v4)
+        };
+        (v4) => {
+            valid_events!([
+                quote! { #[ink(event)] },
+                quote! { #[ink(event, anonymous)] },
+                quote! {
+                    #[ink(event)]
+                    #[ink(anonymous)]
+                },
+            ])
             // Wrap in contract for context sensitive tests.
             .map(|items| {
                 quote! {
@@ -173,112 +172,193 @@ mod tests {
                 }
             })
         };
+        (v5) => {
+            valid_events!([
+                quote! { #[ink::event] },
+                quote! { #[ink::event(anonymous)] },
+                quote! { #[ink::event(signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")] },
+            ]).chain(
+                valid_events!([
+                    quote! { #[ink(event)] },
+                    quote! { #[ink(event, anonymous)] },
+                    quote! {
+                        #[ink(event)]
+                        #[ink(signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]
+                    },
+                    quote! { #[ink(event, anonymous)] },
+                    quote! {
+                        #[ink(event)]
+                        #[ink(signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]
+                    },
+                ])
+                // Wrap in contract for context sensitive tests.
+                .map(|items| {
+                    quote! {
+                        #[ink::contract]
+                        mod my_contract {
+                            #items
+                        }
+                    }
+                })
+            )
+        };
+        ($attrs: expr) => {
+            [quote! {
+                pub struct MyEvent {
+                    #[ink(topic)]
+                    field_1: i32,
+                    field_2: bool,
+                }
+            }]
+            .iter()
+            .flat_map(|code| {
+                $attrs.into_iter().map(move |attr| {
+                    quote! {
+                        #attr
+                        #code
+                    }
+                })
+            })
+        };
+    }
+
+    macro_rules! is_event_v2 {
+        ($version: ident, $code: ident) => {
+            // We check with `(event` because, unlike `::event`, it doesn't need prettyfing to remove extra spaces.
+            $version == Version::V5 && !$code.to_string().contains("(event")
+        };
     }
 
     #[test]
     fn pub_struct_works() {
-        for code in valid_events!() {
-            let event = parse_first_event(quote_as_str! {
-                #code
-            });
-
-            let result = utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME);
-            assert!(result.is_none(), "event: {code}");
+        for (version, events) in versioned_fixtures!(valid_events) {
+            for code in events {
+                let result = if is_event_v2!(version, code) {
+                    let event: EventV2 = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME)
+                } else {
+                    let event: Event = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME)
+                };
+                assert!(result.is_none(), "event: {code}, version: {:?}", version);
+            }
         }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L346-L359>.
     fn non_pub_struct_fails() {
-        for (vis, expected_quickfixes) in vec![
-            (
-                quote! {},
-                vec![TestResultAction {
-                    label: "`pub`",
-                    edits: vec![TestResultTextRange {
-                        text: "pub",
-                        start_pat: Some("<-struct"),
-                        end_pat: Some("<-struct"),
-                    }],
-                }],
-            ), // no visibility
-            (
-                quote! { pub(crate) },
-                vec![TestResultAction {
-                    label: "`pub`",
-                    edits: vec![TestResultTextRange {
-                        text: "pub",
-                        start_pat: Some("<-pub(crate)"),
-                        end_pat: Some("pub(crate)"),
-                    }],
-                }],
-            ),
-            (
-                quote! { pub(self) },
-                vec![TestResultAction {
-                    label: "`pub`",
-                    edits: vec![TestResultTextRange {
-                        text: "pub",
-                        start_pat: Some("<-pub(self)"),
-                        end_pat: Some("pub(self)"),
-                    }],
-                }],
-            ),
-            (
-                quote! { pub(super) },
-                vec![TestResultAction {
-                    label: "`pub`",
-                    edits: vec![TestResultTextRange {
-                        text: "pub",
-                        start_pat: Some("<-pub(super)"),
-                        end_pat: Some("pub(super)"),
-                    }],
-                }],
-            ),
-            (
-                quote! { pub(in my::path) },
-                vec![TestResultAction {
-                    label: "`pub`",
-                    edits: vec![TestResultTextRange {
-                        text: "pub",
-                        start_pat: Some("<-pub(in my::path)"),
-                        end_pat: Some("pub(in my::path)"),
-                    }],
-                }],
-            ),
+        for (version, attr) in [
+            (Version::V4, quote! { #[ink(event)] }),
+            (Version::V5, quote! { #[ink::event] }),
         ] {
-            let code = quote_as_pretty_string! {
-                #[ink(event)]
-                #vis struct MyEvent {
-                    #[ink(topic)]
-                    value: bool,
-                }
-            };
-            let event = parse_first_event(&code);
+            for (vis, expected_quickfixes) in vec![
+                (
+                    quote! {},
+                    vec![TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-struct"),
+                            end_pat: Some("<-struct"),
+                        }],
+                    }],
+                ), // no visibility
+                (
+                    quote! { pub(crate) },
+                    vec![TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(crate)"),
+                            end_pat: Some("pub(crate)"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! { pub(self) },
+                    vec![TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(self)"),
+                            end_pat: Some("pub(self)"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! { pub(super) },
+                    vec![TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(super)"),
+                            end_pat: Some("pub(super)"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! { pub(in my::path) },
+                    vec![TestResultAction {
+                        label: "`pub`",
+                        edits: vec![TestResultTextRange {
+                            text: "pub",
+                            start_pat: Some("<-pub(in my::path)"),
+                            end_pat: Some("pub(in my::path)"),
+                        }],
+                    }],
+                ),
+            ] {
+                let code = quote_as_pretty_string! {
+                    #attr
+                    #vis struct MyEvent {
+                        #[ink(topic)]
+                        value: bool,
+                    }
+                };
 
-            let result = utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME);
+                let result = if is_event_v2!(version, code) {
+                    let event: EventV2 = parse_first_ink_entity_of_type(&code);
+                    utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME)
+                } else {
+                    let event: Event = parse_first_ink_entity_of_type(&code);
+                    utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME)
+                };
 
-            // Verifies diagnostics.
-            assert!(result.is_some());
-            assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
-            // Verifies quickfixes.
-            verify_actions(
-                &code,
-                result.as_ref().unwrap().quickfixes.as_ref().unwrap(),
-                &expected_quickfixes,
-            );
+                // Verifies diagnostics.
+                assert!(result.is_some(), "event: {code}, version: {:?}", version);
+                assert_eq!(
+                    result.as_ref().unwrap().severity,
+                    Severity::Error,
+                    "event: {code}, version: {:?}",
+                    version
+                );
+                // Verifies quickfixes.
+                verify_actions(
+                    &code,
+                    result.as_ref().unwrap().quickfixes.as_ref().unwrap(),
+                    &expected_quickfixes,
+                );
+            }
         }
     }
 
     #[test]
     fn contract_parent_works() {
-        for code in valid_events!() {
-            let event = parse_first_event(quote_as_str! {
-                #code
-            });
-
-            let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
-            assert!(result.is_none(), "event: {code}");
+        for (version, events) in versioned_fixtures!(valid_events) {
+            for code in events {
+                if !is_event_v2!(version, code) {
+                    let event: Event = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
+                    assert!(result.is_none(), "event: {code}, version: {:?}", version);
+                }
+            }
         }
     }
 
@@ -334,8 +414,12 @@ mod tests {
             let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
 
             // Verifies diagnostics.
-            assert!(result.is_some());
-            assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
+            assert!(result.is_some(), "event: {code}");
+            assert_eq!(
+                result.as_ref().unwrap().severity,
+                Severity::Error,
+                "event: {code}"
+            );
             // Verifies quickfixes.
             verify_actions(
                 &code,
@@ -352,145 +436,222 @@ mod tests {
 
     #[test]
     fn struct_with_no_generics_works() {
-        for code in valid_events!() {
-            let event = parse_first_event(quote_as_str! {
-                #code
-            });
-
-            let result = ensure_no_generics_on_struct(&event);
-            assert!(result.is_none(), "event: {code}");
+        for (version, events) in versioned_fixtures!(valid_events) {
+            for code in events {
+                let result = if is_event_v2!(version, code) {
+                    let event: EventV2 = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    ensure_no_generics_on_struct(&event)
+                } else {
+                    let event: Event = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    ensure_no_generics_on_struct(&event)
+                };
+                assert!(result.is_none(), "event: {code}, version: {:?}", version);
+            }
         }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L331-L344>.
     fn struct_with_generics_fails() {
-        let code = quote_as_pretty_string! {
-            #[ink(event)]
-            pub struct MyEvent<T> {
-                #[ink(topic)]
-                value: T,
-            }
-        };
-        let event = parse_first_event(&code);
+        for (version, attr) in [
+            (Version::V4, quote! { #[ink(event)] }),
+            (Version::V5, quote! { #[ink::event] }),
+        ] {
+            let code = quote_as_pretty_string! {
+                #attr
+                pub struct MyEvent<T> {
+                    #[ink(topic)]
+                    value: T,
+                }
+            };
 
-        let result = ensure_no_generics_on_struct(&event);
+            let result = if is_event_v2!(version, code) {
+                let event: EventV2 = parse_first_ink_entity_of_type(&code);
+                ensure_no_generics_on_struct(&event)
+            } else {
+                let event: Event = parse_first_ink_entity_of_type(&code);
+                ensure_no_generics_on_struct(&event)
+            };
 
-        // Verifies diagnostics.
-        assert!(result.is_some());
-        assert_eq!(result.as_ref().unwrap().severity, Severity::Error);
-        // Verifies quickfixes.
-        let fix = &result.as_ref().unwrap().quickfixes.as_ref().unwrap()[0];
-        assert!(fix.label.contains("Remove generic"));
-        assert_eq!(&fix.edits[0].text, "");
-        assert_eq!(
-            fix.edits[0].range,
-            TextRange::new(
-                TextSize::from(parse_offset_at(&code, Some("<-<T>")).unwrap() as u32),
-                TextSize::from(parse_offset_at(&code, Some("<T>")).unwrap() as u32)
-            )
-        );
+            // Verifies diagnostics.
+            assert!(result.is_some(), "event: {code}, version: {:?}", version);
+            assert_eq!(
+                result.as_ref().unwrap().severity,
+                Severity::Error,
+                "event: {code}, version: {:?}",
+                version
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = [TestResultAction {
+                label: "Remove generic",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-<T>"),
+                    end_pat: Some("<T>"),
+                }],
+            }];
+            let quickfixes = result.as_ref().unwrap().quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
+        }
     }
 
     #[test]
     fn ink_topic_field_works() {
-        for code in valid_events!() {
-            let event = parse_first_event(quote_as_str! {
-                #code
-            });
-
-            let mut results = Vec::new();
-            ensure_only_ink_topic_descendants(&mut results, &event);
-            assert!(results.is_empty(), "event: {code}");
+        for (version, events) in versioned_fixtures!(valid_events) {
+            for code in events {
+                let mut results = Vec::new();
+                if is_event_v2!(version, code) {
+                    let event: EventV2 = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    ensure_only_ink_topic_descendants(&mut results, &event);
+                } else {
+                    let event: Event = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    ensure_only_ink_topic_descendants(&mut results, &event);
+                }
+                assert!(results.is_empty(), "event: {code}, version: {:?}", version);
+            }
         }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L377-L390>.
     fn non_topic_ink_field_fails() {
-        let code = quote_as_pretty_string! {
-            #[ink(event)]
-            pub struct MyEvent {
-                #[ink(message)]
-                value: bool,
+        for (version, attr) in [
+            (Version::V4, quote! { #[ink(event)] }),
+            (Version::V5, quote! { #[ink::event] }),
+        ] {
+            let code = quote_as_pretty_string! {
+                #attr
+                pub struct MyEvent {
+                    #[ink(message)]
+                    value: bool,
+                }
+            };
+
+            let mut results = Vec::new();
+            if is_event_v2!(version, code) {
+                let event: EventV2 = parse_first_ink_entity_of_type(&code);
+                ensure_only_ink_topic_descendants(&mut results, &event);
+            } else {
+                let event: Event = parse_first_ink_entity_of_type(&code);
+                ensure_only_ink_topic_descendants(&mut results, &event);
             }
-        };
-        let event = parse_first_event(&code);
 
-        let mut results = Vec::new();
-        ensure_only_ink_topic_descendants(&mut results, &event);
-
-        // Verifies diagnostics.
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].severity, Severity::Error);
-        // Verifies quickfixes.
-        let fix = &results[0].quickfixes.as_ref().unwrap()[0];
-        assert!(fix.label.contains("Remove `#[ink(message)]`"));
-        assert_eq!(&fix.edits[0].text, "");
-        assert_eq!(
-            fix.edits[0].range,
-            TextRange::new(
-                TextSize::from(parse_offset_at(&code, Some("<-#[ink(message)]")).unwrap() as u32),
-                TextSize::from(parse_offset_at(&code, Some("#[ink(message)]")).unwrap() as u32)
-            )
-        );
+            // Verifies diagnostics.
+            assert_eq!(results.len(), 1, "event: {code}, version: {:?}", version);
+            assert_eq!(
+                results[0].severity,
+                Severity::Error,
+                "event: {code}, version: {:?}",
+                version
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = [TestResultAction {
+                label: "Remove `#[ink(message)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[ink(message)]"),
+                    end_pat: Some("#[ink(message)]"),
+                }],
+            }];
+            let quickfixes = results[0].quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
+        }
     }
 
     #[test]
     fn non_cfg_field_works() {
-        for code in valid_events!() {
-            let event = parse_first_event(quote_as_str! {
-                #code
-            });
-
-            let mut results = Vec::new();
-            ensure_no_cfg_event_fields(&mut results, &event);
-            assert!(results.is_empty(), "event: {code}");
+        for (version, events) in versioned_fixtures!(valid_events) {
+            for code in events {
+                let mut results = Vec::new();
+                if is_event_v2!(version, code) {
+                    let event: EventV2 = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    ensure_no_cfg_event_fields(&mut results, &event);
+                } else {
+                    let event: Event = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    ensure_no_cfg_event_fields(&mut results, &event);
+                }
+                assert!(results.is_empty(), "event: {code}, version: {:?}", version);
+            }
         }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L377-L390>.
     fn cfg_field_fails() {
-        let code = quote_as_pretty_string! {
-            #[ink(event)]
-            pub struct MyEvent {
-                #[cfg(test)]
-                value: bool,
+        for (version, attr) in [
+            (Version::V4, quote! { #[ink(event)] }),
+            (Version::V5, quote! { #[ink::event] }),
+        ] {
+            let code = quote_as_pretty_string! {
+                #attr
+                pub struct MyEvent {
+                    #[cfg(test)]
+                    value: bool,
+                }
+            };
+
+            let mut results = Vec::new();
+            if is_event_v2!(version, code) {
+                let event: EventV2 = parse_first_ink_entity_of_type(&code);
+                ensure_no_cfg_event_fields(&mut results, &event);
+            } else {
+                let event: Event = parse_first_ink_entity_of_type(&code);
+                ensure_no_cfg_event_fields(&mut results, &event);
             }
-        };
-        let event = parse_first_event(&code);
 
-        let mut results = Vec::new();
-        ensure_no_cfg_event_fields(&mut results, &event);
-
-        // Verifies diagnostics.
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].severity, Severity::Error);
-        // Verifies quickfixes.
-        let fix = &results[0].quickfixes.as_ref().unwrap()[0];
-        assert!(fix.label.contains("Remove `#[cfg(test)]`"));
-        assert!(fix.edits[0].text.is_empty());
-        assert_eq!(
-            fix.edits[0].range,
-            TextRange::new(
-                TextSize::from(parse_offset_at(&code, Some("<-#[cfg(test)]")).unwrap() as u32),
-                TextSize::from(parse_offset_at(&code, Some("#[cfg(test)]")).unwrap() as u32)
-            )
-        );
+            // Verifies diagnostics.
+            assert_eq!(results.len(), 1, "event: {code}, version: {:?}", version);
+            assert_eq!(
+                results[0].severity,
+                Severity::Error,
+                "event: {code}, version: {:?}",
+                version
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = [TestResultAction {
+                label: "Remove `#[cfg(test)]`",
+                edits: vec![TestResultTextRange {
+                    text: "",
+                    start_pat: Some("<-#[cfg(test)]"),
+                    end_pat: Some("#[cfg(test)]"),
+                }],
+            }];
+            let quickfixes = results[0].quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes);
+        }
     }
 
     #[test]
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L249-L260>.
     fn compound_diagnostic_works() {
-        for code in valid_events!() {
-            let event = parse_first_event(quote_as_str! {
-                #code
-            });
-
-            let mut results = Vec::new();
-            diagnostics(&mut results, &event, Version::V4);
-            assert!(results.is_empty(), "event: {code}");
+        for (version, events) in versioned_fixtures!(valid_events) {
+            for code in events {
+                let mut results = Vec::new();
+                if is_event_v2!(version, code) {
+                    let event: EventV2 = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    diagnostics(&mut results, &event, version);
+                } else {
+                    let event: Event = parse_first_ink_entity_of_type(quote_as_str! {
+                        #code
+                    });
+                    diagnostics(&mut results, &event, version);
+                }
+                assert!(results.is_empty(), "event: {code}, version: {:?}", version);
+            }
         }
     }
 }

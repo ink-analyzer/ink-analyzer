@@ -88,8 +88,8 @@ pub use self::{
     topic::Topic,
     trait_definition::TraitDefinition,
     traits::{
-        HasInkEnvironment, HasInkImplParent, InkEntity, IsChainExtensionFn, IsInkCallable, IsInkFn,
-        IsInkStruct, IsInkTrait, IsIntId, IsSyntax,
+        HasInkEnvironment, HasInkImplParent, InkEntity, IsChainExtensionFn, IsInkCallable,
+        IsInkEvent, IsInkFn, IsInkStruct, IsInkTrait, IsIntId, IsSyntax,
     },
     tree::ast_ext::{
         closest_ancestor_ast_type, closest_item_which, closest_non_trivia_token, parent_ast_item,

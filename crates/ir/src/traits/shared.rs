@@ -1,8 +1,8 @@
 //! ink! entity traits for callables (i.e. ink! constructors and ink! messages).
 
-use super::IsInkFn;
+use super::{IsInkFn, IsInkStruct};
 use crate::tree::{ast_ext, utils};
-use crate::{EnvArg, Environment, InkArg, InkArgKind, InkEntity, Selector, SelectorArg};
+use crate::{EnvArg, Environment, InkArg, InkArgKind, InkEntity, Selector, SelectorArg, Topic};
 
 /// Implemented by ink! entities that represent an ink! callable entity
 /// (i.e. an ink! constructor or ink! message).
@@ -26,6 +26,18 @@ pub trait IsInkCallable: IsInkFn {
     }
 }
 
+/// Convenience trait for unified handling of both macro (i.e. `#[ink::event]` in v5) and
+/// argument (i.e. `#[ink(event)]`) based ink! events.
+#[allow(unused_imports)]
+pub trait IsInkEvent: IsInkStruct {
+    impl_ink_arg_getter!(anonymous_arg, Anonymous, anonymous);
+
+    impl_ink_arg_getter!(signature_arg, SignatureTopic, signature_topic);
+
+    /// Returns ink! topics.
+    fn topics(&self) -> &[Topic];
+}
+
 /// Implemented by ink! entities that accept an `Environment` configuration
 /// (i.e. an ink! contract or ink! e2e test).
 pub trait HasInkEnvironment: InkEntity {
@@ -46,8 +58,8 @@ pub trait HasInkEnvironment: InkEntity {
     }
 }
 
-/// Implemented by ink! entities that represent an associated function of a chain extension
-/// (i.e. an ink! extension for v4 or ink! function in v5).
+/// Convenience trait for unified handling by ink! entities that represent an associated function
+/// of a chain extension (i.e. an ink! extension for v4 or ink! function in v5).
 #[allow(unused_imports)]
 pub trait IsChainExtensionFn: IsInkFn {
     const ID_ARG_KIND: InkArgKind;
@@ -69,7 +81,7 @@ pub trait IsChainExtensionFn: IsInkFn {
     impl_ink_arg_getter!(handle_status_arg, HandleStatus, handle_status);
 }
 
-/// Convenience trait for handling ink! integer ids.
+/// Convenience trait for unified handling of ink! integer ids.
 pub trait IsIntId:
     std::ops::Add
     + std::ops::AddAssign
@@ -81,8 +93,10 @@ pub trait IsIntId:
     + Copy
     + Sized
 {
+    /// The largest value that can be represented by this integer id type.
     const MAX: Self;
 
+    /// Converts a string slice in a given base to an integer.
     fn from_str_radix(src: &str, radix: u32) -> Result<Self, std::num::ParseIntError>;
 }
 

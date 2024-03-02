@@ -51,6 +51,16 @@ macro_rules! impl_pub_ink_arg_getter {
     };
 }
 
+macro_rules! impl_is_ink_event {
+    ($entity: ty) => {
+        impl $crate::traits::IsInkEvent for $entity {
+            fn topics(&self) -> &[Topic] {
+                &self.topics
+            }
+        }
+    };
+}
+
 macro_rules! impl_has_ink_environment {
     ($entity: ty, $variant: ident) => {
         impl $crate::traits::HasInkEnvironment for $entity {

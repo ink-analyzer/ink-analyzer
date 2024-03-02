@@ -16,8 +16,12 @@ pub struct Event {
 
 impl_ast_type_trait!(Event, IsInkStruct);
 
+impl_is_ink_event!(Event);
+
 impl Event {
     impl_pub_ink_arg_getter!(anonymous_arg, Anonymous, anonymous);
+
+    impl_pub_ink_arg_getter!(signature_arg, SignatureTopic, signature_topic);
 }
 
 #[cfg(test)]
@@ -29,13 +33,14 @@ mod tests {
 
     #[test]
     fn cast_works() {
-        for (code, is_anonymous, expected_n_topics) in [
+        for (code, is_anonymous, signature, expected_n_topics) in [
             (
                 quote_as_str! {
                     #[ink(event)]
                     pub struct MyEvent {}
                 },
                 false,
+                None,
                 0,
             ),
             (
@@ -44,6 +49,7 @@ mod tests {
                     pub struct MyEvent {}
                 },
                 true,
+                None,
                 0,
             ),
             (
@@ -53,6 +59,16 @@ mod tests {
                     pub struct MyEvent {}
                 },
                 true,
+                None,
+                0,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(event, signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]
+                    pub struct MyEvent {}
+                },
+                false,
+                Some("1111111111111111111111111111111111111111111111111111111111111111"),
                 0,
             ),
             (
@@ -64,6 +80,7 @@ mod tests {
                     }
                 },
                 false,
+                None,
                 1,
             ),
             (
@@ -77,6 +94,7 @@ mod tests {
                     }
                 },
                 false,
+                None,
                 2,
             ),
         ] {
@@ -86,6 +104,18 @@ mod tests {
 
             // `anonymous` argument exists.
             assert_eq!(event.anonymous_arg().is_some(), is_anonymous);
+
+            // `signature_topic` argument exists.
+            assert_eq!(event.signature_arg().is_some(), signature.is_some());
+
+            // `signature_topic` argument value.
+            assert_eq!(
+                event
+                    .signature_arg()
+                    .and_then(|arg| arg.value()?.as_string())
+                    .as_deref(),
+                signature
+            );
 
             // Checks the expected number of topics.
             assert_eq!(event.topics().len(), expected_n_topics);
