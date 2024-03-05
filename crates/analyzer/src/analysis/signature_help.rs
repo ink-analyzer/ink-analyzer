@@ -117,7 +117,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize, version: Version) -> Vec
                             // Determines possible args by prefix or parent item kind
                             // (also accounts for parent scope).
                             let mut possible_args =
-                                utils::valid_ink_args_by_syntax_kind(parent_item_kind);
+                                utils::valid_ink_args_by_syntax_kind(parent_item_kind, version);
                             if let Some(attr_parent) = ink_attr
                                 .syntax()
                                 .parent()
@@ -126,6 +126,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize, version: Version) -> Vec
                                 utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
                                     &mut possible_args,
                                     &attr_parent,
+                                    version,
                                 );
                             }
                             for possible_arg_kind in possible_args

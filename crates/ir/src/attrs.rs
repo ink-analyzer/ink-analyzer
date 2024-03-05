@@ -281,7 +281,7 @@ impl fmt::Display for InkMacroKind {
                 InkMacroKind::TraitDefinition => "trait_definition",
                 // `#[ink_e2e::test]`
                 InkMacroKind::E2ETest => "e2e test",
-                // unknown ink! attribute path (i.e unknown ink! attribute macro).
+                // unknown ink! attribute path (i.e. unknown ink! attribute macro).
                 InkMacroKind::Unknown => "unknown",
             }
         )
@@ -298,6 +298,10 @@ impl InkMacroKind {
             InkMacroKind::ChainExtension => "ink::chain_extension",
             // `#[ink::contract]`
             InkMacroKind::Contract => "ink::contract",
+            // `#[ink::event]`
+            InkMacroKind::Event => "ink::event",
+            // `#[ink::scale_derive]`
+            InkMacroKind::ScaleDerive => "ink::scale_derive",
             // `#[ink::storage_item]`
             InkMacroKind::StorageItem => "ink::storage_item",
             // `#[ink::test]`
@@ -306,7 +310,7 @@ impl InkMacroKind {
             InkMacroKind::TraitDefinition => "ink::trait_definition",
             // `#[ink_e2e::test]`
             InkMacroKind::E2ETest => "ink_e2e::test",
-            // unknown ink! attribute path (i.e unknown ink! attribute macro).
+            // unknown ink! attribute path (i.e. unknown ink! attribute macro).
             _ => "",
         }
     }
@@ -320,6 +324,10 @@ impl InkMacroKind {
             InkMacroKind::ChainExtension => "chain_extension",
             // `#[ink::contract]`
             InkMacroKind::Contract => "contract",
+            // `#[ink::event]`
+            InkMacroKind::Event => "event",
+            // `#[ink::scale_derive]`
+            InkMacroKind::ScaleDerive => "scale_derive",
             // `#[ink::storage_item]`
             InkMacroKind::StorageItem => "storage_item",
             // `#[ink::test]`
@@ -328,7 +336,7 @@ impl InkMacroKind {
             InkMacroKind::TraitDefinition => "trait_definition",
             // `#[ink_e2e::test]`
             InkMacroKind::E2ETest => "test",
-            // unknown ink! attribute path (i.e unknown ink! attribute macro).
+            // unknown ink! attribute path (i.e. unknown ink! attribute macro).
             _ => "",
         }
     }
@@ -345,12 +353,14 @@ impl InkMacroKind {
             // `#[ink::trait_definition]`
             InkMacroKind::ChainExtension
             | InkMacroKind::Contract
+            | InkMacroKind::Event
+            | InkMacroKind::ScaleDerive
             | InkMacroKind::StorageItem
             | InkMacroKind::Test
             | InkMacroKind::TraitDefinition => "ink",
             // `#[ink_e2e::test]`
             InkMacroKind::E2ETest => "ink_e2e",
-            // unknown ink! attribute path (i.e unknown ink! attribute macro).
+            // unknown ink! attribute path (i.e. unknown ink! attribute macro).
             _ => "",
         }
     }

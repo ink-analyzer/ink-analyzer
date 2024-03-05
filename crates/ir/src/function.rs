@@ -16,8 +16,8 @@ impl_is_chain_extension_fn!(Function, Function);
 
 impl Function {
     /// Returns the function id (if any).
-    pub fn id(&self) -> Option<u32> {
-        self.function_arg()?.value()?.as_u32()
+    pub fn id(&self) -> Option<u16> {
+        self.function_arg()?.value()?.as_u16()
     }
 
     impl_pub_ink_arg_getter!(function_arg, Function, function);

@@ -491,8 +491,10 @@ fn ensure_no_conflicting_attributes_and_arguments(
 
         // We want to suggest a primary attribute in case the current one is either incomplete or ambiguous
         // (See [`utils::primary_ink_attribute_kind_suggestions`] doc).
-        let primary_attribute_kind_suggestions =
-            utils::primary_ink_attribute_kind_suggestions(*primary_ink_attr_candidate.kind());
+        let primary_attribute_kind_suggestions = utils::primary_ink_attribute_kind_suggestions(
+            *primary_ink_attr_candidate.kind(),
+            version,
+        );
 
         // Determines the insertion offset for creating a valid "primary" attribute as the first attribute.
         let primary_attr_insert_offset_option = || {
@@ -1040,7 +1042,7 @@ pub fn ensure_no_self_receiver(fn_item: &ast::Fn, ink_scope_name: &str) -> Optio
     })
 }
 
-/// Ensures that item is has no generic parameters.
+/// Ensures that item has no generic parameters.
 pub fn ensure_no_generics<T>(item: &T, ink_scope_name: &str) -> Option<Diagnostic>
 where
     T: HasGenericParams,
@@ -1919,8 +1921,23 @@ mod tests {
     macro_rules! valid_attributes_versioned {
         (v4) => {
             [
+                // Change in v5.
+                // `extension` was replaced with `function`.
+                // Ref: <https://github.com/paritytech/ink/pull/1958>
                 quote_as_str! {
-                    #[ink(extension=1, handle_status=true)] // `handle_status` is incomplete without `extension`.
+                    #[ink(extension=1, handle_status=true)]
+                },
+                // Deprecated in v5.
+                // `additional_contracts` is deprecated.
+                quote_as_str! {
+                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]
+                },
+                quote_as_str! {
+                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=my::env::Types, keep_attr="foo,bar")]
+                },
+                // `keep_attr` for `ink_e2e::test` is deprecated.
+                quote_as_str! {
+                    #[ink_e2e::test(keep_attr="foo,bar")]
                 },
             ]
         };
@@ -2044,12 +2061,6 @@ mod tests {
                 quote_as_str! {
                     #[ink::trait_definition(keep_attr="foo,bar")]
                 },
-                quote_as_str! {
-                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]
-                },
-                quote_as_str! {
-                    #[ink_e2e::test(keep_attr="foo,bar")]
-                },
                 // Arguments that should have a boolean value.
                 quote_as_str! {
                     #[ink::storage_item(derive=false)]
@@ -2073,9 +2084,6 @@ mod tests {
                 },
                 quote_as_str! {
                     #[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]
-                },
-                quote_as_str! {
-                    #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=my::env::Types, keep_attr="foo,bar")]
                 },
                 quote_as_str! {
                     #[ink(impl, namespace="my_namespace")]

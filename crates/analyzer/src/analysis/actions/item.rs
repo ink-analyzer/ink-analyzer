@@ -68,7 +68,12 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                                 .unwrap_or(ast_item.syntax().text_range());
 
                             // Suggests ink! attribute macros based on the context.
-                            ink_macro_actions(results, target, item_declaration_text_range);
+                            ink_macro_actions(
+                                results,
+                                target,
+                                item_declaration_text_range,
+                                version,
+                            );
 
                             // Suggests ink! attribute arguments based on the context.
                             ink_arg_actions(results, target, item_declaration_text_range, version);
@@ -119,11 +124,17 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
 }
 
 /// Computes AST item-based ink! attribute macro actions.
-fn ink_macro_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRange) {
+fn ink_macro_actions(
+    results: &mut Vec<Action>,
+    target: &SyntaxNode,
+    range: TextRange,
+    version: Version,
+) {
     // Only suggest ink! attribute macros if the AST item has no other ink! attributes.
     if ink_analyzer_ir::ink_attrs(target).next().is_none() {
         // Suggests ink! attribute macros based on the context.
-        let mut ink_macro_suggestions = utils::valid_ink_macros_by_syntax_kind(target.kind());
+        let mut ink_macro_suggestions =
+            utils::valid_ink_macros_by_syntax_kind(target.kind(), version);
 
         // Filters out duplicate and invalid ink! attribute macro actions based on
         // parent ink! scope (if any).
@@ -131,6 +142,7 @@ fn ink_macro_actions(results: &mut Vec<Action>, target: &SyntaxNode, range: Text
         utils::remove_invalid_ink_macro_suggestions_for_parent_ink_scope(
             &mut ink_macro_suggestions,
             target,
+            version,
         );
         utils::remove_invalid_ink_macro_suggestions_for_parent_cfg_scope(
             &mut ink_macro_suggestions,
@@ -179,7 +191,7 @@ fn ink_arg_actions(
         // Make suggestions based on the "primary" valid ink! attribute (if any).
         Some(ink_attr) => utils::valid_sibling_ink_args(*ink_attr.kind(), version),
         // Otherwise make suggestions based on the AST item's syntax kind.
-        None => utils::valid_ink_args_by_syntax_kind(target.kind()),
+        None => utils::valid_ink_args_by_syntax_kind(target.kind(), version),
     };
 
     // Filters out duplicate ink! attribute argument actions.
@@ -197,6 +209,7 @@ fn ink_arg_actions(
         utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
             &mut ink_arg_suggestions,
             target,
+            version,
         );
     }
 
@@ -2102,7 +2115,7 @@ mod tests {
             // pat = substring used to find the cursor offset
             //       (see `test_utils::parse_offset_at` doc),
             // result = expected result from calling `is_focused_on_ast_item_declaration`
-            //          (i.e. whether or not an AST item's declaration is in focus),
+            //          (i.e. whether an AST item's declaration is in focus),
 
             // Module.
             (
