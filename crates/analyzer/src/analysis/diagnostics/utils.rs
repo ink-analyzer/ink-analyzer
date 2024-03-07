@@ -381,8 +381,8 @@ fn ensure_valid_attribute_arguments(
                     }
                     // Nested arguments.
                     // TODO: Implement validation for nested attributes for ink! v5.
-                    InkArgValueKind::Arg(_) => (),
-                    InkArgValueKind::Choice(_, _) => (),
+                    InkArgValueKind::Arg(..) => (),
+                    InkArgValueKind::Choice(..) => (),
                 }
             }
         };
@@ -1929,6 +1929,7 @@ mod tests {
                 },
                 // Deprecated in v5.
                 // `additional_contracts` is deprecated.
+                // Ref: <https://github.com/paritytech/ink/pull/2098>
                 quote_as_str! {
                     #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]
                 },

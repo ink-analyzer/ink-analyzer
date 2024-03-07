@@ -704,7 +704,7 @@ pub fn ink_arg_insert_text(
     };
     let insert_equal_token = match value_kind {
         // No `=` symbol is inserted after ink! attribute arguments that should not have a value.
-        InkArgValueKind::None | InkArgValueKind::Arg(_) | InkArgValueKind::Choice(_, _) => false,
+        InkArgValueKind::None | InkArgValueKind::Arg(..) | InkArgValueKind::Choice(..) => false,
         // Adds an `=` symbol after the ink! attribute argument name if an `=` symbol is not
         // the next closest non-trivia token after the insert offset.
         _ => next_non_trivia_token()
@@ -720,21 +720,24 @@ pub fn ink_arg_insert_text(
     // Determines whether to insert a nested value after the ink! attribute argument name.
     let insert_nested_value = !insert_equal_token
         && match value_kind {
+            // Don't add default values for optional nested arguments.
+            InkArgValueKind::Arg(_, false) | InkArgValueKind::Choice(_, _, false) => false,
             // Adds a nested value after the ink! attribute argument name if a `(` symbol is not
             // the next closest non-trivia token after the insert offset.
-            InkArgValueKind::Arg(_) | InkArgValueKind::Choice(_, _) => next_non_trivia_token()
-                .map(|next_token| match next_token.kind() {
-                    SyntaxKind::L_PAREN => false,
-                    // Adds a nested value only if the next closest non-trivia token is not a `(` symbol.
-                    _ => true,
-                })
-                // Defaults to inserting the nested value (e.g. if either parent attribute is `None`
-                // or the next closest non-trivia token can't be determined).
-                .unwrap_or(true),
+            InkArgValueKind::Arg(_, true) | InkArgValueKind::Choice(_, _, true) => {
+                next_non_trivia_token()
+                    .map(|next_token| match next_token.kind() {
+                        SyntaxKind::L_PAREN => false,
+                        // Adds a nested value only if the next closest non-trivia token is not a `(` symbol.
+                        _ => true,
+                    })
+                    // Defaults to inserting the nested value (e.g. if either parent attribute is `None`
+                    // or the next closest non-trivia token can't be determined).
+                    .unwrap_or(true)
+            }
             // ink! attribute kinds that don't take nested values are ignored.
             _ => false,
         };
-    let prefix = format!("{arg_kind}{}", if insert_equal_token { " = " } else { "" });
     let (text_value, snippet_value) = if insert_equal_token || insert_nested_value {
         match arg_kind {
             InkArgKind::AdditionalContracts | InkArgKind::KeepAttr | InkArgKind::SignatureTopic => {
@@ -874,14 +877,16 @@ pub fn ink_arg_insert_text(
         (String::new(), String::new())
     };
     // Creates insert text with default values (if appropriate).
+    let eq_sign = if insert_equal_token { " = " } else { "" };
     let (l_paren, r_paren) = if insert_nested_value {
         ("(", ")")
     } else {
         ("", "")
     };
-    let text = format!("{prefix}{l_paren}{text_value}{r_paren}");
+    let text = format!("{arg_kind}{eq_sign}{l_paren}{text_value}{r_paren}");
     // Creates a snippet with tab stops and/or placeholders (where applicable).
-    let snippet = insert_equal_token.then(|| format!("{prefix}{l_paren}{snippet_value}{r_paren}"));
+    let snippet =
+        insert_equal_token.then(|| format!("{arg_kind}{eq_sign}{l_paren}{snippet_value}{r_paren}"));
     (text, snippet)
 }
 

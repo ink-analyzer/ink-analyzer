@@ -28,9 +28,15 @@ pub struct MetaNameValue {
     value: MetaOption<MetaValue>,
     /// Nested meta item.
     nested: Option<Box<MetaNameValue>>,
-    /// Offset of meta item.
-    // Useful in case where the meta item is empty.
-    offset: TextSize,
+    /// Start offset of meta item.
+    ///
+    /// Useful in cases where the meta item is empty.
+    start: TextSize,
+    /// End offset of meta item.
+    ///
+    /// Useful in cases where the meta item is "semantically" empty,
+    /// but still covers a non-zero range (e.g. representing incomplete meta items like `(`).
+    end: Option<TextSize>,
 }
 
 impl MetaNameValue {
@@ -40,20 +46,28 @@ impl MetaNameValue {
         eq: Option<MetaSeparator>,
         value: MetaOption<MetaValue>,
         nested: Option<Box<MetaNameValue>>,
-        offset: TextSize,
+        start: TextSize,
     ) -> Self {
         Self {
             name,
             eq,
             value,
             nested,
-            offset,
+            start,
+            end: None,
         }
     }
 
     /// Create an empty meta item.
-    pub fn empty(offset: TextSize) -> Self {
-        Self::new(MetaOption::None, None, MetaOption::None, None, offset)
+    pub fn empty(start: TextSize, end: TextSize) -> Self {
+        Self {
+            name: MetaOption::None,
+            eq: None,
+            value: MetaOption::None,
+            nested: None,
+            start,
+            end: Some(end),
+        }
     }
 
     /// Returns true if the meta item is empty.
@@ -136,10 +150,10 @@ impl MetaNameValue {
             MetaOption::None => (),
         }
 
-        // Fallback to using the separator offset if the meta item is empty.
+        // Fallback to using the separator start and end offsets if the meta item is "semantically" empty.
         TextRange::new(
-            start.unwrap_or(self.offset),
-            end.unwrap_or(self.offset + TextSize::from(1)),
+            start.unwrap_or(self.start),
+            end.or(self.end).unwrap_or(self.start),
         )
     }
 }

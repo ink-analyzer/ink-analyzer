@@ -78,6 +78,14 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
                         // At the moment, ink! syntax (specifically v5) only nests a single meta item
                         if nested_meta_items.len() == 1 {
                             nested_meta = Some(Box::new(nested_meta_items[0].to_owned()));
+                        } else if matches!(nested_token_tree.to_string().as_str(), "(" | "()") {
+                            // Handles incomplete nested args.
+                            nested_meta = Some(Box::new(MetaNameValue::empty(
+                                nested_token_tree.syntax().text_range().start(),
+                                nested_token_tree.syntax().text_range().end(),
+                            )));
+                        }
+                        if nested_meta.is_some() {
                             // Remove the nested token tree from the name.
                             name.retain(|elem| elem.kind() != SyntaxKind::TOKEN_TREE);
                         }

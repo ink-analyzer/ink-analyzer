@@ -286,10 +286,10 @@ impl fmt::Display for InkArgKind {
 /// Assigns a sort ascending rank (i.e 0 is highest rank) to ink! attribute argument kinds
 /// so that we choose the best `InkArgKind` for ink! attributes regardless of their actual ordering in source code.
 ///
-/// (e.g the kind for `#[ink(selector=1, payable, message)]` should still be `InkArgKind::Message`).
+/// (e.g. the kind for `#[ink(selector=1, payable, message)]` should still be `InkArgKind::Message`).
 fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
     match arg_kind {
-        // Entity-type arguments get highest priority.
+        // Entity-type arguments get the highest priority.
         // (i.e. `storage`, `event`, `impl`, `constructor`, `message`, `extension` e.t.c).
         InkArgKind::Constructor
         | InkArgKind::Event
@@ -412,8 +412,9 @@ pub enum InkArgValueKind {
     String(InkArgValueStringKind),
     Bool,
     Path(InkArgValuePathKind),
-    Arg(InkArgKind),
-    Choice(InkArgKind, InkArgKind),
+    // The `bool` represent whether the nested arg is required (true) or optional (false).
+    Arg(InkArgKind, bool),
+    Choice(InkArgKind, InkArgKind, bool),
 }
 
 /// The ink! attribute argument value string kind.
@@ -453,7 +454,7 @@ impl From<InkArgKind> for InkArgValueKind {
                 InkArgValueKind::String(InkArgValueStringKind::SpaceList)
             }
             InkArgKind::Backend => {
-                InkArgValueKind::Choice(InkArgKind::Node, InkArgKind::RuntimeOnly)
+                InkArgValueKind::Choice(InkArgKind::Node, InkArgKind::RuntimeOnly, true)
             }
             InkArgKind::Env | InkArgKind::Environment => {
                 InkArgValueKind::Path(InkArgValuePathKind::Environment)
@@ -464,9 +465,9 @@ impl From<InkArgKind> for InkArgValueKind {
             InkArgKind::HandleStatus | InkArgKind::Derive => InkArgValueKind::Bool,
             InkArgKind::KeepAttr => InkArgValueKind::String(InkArgValueStringKind::CommaList),
             InkArgKind::Namespace => InkArgValueKind::String(InkArgValueStringKind::Identifier),
-            InkArgKind::Node => InkArgValueKind::Arg(InkArgKind::Url),
+            InkArgKind::Node => InkArgValueKind::Arg(InkArgKind::Url, false),
             InkArgKind::Runtime => InkArgValueKind::Path(InkArgValuePathKind::Runtime),
-            InkArgKind::RuntimeOnly => InkArgValueKind::Arg(InkArgKind::Runtime),
+            InkArgKind::RuntimeOnly => InkArgValueKind::Arg(InkArgKind::Runtime, false),
             // TODO: Set to `InkArgValueKind::U32OrWildcardOrComplement` for ink! v5.
             InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
             InkArgKind::SignatureTopic => InkArgValueKind::String(InkArgValueStringKind::Hex),
@@ -492,7 +493,7 @@ impl fmt::Display for InkArgValueKind {
             f,
             "{}",
             match self {
-                InkArgValueKind::None | InkArgValueKind::Arg(_) | InkArgValueKind::Choice(_, _) =>
+                InkArgValueKind::None | InkArgValueKind::Arg(..) | InkArgValueKind::Choice(..) =>
                     "",
                 InkArgValueKind::U16 => "u16",
                 InkArgValueKind::U32 => "u32",
@@ -537,7 +538,7 @@ impl InkArgValueKind {
             }
             InkArgValueKind::String(InkArgValueStringKind::SpaceList) => "A space separated list.",
             InkArgValueKind::String(InkArgValueStringKind::Url) => "A URL.",
-            InkArgValueKind::Choice(kind_1, kind_2) => match (kind_1, kind_2) {
+            InkArgValueKind::Choice(kind_1, kind_2, _) => match (kind_1, kind_2) {
                 (InkArgKind::Node, InkArgKind::RuntimeOnly) => "node | runtime_only",
                 _ => "",
             },

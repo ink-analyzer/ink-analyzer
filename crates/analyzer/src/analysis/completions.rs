@@ -1,7 +1,9 @@
 //! ink! attribute completions.
 
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
-use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind};
+use ink_analyzer_ir::syntax::{AstNode, AstToken, SyntaxKind, SyntaxToken, TextRange, TextSize};
+use ink_analyzer_ir::{
+    InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkEntity, InkFile, InkMacroKind,
+};
 
 use super::{text_edit::TextEdit, utils};
 use crate::Version;
@@ -284,106 +286,155 @@ pub fn argument_completions(
                 || focused_token_is_comma
                 || prev_non_trivia_token_is_comma
             {
-                // Removes the delimiter (i.e `(` and `,`) from text range if it's the focused token.
-                let edit_range = if focused_token_is_left_parenthesis || focused_token_is_comma {
-                    let focused_token_end = focused_token.text_range().end();
-                    TextRange::new(focused_token_end, focused_token_end)
-                } else {
-                    focused_token.text_range()
-                };
+                // Suggestions ink! attribute arguments based on the context (if any).
+                let mut ink_arg_suggestions = Vec::new();
+                let mut edit_range = None;
+                let mut is_nested = false;
+                let mut parent_arg_name = None;
 
-                // Suggests ink! attribute arguments based on the context (if any).
-                let mut ink_arg_suggestions = match ink_attr.kind() {
-                    // For unknown ink! attributes, suggestions are based on the parent item (if any).
-                    InkAttributeKind::Macro(InkMacroKind::Unknown)
-                    | InkAttributeKind::Arg(InkArgKind::Unknown) => {
-                        match item_at_offset.normalized_parent_item_syntax_kind() {
-                            // Returns suggestions based on the parent item kind.
-                            Some(parent_item_kind) => {
-                                utils::valid_ink_args_by_syntax_kind(parent_item_kind, version)
-                            }
-                            // Handles cases where either the parent item kind is unknown.
-                            // Returns all attribute arguments that don't require a macro
-                            // if the AST item type is unknown.
-                            None => {
-                                if version == Version::V5 {
-                                    vec![
-                                        InkArgKind::Anonymous,
-                                        InkArgKind::Constructor,
-                                        InkArgKind::Default,
-                                        InkArgKind::Event,
-                                        InkArgKind::Function,
-                                        InkArgKind::HandleStatus,
-                                        InkArgKind::Impl,
-                                        InkArgKind::Message,
-                                        InkArgKind::Namespace,
-                                        InkArgKind::Payable,
-                                        InkArgKind::Selector,
-                                        InkArgKind::SignatureTopic,
-                                        InkArgKind::Storage,
-                                        InkArgKind::Topic,
-                                    ]
-                                } else {
-                                    vec![
-                                        InkArgKind::Anonymous,
-                                        InkArgKind::Constructor,
-                                        InkArgKind::Default,
-                                        InkArgKind::Event,
-                                        InkArgKind::Extension,
-                                        InkArgKind::HandleStatus,
-                                        InkArgKind::Impl,
-                                        InkArgKind::Message,
-                                        InkArgKind::Namespace,
-                                        InkArgKind::Payable,
-                                        InkArgKind::Selector,
-                                        InkArgKind::Storage,
-                                        InkArgKind::Topic,
-                                    ]
+                // Suggests "nested" ink! attribute arguments (if appropriate).
+                let is_valid_focused_arg = |arg: &InkArg| {
+                    *arg.kind() != InkArgKind::Unknown
+                        && arg.text_range().contains_inclusive(offset)
+                        && !arg.meta().is_empty()
+                };
+                if let Some(top_arg) = ink_attr.args().iter().find(|arg| is_valid_focused_arg(arg))
+                {
+                    let mut nested_arg = None;
+                    while let Some(arg) = nested_arg
+                        .as_ref()
+                        .unwrap_or(top_arg)
+                        .nested()
+                        .filter(is_valid_focused_arg)
+                    {
+                        nested_arg = Some(arg);
+                    }
+
+                    let focused_arg = nested_arg.as_ref().unwrap_or(top_arg);
+                    let nested_arg_suggestions = match InkArgValueKind::from(*focused_arg.kind()) {
+                        InkArgValueKind::Arg(kind, _) => vec![kind],
+                        InkArgValueKind::Choice(kind_1, kind_2, _) => vec![kind_1, kind_2],
+                        _ => Vec::new(),
+                    };
+                    if !nested_arg_suggestions.is_empty() {
+                        ink_arg_suggestions = nested_arg_suggestions;
+                        // Unknown args are filtered out by `is_valid_focused_arg`, so the arg must have a name at this point.
+                        let meta_name = focused_arg
+                            .name()
+                            .expect("Valid ink! args must have a name");
+                        let name_end = meta_name.syntax().text_range().end();
+                        edit_range = Some(TextRange::new(name_end, focused_arg.text_range().end()));
+                        is_nested = true;
+                        parent_arg_name = Some(meta_name.to_string());
+                    }
+                }
+
+                // Suggests "normal" ink! attribute arguments (if any).
+                if ink_arg_suggestions.is_empty() {
+                    // Suggests ink! attribute arguments based on the context (if any).
+                    ink_arg_suggestions = match ink_attr.kind() {
+                        // For unknown ink! attributes, suggestions are based on the parent item (if any).
+                        InkAttributeKind::Macro(InkMacroKind::Unknown)
+                        | InkAttributeKind::Arg(InkArgKind::Unknown) => {
+                            match item_at_offset.normalized_parent_item_syntax_kind() {
+                                // Returns suggestions based on the parent item kind.
+                                Some(parent_item_kind) => {
+                                    utils::valid_ink_args_by_syntax_kind(parent_item_kind, version)
+                                }
+                                // Handles cases where either the parent item kind is unknown.
+                                // Returns all attribute arguments that don't require a macro
+                                // if the AST item type is unknown.
+                                None => {
+                                    if version == Version::V5 {
+                                        vec![
+                                            InkArgKind::Anonymous,
+                                            InkArgKind::Constructor,
+                                            InkArgKind::Default,
+                                            InkArgKind::Event,
+                                            InkArgKind::Function,
+                                            InkArgKind::HandleStatus,
+                                            InkArgKind::Impl,
+                                            InkArgKind::Message,
+                                            InkArgKind::Namespace,
+                                            InkArgKind::Payable,
+                                            InkArgKind::Selector,
+                                            InkArgKind::SignatureTopic,
+                                            InkArgKind::Storage,
+                                            InkArgKind::Topic,
+                                        ]
+                                    } else {
+                                        vec![
+                                            InkArgKind::Anonymous,
+                                            InkArgKind::Constructor,
+                                            InkArgKind::Default,
+                                            InkArgKind::Event,
+                                            InkArgKind::Extension,
+                                            InkArgKind::HandleStatus,
+                                            InkArgKind::Impl,
+                                            InkArgKind::Message,
+                                            InkArgKind::Namespace,
+                                            InkArgKind::Payable,
+                                            InkArgKind::Selector,
+                                            InkArgKind::Storage,
+                                            InkArgKind::Topic,
+                                        ]
+                                    }
                                 }
                             }
                         }
-                    }
-                    // For known/valid primary ink! attribute kinds, only suggest valid ink! attribute siblings.
-                    kind => utils::valid_sibling_ink_args(*kind, version),
-                };
+                        // For known/valid primary ink! attribute kinds, only suggest valid ink! attribute siblings.
+                        kind => utils::valid_sibling_ink_args(*kind, version),
+                    };
 
-                // Filters out duplicates, conflicting and invalidly scoped ink! arguments.
-                utils::remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
-                    &mut ink_arg_suggestions,
-                    &ink_attr,
-                    version,
-                );
+                    // Filters out duplicates, conflicting and invalidly scoped ink! arguments.
+                    utils::remove_duplicate_conflicting_and_invalid_scope_ink_arg_suggestions(
+                        &mut ink_arg_suggestions,
+                        &ink_attr,
+                        version,
+                    );
+                }
 
                 // Filters suggestions by the focused prefix if the focused token is not a delimiter.
                 if !focused_token_is_left_parenthesis && !focused_token_is_comma {
                     if let Some(prefix) = item_at_offset.focused_token_prefix() {
-                        ink_arg_suggestions
-                            .retain(|arg_kind| format!("{arg_kind}").starts_with(prefix));
+                        ink_arg_suggestions.retain(|arg_kind| {
+                            format!("{arg_kind}").starts_with(prefix)
+                                || parent_arg_name.as_ref().is_some_and(|name| name == prefix)
+                        });
                     }
                 }
 
                 // Add completions to accumulator.
                 for arg_kind in ink_arg_suggestions {
-                    let prefix = if focused_token_is_comma
+                    let (prefix, suffix) = if is_nested {
+                        ("(", ")")
+                    } else if focused_token_is_comma
                         || (prev_non_trivia_token_is_comma && !prev_token_is_whitespace)
                     {
                         // Inserts some space between the comma and the argument.
-                        " "
+                        (" ", "")
                     } else {
-                        ""
+                        ("", "")
                     };
-                    let (edit, snippet) = utils::ink_arg_insert_text(
-                        arg_kind,
-                        Some(edit_range.end()),
-                        Some(&ink_attr),
+
+                    let range = edit_range.unwrap_or(
+                        if focused_token_is_left_parenthesis || focused_token_is_comma {
+                            // Removes the delimiter (i.e `(` and `,`) from text range if it's the focused token.
+                            let focused_token_end = focused_token.text_range().end();
+                            TextRange::new(focused_token_end, focused_token_end)
+                        } else {
+                            focused_token.text_range()
+                        },
                     );
+                    let (edit, snippet) =
+                        utils::ink_arg_insert_text(arg_kind, Some(range.end()), Some(&ink_attr));
                     results.push(Completion {
                         label: edit.clone(),
-                        range: edit_range,
+                        range,
                         edit: TextEdit::replace_with_snippet(
-                            format!("{prefix}{edit}"),
-                            edit_range,
-                            snippet.map(|snippet| format!("{prefix}{snippet}")),
+                            format!("{prefix}{edit}{suffix}"),
+                            range,
+                            snippet.map(|snippet| format!("{prefix}{snippet}{suffix}")),
                         ),
                         detail: Some(format!("ink! {arg_kind} attribute argument.")),
                     });
@@ -722,6 +773,7 @@ mod tests {
             event_args,
             extension_args,
             e2e_args,
+            fixtures,
         ) in [
             (
                 Version::V4,
@@ -769,6 +821,7 @@ mod tests {
                     "environment=ink::env::DefaultEnvironment",
                     r#"keep_attr="""#,
                 ],
+                vec![],
             ),
             (
                 Version::V5,
@@ -814,6 +867,82 @@ mod tests {
                 vec!["anonymous", r#"signature_topic="""#],
                 vec!["function=1", "handle_status=true"],
                 vec!["backend(node)", "environment=ink::env::DefaultEnvironment"],
+                vec![
+                    (
+                        "#[ink::event(",
+                        Some("("),
+                        vec![
+                            ("anonymous", Some("("), Some("(")),
+                            (r#"signature_topic="""#, Some("("), Some("(")),
+                        ],
+                    ),
+                    (
+                        "#[ink::scale_derive(",
+                        Some("("),
+                        vec![
+                            ("Encode", Some("("), Some("(")),
+                            ("Decode", Some("("), Some("(")),
+                            ("TypeInfo", Some("("), Some("(")),
+                        ],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend",
+                        Some("backend"),
+                        vec![
+                            ("(node)", Some("backend"), Some("backend")),
+                            ("(runtime_only)", Some("backend"), Some("backend")),
+                        ],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(",
+                        Some("(->"),
+                        vec![
+                            ("(node)", Some("<-(->"), Some("(->")),
+                            ("(runtime_only)", Some("<-(->"), Some("(->")),
+                        ],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend()",
+                        Some("(->"),
+                        vec![
+                            ("(node)", Some("<-(->"), Some(")->")),
+                            ("(runtime_only)", Some("<-(->"), Some(")->")),
+                        ],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(run",
+                        Some("run"),
+                        vec![("(runtime_only)", Some("<-(run"), Some("run"))],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(node",
+                        Some("node"),
+                        vec![(r#"(url="ws://127.0.0.1:9000")"#, Some("node"), Some("node"))],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(node(",
+                        Some("(->"),
+                        vec![(r#"(url="ws://127.0.0.1:9000")"#, Some("<-(->"), Some("(->"))],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(runtime_only",
+                        Some("runtime_only"),
+                        vec![(
+                            "(runtime=ink_e2e::MinimalRuntime)",
+                            Some("runtime_only"),
+                            Some("runtime_only"),
+                        )],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(runtime_only(",
+                        Some("(->"),
+                        vec![(
+                            "(runtime=ink_e2e::MinimalRuntime)",
+                            Some("<-(->"),
+                            Some("(->"),
+                        )],
+                    ),
+                ],
             ),
         ] {
             for (code, pat, expected_results) in [
@@ -1269,7 +1398,10 @@ mod tests {
                         vec![("extension=2", Some("#[ink(->"), Some("#[ink(ext->"))],
                     )
                 },
-            ] {
+            ]
+            .into_iter()
+            .chain(fixtures)
+            {
                 let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
 
                 let mut results = Vec::new();
