@@ -18,7 +18,7 @@ use crate::{resolution, Action, ActionKind, Diagnostic, Severity, Version};
 
 /// Runs generic diagnostics that apply to all ink! entities.
 /// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
-/// `ensure_no_duplicate_attributes_and_arguments`, `ensure_valid_attribute_arguments`).
+/// `ensure_no_duplicate_attributes_and_arguments`, `validate_arg`).
 pub fn run_generic_diagnostics<T: InkEntity>(
     results: &mut Vec<Diagnostic>,
     item: &T,
@@ -38,9 +38,11 @@ pub fn run_generic_diagnostics<T: InkEntity>(
 
     // Ensures that ink! attribute arguments are of the right format
     // and have values are of the correct type (if any),
-    // See `ensure_valid_attribute_arguments` doc.
+    // See `validate_arg` doc.
     for attr in item.tree().ink_attrs_in_scope() {
-        ensure_valid_attribute_arguments(results, &attr, version);
+        for arg in attr.args() {
+            validate_arg(results, arg, version);
+        }
     }
 
     // Iterates over all ink! parent nodes in scope.
@@ -105,7 +107,7 @@ fn ensure_no_ink_identifiers<T: InkEntity>(results: &mut Vec<Diagnostic>, item: 
 /// It only catches unknown ink! attribute arguments if they're the only annotation for the attribute (e.g `#[ink(xyz)]`),
 /// It doesn't catch unknown arguments appearing in combination with valid ink! attribute macros and arguments
 /// (e.g `#[ink::contract(xyz)]` or `#[ink(storage, xyz)]`).
-/// Those are handled by `ensure_valid_attribute_arguments`.
+/// Those are handled by `validate_arg`.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L876-L1024>.
 fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkAttribute]) {
@@ -145,247 +147,340 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
-fn ensure_valid_attribute_arguments(
-    results: &mut Vec<Diagnostic>,
-    attr: &InkAttribute,
-    version: Version,
-) {
-    for arg in attr.args() {
-        let arg_name_text = arg.meta().name().to_string();
-        match arg.kind() {
-            // Handle unknown argument.
-            InkArgKind::Unknown => {
-                // Edit range for quickfix.
-                let range = utils::ink_arg_and_delimiter_removal_range(arg, Some(attr));
-                results.push(Diagnostic {
-                    message: if arg_name_text.is_empty() {
-                        "Missing ink! attribute argument.".to_owned()
-                    } else {
-                        format!("Unknown ink! attribute argument: '{arg_name_text}'.")
-                    },
-                    range: arg.text_range(),
-                    severity: if arg_name_text.is_empty() {
-                        // error for missing.
-                        Severity::Error
-                    } else {
-                        // warning because it's possible ink! analyzer is just outdated.
-                        Severity::Warning
-                    },
-                    quickfixes: Some(vec![Action {
-                        label: format!(
-                            "Remove unknown ink! attribute argument: '{arg_name_text}'."
-                        ),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: vec![TextEdit::delete(range)],
-                    }]),
-                });
-            }
-            arg_kind => {
-                let arg_value_type = if version == Version::V5 {
-                    InkArgValueKind::from_v5(*arg_kind)
+fn validate_arg(results: &mut Vec<Diagnostic>, arg: &InkArg, version: Version) {
+    let arg_name_text = arg.meta().name().to_string();
+    match arg.kind() {
+        // Handle unknown argument.
+        InkArgKind::Unknown => {
+            // Edit range for quickfix.
+            let range = utils::ink_arg_and_delimiter_removal_range(arg, None);
+            results.push(Diagnostic {
+                message: if arg_name_text.is_empty() {
+                    "Missing ink! attribute argument.".to_owned()
                 } else {
-                    InkArgValueKind::from(*arg_kind)
-                };
-                match arg_value_type {
-                    // Arguments that must have no value.
-                    InkArgValueKind::None => {
-                        if arg.meta().eq().is_some() || arg.meta().value().is_some() {
-                            results.push(Diagnostic {
-                                message: format!(
-                                    "`{arg_name_text}` argument shouldn't have a value."
-                                ),
+                    format!("Unknown ink! attribute argument: '{arg_name_text}'.")
+                },
+                range: arg.text_range(),
+                severity: if arg_name_text.is_empty() {
+                    // error for missing.
+                    Severity::Error
+                } else {
+                    // warning because it's possible ink! analyzer is just outdated.
+                    Severity::Warning
+                },
+                quickfixes: Some(vec![Action {
+                    label: format!("Remove unknown ink! attribute argument: '{arg_name_text}'."),
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: vec![TextEdit::delete(range)],
+                }]),
+            });
+        }
+        arg_kind => {
+            let arg_value_type = if version == Version::V5 {
+                InkArgValueKind::from_v5(*arg_kind)
+            } else {
+                InkArgValueKind::from(*arg_kind)
+            };
+            match arg_value_type {
+                // Arguments that must have no value.
+                InkArgValueKind::None => {
+                    if arg.meta().eq().is_some() || arg.meta().value().is_some() {
+                        results.push(Diagnostic {
+                            message: format!("`{arg_name_text}` argument shouldn't have a value."),
+                            range: arg.text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: format!("Remove `{arg_name_text}` argument value"),
+                                kind: ActionKind::QuickFix,
                                 range: arg.text_range(),
-                                severity: Severity::Error,
-                                quickfixes: Some(vec![Action {
-                                    label: format!("Remove `{arg_name_text}` argument value"),
-                                    kind: ActionKind::QuickFix,
-                                    range: arg.text_range(),
-                                    edits: vec![TextEdit::replace(arg_name_text, arg.text_range())],
-                                }]),
-                            });
-                        }
-                    }
-                    // Arguments that should have an integer (`u16` or `u32` to be specific) value.
-                    // `u16` values (i.e. ink! v5 chain extension and extension method ids).
-                    InkArgValueKind::U16 => {
-                        if arg.value().and_then(MetaValue::as_u16).is_none() {
-                            results.push(Diagnostic {
-                                message: format!(
-                                    "`{arg_name_text}` argument should have an `integer` (`u16`) value.",
-                                ),
-                                range: arg.text_range(),
-                                severity: Severity::Error,
-                                quickfixes: Some(vec![Action {
-                                    label: format!("Add `{arg_name_text}` argument value"),
-                                    kind: ActionKind::QuickFix,
-                                    range: arg.text_range(),
-                                    edits: vec![TextEdit::replace_with_snippet(
-                                        format!("{arg_name_text} = 1"),
-                                        arg.text_range(),
-                                        Some(format!("{arg_name_text} = ${{1:1}}")),
-                                    )],
-                                }]),
-                            });
-                        }
-                    }
-                    // `u32` values and wildcards (i.e `_` and `@` for selectors).
-                    InkArgValueKind::U32
-                    | InkArgValueKind::U32OrWildcard
-                    | InkArgValueKind::U32OrWildcardOrComplement => {
-                        let can_be_wildcard = matches!(
-                            arg_value_type,
-                            InkArgValueKind::U32OrWildcard
-                                | InkArgValueKind::U32OrWildcardOrComplement
-                        );
-                        let can_be_wildcard_complement =
-                            arg_value_type == InkArgValueKind::U32OrWildcardOrComplement;
-                        let is_u32_or_valid_wildcard = arg.value().is_some_and(|value| {
-                            // Ensures that the meta value is either:
-                            // - a decimal or hex encoded `u32`.
-                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
-                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
-                            // - a wildcard/underscore (`_`) symbol (i.e. for selectors).
-                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
-                            // - a wildcard complement/at (`@`) symbol (i.e. for message selectors).
-                            // Ref: <https://github.com/paritytech/ink/pull/1708>.
-                            value.as_u32().is_some()
-                                || (can_be_wildcard && value.is_wildcard())
-                                || (can_be_wildcard_complement && value.is_at_symbol())
+                                edits: vec![TextEdit::replace(arg_name_text, arg.text_range())],
+                            }]),
                         });
-                        if !is_u32_or_valid_wildcard {
-                            results.push(Diagnostic {
-                                message: format!(
-                                    "`{arg_name_text}` argument should have an `integer` (`u32`) {} value.",
-                                    if can_be_wildcard_complement {
-                                        ", wildcard/underscore (`_`) or wildcard complement (`@`) symbol"
-                                    } else if can_be_wildcard {
-                                        "or wildcard/underscore (`_`)"
-                                    } else {
-                                        ""
-                                    }
-                                ),
-                                range: arg.text_range(),
-                                severity: Severity::Error,
-                                quickfixes: Some(vec![Action {
-                                    label: format!("Add `{arg_name_text}` argument value"),
-                                    kind: ActionKind::QuickFix,
-                                    range: arg.text_range(),
-                                    edits: vec![TextEdit::replace_with_snippet(
-                                        format!("{arg_name_text} = 1"),
-                                        arg.text_range(),
-                                        Some(format!("{arg_name_text} = ${{1:1}}")),
-                                    )],
-                                }]),
-                            });
-                        }
                     }
-                    // Arguments that should have a string value.
-                    InkArgValueKind::String(str_kind) => {
-                        let is_valid_string = arg.value().is_some_and(|value| {
-                            // For namespace arguments, ensure the meta value is a valid Rust identifier.
-                            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
-                            value.as_string().is_some()
-                                && (str_kind != InkArgValueStringKind::Identifier
-                                    || value
-                                        .as_string()
-                                        .and_then(|value| parse_ident(value.as_str()))
-                                        .is_some())
+                }
+                // Arguments that should have an integer (`u16` or `u32` to be specific) value.
+                // `u16` values (i.e. ink! v5 chain extension and extension method ids).
+                InkArgValueKind::U16 => {
+                    if arg.value().and_then(MetaValue::as_u16).is_none() {
+                        results.push(Diagnostic {
+                            message: format!(
+                                "`{arg_name_text}` argument should have an `integer` (`u16`) value.",
+                            ),
+                            range: arg.text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: format!("Add `{arg_name_text}` argument value"),
+                                kind: ActionKind::QuickFix,
+                                range: arg.text_range(),
+                                edits: vec![TextEdit::replace_with_snippet(
+                                    format!("{arg_name_text} = 1"),
+                                    arg.text_range(),
+                                    Some(format!("{arg_name_text} = ${{1:1}}")),
+                                )],
+                            }]),
                         });
-                        if !is_valid_string {
-                            results.push(Diagnostic {
-                                message: format!(
-                                    "`{arg_name_text}` argument should have a {} `string` (`&str`) value.",
-                                    if *arg.kind() == InkArgKind::KeepAttr {
-                                        "comma separated"
-                                    } else {
-                                        ""
-                                    }
-                                ),
-                                range: arg.text_range(),
-                                severity: Severity::Error,
-                                quickfixes: Some(vec![Action {
-                                    label: format!("Add `{arg_name_text}` argument value"),
-                                    kind: ActionKind::QuickFix,
-                                    range: arg.text_range(),
-                                    edits: vec![TextEdit::replace_with_snippet(
-                                        format!(
-                                            r#"{arg_name_text} = "{}""#,
-                                            if str_kind == InkArgValueStringKind::Identifier {
-                                                "my_namespace"
-                                            } else {
-                                                ""
-                                            }
-                                        ),
-                                        arg.text_range(),
-                                        Some(format!(
-                                            r#"{arg_name_text} = "{}""#,
-                                            if str_kind == InkArgValueStringKind::Identifier {
-                                                "${1:my_namespace}"
-                                            } else {
-                                                "$1"
-                                            }
-                                        )),
-                                    )],
-                                }]),
-                            });
-                        }
                     }
-                    // Arguments that should have a boolean value.
-                    InkArgValueKind::Bool => {
-                        if arg.value().and_then(MetaValue::as_bool).is_none() {
-                            results.push(Diagnostic {
-                                message: format!(
-                                    "`{arg_name_text}` argument should have a `boolean` (`bool`) value."
-                                ),
+                }
+                // `u32` values and wildcards (i.e `_` and `@` for selectors).
+                InkArgValueKind::U32
+                | InkArgValueKind::U32OrWildcard
+                | InkArgValueKind::U32OrWildcardOrComplement => {
+                    let can_be_wildcard = matches!(
+                        arg_value_type,
+                        InkArgValueKind::U32OrWildcard | InkArgValueKind::U32OrWildcardOrComplement
+                    );
+                    let can_be_wildcard_complement =
+                        arg_value_type == InkArgValueKind::U32OrWildcardOrComplement;
+                    let is_u32_or_valid_wildcard = arg.value().is_some_and(|value| {
+                        // Ensures that the meta value is either:
+                        // - a decimal or hex encoded `u32`.
+                        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L903-L910>.
+                        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L938-L943>.
+                        // - a wildcard/underscore (`_`) symbol (i.e. for selectors).
+                        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L884-L900>.
+                        // - a wildcard complement/at (`@`) symbol (i.e. for message selectors).
+                        // Ref: <https://github.com/paritytech/ink/pull/1708>.
+                        value.as_u32().is_some()
+                            || (can_be_wildcard && value.is_wildcard())
+                            || (can_be_wildcard_complement && value.is_at_symbol())
+                    });
+                    if !is_u32_or_valid_wildcard {
+                        results.push(Diagnostic {
+                            message: format!(
+                                "`{arg_name_text}` argument should have an `integer` (`u32`) {} value.",
+                                if can_be_wildcard_complement {
+                                    ", wildcard/underscore (`_`) or wildcard complement (`@`) symbol"
+                                } else if can_be_wildcard {
+                                    "or wildcard/underscore (`_`)"
+                                } else {
+                                    ""
+                                }
+                            ),
+                            range: arg.text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: format!("Add `{arg_name_text}` argument value"),
+                                kind: ActionKind::QuickFix,
                                 range: arg.text_range(),
-                                severity: Severity::Error,
-                                quickfixes: Some(vec![Action {
-                                    label: format!("Add `{arg_name_text}` argument value"),
-                                    kind: ActionKind::QuickFix,
-                                    range: arg.text_range(),
-                                    edits: vec![TextEdit::replace_with_snippet(
-                                        format!("{arg_name_text} = true"),
-                                        arg.text_range(),
-                                        Some(format!("{arg_name_text} = ${{1:true}}")),
-                                    )],
-                                }]),
-                            });
-                        }
+                                edits: vec![TextEdit::replace_with_snippet(
+                                    format!("{arg_name_text} = 1"),
+                                    arg.text_range(),
+                                    Some(format!("{arg_name_text} = ${{1:1}}")),
+                                )],
+                            }]),
+                        });
                     }
-                    // Arguments that should have a path value.
-                    InkArgValueKind::Path(_) => {
-                        let is_path = arg
-                            .value()
-                            .filter(|value| value.kind() == SyntaxKind::PATH)
-                            .is_some();
-                        if !is_path {
-                            results.push(Diagnostic {
-                                message: format!(
-                                    "`{arg_name_text}` argument should have a `path` (e.g `my::env::Types`) value."
-                                ),
+                }
+                // Arguments that should have a string value.
+                InkArgValueKind::String(str_kind) => {
+                    let is_valid_string = arg.value().is_some_and(|value| {
+                        // For namespace arguments, ensure the meta value is a valid Rust identifier.
+                        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L922-L926>.
+                        value.as_string().is_some()
+                            && (str_kind != InkArgValueStringKind::Identifier
+                                || value
+                                    .as_string()
+                                    .and_then(|value| parse_ident(value.as_str()))
+                                    .is_some())
+                    });
+                    if !is_valid_string {
+                        results.push(Diagnostic {
+                            message: format!(
+                                "`{arg_name_text}` argument should have a {} `string` (`&str`) value.",
+                                if *arg.kind() == InkArgKind::KeepAttr {
+                                    "comma separated"
+                                } else {
+                                    ""
+                                }
+                            ),
+                            range: arg.text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: format!("Add `{arg_name_text}` argument value"),
+                                kind: ActionKind::QuickFix,
                                 range: arg.text_range(),
-                                severity: Severity::Error,
-                                quickfixes: Some(vec![Action {
-                                    label: format!("Add `{arg_name_text}` argument value"),
-                                    kind: ActionKind::QuickFix,
-                                    range: arg.text_range(),
-                                    edits: vec![TextEdit::replace_with_snippet(
-                                        format!("{arg_name_text} = crate::"),
-                                        arg.text_range(),
-                                        Some(format!("{arg_name_text} = ${{1:crate::}}")),
-                                    )],
-                                }]),
-                            });
-                        }
+                                edits: vec![TextEdit::replace_with_snippet(
+                                    format!(
+                                        r#"{arg_name_text} = "{}""#,
+                                        if str_kind == InkArgValueStringKind::Identifier {
+                                            "my_namespace"
+                                        } else {
+                                            ""
+                                        }
+                                    ),
+                                    arg.text_range(),
+                                    Some(format!(
+                                        r#"{arg_name_text} = "{}""#,
+                                        if str_kind == InkArgValueStringKind::Identifier {
+                                            "${1:my_namespace}"
+                                        } else {
+                                            "$1"
+                                        }
+                                    )),
+                                )],
+                            }]),
+                        });
                     }
-                    // Nested arguments.
-                    // TODO: Implement validation for nested attributes for ink! v5.
-                    InkArgValueKind::Arg(..) => (),
-                    InkArgValueKind::Choice(..) => (),
+                }
+                // Arguments that should have a boolean value.
+                InkArgValueKind::Bool => {
+                    if arg.value().and_then(MetaValue::as_bool).is_none() {
+                        results.push(Diagnostic {
+                            message: format!(
+                                "`{arg_name_text}` argument should have a `boolean` (`bool`) value."
+                            ),
+                            range: arg.text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: format!("Add `{arg_name_text}` argument value"),
+                                kind: ActionKind::QuickFix,
+                                range: arg.text_range(),
+                                edits: vec![TextEdit::replace_with_snippet(
+                                    format!("{arg_name_text} = true"),
+                                    arg.text_range(),
+                                    Some(format!("{arg_name_text} = ${{1:true}}")),
+                                )],
+                            }]),
+                        });
+                    }
+                }
+                // Arguments that should have a path value.
+                InkArgValueKind::Path(_) => {
+                    let is_path = arg
+                        .value()
+                        .filter(|value| value.kind() == SyntaxKind::PATH)
+                        .is_some();
+                    if !is_path {
+                        results.push(Diagnostic {
+                            message: format!(
+                                "`{arg_name_text}` argument should have a `path` (e.g `my::env::Types`) value."
+                            ),
+                            range: arg.text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(vec![Action {
+                                label: format!("Add `{arg_name_text}` argument value"),
+                                kind: ActionKind::QuickFix,
+                                range: arg.text_range(),
+                                edits: vec![TextEdit::replace_with_snippet(
+                                    format!("{arg_name_text} = crate::"),
+                                    arg.text_range(),
+                                    Some(format!("{arg_name_text} = ${{1:crate::}}")),
+                                )],
+                            }]),
+                        });
+                    }
+                }
+                // Nested arguments.
+                InkArgValueKind::Arg(kind, required) => {
+                    nested_arg_validator(results, arg, &kind, &[kind], required, version);
+                }
+                InkArgValueKind::Choice(kind_1, kind_2, required) => {
+                    nested_arg_validator(
+                        results,
+                        arg,
+                        &kind_1,
+                        &[kind_1, kind_2],
+                        required,
+                        version,
+                    );
                 }
             }
-        };
+        }
+    };
+
+    fn nested_arg_validator(
+        results: &mut Vec<Diagnostic>,
+        arg: &InkArg,
+        default_kind: &InkArgKind,
+        options: &[InkArgKind],
+        required: bool,
+        version: Version,
+    ) {
+        let name = arg.meta().name().to_string();
+        let range = arg.text_range();
+        if let Some(value) = arg.value() {
+            results.push(Diagnostic {
+                message: format!(
+                    "`{name}` argument should use nested meta-item syntax (e.g `{name}({default_kind})`)."
+                ),
+                range,
+                severity: Severity::Error,
+                quickfixes: Some(vec![Action {
+                    label: format!("Replace with `{name}({value})`"),
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: vec![TextEdit::replace_with_snippet(
+                        format!("{name}({value})"),
+                        range,
+                        Some(format!("{name}(${{1:{value}}})")),
+                    )],
+                }]),
+            });
+        } else if required && arg.nested().is_none() {
+            let quickfixes: Vec<_> = options
+                .iter()
+                .map(|option| Action {
+                    label: format!("Add `({option})`"),
+                    kind: ActionKind::QuickFix,
+                    range,
+                    edits: vec![TextEdit::replace_with_snippet(
+                        format!("{name}({option})"),
+                        range,
+                        Some(format!("{name}(${{1:{option}}})")),
+                    )],
+                })
+                .collect();
+            results.push(Diagnostic {
+                message: format!(
+                    "`{name}` argument should have a nested meta-item{}.",
+                    if let Some(default_kind) = options.first() {
+                        format!(" (e.g `{name}({default_kind})`)")
+                    } else {
+                        "".to_owned()
+                    }
+                ),
+                range,
+                severity: Severity::Error,
+                quickfixes: (!quickfixes.is_empty()).then_some(quickfixes),
+            });
+        } else if let Some(nested_arg) = arg.nested() {
+            if options.contains(nested_arg.kind()) {
+                // Validate nested args.
+                validate_arg(results, &nested_arg, version);
+            } else {
+                let edit_range = nested_arg.text_range();
+                let quickfixes: Vec<_> = options
+                    .iter()
+                    .map(|option| Action {
+                        label: format!("Replace with `{option}`"),
+                        kind: ActionKind::QuickFix,
+                        range: edit_range,
+                        edits: vec![TextEdit::replace_with_snippet(
+                            format!("{option}"),
+                            edit_range,
+                            Some(format!("${{1:{option}}}")),
+                        )],
+                    })
+                    .collect();
+                results.push(Diagnostic {
+                    message: format!(
+                        "Unknown option `{nested_arg}` for `{name}` argument{}.",
+                        match options.len() {
+                            0 => "".to_owned(),
+                            1 => format!(", expected: `{default_kind}`"),
+                            _ => format!(
+                                ", expected one of: {}",
+                                options.iter().map(|kind| format!("`{kind}`")).join(", ")
+                            ),
+                        }
+                    ),
+                    range: edit_range,
+                    severity: Severity::Error,
+                    quickfixes: (!quickfixes.is_empty()).then_some(quickfixes),
+                });
+            }
+        }
     }
 }
 
@@ -1981,6 +2076,22 @@ mod tests {
                 quote_as_str! {
                     #[ink(function=1, handle_status=true)] // `handle_status` is incomplete without `function`.
                 },
+                // E2E testing backends.
+                quote_as_str! {
+                    #[ink_e2e::test(backend(node))]
+                },
+                quote_as_str! {
+                    #[ink_e2e::test(backend(node(url = "ws://127.0.0.1:9000")))]
+                },
+                quote_as_str! {
+                    #[ink_e2e::test(backend(runtime_only))]
+                },
+                quote_as_str! {
+                    #[ink_e2e::test(backend(runtime_only(runtime = ink_e2e::MinimalRuntime)))]
+                },
+                quote_as_str! {
+                    #[ink_e2e::test(environment = ink::env::DefaultEnvironment, backend(node))]
+                },
             ]
         };
     }
@@ -2267,13 +2378,15 @@ mod tests {
     #[test]
     fn valid_attribute_argument_format_and_value_type_works() {
         // NOTE: This test only cares about ink! attribute arguments not macros,
-        // See `ensure_valid_attribute_arguments` doc.
+        // See `validate_arg` doc.
         for (version, attributes) in versioned_fixtures!(valid_attributes) {
             for code in attributes {
                 let attr = parse_first_ink_attr(code);
 
                 let mut results = Vec::new();
-                ensure_valid_attribute_arguments(&mut results, &attr, version);
+                for arg in attr.args() {
+                    validate_arg(&mut results, arg, version);
+                }
                 assert!(
                     results.is_empty(),
                     "attribute: {code}, version: {:?}",
@@ -2286,365 +2399,522 @@ mod tests {
     #[test]
     fn invalid_attribute_argument_format_and_value_type_fails() {
         // NOTE: This test only cares about ink! attribute arguments not macros,
-        // See `ensure_valid_attribute_arguments` doc.
-        for (code, expected_quickfixes) in [
-            // Arguments that should have no value.
+        // See `validate_arg` doc.
+        for (version, fixtures) in [
             (
-                "#[ink(storage=1)]",
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "storage",
-                        start_pat: Some("<-storage=1"),
-                        end_pat: Some("storage=1"),
-                    }],
-                }],
+                Version::V4,
+                vec![
+                    (
+                        "#[ink(extension, handle_status=true)]", // bad extension.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "extension = 1",
+                                start_pat: Some("<-extension"),
+                                end_pat: Some("extension"),
+                            }],
+                        }],
+                    ),
+                    (
+                        r#"#[ink_e2e::contract(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment)]"#, // bad environment.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "environment = crate::",
+                                start_pat: Some("<-environment"),
+                                end_pat: Some("environment"),
+                            }],
+                        }],
+                    ),
+                ],
             ),
             (
-                "#[ink(constructor=)]",
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "constructor",
-                        start_pat: Some("<-constructor="),
-                        end_pat: Some("constructor="),
-                    }],
-                }],
-            ),
-            (
-                r#"#[ink(default="hello")]"#,
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "default",
-                        start_pat: Some(r#"<-default="hello""#),
-                        end_pat: Some(r#"default="hello""#),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(message=true)]",
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "message",
-                        start_pat: Some("<-message=true"),
-                        end_pat: Some("message=true"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(event='a')]",
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "event",
-                        start_pat: Some("<-event='a'"),
-                        end_pat: Some("event='a'"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(anonymous=0x1)]",
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "anonymous",
-                        start_pat: Some("<-anonymous=0x1"),
-                        end_pat: Some("anonymous=0x1"),
-                    }],
-                }],
-            ),
-            (
-                r#"#[ink(topic=b"")]"#,
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "topic",
-                        start_pat: Some(r#"<-topic=b"""#),
-                        end_pat: Some(r#"topic=b"""#),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(payable=3.2)]",
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "payable",
-                        start_pat: Some("<-payable=3.2"),
-                        end_pat: Some("payable=3.2"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(impl=my::path::item)]",
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "impl",
-                        start_pat: Some("<-impl=my::path::item"),
-                        end_pat: Some("impl=my::path::item"),
-                    }],
-                }],
-            ),
-            // Arguments that should have an integer (`u32` to be specific) value.
-            (
-                "#[ink(selector)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "selector = 1",
-                        start_pat: Some("<-selector"),
-                        end_pat: Some("selector"),
-                    }],
-                }],
-            ),
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L1200-L1211>.
-            (
-                "#[ink(selector=-1)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "selector = 1",
-                        start_pat: Some("<-selector=-1"),
-                        end_pat: Some("selector=-1"),
-                    }],
-                }],
-            ),
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L1213-L1224>.
-            (
-                "#[ink(selector=0xFFFF_FFFF_FFFF_FFFF)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "selector = 1",
-                        start_pat: Some("<-selector=0xFFFF_FFFF_FFFF_FFFF"),
-                        end_pat: Some("selector=0xFFFF_FFFF_FFFF_FFFF"),
-                    }],
-                }],
-            ),
-            (
-                r#"#[ink(selector="hello")]"#,
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "selector = 1",
-                        start_pat: Some(r#"<-selector="hello""#),
-                        end_pat: Some(r#"selector="hello""#),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(selector='a')]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "selector = 1",
-                        start_pat: Some("<-selector='a'"),
-                        end_pat: Some("selector='a'"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(selector=false)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "selector = 1",
-                        start_pat: Some("<-selector=false"),
-                        end_pat: Some("selector=false"),
-                    }],
-                }],
-            ),
-            // Arguments that can have a wildcard/underscore value.
-            (
-                "#[ink(selector=*)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "selector = 1",
-                        start_pat: Some("<-selector=*"),
-                        end_pat: Some("selector=*"),
-                    }],
-                }],
-            ),
-            (
-                r#"#[ink(selector="_")]"#, // should be an underscore expression, not a string
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "selector = 1",
-                        start_pat: Some(r#"<-selector="_""#),
-                        end_pat: Some(r#"selector="_""#),
-                    }],
-                }],
-            ),
-            // Arguments that should have a string value.
-            (
-                "#[ink::contract(keep_attr=my::path::item)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: r#"keep_attr = """#,
-                        start_pat: Some("<-keep_attr=my::path::item"),
-                        end_pat: Some("keep_attr=my::path::item"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(namespace=0x1)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: r#"namespace = "my_namespace""#,
-                        start_pat: Some("<-namespace=0x1"),
-                        end_pat: Some("namespace=0x1"),
-                    }],
-                }],
-            ),
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L1248-L1256>.
-            (
-                r#"#[ink(namespace="::invalid_identifier")]"#,
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: r#"namespace = "my_namespace""#,
-                        start_pat: Some(r#"<-namespace="::invalid_identifier""#),
-                        end_pat: Some(r#"namespace="::invalid_identifier""#),
-                    }],
-                }],
-            ),
-            // Arguments that should have a boolean value.
-            (
-                "#[ink(handle_status=1)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "handle_status = true",
-                        start_pat: Some("<-handle_status=1"),
-                        end_pat: Some("handle_status=1"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink::storage_item(derive)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "derive = true",
-                        start_pat: Some("<-derive"),
-                        end_pat: Some("derive"),
-                    }],
-                }],
-            ),
-            // Arguments that should have a path value.
-            (
-                r#"#[ink::contract(env="my::env::Types")]"#,
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "env = crate::",
-                        start_pat: Some(r#"<-env="my::env::Types""#),
-                        end_pat: Some(r#"env="my::env::Types""#),
-                    }],
-                }],
-            ),
-            (
-                r#"#[ink_e2e::test(environment="my::env::Types")]"#,
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "environment = crate::",
-                        start_pat: Some(r#"<-environment="my::env::Types""#),
-                        end_pat: Some(r#"environment="my::env::Types""#),
-                    }],
-                }],
-            ),
-            (
-                "#[ink::contract(env=2.4)]",
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "env = crate::",
-                        start_pat: Some("<-env=2.4"),
-                        end_pat: Some("env=2.4"),
-                    }],
-                }],
-            ),
-            // Compound arguments.
-            (
-                "#[ink::contract(env=my::env::Types, keep_attr)]", // Bad keep_attr.
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: r#"keep_attr = """#,
-                        start_pat: Some("<-keep_attr"),
-                        end_pat: Some("keep_attr"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(constructor, payable=1, default, selector=1)]", // Bad payable.
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "payable",
-                        start_pat: Some("<-payable=1"),
-                        end_pat: Some("payable=1"),
-                    }],
-                }],
-            ),
-            (
-                r#"#[ink(message="hello", payable, selector=2)]"#, // message.
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "message",
-                        start_pat: Some(r#"<-message="hello""#),
-                        end_pat: Some(r#"message="hello""#),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(event=0x1, anonymous)]", // bad event.
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "event",
-                        start_pat: Some("<-event=0x1"),
-                        end_pat: Some("event=0x1"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(extension, handle_status=true)]", // bad extension.
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "extension = 1",
-                        start_pat: Some("<-extension"),
-                        end_pat: Some("extension"),
-                    }],
-                }],
-            ),
-            (
-                r#"#[ink_e2e::contract(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment)]"#, // Bad environment.
-                vec![TestResultAction {
-                    label: "argument value",
-                    edits: vec![TestResultTextRange {
-                        text: "environment = crate::",
-                        start_pat: Some("<-environment"),
-                        end_pat: Some("environment"),
-                    }],
-                }],
+                Version::V5,
+                vec![
+                    (
+                        "#[ink::event(signature_topic)]", // missing signature_topic.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "signature_topic = ",
+                                start_pat: Some("<-signature_topic"),
+                                end_pat: Some("signature_topic"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink::event(signature_topic = 1)]", // bad signature_topic.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "signature_topic = ",
+                                start_pat: Some("<-signature_topic"),
+                                end_pat: Some("signature_topic = 1"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink(function, handle_status=true)]", // bad `function` value.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "function = 1",
+                                start_pat: Some("<-function"),
+                                end_pat: Some("function"),
+                            }],
+                        }],
+                    ),
+                    (
+                        r#"#[ink_e2e::contract(environment, backend(node))]"#, // bad environment.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "environment = crate::",
+                                start_pat: Some("<-environment"),
+                                end_pat: Some("environment"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend)]", // missing nested arg (i.e. node|runtime_only).
+                        vec![
+                            TestResultAction {
+                                label: "Add `(node)`",
+                                edits: vec![TestResultTextRange {
+                                    text: "(node)",
+                                    start_pat: Some("<-backend"),
+                                    end_pat: Some("backend"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add `(runtime_only)`",
+                                edits: vec![TestResultTextRange {
+                                    text: "(runtime_only)",
+                                    start_pat: Some("<-backend"),
+                                    end_pat: Some("backend"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend = node)]", // node should be a nested meta-item (i.e. `backend(node)`).
+                        vec![TestResultAction {
+                            label: "Replace with",
+                            edits: vec![TestResultTextRange {
+                                text: "backend(node)",
+                                start_pat: Some("<-backend"),
+                                end_pat: Some("node"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(xyz))]", // bad value for backend.
+                        vec![
+                            TestResultAction {
+                                label: "Replace with",
+                                edits: vec![TestResultTextRange {
+                                    text: "node",
+                                    start_pat: Some("<-xyz"),
+                                    end_pat: Some("xyz"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Replace with",
+                                edits: vec![TestResultTextRange {
+                                    text: "runtime_only",
+                                    start_pat: Some("<-xyz"),
+                                    end_pat: Some("xyz"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(node(url)))]", // missing value.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "url = ",
+                                start_pat: Some("<-url"),
+                                end_pat: Some("url"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(node(url = true)))]", // bad value.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "url = ",
+                                start_pat: Some("<-url"),
+                                end_pat: Some("url = true"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink_e2e::test(backend(runtime_only(runtime)))]", // missing value.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "runtime = ",
+                                start_pat: Some("<-runtime->"),
+                                end_pat: Some("runtime->"),
+                            }],
+                        }],
+                    ),
+                    (
+                        r#"#[ink_e2e::test(backend(runtime_only(runtime = "ink_e2e::MinimalRuntime")))]"#, // bad value, should be a path.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "runtime = ",
+                                start_pat: Some("<-runtime->"),
+                                end_pat: Some(r#""ink_e2e::MinimalRuntime""#),
+                            }],
+                        }],
+                    ),
+                ],
             ),
         ] {
-            let attr = parse_first_ink_attr(code);
+            for (code, expected_quickfixes) in [
+                // Arguments that should have no value.
+                (
+                    "#[ink(storage=1)]",
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "storage",
+                            start_pat: Some("<-storage=1"),
+                            end_pat: Some("storage=1"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(constructor=)]",
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "constructor",
+                            start_pat: Some("<-constructor="),
+                            end_pat: Some("constructor="),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink(default="hello")]"#,
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "default",
+                            start_pat: Some(r#"<-default="hello""#),
+                            end_pat: Some(r#"default="hello""#),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(message=true)]",
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "message",
+                            start_pat: Some("<-message=true"),
+                            end_pat: Some("message=true"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(event='a')]",
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "event",
+                            start_pat: Some("<-event='a'"),
+                            end_pat: Some("event='a'"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(anonymous=0x1)]",
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "anonymous",
+                            start_pat: Some("<-anonymous=0x1"),
+                            end_pat: Some("anonymous=0x1"),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink(topic=b"")]"#,
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "topic",
+                            start_pat: Some(r#"<-topic=b"""#),
+                            end_pat: Some(r#"topic=b"""#),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(payable=3.2)]",
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "payable",
+                            start_pat: Some("<-payable=3.2"),
+                            end_pat: Some("payable=3.2"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(impl=my::path::item)]",
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "impl",
+                            start_pat: Some("<-impl=my::path::item"),
+                            end_pat: Some("impl=my::path::item"),
+                        }],
+                    }],
+                ),
+                // Arguments that should have an integer (`u32` to be specific) value.
+                (
+                    "#[ink(selector)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "selector = 1",
+                            start_pat: Some("<-selector"),
+                            end_pat: Some("selector"),
+                        }],
+                    }],
+                ),
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L1200-L1211>.
+                (
+                    "#[ink(selector=-1)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "selector = 1",
+                            start_pat: Some("<-selector=-1"),
+                            end_pat: Some("selector=-1"),
+                        }],
+                    }],
+                ),
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L1213-L1224>.
+                (
+                    "#[ink(selector=0xFFFF_FFFF_FFFF_FFFF)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "selector = 1",
+                            start_pat: Some("<-selector=0xFFFF_FFFF_FFFF_FFFF"),
+                            end_pat: Some("selector=0xFFFF_FFFF_FFFF_FFFF"),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink(selector="hello")]"#,
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "selector = 1",
+                            start_pat: Some(r#"<-selector="hello""#),
+                            end_pat: Some(r#"selector="hello""#),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(selector='a')]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "selector = 1",
+                            start_pat: Some("<-selector='a'"),
+                            end_pat: Some("selector='a'"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(selector=false)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "selector = 1",
+                            start_pat: Some("<-selector=false"),
+                            end_pat: Some("selector=false"),
+                        }],
+                    }],
+                ),
+                // Arguments that can have a wildcard/underscore value.
+                (
+                    "#[ink(selector=*)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "selector = 1",
+                            start_pat: Some("<-selector=*"),
+                            end_pat: Some("selector=*"),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink(selector="_")]"#, // should be an underscore expression, not a string
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "selector = 1",
+                            start_pat: Some(r#"<-selector="_""#),
+                            end_pat: Some(r#"selector="_""#),
+                        }],
+                    }],
+                ),
+                // Arguments that should have a string value.
+                (
+                    "#[ink::contract(keep_attr=my::path::item)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: r#"keep_attr = """#,
+                            start_pat: Some("<-keep_attr=my::path::item"),
+                            end_pat: Some("keep_attr=my::path::item"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(namespace=0x1)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: r#"namespace = "my_namespace""#,
+                            start_pat: Some("<-namespace=0x1"),
+                            end_pat: Some("namespace=0x1"),
+                        }],
+                    }],
+                ),
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L1248-L1256>.
+                (
+                    r#"#[ink(namespace="::invalid_identifier")]"#,
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: r#"namespace = "my_namespace""#,
+                            start_pat: Some(r#"<-namespace="::invalid_identifier""#),
+                            end_pat: Some(r#"namespace="::invalid_identifier""#),
+                        }],
+                    }],
+                ),
+                // Arguments that should have a boolean value.
+                (
+                    "#[ink(handle_status=1)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "handle_status = true",
+                            start_pat: Some("<-handle_status=1"),
+                            end_pat: Some("handle_status=1"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink::storage_item(derive)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "derive = true",
+                            start_pat: Some("<-derive"),
+                            end_pat: Some("derive"),
+                        }],
+                    }],
+                ),
+                // Arguments that should have a path value.
+                (
+                    r#"#[ink::contract(env="my::env::Types")]"#,
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "env = crate::",
+                            start_pat: Some(r#"<-env="my::env::Types""#),
+                            end_pat: Some(r#"env="my::env::Types""#),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink_e2e::test(environment="my::env::Types")]"#,
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "environment = crate::",
+                            start_pat: Some(r#"<-environment="my::env::Types""#),
+                            end_pat: Some(r#"environment="my::env::Types""#),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink::contract(env=2.4)]",
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "env = crate::",
+                            start_pat: Some("<-env=2.4"),
+                            end_pat: Some("env=2.4"),
+                        }],
+                    }],
+                ),
+                // Compound arguments.
+                (
+                    "#[ink::contract(env=my::env::Types, keep_attr)]", // Bad keep_attr.
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: r#"keep_attr = """#,
+                            start_pat: Some("<-keep_attr"),
+                            end_pat: Some("keep_attr"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(constructor, payable=1, default, selector=1)]", // Bad payable.
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "payable",
+                            start_pat: Some("<-payable=1"),
+                            end_pat: Some("payable=1"),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink(message="hello", payable, selector=2)]"#, // message.
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "message",
+                            start_pat: Some(r#"<-message="hello""#),
+                            end_pat: Some(r#"message="hello""#),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(event=0x1, anonymous)]", // bad event.
+                    vec![TestResultAction {
+                        label: "argument value",
+                        edits: vec![TestResultTextRange {
+                            text: "event",
+                            start_pat: Some("<-event=0x1"),
+                            end_pat: Some("event=0x1"),
+                        }],
+                    }],
+                ),
+            ]
+            .into_iter()
+            .chain(fixtures)
+            {
+                let attr = parse_first_ink_attr(code);
 
-            for version in [Version::V4, Version::V5] {
                 let mut results = Vec::new();
-                ensure_valid_attribute_arguments(&mut results, &attr, version);
+                for arg in attr.args() {
+                    validate_arg(&mut results, arg, version);
+                }
 
                 // Verifies diagnostics.
                 assert_eq!(

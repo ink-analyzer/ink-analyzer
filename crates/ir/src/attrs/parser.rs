@@ -28,13 +28,26 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
         None => token_tree.syntax().text_range().start(),
     };
 
+    fn is_error_wrapped_closing_bracket(elem: &SyntaxElement) -> bool {
+        elem.kind() == SyntaxKind::ERROR
+            && elem.as_node().is_some_and(|error| {
+                error
+                    .last_token()
+                    .is_some_and(|token| token.kind() == SyntaxKind::R_BRACK)
+            })
+    }
+
     token_tree
         .syntax()
         .children_with_tokens()
         // Skip starting parenthesis if present.
         .skip(usize::from(l_paren.is_some()))
         // Ignore closing parenthesis if present.
-        .take_while(|it| r_paren.is_none() || it.as_token() != r_paren.as_ref())
+        .take_while(|it| {
+            (r_paren.is_none() || it.as_token() != r_paren.as_ref())
+                // Stops before closing bracket (i.e. `]`) in unbalanced attributes (e.g. `#[ink_e2e::test(backend]`)
+                && !is_error_wrapped_closing_bracket(it)
+        })
         // Comma (`,`) separated groups.
         .group_by(|token| token.kind() == T![,])
         .into_iter()
