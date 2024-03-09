@@ -3067,537 +3067,636 @@ mod tests {
     fn conflicting_attributes_and_arguments_fails() {
         // NOTE: Unknown attributes are ignored by this test,
         // See `ensure_no_duplicate_attributes_and_arguments` doc.
-        for (code, expected_quickfixes) in [
-            // Single attributes.
+        for (version, fixtures) in [
             (
-                "#[ink::chain_extension(env=my::env::Types)]", // conflicting `env`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-(env"),
-                        end_pat: Some("my::env::Types)"),
-                    }],
-                }],
+                Version::V4,
+                vec![
+                    (
+                        "#[ink(handle_status=true, extension=1)]", // `extension` should come first.
+                        vec![TestResultAction {
+                            label: "first argument",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "extension",
+                                    start_pat: Some("#[ink("),
+                                    end_pat: Some("#[ink("),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-, extension"),
+                                    end_pat: Some("extension=1"),
+                                },
+                            ],
+                        }],
+                    ),
+                    (
+                        r#"
+                        #[ink(handle_status=true)]
+                        #[ink(extension=1)]
+                        "#, // `extension` should come first.
+                        vec![TestResultAction {
+                            label: "first ink! attribute",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink(extension=1)]",
+                                    start_pat: Some("<-#[ink(handle_status=true)]"),
+                                    end_pat: Some("<-#[ink(handle_status=true)]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink(extension=1)]"),
+                                    end_pat: Some("#[ink(extension=1)]"),
+                                },
+                            ],
+                        }],
+                    ),
+                    (
+                        "#[ink(anonymous)]", // missing `event`.
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "event, ",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            }],
+                        }],
+                    ),
+                ],
             ),
             (
-                r#"#[ink::contract(namespace="my_namespace")]"#, // conflicting `namespace`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-(namespace"),
-                        end_pat: Some(r#""my_namespace")"#),
-                    }],
-                }],
+                Version::V5,
+                vec![
+                    (
+                        "#[ink(anonymous)]", // missing `event`.
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink::event(anonymous)]",
+                                    start_pat: Some("<-#[ink(anonymous)]"),
+                                    end_pat: Some("#[ink(anonymous)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "event, ",
+                                    start_pat: Some("#[ink("),
+                                    end_pat: Some("#[ink("),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        "#[ink(handle_status=true, function=1)]", // `function` should come first.
+                        vec![TestResultAction {
+                            label: "first argument",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "function",
+                                    start_pat: Some("#[ink("),
+                                    end_pat: Some("#[ink("),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-, function"),
+                                    end_pat: Some("function=1"),
+                                },
+                            ],
+                        }],
+                    ),
+                    (
+                        r#"
+                        #[ink(handle_status=true)]
+                        #[ink(function=1)]
+                        "#, // `extension` should come first.
+                        vec![TestResultAction {
+                            label: "first ink! attribute",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink(function=1)]",
+                                    start_pat: Some("<-#[ink(handle_status=true)]"),
+                                    end_pat: Some("<-#[ink(handle_status=true)]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink(function=1)]"),
+                                    end_pat: Some("#[ink(function=1)]"),
+                                },
+                            ],
+                        }],
+                    ),
+                    (
+                        "#[ink(extension=1, handle_status=true)]", // `extension` was replaced with `function` in v5 so `handle_status` conflicts here.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-, handle_status=true"),
+                                end_pat: Some("handle_status=true"),
+                            }],
+                        }],
+                    ),
+                ],
             ),
-            (
-                r#"#[ink::storage_item(keep_attr="foo,bar")]"#, // conflicting `keep_attr`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-(keep_attr"),
-                        end_pat: Some(r#""foo,bar")"#),
-                    }],
-                }],
-            ),
-            (
-                "#[ink::test(payable)]", // conflicting `payable`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-(payable"),
-                        end_pat: Some("payable)"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink::trait_definition(derive=false)]", // conflicting `derive`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-(derive"),
-                        end_pat: Some("false)"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(storage, anonymous)]", // conflicting `anonymous`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-, anonymous"),
-                        end_pat: Some("anonymous"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(event, default)]", // conflicting `default`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-, default"),
-                        end_pat: Some("default"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(topic, selector=1)]", // conflicting `selector`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-, selector"),
-                        end_pat: Some("selector=1"),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(constructor, derive=true)]", // conflicting `derive`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-, derive"),
-                        end_pat: Some("derive=true"),
-                    }],
-                }],
-            ),
-            (
-                r#"#[ink(message, namespace="my_namespace")]"#, // conflicting `namespace`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-, namespace"),
-                        end_pat: Some(r#"namespace="my_namespace""#),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(extension=1, env=my::env::Types)]", // conflicting `env`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-, env"),
-                        end_pat: Some("env=my::env::Types"),
-                    }],
-                }],
-            ),
-            // Multiple attributes.
-            (
-                r#"
-                #[ink::contract(env=my::env::Types)]
-                #[ink::trait_definition(namespace="my_namespace")]
-                "#, // conflicting `contract`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some(r#"<-#[ink::trait_definition(namespace="my_namespace")]"#),
-                        end_pat: Some(r#"#[ink::trait_definition(namespace="my_namespace")]"#),
-                    }],
-                }],
-            ),
-            (
-                r#"
-                #[ink::contract(env=my::env::Types)]
-                #[ink_e2e::test(environment=my::env::Types)]
-                "#, // conflicting `contract`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink_e2e::test(environment=my::env::Types)]"),
-                        end_pat: Some("#[ink_e2e::test(environment=my::env::Types)]"),
-                    }],
-                }],
-            ),
-            (
-                r#"
-                #[ink::contract]
-                #[ink(message)]
-                "#, // conflicting `contract`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(message)]"),
-                        end_pat: Some("#[ink(message)]"),
-                    }],
-                }],
-            ),
-            (
-                r#"
-                #[ink(constructor, payable, default, selector=1)]
-                #[ink(event)]
-                "#, // conflicting `event`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("#[ink(event)]"),
-                    }],
-                }],
-            ),
-            (
-                r#"
-                #[ink(message)]
-                #[ink(payable, selector=2, topic)]
-                "#, // `topic` conflicts with `message`.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-, topic"),
-                        end_pat: Some("topic"),
-                    }],
-                }],
-            ),
-            // Wrong order of attributes and/or arguments.
-            (
-                "#[ink(anonymous, event)]", // `event` should come first.
-                vec![TestResultAction {
-                    label: "first argument",
-                    // Makes `event` the first argument.
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "event",
-                            start_pat: Some("#[ink("),
-                            end_pat: Some("#[ink("),
-                        },
-                        TestResultTextRange {
+        ] {
+            for (code, expected_quickfixes) in [
+                // Single attributes.
+                (
+                    "#[ink::chain_extension(env=my::env::Types)]", // conflicting `env`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
                             text: "",
-                            start_pat: Some("<-, event"),
-                            end_pat: Some("event"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                r#"
-                #[ink(anonymous)]
-                #[ink(event)]
-                "#, // `event` should come first.
-                vec![TestResultAction {
-                    label: "first ink! attribute",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "#[ink(event)]",
-                            start_pat: Some("<-#[ink(anonymous)]"),
-                            end_pat: Some("<-#[ink(anonymous)]"),
-                        },
-                        TestResultTextRange {
+                            start_pat: Some("<-(env"),
+                            end_pat: Some("my::env::Types)"),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink::contract(namespace="my_namespace")]"#, // conflicting `namespace`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
                             text: "",
-                            start_pat: Some("<-#[ink(event)]"),
-                            end_pat: Some("#[ink(event)]"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                "#[ink(handle_status=true, extension=1)]", // `extension` should come first.
-                vec![TestResultAction {
-                    label: "first argument",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "extension",
-                            start_pat: Some("#[ink("),
-                            end_pat: Some("#[ink("),
-                        },
-                        TestResultTextRange {
+                            start_pat: Some("<-(namespace"),
+                            end_pat: Some(r#""my_namespace")"#),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink::storage_item(keep_attr="foo,bar")]"#, // conflicting `keep_attr`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
                             text: "",
-                            start_pat: Some("<-, extension"),
-                            end_pat: Some("extension=1"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                r#"
-                #[ink(handle_status=true)]
-                #[ink(extension=1)]
-                "#, // `extension` should come first.
-                vec![TestResultAction {
-                    label: "first ink! attribute",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "#[ink(extension=1)]",
-                            start_pat: Some("<-#[ink(handle_status=true)]"),
-                            end_pat: Some("<-#[ink(handle_status=true)]"),
-                        },
-                        TestResultTextRange {
+                            start_pat: Some("<-(keep_attr"),
+                            end_pat: Some(r#""foo,bar")"#),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink::test(payable)]", // conflicting `payable`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
                             text: "",
-                            start_pat: Some("<-#[ink(extension=1)]"),
-                            end_pat: Some("#[ink(extension=1)]"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                "#[ink(payable, message, default, selector=1)]", // `message` should come first.
-                vec![TestResultAction {
-                    label: "first argument",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "message",
-                            start_pat: Some("#[ink("),
-                            end_pat: Some("#[ink("),
-                        },
-                        TestResultTextRange {
+                            start_pat: Some("<-(payable"),
+                            end_pat: Some("payable)"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink::trait_definition(derive=false)]", // conflicting `derive`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
                             text: "",
-                            start_pat: Some("<-message"),
-                            end_pat: Some("message,"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                r#"
-                #[ink(payable, default, selector=1)]
-                #[ink(message)]
-                "#, // `message` should come first.
-                vec![TestResultAction {
-                    label: "first ink! attribute",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("<-#[ink(payable, default, selector=1)]"),
-                            end_pat: Some("<-#[ink(payable, default, selector=1)]"),
-                        },
-                        TestResultTextRange {
+                            start_pat: Some("<-(derive"),
+                            end_pat: Some("false)"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(storage, anonymous)]", // conflicting `anonymous`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-, anonymous"),
+                            end_pat: Some("anonymous"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(event, default)]", // conflicting `default`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-, default"),
+                            end_pat: Some("default"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(topic, selector=1)]", // conflicting `selector`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-, selector"),
+                            end_pat: Some("selector=1"),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(constructor, derive=true)]", // conflicting `derive`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-, derive"),
+                            end_pat: Some("derive=true"),
+                        }],
+                    }],
+                ),
+                (
+                    r#"#[ink(message, namespace="my_namespace")]"#, // conflicting `namespace`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-, namespace"),
+                            end_pat: Some(r#"namespace="my_namespace""#),
+                        }],
+                    }],
+                ),
+                (
+                    "#[ink(extension=1, env=my::env::Types)]", // conflicting `env`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-, env"),
+                            end_pat: Some("env=my::env::Types"),
+                        }],
+                    }],
+                ),
+                // Multiple attributes.
+                (
+                    r#"
+                    #[ink::contract(env=my::env::Types)]
+                    #[ink::trait_definition(namespace="my_namespace")]
+                    "#, // conflicting `contract`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some(
+                                r#"<-#[ink::trait_definition(namespace="my_namespace")]"#,
+                            ),
+                            end_pat: Some(r#"#[ink::trait_definition(namespace="my_namespace")]"#),
+                        }],
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink::contract(env=my::env::Types)]
+                    #[ink_e2e::test(environment=my::env::Types)]
+                    "#, // conflicting `contract`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink_e2e::test(environment=my::env::Types)]"),
+                            end_pat: Some("#[ink_e2e::test(environment=my::env::Types)]"),
+                        }],
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink::contract]
+                    #[ink(message)]
+                    "#, // conflicting `contract`.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
                             text: "",
                             start_pat: Some("<-#[ink(message)]"),
                             end_pat: Some("#[ink(message)]"),
-                        },
-                    ],
-                }],
-            ),
-            // Macro arguments as standalone attributes.
-            (
-                r#"
-                #[ink::contract]
-                #[ink(env=my::env::Types)]
-                "#, // conflicts with `contract`, should be an argument.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(env=my::env::Types)]"),
-                        end_pat: Some("#[ink(env=my::env::Types)]"),
-                    }],
-                }],
-            ),
-            (
-                r#"
-                #[ink::trait_definition]
-                #[ink(keep_attr="foo,bar")]
-                "#, // conflicts with `trait_definition`, should be an argument.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
-                        end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
-                    }],
-                }],
-            ),
-            (
-                r#"
-                #[ink::storage_item]
-                #[ink(derive=false)]
-                "#, // conflicts with `storage_item`, should be an argument.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(derive=false)]"),
-                        end_pat: Some("#[ink(derive=false)]"),
-                    }],
-                }],
-            ),
-            (
-                r#"
-                #[ink_e2e::test]
-                #[ink(environment=my::env::Types)]
-                "#, // conflicts with `e2e test`, should be an argument.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(environment=my::env::Types)]"),
-                        end_pat: Some("#[ink(environment=my::env::Types)]"),
-                    }],
-                }],
-            ),
-            // Incomplete and/or ambiguous.
-            (
-                "#[ink(anonymous)]", // missing `event`.
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "event, ",
-                        start_pat: Some("#[ink("),
-                        end_pat: Some("#[ink("),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(handle_status=true)]", // missing `extension`.
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "extension = 1, ",
-                        start_pat: Some("#[ink("),
-                        end_pat: Some("#[ink("),
-                    }],
-                }],
-            ),
-            (
-                "#[ink(payable, default, selector=1)]", // incomplete and ambiguous.
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "constructor, ",
-                            start_pat: Some("#[ink("),
-                            end_pat: Some("#[ink("),
                         }],
-                    },
-                    TestResultAction {
-                        label: "Add",
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink(constructor, payable, default, selector=1)]
+                    #[ink(event)]
+                    "#, // conflicting `event`.
+                    vec![TestResultAction {
+                        label: "Remove",
                         edits: vec![TestResultTextRange {
-                            text: "message, ",
-                            start_pat: Some("#[ink("),
-                            end_pat: Some("#[ink("),
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("#[ink(event)]"),
                         }],
-                    },
-                ],
-            ),
-            (
-                r#"
-                #[ink(payable, default)]
-                #[ink(selector=1)]
-                "#, // incomplete and ambiguous.
-                vec![
-                    TestResultAction {
-                        label: "Add",
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink(message)]
+                    #[ink(payable, selector=2, topic)]
+                    "#, // `topic` conflicts with `message`.
+                    vec![TestResultAction {
+                        label: "Remove",
                         edits: vec![TestResultTextRange {
-                            text: "constructor, ",
-                            start_pat: Some("#[ink("),
-                            end_pat: Some("#[ink("),
+                            text: "",
+                            start_pat: Some("<-, topic"),
+                            end_pat: Some("topic"),
                         }],
-                    },
-                    TestResultAction {
-                        label: "Add",
+                    }],
+                ),
+                // Wrong order of attributes and/or arguments.
+                (
+                    "#[ink(anonymous, event)]", // `event` should come first.
+                    vec![TestResultAction {
+                        label: "first argument",
+                        // Makes `event` the first argument.
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "event",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-, event"),
+                                end_pat: Some("event"),
+                            },
+                        ],
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink(anonymous)]
+                    #[ink(event)]
+                    "#, // `event` should come first.
+                    vec![TestResultAction {
+                        label: "first ink! attribute",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(event)]",
+                                start_pat: Some("<-#[ink(anonymous)]"),
+                                end_pat: Some("<-#[ink(anonymous)]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(event)]"),
+                                end_pat: Some("#[ink(event)]"),
+                            },
+                        ],
+                    }],
+                ),
+                (
+                    "#[ink(payable, message, default, selector=1)]", // `message` should come first.
+                    vec![TestResultAction {
+                        label: "first argument",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "message",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-message"),
+                                end_pat: Some("message,"),
+                            },
+                        ],
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink(payable, default, selector=1)]
+                    #[ink(message)]
+                    "#, // `message` should come first.
+                    vec![TestResultAction {
+                        label: "first ink! attribute",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("<-#[ink(payable, default, selector=1)]"),
+                                end_pat: Some("<-#[ink(payable, default, selector=1)]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(message)]"),
+                                end_pat: Some("#[ink(message)]"),
+                            },
+                        ],
+                    }],
+                ),
+                // Macro arguments as standalone attributes.
+                (
+                    r#"
+                    #[ink::contract]
+                    #[ink(env=my::env::Types)]
+                    "#, // conflicts with `contract`, should be an argument.
+                    vec![TestResultAction {
+                        label: "Remove",
                         edits: vec![TestResultTextRange {
-                            text: "message, ",
-                            start_pat: Some("#[ink("),
-                            end_pat: Some("#[ink("),
+                            text: "",
+                            start_pat: Some("<-#[ink(env=my::env::Types)]"),
+                            end_pat: Some("#[ink(env=my::env::Types)]"),
                         }],
-                    },
-                ],
-            ),
-            (
-                r#"#[ink(keep_attr="foo,bar")]"#, // incomplete and ambiguous.
-                vec![
-                    TestResultAction {
-                        label: "Add",
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink::trait_definition]
+                    #[ink(keep_attr="foo,bar")]
+                    "#, // conflicts with `trait_definition`, should be an argument.
+                    vec![TestResultAction {
+                        label: "Remove",
                         edits: vec![TestResultTextRange {
-                            text: r#"#[ink::contract(keep_attr = "foo,bar")]"#,
+                            text: "",
                             start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
                             end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
                         }],
-                    },
-                    TestResultAction {
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink::storage_item]
+                    #[ink(derive=false)]
+                    "#, // conflicts with `storage_item`, should be an argument.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(derive=false)]"),
+                            end_pat: Some("#[ink(derive=false)]"),
+                        }],
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink_e2e::test]
+                    #[ink(environment=my::env::Types)]
+                    "#, // conflicts with `e2e test`, should be an argument.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(environment=my::env::Types)]"),
+                            end_pat: Some("#[ink(environment=my::env::Types)]"),
+                        }],
+                    }],
+                ),
+                // Incomplete and/or ambiguous.
+                (
+                    "#[ink(handle_status=true)]", // missing `extension`.
+                    vec![TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: r#"#[ink::trait_definition(keep_attr = "foo,bar")]"#,
-                            start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
-                            end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                            text: "extension = 1, ",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
                         }],
-                    },
-                ],
-            ),
-            // Namespace :-).
-            (
-                r#"
-                #[ink(namespace="my_namespace")]
-                #[ink::trait_definition]
-                "#, // `trait_definition` should come first, and namespace should be an argument.
-                vec![TestResultAction {
-                    label: "first ink! attribute",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "#[ink::trait_definition]",
-                            start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
-                            end_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
-                        },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink::trait_definition]"),
-                            end_pat: Some("#[ink::trait_definition]"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                r#"
-                #[ink::trait_definition]
-                #[ink(namespace="my_namespace")]
-                "#, // conflicts with `trait_definition`, it should be an argument.
-                vec![TestResultAction {
-                    label: "Remove",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
-                        end_pat: Some(r#"#[ink(namespace="my_namespace")]"#),
                     }],
-                }],
-            ),
-            (
-                r#"
-                #[ink(namespace="my_namespace")]
-                #[ink(impl)]
-                "#, // `impl` should come first.
-                vec![TestResultAction {
-                    label: "first ink! attribute",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "#[ink(impl)]",
-                            start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
-                            end_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                ),
+                (
+                    "#[ink(payable, default, selector=1)]", // incomplete and ambiguous.
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "constructor, ",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            }],
                         },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(impl)]"),
-                            end_pat: Some("#[ink(impl)]"),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "message, ",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            }],
                         },
                     ],
-                }],
-            ),
-        ] {
-            let attrs = parse_all_ink_attrs(code);
+                ),
+                (
+                    r#"
+                    #[ink(payable, default)]
+                    #[ink(selector=1)]
+                    "#, // incomplete and ambiguous.
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "constructor, ",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "message, ",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"#[ink(keep_attr="foo,bar")]"#, // incomplete and ambiguous.
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"#[ink::contract(keep_attr = "foo,bar")]"#,
+                                start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                                end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"#[ink::trait_definition(keep_attr = "foo,bar")]"#,
+                                start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                                end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                            }],
+                        },
+                    ],
+                ),
+                // Namespace :-).
+                (
+                    r#"
+                    #[ink(namespace="my_namespace")]
+                    #[ink::trait_definition]
+                    "#, // `trait_definition` should come first, and namespace should be an argument.
+                    vec![TestResultAction {
+                        label: "first ink! attribute",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink::trait_definition]",
+                                start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                                end_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink::trait_definition]"),
+                                end_pat: Some("#[ink::trait_definition]"),
+                            },
+                        ],
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink::trait_definition]
+                    #[ink(namespace="my_namespace")]
+                    "#, // conflicts with `trait_definition`, it should be an argument.
+                    vec![TestResultAction {
+                        label: "Remove",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                            end_pat: Some(r#"#[ink(namespace="my_namespace")]"#),
+                        }],
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink(namespace="my_namespace")]
+                    #[ink(impl)]
+                    "#, // `impl` should come first.
+                    vec![TestResultAction {
+                        label: "first ink! attribute",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(impl)]",
+                                start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                                end_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(impl)]"),
+                                end_pat: Some("#[ink(impl)]"),
+                            },
+                        ],
+                    }],
+                ),
+            ]
+            .into_iter()
+            .chain(fixtures)
+            {
+                let attrs = parse_all_ink_attrs(code);
 
-            let mut results = Vec::new();
-            ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs, Version::V4);
+                let mut results = Vec::new();
+                ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs, version);
 
-            // Verifies diagnostics.
-            assert_eq!(results.len(), 1, "attributes: {code}");
-            assert_eq!(results[0].severity, Severity::Error, "attributes: {code}");
-            // Verifies quickfixes.
-            verify_actions(
-                code,
-                results[0].quickfixes.as_ref().unwrap(),
-                &expected_quickfixes,
-            );
+                // Verifies diagnostics.
+                assert_eq!(
+                    results.len(),
+                    1,
+                    "attributes: {code}, version: {:?}",
+                    version
+                );
+                assert_eq!(
+                    results[0].severity,
+                    Severity::Error,
+                    "attributes: {code}, version: {:?}",
+                    version
+                );
+                // Verifies quickfixes.
+                verify_actions(
+                    code,
+                    results[0].quickfixes.as_ref().unwrap(),
+                    &expected_quickfixes,
+                );
+            }
         }
     }
 }
