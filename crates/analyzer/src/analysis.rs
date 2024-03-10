@@ -80,7 +80,7 @@ impl Analysis {
 
     /// Computes ink! attribute argument inlay hints for the given text range (if any).
     pub fn inlay_hints(&self, range: Option<TextRange>) -> Vec<InlayHint> {
-        inlay_hints::inlay_hints(&self.file, range)
+        inlay_hints::inlay_hints(&self.file, range, self.version)
     }
 
     /// Computes ink! attribute signature help for the given position.

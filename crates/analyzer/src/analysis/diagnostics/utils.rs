@@ -41,7 +41,7 @@ pub fn run_generic_diagnostics<T: InkEntity>(
     // See `validate_arg` doc.
     for attr in item.tree().ink_attrs_in_scope() {
         for arg in attr.args() {
-            validate_arg(results, arg, version);
+            validate_arg(results, arg, version, Some(attr.kind()));
         }
     }
 
@@ -147,7 +147,12 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
-fn validate_arg(results: &mut Vec<Diagnostic>, arg: &InkArg, version: Version) {
+fn validate_arg(
+    results: &mut Vec<Diagnostic>,
+    arg: &InkArg,
+    version: Version,
+    attr_kind: Option<&InkAttributeKind>,
+) {
     let arg_name_text = arg.meta().name().to_string();
     match arg.kind() {
         // Handle unknown argument.
@@ -178,7 +183,12 @@ fn validate_arg(results: &mut Vec<Diagnostic>, arg: &InkArg, version: Version) {
         }
         arg_kind => {
             let arg_value_type = if version == Version::V5 {
-                InkArgValueKind::from_v5(*arg_kind)
+                InkArgValueKind::from_v5(
+                    *arg_kind,
+                    attr_kind.map(|attr_kind| {
+                        *attr_kind == InkAttributeKind::Arg(InkArgKind::Constructor)
+                    }),
+                )
             } else {
                 InkArgValueKind::from(*arg_kind)
             };
@@ -447,7 +457,7 @@ fn validate_arg(results: &mut Vec<Diagnostic>, arg: &InkArg, version: Version) {
         } else if let Some(nested_arg) = arg.nested() {
             if options.contains(nested_arg.kind()) {
                 // Validate nested args.
-                validate_arg(results, &nested_arg, version);
+                validate_arg(results, &nested_arg, version, None);
             } else {
                 let edit_range = nested_arg.text_range();
                 let quickfixes: Vec<_> = options
@@ -2385,7 +2395,7 @@ mod tests {
 
                 let mut results = Vec::new();
                 for arg in attr.args() {
-                    validate_arg(&mut results, arg, version);
+                    validate_arg(&mut results, arg, version, Some(attr.kind()));
                 }
                 assert!(
                     results.is_empty(),
@@ -2431,6 +2441,17 @@ mod tests {
             (
                 Version::V5,
                 vec![
+                    (
+                        "#[ink(constructor, selector=@)]", // wildcard complement selector is invalid for constructors.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "selector = 1",
+                                start_pat: Some("<-selector=@"),
+                                end_pat: Some("selector=@"),
+                            }],
+                        }],
+                    ),
                     (
                         "#[ink::event(signature_topic)]", // missing signature_topic.
                         vec![TestResultAction {
@@ -2913,7 +2934,7 @@ mod tests {
 
                 let mut results = Vec::new();
                 for arg in attr.args() {
-                    validate_arg(&mut results, arg, version);
+                    validate_arg(&mut results, arg, version, Some(attr.kind()));
                 }
 
                 // Verifies diagnostics.

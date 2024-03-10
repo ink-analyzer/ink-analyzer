@@ -478,9 +478,11 @@ impl From<InkArgKind> for InkArgValueKind {
 }
 
 impl InkArgValueKind {
-    pub fn from_v5(arg_kind: InkArgKind) -> Self {
+    pub fn from_v5(arg_kind: InkArgKind, is_constructor: Option<bool>) -> Self {
         match arg_kind {
             InkArgKind::Extension => InkArgValueKind::U16,
+            // Constructor selectors, don't accept the wildcard complement/`@` symbol (unlike message selectors).
+            InkArgKind::Selector if is_constructor == Some(true) => InkArgValueKind::U32OrWildcard,
             InkArgKind::Selector => InkArgValueKind::U32OrWildcardOrComplement,
             _ => InkArgValueKind::from(arg_kind),
         }
