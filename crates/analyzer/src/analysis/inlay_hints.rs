@@ -155,6 +155,24 @@ mod tests {
                         )],
                     ),
                     (
+                        r#"#[ink::event(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#,
+                        None,
+                        vec![(
+                            "&str",
+                            Some("signature_topic"),
+                            (Some("<-signature_topic"), Some("signature_topic")),
+                        )],
+                    ),
+                    (
+                        r#"#[ink(event, signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#,
+                        None,
+                        vec![(
+                            "&str",
+                            Some("signature_topic"),
+                            (Some("<-signature_topic"), Some("signature_topic")),
+                        )],
+                    ),
+                    (
                         "#[ink::chain_extension(extension=1)]",
                         None,
                         vec![(

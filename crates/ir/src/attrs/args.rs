@@ -302,7 +302,7 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         // Complimentary arguments (i.e. everything else excluding "unknown") get the next priority level.
         // This includes complimentary/optional arguments for
         // entity-level arguments (e.g. `anonymous`, `payable`, `selector` e.t.c),
-        // macro-level arguments (e.g `env`, `keep_attr`, `derive` e.t.c) and ambiguous arguments (e.g `namespace`).
+        // macro-level arguments (e.g. `env`, `keep_attr`, `derive` e.t.c) and ambiguous arguments (e.g `namespace`).
         // This group is explicitly enumerated to force explicit decisions about
         // the priority level of new `InkArgKind` additions.
         InkArgKind::AdditionalContracts
@@ -516,7 +516,7 @@ impl fmt::Display for InkArgValueKind {
 impl InkArgValueKind {
     /// Returns extra details/docs about the ink! attribute argument value kind.
     ///
-    /// (e.g details about further validation is applied for the value kind).
+    /// (e.g. details about further validation is applied for the value kind).
     ///
     /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L879-L1023>.
     ///

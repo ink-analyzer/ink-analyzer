@@ -2,8 +2,11 @@
 
 use std::fmt;
 
+use impl_serde::serialize as serde_hex;
 use itertools::Itertools;
-use ra_ap_syntax::{ast, AstNode, SyntaxElement, SyntaxKind, SyntaxToken, TextRange, TextSize};
+use ra_ap_syntax::{
+    ast, AstNode, AstToken, SourceFile, SyntaxElement, SyntaxKind, SyntaxToken, TextRange, TextSize,
+};
 
 use crate::IsIntId;
 
@@ -205,6 +208,36 @@ impl MetaValue {
             ast::Expr::PathExpr(path) => path.path(),
             _ => None,
         })
+    }
+
+    /// Converts the string value (if any) to a Rust identifier (`Ident`) (if possible).
+    pub fn as_ident(&self) -> Option<ast::Ident> {
+        self.as_string().and_then(|value| {
+            // Parse sanitized value and find the first identifier.
+            let file = SourceFile::parse(&value).tree();
+
+            // Retrieve the first `ident` in the syntax tree.
+            let ident = file
+                .syntax()
+                .descendants_with_tokens()
+                .find_map(|elem| ast::Ident::cast(elem.into_token()?))?;
+
+            // Parsed identifier must be equal to the sanitized meta value.
+            (ident.text() == value).then_some(ident)
+        })
+    }
+
+    /// Converts the string value (if any) to a hex Vec (if possible).
+    ///
+    /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/event/signature_topic.rs#L43-L69>
+    pub fn as_hex_vec(&self) -> Option<Vec<u8>> {
+        self.as_string()
+            .and_then(|value| serde_hex::from_hex(&value).ok())
+    }
+
+    /// Converts the string value (if any) to a 32 byte hex array (if possible).
+    pub fn as_hex_32(&self) -> Option<[u8; 32]> {
+        self.as_hex_vec().and_then(|value| value.try_into().ok())
     }
 
     /// Compares equality with another meta value while ignoring trivia (i.e. whitespace and comments).

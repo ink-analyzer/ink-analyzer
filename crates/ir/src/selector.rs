@@ -3,6 +3,7 @@
 use blake2::digest::consts::U32;
 use blake2::digest::Digest;
 use blake2::Blake2b;
+use itertools::Itertools;
 use ra_ap_syntax::ast::HasName;
 use ra_ap_syntax::{ast, AstNode, SyntaxKind, TextRange};
 
@@ -57,7 +58,6 @@ impl Selector {
                         let pre_hash_bytes = [namespace, trait_ident, Some(callable_ident)]
                             .into_iter()
                             .flatten()
-                            .collect::<Vec<String>>()
                             .join("::")
                             .into_bytes();
 
