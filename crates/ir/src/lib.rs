@@ -111,3 +111,10 @@ pub use ra_ap_syntax as syntax;
 
 /// Re-export `ra_ap_syntax::ast` as `ast`.
 pub use ra_ap_syntax::ast;
+
+/// The ink! language version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Version {
+    V4,
+    V5,
+}

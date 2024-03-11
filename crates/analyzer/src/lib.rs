@@ -78,11 +78,7 @@ pub use self::{
     },
     codegen::{new_project, Error, Project, ProjectFile},
 };
-pub use ink_analyzer_ir::syntax::{TextRange, TextSize};
-
-/// The ink! language version.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Version {
-    V4,
-    V5,
-}
+pub use ink_analyzer_ir::{
+    syntax::{TextRange, TextSize},
+    Version,
+};

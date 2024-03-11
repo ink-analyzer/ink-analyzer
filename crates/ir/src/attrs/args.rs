@@ -1,5 +1,6 @@
 //! ink! attribute argument IR.
 
+use crate::Version;
 use ra_ap_syntax::{AstToken, TextRange};
 use std::cmp::Ordering;
 use std::fmt;
@@ -293,8 +294,8 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         // (i.e. `storage`, `event`, `impl`, `constructor`, `message`, `extension` e.t.c).
         InkArgKind::Constructor
         | InkArgKind::Event
-        | InkArgKind::Extension
-        | InkArgKind::Function
+        | InkArgKind::Extension // Only in v4, should be 1 in v5
+        | InkArgKind::Function // Only exists in v5
         | InkArgKind::Impl
         | InkArgKind::Message
         | InkArgKind::Storage
@@ -348,39 +349,41 @@ impl InkArgKind {
     }
 
     /// Returns extra details/docs about the ink! attribute argument kind.
-    pub fn detail(&self) -> &str {
+    pub fn detail(&self, version: Version) -> &str {
         match self {
+            InkArgKind::AdditionalContracts if version == Version::V5 => "This ink! argument is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.",
             InkArgKind::AdditionalContracts => "Tells the ink! e2e test runner which additional contracts to build before executing the test.",
             InkArgKind::Anonymous => "Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.",
-            InkArgKind::Backend => "Tells the ink! e2e test runner which type of architecture to use to execute the test.",
+            InkArgKind::Backend if version == Version::V5 => "Tells the ink! e2e test runner which type of architecture to use to execute the test.",
             InkArgKind::Constructor => "Flags a function for the ink! storage `struct` as a constructor making it available to the API for instantiating the contract.",
-            InkArgKind::Decode => "Derives an implementation of the `ink::scale::Decode` trait.",
+            InkArgKind::Decode if version == Version::V5 => "Derives an implementation of the `ink::scale::Decode` trait.",
             InkArgKind::Default => "Tells UI to treat the ink! message or ink! constructor as the default choice in selection widgets (e.g dropdowns).",
             InkArgKind::Derive => "A configuration parameter used to enable/disable auto deriving of all required storage traits.",
-            InkArgKind::Encode => "Derives an implementation of the `ink::scale::Encode` trait.",
+            InkArgKind::Encode if version == Version::V5 => "Derives an implementation of the `ink::scale::Encode` trait.",
             InkArgKind::Env => "Tells the ink! code generator which environment to use for the ink! smart contract.",
-            InkArgKind::Environment => "Tells the ink! code generator which environment to use for the ink! smart contract.",
+            InkArgKind::Environment => "Tells the ink! e2e test runner which environment to use to execute the test.",
             InkArgKind::Event => "Defines an ink! event.",
-            // TODO: Add ink! v5 description for extension.
-            InkArgKind::Extension | InkArgKind::Function => "Determines the unique function ID of the chain extension function.",
+            InkArgKind::Extension if version == Version::V5 => "Determines the unique ID of the chain extension.",
+            InkArgKind::Extension => "Determines the unique function ID of the chain extension function.",
+            InkArgKind::Function if version == Version::V5 => "Determines the unique function ID of the chain extension function.",
             InkArgKind::HandleStatus => "Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.",
             InkArgKind::Impl => "Tells the ink! codegen that some implementation block shall be granted access to ink! internals even without it containing any ink! messages or ink! constructors.",
             InkArgKind::KeepAttr => "Tells the ink! code generator which attributes should be passed to call builders.",
             InkArgKind::Message => "Flags a method for the ink! storage `struct` as a message making it available to the API for calling the contract.",
             InkArgKind::Namespace => "Changes the resulting selectors of all the ink! messages and ink! constructors within the trait implementation.",
-            InkArgKind::Node => "Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.",
+            InkArgKind::Node if version == Version::V5 => "Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.",
             InkArgKind::Payable => "Allows receiving value as part of the call of the ink! message.",
-            InkArgKind::Runtime => "Tells the ink! e2e test runner which runtime emulator to use when executing the test.",
-            InkArgKind::RuntimeOnly => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.",
+            InkArgKind::Runtime if version == Version::V5 => "Tells the ink! e2e test runner which runtime emulator to use when executing the test.",
+            InkArgKind::RuntimeOnly if version == Version::V5 => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.",
             InkArgKind::Selector => "The `u32` variant specifies a concrete dispatch selector for the flagged entity, \
             which allows a contract author to precisely control the selectors of their APIs making it possible to rename their API without breakage.\n\n\
             While the `_` variant specifies a fallback message that is invoked if no other ink! message matches a selector.",
-            InkArgKind::SignatureTopic => "Specifies custom signature topic of the event that allows to use manually specified shared event definition.",
+            InkArgKind::SignatureTopic if version == Version::V5 => "Specifies custom signature topic of the event that allows to use manually specified shared event definition.",
             InkArgKind::Storage => "Defines the ink! storage `struct`.",
             InkArgKind::Topic => "Tells the ink! codegen to provide a topic hash for the given field.",
-            InkArgKind::TypeInfo => "Derives an implementation of the `ink::scale_info::TypeInfo` trait.",
+            InkArgKind::TypeInfo if version == Version::V5 => "Derives an implementation of the `ink::scale_info::TypeInfo` trait.",
             InkArgKind::Url => "Tells the ink! e2e test runner which node url to connect to before executing the test.",
-            InkArgKind::Unknown => "",
+            _ => "",
         }
     }
 }
@@ -495,19 +498,21 @@ impl fmt::Display for InkArgValueKind {
             f,
             "{}",
             match self {
-                InkArgValueKind::None | InkArgValueKind::Arg(..) | InkArgValueKind::Choice(..) =>
-                    "",
-                InkArgValueKind::U16 => "u16",
-                InkArgValueKind::U32 => "u32",
-                InkArgValueKind::U32OrWildcard => "u32 | _",
-                InkArgValueKind::U32OrWildcardOrComplement => "u32 | _ | @",
-                InkArgValueKind::String(_) => "&str",
-                InkArgValueKind::Bool => "bool",
+                InkArgValueKind::U16 => "u16".to_owned(),
+                InkArgValueKind::U32 => "u32".to_owned(),
+                InkArgValueKind::U32OrWildcard => "u32 | _".to_owned(),
+                InkArgValueKind::U32OrWildcardOrComplement => "u32 | _ | @".to_owned(),
+                InkArgValueKind::String(_) => "&str".to_owned(),
+                InkArgValueKind::Bool => "bool".to_owned(),
                 InkArgValueKind::Path(path_kind) => match path_kind {
-                    InkArgValuePathKind::Environment => "impl Environment",
-                    InkArgValuePathKind::Runtime => "impl drink::SandboxConfig",
-                    _ => "Path",
+                    InkArgValuePathKind::Environment => "impl Environment".to_owned(),
+                    InkArgValuePathKind::Runtime => "impl drink::SandboxConfig".to_owned(),
+                    _ => "Path".to_owned(),
                 },
+                InkArgValueKind::Arg(kind, required) if *required => kind.to_string(),
+                InkArgValueKind::Choice(kind_1, kind_2, required) if *required =>
+                    format!("{kind_1} | {kind_2}"),
+                _ => "".to_owned(),
             }
         )
     }
@@ -525,26 +530,32 @@ impl InkArgValueKind {
     /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/utils.rs#L92-L107>.
     ///
     /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L85>.
-    pub fn detail(&self) -> &str {
+    pub fn detail(&self) -> String {
         match self {
             InkArgValueKind::Path(InkArgValuePathKind::Environment) => {
-                "A `ink::env::Environment` implementation."
+                "A `ink::env::Environment` implementation.".to_owned()
             }
             InkArgValueKind::Path(InkArgValuePathKind::Runtime) => {
-                "A `drink::SandboxConfig` implementation."
+                "A `drink::SandboxConfig` implementation.".to_owned()
             }
-            InkArgValueKind::String(InkArgValueStringKind::CommaList) => "A comma separated list.",
-            InkArgValueKind::String(InkArgValueStringKind::Hex) => "A 32 byte hex string.",
+            InkArgValueKind::String(InkArgValueStringKind::CommaList) => {
+                "A comma separated list.".to_owned()
+            }
+            InkArgValueKind::String(InkArgValueStringKind::Hex) => {
+                "A 32 byte hex string.".to_owned()
+            }
             InkArgValueKind::String(InkArgValueStringKind::Identifier) => {
-                "A valid Rust identifier."
+                "A valid Rust identifier.".to_owned()
             }
-            InkArgValueKind::String(InkArgValueStringKind::SpaceList) => "A space separated list.",
-            InkArgValueKind::String(InkArgValueStringKind::Url) => "A URL.",
-            InkArgValueKind::Choice(kind_1, kind_2, _) => match (kind_1, kind_2) {
-                (InkArgKind::Node, InkArgKind::RuntimeOnly) => "node | runtime_only",
-                _ => "",
-            },
-            _ => "",
+            InkArgValueKind::String(InkArgValueStringKind::SpaceList) => {
+                "A space separated list.".to_owned()
+            }
+            InkArgValueKind::String(InkArgValueStringKind::Url) => "A URL.".to_owned(),
+            InkArgValueKind::Arg(kind, required) if *required => kind.to_string(),
+            InkArgValueKind::Choice(kind_1, kind_2, required) if *required => {
+                format!("{kind_1} | {kind_2}")
+            }
+            _ => "".to_owned(),
         }
     }
 }

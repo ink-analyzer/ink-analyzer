@@ -209,6 +209,11 @@ mod tests {
                                 Some("environment"),
                                 (Some("<-environment"), Some("environment")),
                             ),
+                            (
+                                "node | runtime_only",
+                                Some("backend"),
+                                (Some("<-backend"), Some("backend")),
+                            ),
                             ("&str", Some("url"), (Some("<-url"), Some("url"))),
                         ],
                     ),
@@ -223,6 +228,11 @@ mod tests {
                                 "impl Environment",
                                 Some("environment"),
                                 (Some("<-environment"), Some("environment")),
+                            ),
+                            (
+                                "node | runtime_only",
+                                Some("backend"),
+                                (Some("<-backend"), Some("backend")),
                             ),
                             (
                                 "impl drink::SandboxConfig",

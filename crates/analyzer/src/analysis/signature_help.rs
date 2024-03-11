@@ -205,7 +205,13 @@ pub fn signature_help(file: &InkFile, offset: TextSize, version: Version) -> Vec
                         let optional_args =
                             utils::valid_sibling_ink_args(*ink_attr.kind(), version);
                         if !optional_args.is_empty() {
-                            add_signature(&mut results, &optional_args, focused_arg, range);
+                            add_signature(
+                                &mut results,
+                                &optional_args,
+                                focused_arg,
+                                range,
+                                version,
+                            );
                         }
                     }
                 }
@@ -226,6 +232,7 @@ fn add_signature(
     args: &[InkArgKind],
     focused_arg: Option<&InkArg>,
     range: TextRange,
+    version: Version,
 ) {
     let mut signature = String::new();
     let mut params = Vec::new();
@@ -235,7 +242,18 @@ fn add_signature(
 
     // Adds arguments to signature.
     for arg_kind in args.iter().sorted() {
-        let arg_value_kind = InkArgValueKind::from(*arg_kind);
+        let arg_value_kind = if version == Version::V5 {
+            InkArgValueKind::from_v5(
+                *arg_kind,
+                if args.contains(&InkArgKind::Constructor) {
+                    Some(true)
+                } else {
+                    None
+                },
+            )
+        } else {
+            InkArgValueKind::from(*arg_kind)
+        };
         let param = format!(
             "{arg_kind}{}{arg_value_kind}",
             if arg_value_kind == InkArgValueKind::None {
@@ -261,7 +279,7 @@ fn add_signature(
             }
         ));
 
-        let doc = [arg_value_kind.detail(), arg_kind.detail()]
+        let doc = [&arg_value_kind.detail(), arg_kind.detail(version)]
             .iter()
             .filter(|it| !it.is_empty())
             .join("\n\n");
@@ -320,7 +338,7 @@ fn anchor_signature(
             version,
         ))
         .collect();
-    add_signature(results, &args, focused_arg, range);
+    add_signature(results, &args, focused_arg, range, version);
 }
 
 /// Computes signature based on a single complementary argument.
@@ -331,13 +349,13 @@ fn complementary_signature(
     range: TextRange,
     version: Version,
 ) {
-    // Namespace is not entity-level but it can be used alone,
+    // Namespace is not entity-level, but it can be used alone,
     // or be used with ink! impl argument and ink! trait definition macro.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L301-L315>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/config.rs#L60-L85>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L597-L643>.
     if *arg_kind == InkArgKind::Namespace {
-        add_signature(results, &[*arg_kind], focused_arg, range);
+        add_signature(results, &[*arg_kind], focused_arg, range, version);
     }
 
     // Determines the complementary argument's related primary arguments (if any).
@@ -366,206 +384,619 @@ mod tests {
 
     #[test]
     fn signature_help_works() {
-        for (code, pat, expected_results) in [
-            // (code, Option<pat>, [(label, (pat_start, pat_end), [(param_pat_start, param_pat_end)])]) where:
-            // code = source code,
-            // pat = substring used to find the cursor offset for the signature help (see `test_utils::parse_offset_at` doc),
-            // label = the label text for the signature help,
-            // pat_start = substring used to find the start of the range the signature help applies to (see `test_utils::parse_offset_at` doc),
-            // pat_end = substring used to find the end of the range the signature help applies to (see `test_utils::parse_offset_at` doc).
-            // param_pat_start = substring used to find the start of the range for the signature help parameter (see `test_utils::parse_offset_at` doc),
-            // param_pat_end = substring used to find the end of the range for the signature help parameter (see `test_utils::parse_offset_at` doc).
-
-            // Control tests.
-            ("// Nothing", None, vec![]),
-            ("mod my_mod {}", None, vec![]),
-            // ink! attribute macros.
-            ("#[ink::contract]", None, vec![]),
-            ("#[ink::trait_definition]", None, vec![]),
-            ("#[ink::chain_extension]", None, vec![]),
-            ("#[ink::storage_item]", None, vec![]),
-            ("#[ink::test]", None, vec![]),
-            // ink! attribute macro complementary arguments.
+        for (version, fixtures) in [
             (
-                "#[ink::contract()]",
-                Some("contract("),
-                vec![(
-                    "env: impl Environment, keep_attr: &str",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-env"), Some("Environment")),
-                        (Some("<-keep_attr"), Some("&str")),
-                    ],
-                    0,
-                )],
-            ),
-            (
-                r#"#[ink::contract(env=my::env::Types)]"#,
-                Some("contract("),
-                vec![(
-                    "env: impl Environment, keep_attr: &str",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-env"), Some("Environment")),
-                        (Some("<-keep_attr"), Some("&str")),
-                    ],
-                    0,
-                )],
-            ),
-            (
-                r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar")]"#,
-                Some("keep_attr"),
-                vec![(
-                    "env: impl Environment, keep_attr: &str",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-env"), Some("Environment")),
-                        (Some("<-keep_attr"), Some("&str")),
-                    ],
-                    1,
-                )],
-            ),
-            (
-                r#"#[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar"))]"#,
-                Some("namespace"),
-                vec![(
-                    "keep_attr: &str, namespace: &str",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-keep_attr"), Some("keep_attr: &str")),
-                        (Some("<-namespace"), Some("namespace: &str")),
-                    ],
-                    1,
-                )],
-            ),
-            (
-                r#"#[ink::trait_definition(namespace="my_namespace"))]"#,
-                Some("trait_definition("),
-                vec![(
-                    "keep_attr: &str, namespace: &str",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-keep_attr"), Some("keep_attr: &str")),
-                        (Some("<-namespace"), Some("namespace: &str")),
-                    ],
-                    1,
-                )],
-            ),
-            (
-                "#[ink::chain_extension()]",
-                Some("chain_extension("),
-                vec![],
-            ),
-            (
-                "#[ink::storage_item(derive=true)]",
-                Some("#[ink::storage_item("),
-                vec![(
-                    "derive: bool",
-                    (Some("("), Some("<-)")),
-                    vec![(Some("<-derive"), Some("bool"))],
-                    0,
-                )],
-            ),
-            ("#[ink::test()]", Some("test("), vec![]),
-            (
-                r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=my::env::Types, keep_attr="foo,bar")]"#,
-                Some("environment"),
-                vec![(
-                    "additional_contracts: &str, environment: impl Environment, keep_attr: &str",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (
-                            Some("<-additional_contracts"),
-                            Some("additional_contracts: &str"),
-                        ),
-                        (Some("<-environment"), Some("Environment")),
-                        (Some("<-keep_attr"), Some("keep_attr: &str")),
-                    ],
-                    1,
-                )],
-            ),
-            // ink! attribute arguments.
-            (
-                "#[ink(storage)]",
-                Some("ink("),
-                vec![(
-                    "storage",
-                    (Some("("), Some("<-)")),
-                    vec![(Some("<-storage"), Some("storage"))],
-                    0,
-                )],
-            ),
-            (
-                "#[ink(event, anonymous)]",
-                Some("ink("),
-                vec![(
-                    "event, anonymous",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-event"), Some("event")),
-                        (Some("<-anonymous"), Some("anonymous")),
-                    ],
-                    0,
-                )],
-            ),
-            (
-                "#[ink(anonymous)]",
-                Some("ink("),
-                vec![(
-                    "event, anonymous",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-event"), Some("event")),
-                        (Some("<-anonymous"), Some("anonymous")),
-                    ],
-                    1,
-                )],
-            ),
-            (
-                "#[ink(topic)]",
-                Some("ink("),
-                vec![(
-                    "topic",
-                    (Some("("), Some("<-)")),
-                    vec![(Some("<-topic"), Some("topic"))],
-                    0,
-                )],
-            ),
-            (
-                "#[ink(constructor)]",
-                Some("ink("),
-                vec![(
-                    "constructor, default, payable, selector: u32 | _",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-constructor"), Some("constructor")),
-                        (Some("<-default"), Some("default")),
-                        (Some("<-payable"), Some("payable")),
-                        (Some("<-selector"), Some("u32 | _")),
-                    ],
-                    0,
-                )],
-            ),
-            (
-                "#[ink(message)]",
-                Some("ink("),
-                vec![(
-                    "message, default, payable, selector: u32 | _",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-message"), Some("message")),
-                        (Some("<-default"), Some("default")),
-                        (Some("<-payable"), Some("payable")),
-                        (Some("<-selector"), Some("u32 | _")),
-                    ],
-                    0,
-                )],
-            ),
-            (
-                "#[ink(selector=1)]",
-                Some("ink("),
+                Version::V4,
                 vec![
                     (
+                        "#[ink(message)]",
+                        Some("ink("),
+                        vec![(
+                            "message, default, payable, selector: u32 | _",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-message"), Some("message")),
+                                (Some("<-default"), Some("default")),
+                                (Some("<-payable"), Some("payable")),
+                                (Some("<-selector"), Some("u32 | _")),
+                            ],
+                            0,
+                        )],
+                    ),
+                    (
+                        "#[ink(selector=1)]",
+                        Some("ink("),
+                        vec![
+                            (
+                                "constructor, default, payable, selector: u32 | _",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-constructor"), Some("constructor")),
+                                    (Some("<-default"), Some("default")),
+                                    (Some("<-payable"), Some("payable")),
+                                    (Some("<-selector"), Some("u32 | _")),
+                                ],
+                                3,
+                            ),
+                            (
+                                "message, default, payable, selector: u32 | _",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-message"), Some("message")),
+                                    (Some("<-default"), Some("default")),
+                                    (Some("<-payable"), Some("payable")),
+                                    (Some("<-selector"), Some("u32 | _")),
+                                ],
+                                3,
+                            ),
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink(message)]
+                        #[ink(payable)]
+                        fn my_fn() {}
+                        "#,
+                        Some("ink(->"),
+                        vec![(
+                            "message, default, payable, selector: u32 | _",
+                            (Some("ink(->"), Some("<-)]->")),
+                            vec![
+                                (Some("<-message"), Some("message")),
+                                (Some("<-default"), Some("default")),
+                                (Some("<-payable"), Some("payable")),
+                                (Some("<-selector"), Some("u32 | _")),
+                            ],
+                            2,
+                        )],
+                    ),
+                    (
+                        "#[ink(event, anonymous)]",
+                        Some("ink("),
+                        vec![(
+                            "event, anonymous",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-event"), Some("event")),
+                                (Some("<-anonymous"), Some("anonymous")),
+                            ],
+                            0,
+                        )],
+                    ),
+                    (
+                        "#[ink(anonymous)]",
+                        Some("ink("),
+                        vec![(
+                            "event, anonymous",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-event"), Some("event")),
+                                (Some("<-anonymous"), Some("anonymous")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        r#"
+                        #[ink(event)]
+                        #[ink(anonymous)]
+                        struct MyStruct {}
+                        "#,
+                        Some("ink(->"),
+                        vec![(
+                            "event, anonymous",
+                            (Some("(->"), Some("<-)->")),
+                            vec![
+                                (Some("<-event"), Some("event")),
+                                (Some("<-anonymous"), Some("anonymous")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        "#[ink::chain_extension()]",
+                        Some("chain_extension("),
+                        vec![],
+                    ),
+                    (
+                        "#[ink(extension=1)]",
+                        Some("ink("),
+                        vec![(
+                            "extension: u32, handle_status: bool",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-extension"), Some("u32")),
+                                (Some("<-handle_status"), Some("bool")),
+                            ],
+                            0,
+                        )],
+                    ),
+                    (
+                        "#[ink(handle_status=true)]",
+                        Some("ink("),
+                        vec![(
+                            "extension: u32, handle_status: bool",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-extension"), Some("u32")),
+                                (Some("<-handle_status"), Some("bool")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        r#"
+                        #[ink(extension=1)]
+                        #[ink(handle_status=true)]
+                        fn my_fn() {}
+                        "#,
+                        Some("ink(->"),
+                        vec![(
+                            "extension: u32, handle_status: bool",
+                            (Some("ink(->"), Some("<-)]->")),
+                            vec![
+                                (Some("<-extension"), Some("u32")),
+                                (Some("<-handle_status"), Some("bool")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        r#"#[ink_e2e::test(
+                        additional_contracts="adder/Cargo.toml flipper/Cargo.toml",
+                        environment=my::env::Types,
+                        keep_attr="foo,bar"
+                        )]"#,
+                        Some("environment"),
+                        vec![(
+                            "additional_contracts: &str, \
+                            environment: impl Environment, \
+                            keep_attr: &str",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (
+                                    Some("<-additional_contracts"),
+                                    Some("additional_contracts: &str"),
+                                ),
+                                (Some("<-environment"), Some("Environment")),
+                                (Some("<-keep_attr"), Some("keep_attr: &str")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        r#"
+                        #[ink()]
+                        struct MyStruct {}
+                        "#,
+                        Some("ink("),
+                        vec![
+                            (
+                                "event, anonymous",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-event"), Some("event")),
+                                    (Some("<-anonymous"), Some("anonymous")),
+                                ],
+                                0,
+                            ),
+                            (
+                                "storage",
+                                (Some("("), Some("<-)")),
+                                vec![(Some("<-storage"), Some("storage"))],
+                                0,
+                            ),
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink()]
+                        fn my_fn() {}
+                        "#,
+                        Some("ink("),
+                        vec![
+                            (
+                                "constructor, default, payable, selector: u32 | _",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-constructor"), Some("constructor")),
+                                    (Some("<-default"), Some("default")),
+                                    (Some("<-payable"), Some("payable")),
+                                    (Some("<-selector"), Some("u32 | _")),
+                                ],
+                                0,
+                            ),
+                            (
+                                "message, default, payable, selector: u32 | _",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-message"), Some("message")),
+                                    (Some("<-default"), Some("default")),
+                                    (Some("<-payable"), Some("payable")),
+                                    (Some("<-selector"), Some("u32 | _")),
+                                ],
+                                0,
+                            ),
+                            (
+                                "extension: u32, handle_status: bool",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-extension"), Some("u32")),
+                                    (Some("<-handle_status"), Some("bool")),
+                                ],
+                                0,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            (
+                Version::V5,
+                vec![
+                    (
+                        "#[ink(message)]",
+                        Some("ink("),
+                        vec![(
+                            "message, default, payable, selector: u32 | _ | @",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-message"), Some("message")),
+                                (Some("<-default"), Some("default")),
+                                (Some("<-payable"), Some("payable")),
+                                (Some("<-selector"), Some("u32 | _ | @")),
+                            ],
+                            0,
+                        )],
+                    ),
+                    (
+                        "#[ink(selector=1)]",
+                        Some("ink("),
+                        vec![
+                            (
+                                "constructor, default, payable, selector: u32 | _",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-constructor"), Some("constructor")),
+                                    (Some("<-default"), Some("default")),
+                                    (Some("<-payable"), Some("payable")),
+                                    (Some("<-selector"), Some("u32 | _")),
+                                ],
+                                3,
+                            ),
+                            (
+                                "message, default, payable, selector: u32 | _ | @",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-message"), Some("message")),
+                                    (Some("<-default"), Some("default")),
+                                    (Some("<-payable"), Some("payable")),
+                                    (Some("<-selector"), Some("u32 | _ | @")),
+                                ],
+                                3,
+                            ),
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink(message)]
+                        #[ink(payable)]
+                        fn my_fn() {}
+                        "#,
+                        Some("ink(->"),
+                        vec![(
+                            "message, default, payable, selector: u32 | _ | @",
+                            (Some("ink(->"), Some("<-)]->")),
+                            vec![
+                                (Some("<-message"), Some("message")),
+                                (Some("<-default"), Some("default")),
+                                (Some("<-payable"), Some("payable")),
+                                (Some("<-selector"), Some("u32 | _ | @")),
+                            ],
+                            2,
+                        )],
+                    ),
+                    // FIXME: `signature_topic` shouldn't be suggested if `anonymous` is present (and vice versa).
+                    (
+                        "#[ink(event, anonymous)]",
+                        Some("ink("),
+                        vec![(
+                            "event, anonymous, signature_topic: &str",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-event"), Some("event")),
+                                (Some("<-anonymous"), Some("anonymous")),
+                                (Some("<-signature_topic"), Some("signature_topic: &str")),
+                            ],
+                            0,
+                        )],
+                    ),
+                    (
+                        "#[ink(anonymous)]",
+                        Some("ink("),
+                        vec![(
+                            "event, anonymous, signature_topic: &str",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-event"), Some("event")),
+                                (Some("<-anonymous"), Some("anonymous")),
+                                (Some("<-signature_topic"), Some("signature_topic: &str")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        r#"
+                        #[ink(event)]
+                        #[ink(anonymous)]
+                        struct MyStruct {}
+                        "#,
+                        Some("ink(->"),
+                        vec![(
+                            "event, anonymous, signature_topic: &str",
+                            (Some("(->"), Some("<-)->")),
+                            vec![
+                                (Some("<-event"), Some("event")),
+                                (Some("<-anonymous"), Some("anonymous")),
+                                (Some("<-signature_topic"), Some("signature_topic: &str")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        "#[ink::chain_extension()]",
+                        Some("chain_extension("),
+                        vec![(
+                            "extension: u16",
+                            (Some("("), Some("<-)")),
+                            vec![(Some("<-extension"), Some("u16"))],
+                            0,
+                        )],
+                    ),
+                    (
+                        "#[ink(function=1)]",
+                        Some("ink("),
+                        vec![(
+                            "function: u16, handle_status: bool",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-function"), Some("u16")),
+                                (Some("<-handle_status"), Some("bool")),
+                            ],
+                            0,
+                        )],
+                    ),
+                    (
+                        "#[ink(handle_status=true)]",
+                        Some("ink("),
+                        vec![(
+                            "function: u16, handle_status: bool",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-function"), Some("u16")),
+                                (Some("<-handle_status"), Some("bool")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        r#"
+                        #[ink(function=1)]
+                        #[ink(handle_status=true)]
+                        fn my_fn() {}
+                        "#,
+                        Some("ink(->"),
+                        vec![(
+                            "function: u16, handle_status: bool",
+                            (Some("ink(->"), Some("<-)]->")),
+                            vec![
+                                (Some("<-function"), Some("u16")),
+                                (Some("<-handle_status"), Some("bool")),
+                            ],
+                            1,
+                        )],
+                    ),
+                    (
+                        "#[ink_e2e::test()]",
+                        Some("test("),
+                        vec![(
+                            "backend: node | runtime_only, environment: impl Environment",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-backend"), Some("node | runtime_only")),
+                                (Some("<-environment"), Some("Environment")),
+                            ],
+                            0,
+                        )],
+                    ),
+                    (
+                        r#"
+                        #[ink()]
+                        struct MyStruct {}
+                        "#,
+                        Some("ink("),
+                        vec![
+                            (
+                                "event, anonymous, signature_topic: &str",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-event"), Some("event")),
+                                    (Some("<-anonymous"), Some("anonymous")),
+                                    (Some("<-signature_topic"), Some("signature_topic: &str")),
+                                ],
+                                0,
+                            ),
+                            (
+                                "storage",
+                                (Some("("), Some("<-)")),
+                                vec![(Some("<-storage"), Some("storage"))],
+                                0,
+                            ),
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink()]
+                        fn my_fn() {}
+                        "#,
+                        Some("ink("),
+                        vec![
+                            (
+                                "constructor, default, payable, selector: u32 | _",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-constructor"), Some("constructor")),
+                                    (Some("<-default"), Some("default")),
+                                    (Some("<-payable"), Some("payable")),
+                                    (Some("<-selector"), Some("u32 | _")),
+                                ],
+                                0,
+                            ),
+                            (
+                                "message, default, payable, selector: u32 | _ | @",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-message"), Some("message")),
+                                    (Some("<-default"), Some("default")),
+                                    (Some("<-payable"), Some("payable")),
+                                    (Some("<-selector"), Some("u32 | _ | @")),
+                                ],
+                                0,
+                            ),
+                            (
+                                "function: u16, handle_status: bool",
+                                (Some("("), Some("<-)")),
+                                vec![
+                                    (Some("<-function"), Some("u16")),
+                                    (Some("<-handle_status"), Some("bool")),
+                                ],
+                                0,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ] {
+            for (code, pat, expected_results) in [
+                // (code, Option<pat>, [(label, (pat_start, pat_end), [(param_pat_start, param_pat_end)])]) where:
+                // code = source code,
+                // pat = substring used to find the cursor offset for the signature help (see `test_utils::parse_offset_at` doc),
+                // label = the label text for the signature help,
+                // pat_start = substring used to find the start of the range the signature help applies to (see `test_utils::parse_offset_at` doc),
+                // pat_end = substring used to find the end of the range the signature help applies to (see `test_utils::parse_offset_at` doc).
+                // param_pat_start = substring used to find the start of the range for the signature help parameter (see `test_utils::parse_offset_at` doc),
+                // param_pat_end = substring used to find the end of the range for the signature help parameter (see `test_utils::parse_offset_at` doc).
+
+                // Control tests.
+                ("// Nothing", None, vec![]),
+                ("mod my_mod {}", None, vec![]),
+                // ink! attribute macros.
+                ("#[ink::contract]", None, vec![]),
+                ("#[ink::trait_definition]", None, vec![]),
+                ("#[ink::chain_extension]", None, vec![]),
+                ("#[ink::storage_item]", None, vec![]),
+                ("#[ink::test]", None, vec![]),
+                // ink! attribute macro complementary arguments.
+                (
+                    "#[ink::contract()]",
+                    Some("contract("),
+                    vec![(
+                        "env: impl Environment, keep_attr: &str",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-env"), Some("Environment")),
+                            (Some("<-keep_attr"), Some("&str")),
+                        ],
+                        0,
+                    )],
+                ),
+                (
+                    r#"#[ink::contract(env=my::env::Types)]"#,
+                    Some("contract("),
+                    vec![(
+                        "env: impl Environment, keep_attr: &str",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-env"), Some("Environment")),
+                            (Some("<-keep_attr"), Some("&str")),
+                        ],
+                        0,
+                    )],
+                ),
+                (
+                    r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar")]"#,
+                    Some("keep_attr"),
+                    vec![(
+                        "env: impl Environment, keep_attr: &str",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-env"), Some("Environment")),
+                            (Some("<-keep_attr"), Some("&str")),
+                        ],
+                        1,
+                    )],
+                ),
+                (
+                    r#"#[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar"))]"#,
+                    Some("namespace"),
+                    vec![(
+                        "keep_attr: &str, namespace: &str",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-keep_attr"), Some("keep_attr: &str")),
+                            (Some("<-namespace"), Some("namespace: &str")),
+                        ],
+                        1,
+                    )],
+                ),
+                (
+                    r#"#[ink::trait_definition(namespace="my_namespace"))]"#,
+                    Some("trait_definition("),
+                    vec![(
+                        "keep_attr: &str, namespace: &str",
+                        (Some("("), Some("<-)")),
+                        vec![
+                            (Some("<-keep_attr"), Some("keep_attr: &str")),
+                            (Some("<-namespace"), Some("namespace: &str")),
+                        ],
+                        1,
+                    )],
+                ),
+                (
+                    "#[ink::storage_item(derive=true)]",
+                    Some("#[ink::storage_item("),
+                    vec![(
+                        "derive: bool",
+                        (Some("("), Some("<-)")),
+                        vec![(Some("<-derive"), Some("bool"))],
+                        0,
+                    )],
+                ),
+                ("#[ink::test()]", Some("test("), vec![]),
+                // ink! attribute arguments.
+                (
+                    "#[ink(storage)]",
+                    Some("ink("),
+                    vec![(
+                        "storage",
+                        (Some("("), Some("<-)")),
+                        vec![(Some("<-storage"), Some("storage"))],
+                        0,
+                    )],
+                ),
+                (
+                    "#[ink(topic)]",
+                    Some("ink("),
+                    vec![(
+                        "topic",
+                        (Some("("), Some("<-)")),
+                        vec![(Some("<-topic"), Some("topic"))],
+                        0,
+                    )],
+                ),
+                (
+                    "#[ink(constructor)]",
+                    Some("ink("),
+                    vec![(
                         "constructor, default, payable, selector: u32 | _",
                         (Some("("), Some("<-)")),
                         vec![
@@ -574,278 +1005,141 @@ mod tests {
                             (Some("<-payable"), Some("payable")),
                             (Some("<-selector"), Some("u32 | _")),
                         ],
-                        3,
-                    ),
-                    (
-                        "message, default, payable, selector: u32 | _",
-                        (Some("("), Some("<-)")),
-                        vec![
-                            (Some("<-message"), Some("message")),
-                            (Some("<-default"), Some("default")),
-                            (Some("<-payable"), Some("payable")),
-                            (Some("<-selector"), Some("u32 | _")),
-                        ],
-                        3,
-                    ),
-                ],
-            ),
-            (
-                "#[ink(extension=1)]",
-                Some("ink("),
-                vec![(
-                    "extension: u32, handle_status: bool",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-extension"), Some("u32")),
-                        (Some("<-handle_status"), Some("bool")),
-                    ],
-                    0,
-                )],
-            ),
-            (
-                "#[ink(handle_status=true)]",
-                Some("ink("),
-                vec![(
-                    "extension: u32, handle_status: bool",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-extension"), Some("u32")),
-                        (Some("<-handle_status"), Some("bool")),
-                    ],
-                    1,
-                )],
-            ),
-            (
-                r#"#[ink(impl, namespace="my_namespace")]"#,
-                Some("ink("),
-                vec![(
-                    "impl, namespace: &str",
-                    (Some("("), Some("<-)")),
-                    vec![
-                        (Some("<-impl"), Some("impl")),
-                        (Some("<-namespace"), Some("&str")),
-                    ],
-                    0,
-                )],
-            ),
-            (
-                r#"#[ink(namespace="my_namespace")]"#,
-                Some("ink("),
-                vec![
-                    (
-                        "namespace: &str",
-                        (Some("("), Some("<-)")),
-                        vec![(Some("<-namespace"), Some("&str"))],
                         0,
-                    ),
-                    (
+                    )],
+                ),
+                (
+                    r#"#[ink(impl, namespace="my_namespace")]"#,
+                    Some("ink("),
+                    vec![(
                         "impl, namespace: &str",
                         (Some("("), Some("<-)")),
                         vec![
                             (Some("<-impl"), Some("impl")),
                             (Some("<-namespace"), Some("&str")),
                         ],
-                        1,
-                    ),
-                ],
-            ),
-            // multiple ink! attributes.
-            (
-                r#"
-                #[ink(event)]
-                #[ink(anonymous)]
-                struct MyStruct {}
-                "#,
-                Some("ink(->"),
-                vec![(
-                    "event, anonymous",
-                    (Some("(->"), Some("<-)->")),
-                    vec![
-                        (Some("<-event"), Some("event")),
-                        (Some("<-anonymous"), Some("anonymous")),
-                    ],
-                    1,
-                )],
-            ),
-            (
-                r#"
-                #[ink(constructor)]
-                #[ink(selector=1)]
-                fn my_fn() {}
-                "#,
-                Some("ink(->"),
-                vec![(
-                    "constructor, default, payable, selector: u32 | _",
-                    (Some("ink(->"), Some("<-)]->")),
-                    vec![
-                        (Some("<-constructor"), Some("constructor")),
-                        (Some("<-default"), Some("default")),
-                        (Some("<-payable"), Some("payable")),
-                        (Some("<-selector"), Some("u32 | _")),
-                    ],
-                    3,
-                )],
-            ),
-            (
-                r#"
-                #[ink(message)]
-                #[ink(payable)]
-                fn my_fn() {}
-                "#,
-                Some("ink(->"),
-                vec![(
-                    "message, default, payable, selector: u32 | _",
-                    (Some("ink(->"), Some("<-)]->")),
-                    vec![
-                        (Some("<-message"), Some("message")),
-                        (Some("<-default"), Some("default")),
-                        (Some("<-payable"), Some("payable")),
-                        (Some("<-selector"), Some("u32 | _")),
-                    ],
-                    2,
-                )],
-            ),
-            (
-                r#"
-                #[ink(extension=1)]
-                #[ink(handle_status=true)]
-                fn my_fn() {}
-                "#,
-                Some("ink(->"),
-                vec![(
-                    "extension: u32, handle_status: bool",
-                    (Some("ink(->"), Some("<-)]->")),
-                    vec![
-                        (Some("<-extension"), Some("u32")),
-                        (Some("<-handle_status"), Some("bool")),
-                    ],
-                    1,
-                )],
-            ),
-            // incomplete ink! attribute arguments.
-            (
-                r#"
-                #[ink()]
-                struct MyStruct {}
-                "#,
-                Some("ink("),
-                vec![
-                    (
-                        "event, anonymous",
-                        (Some("("), Some("<-)")),
-                        vec![
-                            (Some("<-event"), Some("event")),
-                            (Some("<-anonymous"), Some("anonymous")),
-                        ],
                         0,
-                    ),
-                    (
-                        "storage",
-                        (Some("("), Some("<-)")),
-                        vec![(Some("<-storage"), Some("storage"))],
-                        0,
-                    ),
-                ],
-            ),
-            (
-                r#"
-                struct MyStruct {
-                    #[ink()]
-                    field: bool,
-                }
-                "#,
-                Some("ink("),
-                vec![(
-                    "topic",
-                    (Some("("), Some("<-)")),
-                    vec![(Some("<-topic"), Some("topic"))],
-                    0,
-                )],
-            ),
-            (
-                r#"
-                #[ink()]
-                fn my_fn() {}
-                "#,
-                Some("ink("),
-                vec![
-                    (
+                    )],
+                ),
+                (
+                    r#"#[ink(namespace="my_namespace")]"#,
+                    Some("ink("),
+                    vec![
+                        (
+                            "namespace: &str",
+                            (Some("("), Some("<-)")),
+                            vec![(Some("<-namespace"), Some("&str"))],
+                            0,
+                        ),
+                        (
+                            "impl, namespace: &str",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-impl"), Some("impl")),
+                                (Some("<-namespace"), Some("&str")),
+                            ],
+                            1,
+                        ),
+                    ],
+                ),
+                // multiple ink! attributes.
+                (
+                    r#"
+                    #[ink(constructor)]
+                    #[ink(selector=1)]
+                    fn my_fn() {}
+                    "#,
+                    Some("ink(->"),
+                    vec![(
                         "constructor, default, payable, selector: u32 | _",
-                        (Some("("), Some("<-)")),
+                        (Some("ink(->"), Some("<-)]->")),
                         vec![
                             (Some("<-constructor"), Some("constructor")),
                             (Some("<-default"), Some("default")),
                             (Some("<-payable"), Some("payable")),
                             (Some("<-selector"), Some("u32 | _")),
                         ],
-                        0,
-                    ),
-                    (
-                        "message, default, payable, selector: u32 | _",
+                        3,
+                    )],
+                ),
+                // incomplete ink! attribute arguments.
+                (
+                    r#"
+                    struct MyStruct {
+                        #[ink()]
+                        field: bool,
+                    }
+                    "#,
+                    Some("ink("),
+                    vec![(
+                        "topic",
                         (Some("("), Some("<-)")),
-                        vec![
-                            (Some("<-message"), Some("message")),
-                            (Some("<-default"), Some("default")),
-                            (Some("<-payable"), Some("payable")),
-                            (Some("<-selector"), Some("u32 | _")),
-                        ],
+                        vec![(Some("<-topic"), Some("topic"))],
                         0,
-                    ),
-                    (
-                        "extension: u32, handle_status: bool",
-                        (Some("("), Some("<-)")),
-                        vec![
-                            (Some("<-extension"), Some("u32")),
-                            (Some("<-handle_status"), Some("bool")),
-                        ],
-                        0,
-                    ),
-                ],
-            ),
-        ] {
-            let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
-            let results = signature_help(&InkFile::parse(code), offset, Version::V4);
+                    )],
+                ),
+            ]
+            .into_iter()
+            .chain(fixtures)
+            {
+                let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
+                let results = signature_help(&InkFile::parse(code), offset, version);
 
-            // Verifies expected results.
-            assert_eq!(results.len(), expected_results.len(), "code: {code}");
-            for (idx, result) in results.iter().enumerate() {
-                let (expected_label, (start_pat, end_pat), ..) = expected_results[idx];
-
-                // Verified signature label.
-                assert_eq!(result.label, expected_label, "code: {code}");
-                // Verifies signature range.
+                // Verifies expected results.
                 assert_eq!(
-                    result.range,
-                    TextRange::new(
-                        TextSize::from(parse_offset_at(code, start_pat).unwrap() as u32),
-                        TextSize::from(parse_offset_at(code, end_pat).unwrap() as u32)
-                    ),
-                    "code: {code}"
+                    results.len(),
+                    expected_results.len(),
+                    "code: {code}, version: {:?}",
+                    version
                 );
-                // Verifies parameter ranges (and extra details - if any).
-                let expected_params = &expected_results[idx].2;
-                let expected_active_param = &expected_results[idx].3;
-                assert_eq!(result.parameters.len(), expected_params.len());
-                for (idx, param) in result.parameters.iter().enumerate() {
-                    let (start_pat, end_pat) = expected_params[idx];
-                    // Verifies parameter range.
+                for (idx, result) in results.iter().enumerate() {
+                    let (expected_label, (start_pat, end_pat), ..) = expected_results[idx];
+
+                    // Verified signature label.
                     assert_eq!(
-                        param.range,
+                        result.label, expected_label,
+                        "code: {code}, version: {:?}",
+                        version
+                    );
+                    // Verifies signature range.
+                    assert_eq!(
+                        result.range,
                         TextRange::new(
-                            TextSize::from(
-                                parse_offset_at(expected_label, start_pat).unwrap() as u32
-                            ),
-                            TextSize::from(parse_offset_at(expected_label, end_pat).unwrap() as u32)
+                            TextSize::from(parse_offset_at(code, start_pat).unwrap() as u32),
+                            TextSize::from(parse_offset_at(code, end_pat).unwrap() as u32)
                         ),
-                        "code: {code}"
+                        "code: {code}, version: {:?}",
+                        version
+                    );
+                    // Verifies parameter ranges (and extra details - if any).
+                    let expected_params = &expected_results[idx].2;
+                    let expected_active_param = &expected_results[idx].3;
+                    assert_eq!(result.parameters.len(), expected_params.len());
+                    for (idx, param) in result.parameters.iter().enumerate() {
+                        let (start_pat, end_pat) = expected_params[idx];
+                        // Verifies parameter range.
+                        assert_eq!(
+                            param.range,
+                            TextRange::new(
+                                TextSize::from(
+                                    parse_offset_at(expected_label, start_pat).unwrap() as u32
+                                ),
+                                TextSize::from(
+                                    parse_offset_at(expected_label, end_pat).unwrap() as u32
+                                )
+                            ),
+                            "code: {code}, version: {:?}",
+                            version
+                        );
+                    }
+                    // Verifies active parameter (if any).
+                    assert_eq!(
+                        result.active_parameter,
+                        Some(*expected_active_param),
+                        "code: {code}, version: {:?}",
+                        version
                     );
                 }
-                // Verifies active parameter (if any).
-                assert_eq!(
-                    result.active_parameter,
-                    Some(*expected_active_param),
-                    "code: {code}"
-                );
             }
         }
     }
