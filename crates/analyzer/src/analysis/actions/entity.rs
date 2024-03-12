@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use ink_analyzer_ir::{
     ast::{self, HasModuleItem, HasName},
     syntax::{AstNode, TextRange},
-    ChainExtension, Constructor, Contract, Event, Extension, InkEntity, IsInkFn, IsInkStruct,
-    IsInkTrait, Message, TraitDefinition,
+    ChainExtension, Constructor, Contract, Extension, InkEntity, IsInkEvent, IsInkFn, IsInkTrait,
+    Message, TraitDefinition,
 };
 
 use super::{Action, ActionKind};
@@ -15,10 +15,11 @@ use crate::codegen::snippets::{
     CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_SNIPPET, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET,
     CONTRACT_PLAIN, CONTRACT_SNIPPET, ENVIRONMENT_DEF, ENVIRONMENT_IMPL_PLAIN,
     ENVIRONMENT_IMPL_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN, EVENT_SNIPPET,
-    EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET, INK_TEST_PLAIN,
-    INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN, STORAGE_ITEM_SNIPPET,
-    STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN, TOPIC_SNIPPET, TRAIT_DEFINITION_PLAIN,
-    TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
+    EVENT_V2_PLAIN, EVENT_V2_SNIPPET, EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN,
+    INK_E2E_TEST_SNIPPET, INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET,
+    STORAGE_ITEM_PLAIN, STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN,
+    TOPIC_SNIPPET, TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN,
+    TRAIT_MESSAGE_SNIPPET,
 };
 use crate::TextEdit;
 
@@ -133,12 +134,26 @@ pub fn add_event(
     })
 }
 
+/// Adds an ink! event 2.0 `struct`.
+pub fn add_event_v2(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
+    Action {
+        label: "Add ink! event 2.0 `struct`.".to_owned(),
+        kind,
+        range,
+        edits: vec![compose_edit_with_snippet_and_indent(
+            EVENT_V2_PLAIN,
+            range,
+            Some(EVENT_V2_SNIPPET),
+            indent_option,
+        )],
+    }
+}
+
 /// Adds an ink! topic to an ink! event `struct` item.
-pub fn add_topic(
-    event: &Event,
-    kind: ActionKind,
-    range_option: Option<TextRange>,
-) -> Option<Action> {
+pub fn add_topic<T>(event: &T, kind: ActionKind, range_option: Option<TextRange>) -> Option<Action>
+where
+    T: IsInkEvent,
+{
     event.struct_item().and_then(|struct_item| {
         // Sets insert offset or defaults to inserting at the end of the field list (if possible).
         range_option

@@ -213,6 +213,11 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::Selector,
                     InkArgKind::Storage,
                 ],
+                // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>
+                // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
+                InkMacroKind::Event if version == Version::V5 => {
+                    vec![InkArgKind::Topic]
+                }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L85-L99>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L163-L164>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L290-L296>.
@@ -385,13 +390,13 @@ pub fn valid_ink_macros_by_syntax_kind(
         }
         SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW if version == Version::V5 => vec![
             InkMacroKind::Event,
-            InkMacroKind::StorageItem,
             InkMacroKind::ScaleDerive,
+            InkMacroKind::StorageItem,
         ],
         SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW
             if version == Version::V5 =>
         {
-            vec![InkMacroKind::StorageItem, InkMacroKind::ScaleDerive]
+            vec![InkMacroKind::ScaleDerive, InkMacroKind::StorageItem]
         }
         SyntaxKind::ENUM
         | SyntaxKind::ENUM_KW
@@ -521,9 +526,34 @@ pub fn remove_conflicting_ink_arg_suggestions(
     if let Some((primary_ink_attr, ..)) =
         primary_ink_attribute_candidate(ink_analyzer_ir::ink_attrs(attr_parent))
     {
-        let valid_siblings = valid_sibling_ink_args(*primary_ink_attr.kind(), version);
+        let attr_kind = primary_ink_attr.kind();
+        let valid_siblings = valid_sibling_ink_args(*attr_kind, version);
         // Filters out invalid siblings.
         suggestions.retain(|arg_kind| valid_siblings.contains(arg_kind));
+
+        // For v5, `anonymous` and `signature_topic` conflict.
+        // We need a special check since neither is a "primary" attribute argument.
+        if version == Version::V5
+            && matches!(
+                attr_kind,
+                InkAttributeKind::Macro(InkMacroKind::Event)
+                    | InkAttributeKind::Arg(
+                        InkArgKind::Event | InkArgKind::Anonymous | InkArgKind::SignatureTopic
+                    )
+            )
+        {
+            let is_anonymous = *attr_kind == InkAttributeKind::Arg(InkArgKind::Anonymous)
+                || ink_analyzer_ir::ink_arg_by_kind(attr_parent, InkArgKind::Anonymous).is_some();
+            let has_signature = *attr_kind == InkAttributeKind::Arg(InkArgKind::SignatureTopic)
+                || ink_analyzer_ir::ink_arg_by_kind(attr_parent, InkArgKind::SignatureTopic)
+                    .is_some();
+            if is_anonymous || has_signature {
+                suggestions.retain(|arg_kind| {
+                    (!is_anonymous || *arg_kind != InkArgKind::SignatureTopic)
+                        && (!has_signature || *arg_kind != InkArgKind::Anonymous)
+                });
+            }
+        }
     }
 }
 

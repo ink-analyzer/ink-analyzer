@@ -491,8 +491,8 @@ mod tests {
                     "::test",
                     "::trait_definition",
                 ],
-                vec!["ink::event", "ink::storage_item", "ink::scale_derive"],
-                vec!["::event", "::storage_item", "::scale_derive"],
+                vec!["ink::event", "ink::scale_derive", "ink::storage_item"],
+                vec!["::event", "::scale_derive", "::storage_item"],
             ),
         ] {
             for (code, pat, expected_results) in [

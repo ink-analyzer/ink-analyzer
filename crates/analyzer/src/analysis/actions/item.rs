@@ -3,8 +3,8 @@
 use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, Event, InkArgKind, InkAttributeKind, InkEntity, InkFile,
-    InkImpl, InkMacroKind, TraitDefinition,
+    ast, ChainExtension, Contract, Event, EventV2, InkArgKind, InkAttributeKind, InkEntity,
+    InkFile, InkImpl, InkMacroKind, TraitDefinition,
 };
 use itertools::Itertools;
 
@@ -84,7 +84,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
 
                         // Only computes ink! entity actions if the focus is on either
                         // an AST item's "declaration" or body (except for record fields)
-                        // (i.e not on meta - attributes/rustdoc) for an item that can have
+                        // (i.e. not on meta - attributes/rustdoc) for an item that can have
                         // ink! attribute descendants.
                         let is_focused_on_body = is_focused_on_item_body(&ast_item, range);
                         if is_focused_on_item_declaration(&ast_item, range)
@@ -95,6 +95,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                                 results,
                                 &ast_item,
                                 is_focused_on_body.then(focused_elem_edit_range),
+                                version,
                             );
                         }
                     }
@@ -106,7 +107,12 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                             .is_some_and(|it| it.kind() == SyntaxKind::SOURCE_FILE);
                         if is_in_file_root {
                             // Suggests root-level ink! entities based on the context.
-                            root_ink_entity_actions(results, file, focused_elem_edit_range());
+                            root_ink_entity_actions(
+                                results,
+                                file,
+                                focused_elem_edit_range(),
+                                version,
+                            );
                         }
                     }
                 }
@@ -117,7 +123,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
             if file.syntax().text_range().is_empty()
                 && file.syntax().text_range().contains_range(range)
             {
-                root_ink_entity_actions(results, file, range);
+                root_ink_entity_actions(results, file, range, version);
             }
         }
     }
@@ -291,6 +297,7 @@ fn item_ink_entity_actions(
     results: &mut Vec<Action>,
     item: &ast::Item,
     range_option: Option<TextRange>,
+    version: Version,
 ) {
     let mut add_result = |action_option: Option<Action>| {
         // Add action to accumulator (if any).
@@ -312,6 +319,18 @@ fn item_ink_entity_actions(
                             ActionKind::Refactor,
                             range_option,
                         ));
+                    }
+
+                    if version == Version::V5 {
+                        // Adds ink! event 2.0 event before the contract.
+                        add_result(Some(entity::add_event_v2(
+                            TextRange::new(
+                                contract.syntax().text_range().start(),
+                                contract.syntax().text_range().start(),
+                            ),
+                            ActionKind::Refactor,
+                            None,
+                        )));
                     }
 
                     // Adds ink! event.
@@ -446,10 +465,24 @@ fn item_ink_entity_actions(
             }
         }
         ast::Item::Struct(struct_item) => {
-            if let Some(event) = ink_analyzer_ir::ink_attrs(struct_item.syntax())
-                .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
-                .and_then(ink_analyzer_ir::ink_attr_to_entity::<Event>)
-            {
+            let lazy_event = || {
+                ink_analyzer_ir::ink_attrs(struct_item.syntax())
+                    .find(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
+                    .and_then(ink_analyzer_ir::ink_attr_to_entity::<Event>)
+            };
+            let lazy_event_v2 = || {
+                ink_analyzer_ir::ink_attrs(struct_item.syntax())
+                    .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::Event))
+                    .and_then(ink_analyzer_ir::ink_attr_to_entity::<EventV2>)
+            };
+            if let Some(event) = lazy_event() {
+                // Adds ink! topic.
+                add_result(entity::add_topic(
+                    &event,
+                    ActionKind::Refactor,
+                    range_option,
+                ));
+            } else if let Some(event) = lazy_event_v2() {
                 // Adds ink! topic.
                 add_result(entity::add_topic(
                     &event,
@@ -464,10 +497,20 @@ fn item_ink_entity_actions(
 }
 
 /// Computes root-level ink! entity macro actions.
-fn root_ink_entity_actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange) {
+fn root_ink_entity_actions(
+    results: &mut Vec<Action>,
+    file: &InkFile,
+    range: TextRange,
+    version: Version,
+) {
     if file.contracts().is_empty() {
         // Adds ink! contract.
         results.push(entity::add_contract(range, ActionKind::Refactor, None));
+    }
+
+    if version == Version::V5 {
+        // Adds ink! event 2.0.
+        results.push(entity::add_event_v2(range, ActionKind::Refactor, None));
     }
 
     // Adds ink! trait definition.
@@ -572,1389 +615,1566 @@ mod tests {
     use ink_analyzer_ir::InkEntity;
     use test_utils::{parse_offset_at, TestResultAction, TestResultTextRange};
 
+    macro_rules! list_results {
+        ($list: expr, $label: literal, $start: expr, $end: expr) => {
+            $list
+                .iter()
+                .map(|name| TestResultAction {
+                    label: $label,
+                    edits: vec![TestResultTextRange {
+                        text: *name,
+                        start_pat: $start,
+                        end_pat: $end,
+                    }],
+                })
+                .collect()
+        };
+    }
+
+    macro_rules! chain_results {
+        ($start: expr $(, $other: expr)+) => {
+            $start.into_iter()$(.chain($other))*.collect()
+        };
+    }
+
+    macro_rules! event_v2_entity {
+        ($version: expr, $offset: literal) => {
+            if $version == Version::V5 {
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "#[ink::event]",
+                        start_pat: Some($offset),
+                        end_pat: Some($offset),
+                    }],
+                }]
+            } else {
+                vec![]
+            }
+        };
+    }
+
+    macro_rules! versioned_extension_fn {
+        ($version: expr, $offset: literal) => {
+            if $version == Version::V5 {
+                [TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "#[ink(function = 1)]",
+                        start_pat: Some($offset),
+                        end_pat: Some($offset),
+                    }],
+                }]
+            } else {
+                [TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "#[ink(extension = 1)]",
+                        start_pat: Some($offset),
+                        end_pat: Some($offset),
+                    }],
+                }]
+            }
+        };
+    }
+
     #[test]
     fn actions_works() {
-        for (code, pat, expected_results) in [
-            // (code, pat, Vec<(label, Vec<(text, start_pat, end_pat)>)>) where:
-            // code = source code,
-            // pat = substring used to find the cursor offset
-            //       (see `test_utils::parse_offset_at` doc),
-            // label = the label text (of a substring of it) for the action,
-            // edit = the text (of a substring of it) that will inserted,
-            // start_pat = substring used to find the start of the edit offset
-            //             (see `test_utils::parse_offset_at` doc),
-            // end_pat = substring used to find the end of the edit offset
-            //           (see `test_utils::parse_offset_at` doc).
+        for (version, root_entities, adt_attrs, struct_attrs, fixtures) in [
+            (
+                Version::V4,
+                vec![
+                    "#[ink::contract]",
+                    "#[ink::trait_definition]",
+                    "#[ink::chain_extension]",
+                    "#[ink::storage_item]",
+                    "pub enum MyEnvironment {}",
+                ],
+                vec!["#[ink::storage_item]"],
+                vec![
+                    "#[ink::storage_item]",
+                    "#[ink(anonymous)]",
+                    "#[ink(event)]",
+                    "#[ink(storage)]",
+                ],
+                vec![
+                    (
+                        r#"
+                    #[ink::chain_extension]
+                    pub trait MyTrait {
+                    }
+                    "#,
+                        Some("<-pub"),
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "type ErrorCode",
+                                    start_pat: Some("pub trait MyTrait {"),
+                                    end_pat: Some("pub trait MyTrait {"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(extension = 1)]",
+                                    start_pat: Some("pub trait MyTrait {"),
+                                    end_pat: Some("pub trait MyTrait {"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink_e2e::test]
+                        fn my_fn() {
+                        }
+                        "#,
+                        Some("<-fn"),
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(additional_contracts = "")"#,
+                                    start_pat: Some("#[ink_e2e::test"),
+                                    end_pat: Some("#[ink_e2e::test"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(environment = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("#[ink_e2e::test"),
+                                    end_pat: Some("#[ink_e2e::test"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink_e2e::test"),
+                                    end_pat: Some("#[ink_e2e::test"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink_e2e::test]
+                        #[ink(additional_contracts="")]
+                        #[ink(environment=ink::env::DefaultEnvironment)]
+                        #[ink(keep_attr="")]
+                        fn my_fn() {
+                        }
+                        "#,
+                        Some("<-fn"),
+                        vec![TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink_e2e::test(\
+                                    additional_contracts = \"\", \
+                                    environment = ink::env::DefaultEnvironment, \
+                                    keep_attr = \"\"\
+                                    )]",
+                                    start_pat: Some("<-#[ink_e2e::test]"),
+                                    end_pat: Some("#[ink_e2e::test]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(r#"<-#[ink(additional_contracts="")]"#),
+                                    end_pat: Some(r#"#[ink(additional_contracts="")]"#),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(
+                                        "<-#[ink(environment=ink::env::DefaultEnvironment)]",
+                                    ),
+                                    end_pat: Some(
+                                        "#[ink(environment=ink::env::DefaultEnvironment)]",
+                                    ),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(r#"<-#[ink(keep_attr="")]"#),
+                                    end_pat: Some(r#"#[ink(keep_attr="")]"#),
+                                },
+                            ],
+                        }],
+                    ),
+                    (
+                        r#"
+                        #[ink::chain_extension]
+                        pub trait MyChainExtension {
+                            #[ink(extension=1)]
+                            fn extension_1(&self);
 
-            // No AST item in focus.
-            (
-                "",
-                None,
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::contract]",
-                            start_pat: None,
-                            end_pat: None,
+                            #[ink(handle_status=true)]
+                            fn extension_2(&self);
+                        }
+                        "#,
+                        Some("<-fn extension_2(&self);"),
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "extension = 2, ",
+                                start_pat: Some("#[ink(->"),
+                                end_pat: Some("#[ink(->"),
+                            }],
                         }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::trait_definition]",
-                            start_pat: None,
-                            end_pat: None,
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::chain_extension]",
-                            start_pat: None,
-                            end_pat: None,
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::storage_item]",
-                            start_pat: None,
-                            end_pat: None,
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "pub enum MyEnvironment {}",
-                            start_pat: None,
-                            end_pat: None,
-                        }],
-                    },
+                    ),
                 ],
             ),
             (
-                " ",
-                None,
+                Version::V5,
                 vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::contract]",
-                            start_pat: Some(" "),
-                            end_pat: Some(" "),
+                    "#[ink::contract]",
+                    "#[ink::event]",
+                    "#[ink::trait_definition]",
+                    "#[ink::chain_extension]",
+                    "#[ink::storage_item]",
+                    "pub enum MyEnvironment {}",
+                ],
+                vec!["#[ink::scale_derive]", "#[ink::storage_item]"],
+                vec![
+                    "#[ink::event]",
+                    "#[ink::scale_derive]",
+                    "#[ink::storage_item]",
+                    "#[ink(anonymous)]",
+                    "#[ink(event)]",
+                    r#"#[ink(signature_topic = "")]"#,
+                    "#[ink(storage)]",
+                ],
+                vec![
+                    (
+                        r#"
+                        #[ink::event]
+                        struct MyEvent {
+                        }
+                        "#,
+                        Some("<-struct"),
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(anonymous)",
+                                    start_pat: Some("#[ink::event"),
+                                    end_pat: Some("#[ink::event"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(signature_topic = "")"#,
+                                    start_pat: Some("#[ink::event"),
+                                    end_pat: Some("#[ink::event"),
+                                }],
+                            },
+                            // Adds ink! topic `field`.
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("struct MyEvent {"),
+                                    end_pat: Some("struct MyEvent {"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink::event(anonymous)]
+                        struct MyEvent {
+                            my_field: u8,
+                        }
+                        "#,
+                        Some("<-struct"),
+                        vec![
+                            // Adds ink! topic `field`.
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("my_field: u8,"),
+                                    end_pat: Some("my_field: u8,"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink(anonymous)]
+                        #[ink::event]
+                        struct MyEvent {
+                            my_field: u8,
+                        }
+                        "#,
+                        Some("<-struct"),
+                        vec![
+                            TestResultAction {
+                                label: "Flatten",
+                                edits: vec![
+                                    TestResultTextRange {
+                                        text: "#[ink::event(anonymous)]",
+                                        start_pat: Some("<-#[ink::event]"),
+                                        end_pat: Some("#[ink::event]"),
+                                    },
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some("<-#[ink(anonymous)]"),
+                                        end_pat: Some("#[ink(anonymous)]"),
+                                    },
+                                ],
+                            },
+                            // Adds ink! topic `field`.
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("my_field: u8,"),
+                                    end_pat: Some("my_field: u8,"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink::event(anonymous)]
+                        struct MyEvent {
+                            my_field: u8,
+                        }
+                        "#,
+                        Some("<-my_field"),
+                        vec![
+                            // Adds ink! topic attribute argument.
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("<-my_field"),
+                                    end_pat: Some("<-my_field"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                    #[ink::chain_extension]
+                    pub trait MyTrait {
+                    }
+                    "#,
+                        Some("<-pub"),
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(extension = 1)",
+                                    start_pat: Some("#[ink::chain_extension"),
+                                    end_pat: Some("#[ink::chain_extension"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "type ErrorCode",
+                                    start_pat: Some("pub trait MyTrait {"),
+                                    end_pat: Some("pub trait MyTrait {"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(extension = 1)]",
+                                    start_pat: Some("pub trait MyTrait {"),
+                                    end_pat: Some("pub trait MyTrait {"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink_e2e::test]
+                        fn my_fn() {
+                        }
+                        "#,
+                        Some("<-fn"),
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(backend(node))",
+                                    start_pat: Some("#[ink_e2e::test"),
+                                    end_pat: Some("#[ink_e2e::test"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(environment = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("#[ink_e2e::test"),
+                                    end_pat: Some("#[ink_e2e::test"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink_e2e::test]
+                        #[ink(backend(node))]
+                        #[ink(environment=ink::env::DefaultEnvironment)]
+                        fn my_fn() {
+                        }
+                        "#,
+                        Some("<-fn"),
+                        vec![TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink_e2e::test(\
+                                    backend(node), \
+                                    environment = ink::env::DefaultEnvironment\
+                                    )]",
+                                    start_pat: Some("<-#[ink_e2e::test]"),
+                                    end_pat: Some("#[ink_e2e::test]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink(backend(node))]"),
+                                    end_pat: Some("#[ink(backend(node))]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(
+                                        "<-#[ink(environment=ink::env::DefaultEnvironment)]",
+                                    ),
+                                    end_pat: Some(
+                                        "#[ink(environment=ink::env::DefaultEnvironment)]",
+                                    ),
+                                },
+                            ],
                         }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::trait_definition]",
-                            start_pat: Some(" "),
-                            end_pat: Some(" "),
+                    ),
+                    (
+                        r#"
+                        #[ink::chain_extension]
+                        pub trait MyChainExtension {
+                            #[ink(function=1)]
+                            fn function_1(&self);
+
+                            #[ink(handle_status=true)]
+                            fn function_2(&self);
+                        }
+                        "#,
+                        Some("<-fn function_2(&self);"),
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "function = 2, ",
+                                start_pat: Some("#[ink(->"),
+                                end_pat: Some("#[ink(->"),
+                            }],
                         }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::chain_extension]",
-                            start_pat: Some(" "),
-                            end_pat: Some(" "),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::storage_item]",
-                            start_pat: Some(" "),
-                            end_pat: Some(" "),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "pub enum MyEnvironment {}",
-                            start_pat: Some(" "),
-                            end_pat: Some(" "),
-                        }],
-                    },
+                    ),
                 ],
             ),
-            (
-                "\n\n",
-                Some("\n"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::contract]",
-                            start_pat: Some("\n"),
-                            end_pat: Some("\n"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::trait_definition]",
-                            start_pat: Some("\n"),
-                            end_pat: Some("\n"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::chain_extension]",
-                            start_pat: Some("\n"),
-                            end_pat: Some("\n"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::storage_item]",
-                            start_pat: Some("\n"),
-                            end_pat: Some("\n"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "pub enum MyEnvironment {}",
-                            start_pat: Some("\n"),
-                            end_pat: Some("\n"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                "// A comment in focus.",
-                None,
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::contract]",
-                            start_pat: Some("// A comment in focus."),
-                            end_pat: Some("// A comment in focus."),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::trait_definition]",
-                            start_pat: Some("// A comment in focus."),
-                            end_pat: Some("// A comment in focus."),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::chain_extension]",
-                            start_pat: Some("// A comment in focus."),
-                            end_pat: Some("// A comment in focus."),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::storage_item]",
-                            start_pat: Some("// A comment in focus."),
-                            end_pat: Some("// A comment in focus."),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "pub enum MyEnvironment {}",
-                            start_pat: Some("// A comment in focus."),
-                            end_pat: Some("// A comment in focus."),
-                        }],
-                    },
-                ],
-            ),
-            // Module focus.
-            (
-                r#"
+        ] {
+            for (code, pat, expected_results) in [
+                // (code, pat, Vec<(label, Vec<(text, start_pat, end_pat)>)>) where:
+                // code = source code,
+                // pat = substring used to find the cursor offset
+                //       (see `test_utils::parse_offset_at` doc),
+                // label = the label text (of a substring of it) for the action,
+                // edit = the text (of a substring of it) that will inserted,
+                // start_pat = substring used to find the start of the edit offset
+                //             (see `test_utils::parse_offset_at` doc),
+                // end_pat = substring used to find the end of the edit offset
+                //           (see `test_utils::parse_offset_at` doc).
+
+                // No AST item in focus.
+                ("", None, list_results!(root_entities, "Add", None, None)),
+                (
+                    " ",
+                    None,
+                    list_results!(root_entities, "Add", Some(" "), Some(" ")),
+                ),
+                (
+                    "\n\n",
+                    Some("\n"),
+                    list_results!(root_entities, "Add", Some("\n"), Some("\n")),
+                ),
+                (
+                    "// A comment in focus.",
+                    None,
+                    list_results!(
+                        root_entities,
+                        "Add",
+                        Some("// A comment in focus."),
+                        Some("// A comment in focus.")
+                    ),
+                ),
+                // Module focus.
+                (
+                    r#"
                     mod my_module {
 
                     }
-                "#,
-                Some("<-\n                    }"),
-                vec![],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("{\n"),
+                    vec![],
+                ),
+                (
+                    r#"
                     mod my_module {
                         // The module declaration is out of focus when this comment is in focus.
                     }
-                "#,
-                Some("<-//"),
-                vec![],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-//"),
+                    vec![],
+                ),
+                (
+                    r#"
                     mod my_contract {
                     }
-                "#,
-                Some("<-mod"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::contract]",
-                        start_pat: Some("<-mod"),
-                        end_pat: Some("<-mod"),
+                    "#,
+                    Some("<-mod"),
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::contract]",
+                            start_pat: Some("<-mod"),
+                            end_pat: Some("<-mod"),
+                        }],
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     mod my_contract {
                     }
-                "#,
-                Some("my_con"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::contract]",
-                        start_pat: Some("<-mod"),
-                        end_pat: Some("<-mod"),
+                    "#,
+                    Some("my_con"),
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::contract]",
+                            start_pat: Some("<-mod"),
+                            end_pat: Some("<-mod"),
+                        }],
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     mod my_contract {
                     }
-                "#,
-                Some("<-{"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::contract]",
-                        start_pat: Some("<-mod"),
-                        end_pat: Some("<-mod"),
+                    "#,
+                    Some("<-{"),
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::contract]",
+                            start_pat: Some("<-mod"),
+                            end_pat: Some("<-mod"),
+                        }],
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     mod my_contract {
                     }
-                "#,
-                Some("{"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::contract]",
-                        start_pat: Some("<-mod"),
-                        end_pat: Some("<-mod"),
+                    "#,
+                    Some("{"),
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::contract]",
+                            start_pat: Some("<-mod"),
+                            end_pat: Some("<-mod"),
+                        }],
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     mod my_contract {
                     }
-                "#,
-                Some("}"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::contract]",
-                        start_pat: Some("<-mod"),
-                        end_pat: Some("<-mod"),
+                    "#,
+                    Some("}"),
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::contract]",
+                            start_pat: Some("<-mod"),
+                            end_pat: Some("<-mod"),
+                        }],
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     mod my_contract {
                     }
-                "#,
-                Some("<-}"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::contract]",
-                        start_pat: Some("<-mod"),
-                        end_pat: Some("<-mod"),
+                    "#,
+                    Some("<-}"),
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::contract]",
+                            start_pat: Some("<-mod"),
+                            end_pat: Some("<-mod"),
+                        }],
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     #[foo]
                     mod my_contract {
                     }
-                "#,
-                Some("<-mod"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::contract]",
-                        start_pat: Some("<-mod"),
-                        end_pat: Some("<-mod"),
+                    "#,
+                    Some("<-mod"),
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::contract]",
+                            start_pat: Some("<-mod"),
+                            end_pat: Some("<-mod"),
+                        }],
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     #[ink::contract]
                     mod my_contract {
                     }
-                "#,
-                Some("<-mod"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "(env = ink::env::DefaultEnvironment)",
-                            start_pat: Some("#[ink::contract"),
-                            end_pat: Some("#[ink::contract"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: r#"(keep_attr = "")"#,
-                            start_pat: Some("#[ink::contract"),
-                            end_pat: Some("#[ink::contract"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(storage)]",
-                            start_pat: Some("mod my_contract {"),
-                            end_pat: Some("mod my_contract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(event)]",
-                            start_pat: Some("mod my_contract {"),
-                            end_pat: Some("mod my_contract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("mod my_contract {"),
-                            end_pat: Some("mod my_contract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("mod my_contract {"),
-                            end_pat: Some("mod my_contract {"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-mod"),
+                    chain_results!(
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("#[ink::contract"),
+                                    end_pat: Some("#[ink::contract"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink::contract"),
+                                    end_pat: Some("#[ink::contract"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(storage)]",
+                                    start_pat: Some("mod my_contract {"),
+                                    end_pat: Some("mod my_contract {"),
+                                }],
+                            },
+                        ],
+                        event_v2_entity!(version, "<-#[ink::contract]"),
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(event)]",
+                                    start_pat: Some("mod my_contract {"),
+                                    end_pat: Some("mod my_contract {"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(constructor)]",
+                                    start_pat: Some("mod my_contract {"),
+                                    end_pat: Some("mod my_contract {"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("mod my_contract {"),
+                                    end_pat: Some("mod my_contract {"),
+                                }],
+                            },
+                        ]
+                    ),
+                ),
+                (
+                    r#"
                     #[ink::contract]
                     mod my_contract {
 
                     }
-                "#,
-                Some("<-\n                    }"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(storage)]",
-                            start_pat: Some("<-\n                    }"),
-                            end_pat: Some("<-\n                    }"),
+                    "#,
+                    Some("<-\n                    }"),
+                    chain_results!(
+                        [TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(storage)]",
+                                start_pat: Some("<-\n                    }"),
+                                end_pat: Some("<-\n                    }"),
+                            }],
                         }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(event)]",
-                            start_pat: Some("<-\n                    }"),
-                            end_pat: Some("<-\n                    }"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("<-\n                    }"),
-                            end_pat: Some("<-\n                    }"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("<-\n                    }"),
-                            end_pat: Some("<-\n                    }"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                        event_v2_entity!(version, "<-#[ink::contract]"),
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(event)]",
+                                    start_pat: Some("<-\n                    }"),
+                                    end_pat: Some("<-\n                    }"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(constructor)]",
+                                    start_pat: Some("<-\n                    }"),
+                                    end_pat: Some("<-\n                    }"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("<-\n                    }"),
+                                    end_pat: Some("<-\n                    }"),
+                                }],
+                            },
+                        ]
+                    ),
+                ),
+                (
+                    r#"
                     #[ink::contract]
                     #[ink(env=crate::Environment)]
                     #[ink(keep_attr="foo,bar")]
                     mod my_contract {
                     }
-                "#,
-                Some("<-mod"),
-                vec![
-                    TestResultAction {
-                        label: "Flatten",
-                        edits: vec![
-                            TestResultTextRange {
-                                text: r#"#[ink::contract(env = crate::Environment, keep_attr = "foo,bar")]"#,
-                                start_pat: Some("<-#[ink::contract]"),
-                                end_pat: Some("#[ink::contract]"),
+                    "#,
+                    Some("<-mod"),
+                    chain_results!(
+                        [
+                            TestResultAction {
+                                label: "Flatten",
+                                edits: vec![
+                                    TestResultTextRange {
+                                        text: "#[ink::contract(\
+                                    env = crate::Environment, \
+                                    keep_attr = \"foo,bar\"\
+                                    )]",
+                                        start_pat: Some("<-#[ink::contract]"),
+                                        end_pat: Some("#[ink::contract]"),
+                                    },
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some(r#"<-#[ink(env=crate::Environment)]"#),
+                                        end_pat: Some(r#"#[ink(env=crate::Environment)]"#),
+                                    },
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                                        end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                                    },
+                                ],
                             },
-                            TestResultTextRange {
-                                text: "",
-                                start_pat: Some(r#"<-#[ink(env=crate::Environment)]"#),
-                                end_pat: Some(r#"#[ink(env=crate::Environment)]"#),
-                            },
-                            TestResultTextRange {
-                                text: "",
-                                start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
-                                end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(storage)]",
+                                    start_pat: Some("mod my_contract {"),
+                                    end_pat: Some("mod my_contract {"),
+                                }],
                             },
                         ],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(storage)]",
-                            start_pat: Some("mod my_contract {"),
-                            end_pat: Some("mod my_contract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(event)]",
-                            start_pat: Some("mod my_contract {"),
-                            end_pat: Some("mod my_contract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("mod my_contract {"),
-                            end_pat: Some("mod my_contract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("mod my_contract {"),
-                            end_pat: Some("mod my_contract {"),
-                        }],
-                    },
-                ],
-            ),
-            // Trait focus.
-            (
-                r#"
+                        event_v2_entity!(version, "<-#[ink::contract]"),
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(event)]",
+                                    start_pat: Some("mod my_contract {"),
+                                    end_pat: Some("mod my_contract {"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(constructor)]",
+                                    start_pat: Some("mod my_contract {"),
+                                    end_pat: Some("mod my_contract {"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("mod my_contract {"),
+                                    end_pat: Some("mod my_contract {"),
+                                }],
+                            },
+                        ]
+                    ),
+                ),
+                // Trait focus.
+                (
+                    r#"
                     pub trait MyTrait {
                     }
-                "#,
-                Some("<-pub"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::chain_extension]",
-                            start_pat: Some("<-pub"),
-                            end_pat: Some("<-pub"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::trait_definition]",
-                            start_pat: Some("<-pub"),
-                            end_pat: Some("<-pub"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
-                    #[ink::chain_extension]
-                    pub trait MyTrait {
-                    }
-                "#,
-                Some("<-pub"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "type ErrorCode",
-                            start_pat: Some("pub trait MyTrait {"),
-                            end_pat: Some("pub trait MyTrait {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(extension = 1)]",
-                            start_pat: Some("pub trait MyTrait {"),
-                            end_pat: Some("pub trait MyTrait {"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-pub"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink::chain_extension]",
+                                start_pat: Some("<-pub"),
+                                end_pat: Some("<-pub"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink::trait_definition]",
+                                start_pat: Some("<-pub"),
+                                end_pat: Some("<-pub"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
                     #[ink::trait_definition]
                     pub trait MyTrait {
                     }
-                "#,
-                Some("<-pub"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: r#"(keep_attr = "")"#,
-                            start_pat: Some("#[ink::trait_definition"),
-                            end_pat: Some("#[ink::trait_definition"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: r#"(namespace = "my_namespace")"#,
-                            start_pat: Some("#[ink::trait_definition"),
-                            end_pat: Some("#[ink::trait_definition"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("pub trait MyTrait {"),
-                            end_pat: Some("pub trait MyTrait {"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-pub"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"(keep_attr = "")"#,
+                                start_pat: Some("#[ink::trait_definition"),
+                                end_pat: Some("#[ink::trait_definition"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"(namespace = "my_namespace")"#,
+                                start_pat: Some("#[ink::trait_definition"),
+                                end_pat: Some("#[ink::trait_definition"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("pub trait MyTrait {"),
+                                end_pat: Some("pub trait MyTrait {"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
                     #[ink::trait_definition]
                     #[ink(namespace="my_namespace")]
                     #[ink(keep_attr="foo,bar")]
                     pub trait MyTrait {
                     }
-                "#,
-                Some("<-pub"),
-                vec![
-                    TestResultAction {
-                        label: "Flatten",
-                        edits: vec![
-                            TestResultTextRange {
-                                text: r#"#[ink::trait_definition(namespace = "my_namespace", keep_attr = "foo,bar")]"#,
-                                start_pat: Some("<-#[ink::trait_definition]"),
-                                end_pat: Some("#[ink::trait_definition]"),
-                            },
-                            TestResultTextRange {
-                                text: "",
-                                start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
-                                end_pat: Some(r#"#[ink(namespace="my_namespace")]"#),
-                            },
-                            TestResultTextRange {
-                                text: "",
-                                start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
-                                end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
-                            },
-                        ],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("pub trait MyTrait {"),
-                            end_pat: Some("pub trait MyTrait {"),
-                        }],
-                    },
-                ],
-            ),
-            // ADT focus.
-            (
-                r#"
+                    "#,
+                    Some("<-pub"),
+                    vec![
+                        TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink::trait_definition(\
+                                    namespace = \"my_namespace\", \
+                                    keep_attr = \"foo,bar\"\
+                                    )]",
+                                    start_pat: Some("<-#[ink::trait_definition]"),
+                                    end_pat: Some("#[ink::trait_definition]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                                    end_pat: Some(r#"#[ink(namespace="my_namespace")]"#),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                                    end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                                },
+                            ],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("pub trait MyTrait {"),
+                                end_pat: Some("pub trait MyTrait {"),
+                            }],
+                        },
+                    ],
+                ),
+                // ADT focus.
+                (
+                    r#"
                     enum MyEnum {
                     }
-                "#,
-                Some("<-enum"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::storage_item]",
-                        start_pat: Some("<-enum"),
-                        end_pat: Some("<-enum"),
-                    }],
-                }],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-enum"),
+                    list_results!(adt_attrs, "Add", Some("<-enum"), Some("<-enum")),
+                ),
+                (
+                    r#"
                     struct MyStruct {
                     }
-                "#,
-                Some("<-struct"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::storage_item]",
-                            start_pat: Some("<-struct"),
-                            end_pat: Some("<-struct"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(anonymous)]",
-                            start_pat: Some("<-struct"),
-                            end_pat: Some("<-struct"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(event)]",
-                            start_pat: Some("<-struct"),
-                            end_pat: Some("<-struct"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(storage)]",
-                            start_pat: Some("<-struct"),
-                            end_pat: Some("<-struct"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-struct"),
+                    list_results!(struct_attrs, "Add", Some("<-struct"), Some("<-struct")),
+                ),
+                (
+                    r#"
                     union MyUnion {
                     }
-                "#,
-                Some("<-union"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink::storage_item]",
-                        start_pat: Some("<-union"),
-                        end_pat: Some("<-union"),
-                    }],
-                }],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-union"),
+                    list_results!(adt_attrs, "Add", Some("<-union"), Some("<-union")),
+                ),
+                (
+                    r#"
                     #[ink::storage_item]
                     #[ink(derive=true)]
                     struct MyStruct {
                     }
-                "#,
-                Some("<-struct"),
-                vec![TestResultAction {
-                    label: "Flatten",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "#[ink::storage_item(derive = true)]",
-                            start_pat: Some("<-#[ink::storage_item]"),
-                            end_pat: Some("#[ink::storage_item]"),
-                        },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(derive=true)]"),
-                            end_pat: Some("#[ink(derive=true)]"),
-                        },
-                    ],
-                }],
-            ),
-            (
-                r#"
-                    #[ink(event)]
-                    struct MyEvent {
-                    }
-                "#,
-                Some("<-struct"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", anonymous",
-                            start_pat: Some("#[ink(event"),
-                            end_pat: Some("#[ink(event"),
-                        }],
-                    },
-                    // Adds ink! topic `field`.
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(topic)]",
-                            start_pat: Some("struct MyEvent {"),
-                            end_pat: Some("struct MyEvent {"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
-                    #[ink(anonymous)]
-                    struct MyEvent {
-                    }
-                "#,
-                Some("<-struct"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "event, ",
-                        start_pat: Some("#[ink("),
-                        end_pat: Some("#[ink("),
-                    }],
-                }],
-            ),
-            (
-                r#"
-                    #[ink(event, anonymous)]
-                    struct MyEvent {
-                        my_field: u8,
-                    }
-                "#,
-                Some("<-struct"),
-                vec![
-                    // Adds ink! topic `field`.
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(topic)]",
-                            start_pat: Some("my_field: u8,"),
-                            end_pat: Some("my_field: u8,"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
-                    #[ink(anonymous)]
-                    #[ink(event)]
-                    struct MyEvent {
-                        my_field: u8,
-                    }
-                "#,
-                Some("<-struct"),
-                vec![
-                    TestResultAction {
+                    "#,
+                    Some("<-struct"),
+                    vec![TestResultAction {
                         label: "Flatten",
                         edits: vec![
                             TestResultTextRange {
-                                text: "#[ink(event, anonymous)]",
-                                start_pat: Some("<-#[ink(event)]"),
-                                end_pat: Some("#[ink(event)]"),
+                                text: "#[ink::storage_item(derive = true)]",
+                                start_pat: Some("<-#[ink::storage_item]"),
+                                end_pat: Some("#[ink::storage_item]"),
                             },
                             TestResultTextRange {
                                 text: "",
-                                start_pat: Some("<-#[ink(anonymous)]"),
-                                end_pat: Some("#[ink(anonymous)]"),
+                                start_pat: Some("<-#[ink(derive=true)]"),
+                                end_pat: Some("#[ink(derive=true)]"),
                             },
                         ],
-                    },
-                    // Adds ink! topic `field`.
-                    TestResultAction {
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink(event)]
+                    struct MyEvent {
+                    }
+                    "#,
+                    Some("<-struct"),
+                    chain_results!(
+                        [TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", anonymous",
+                                start_pat: Some("#[ink(event"),
+                                end_pat: Some("#[ink(event"),
+                            }],
+                        }],
+                        if version == Version::V5 {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", signature_topic = """#,
+                                    start_pat: Some("#[ink(event"),
+                                    end_pat: Some("#[ink(event"),
+                                }],
+                            }]
+                        } else {
+                            vec![]
+                        },
+                        [
+                            // Adds ink! topic `field`.
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("struct MyEvent {"),
+                                    end_pat: Some("struct MyEvent {"),
+                                }],
+                            },
+                        ]
+                    ),
+                ),
+                (
+                    r#"
+                    #[ink(anonymous)]
+                    struct MyEvent {
+                    }
+                    "#,
+                    Some("<-struct"),
+                    vec![TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
-                            text: "#[ink(topic)]",
-                            start_pat: Some("my_field: u8,"),
-                            end_pat: Some("my_field: u8,"),
+                            text: "event, ",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
                         }],
-                    },
-                ],
-            ),
-            // Struct field focus.
-            (
-                r#"
-                    struct MyStruct {
-                        value: bool,
-                    }
-                "#,
-                Some("<-value"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink(topic)]",
-                        start_pat: Some("<-value"),
-                        end_pat: Some("<-value"),
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     #[ink(event, anonymous)]
                     struct MyEvent {
                         my_field: u8,
                     }
-                "#,
-                Some("<-my_field"),
-                vec![
-                    // Adds ink! topic attribute argument.
-                    TestResultAction {
+                    "#,
+                    Some("<-struct"),
+                    vec![
+                        // Adds ink! topic `field`.
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(topic)]",
+                                start_pat: Some("my_field: u8,"),
+                                end_pat: Some("my_field: u8,"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
+                    #[ink(anonymous)]
+                    #[ink(event)]
+                    struct MyEvent {
+                        my_field: u8,
+                    }
+                    "#,
+                    Some("<-struct"),
+                    vec![
+                        TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink(event, anonymous)]",
+                                    start_pat: Some("<-#[ink(event)]"),
+                                    end_pat: Some("#[ink(event)]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink(anonymous)]"),
+                                    end_pat: Some("#[ink(anonymous)]"),
+                                },
+                            ],
+                        },
+                        // Adds ink! topic `field`.
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(topic)]",
+                                start_pat: Some("my_field: u8,"),
+                                end_pat: Some("my_field: u8,"),
+                            }],
+                        },
+                    ],
+                ),
+                // Struct field focus.
+                (
+                    r#"
+                    struct MyStruct {
+                        value: bool,
+                    }
+                    "#,
+                    Some("<-value"),
+                    vec![TestResultAction {
                         label: "Add",
                         edits: vec![TestResultTextRange {
                             text: "#[ink(topic)]",
-                            start_pat: Some("<-my_field"),
-                            end_pat: Some("<-my_field"),
+                            start_pat: Some("<-value"),
+                            end_pat: Some("<-value"),
                         }],
-                    },
-                ],
-            ),
-            // Fn focus.
-            (
-                r#"
+                    }],
+                ),
+                (
+                    r#"
+                    #[ink(event, anonymous)]
+                    struct MyEvent {
+                        my_field: u8,
+                    }
+                    "#,
+                    Some("<-my_field"),
+                    vec![
+                        // Adds ink! topic attribute argument.
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(topic)]",
+                                start_pat: Some("<-my_field"),
+                                end_pat: Some("<-my_field"),
+                            }],
+                        },
+                    ],
+                ),
+                // Fn focus.
+                (
+                    r#"
                     fn my_fn() {
                     }
-                "#,
-                Some("<-fn"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(default)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(extension = 1)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(handle_status = true)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(payable)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(selector = 1)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-fn"),
+                    chain_results!(
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(constructor)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(default)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                        ],
+                        versioned_extension_fn!(version, "<-fn"),
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(handle_status = true)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(payable)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(selector = 1)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                        ]
+                    ),
+                ),
+                (
+                    r#"
                     #[cfg(test)]
                     mod my_mod {
                         fn my_fn() {
                         }
                     }
-                "#,
-                Some("<-fn"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::test]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(default)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(extension = 1)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(handle_status = true)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(payable)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(selector = 1)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-fn"),
+                    chain_results!(
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink::test]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(constructor)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(default)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                        ],
+                        versioned_extension_fn!(version, "<-fn"),
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(handle_status = true)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(payable)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(selector = 1)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                        ]
+                    ),
+                ),
+                (
+                    r#"
                     #[cfg(all(test, feature="e2e-tests"))]
                     mod my_mod {
                         fn my_fn() {
                         }
                     }
-                "#,
-                Some("<-fn"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink::test]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink_e2e::test]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(default)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(extension = 1)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(handle_status = true)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(payable)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(selector = 1)]",
-                            start_pat: Some("<-fn"),
-                            end_pat: Some("<-fn"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-fn"),
+                    chain_results!(
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink::test]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink_e2e::test]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(constructor)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(default)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                        ],
+                        versioned_extension_fn!(version, "<-fn"),
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(handle_status = true)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(payable)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(selector = 1)]",
+                                    start_pat: Some("<-fn"),
+                                    end_pat: Some("<-fn"),
+                                }],
+                            },
+                        ]
+                    ),
+                ),
+                (
+                    r#"
                     #[ink::test]
                     fn my_fn() {
                     }
-                "#,
-                Some("<-fn"),
-                vec![],
-            ),
-            (
-                r#"
-                    #[ink_e2e::test]
-                    fn my_fn() {
-                    }
-                "#,
-                Some("<-fn"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: r#"(additional_contracts = "")"#,
-                            start_pat: Some("#[ink_e2e::test"),
-                            end_pat: Some("#[ink_e2e::test"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "(environment = ink::env::DefaultEnvironment)",
-                            start_pat: Some("#[ink_e2e::test"),
-                            end_pat: Some("#[ink_e2e::test"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: r#"(keep_attr = "")"#,
-                            start_pat: Some("#[ink_e2e::test"),
-                            end_pat: Some("#[ink_e2e::test"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
-                    #[ink_e2e::test]
-                    #[ink(additional_contracts="")]
-                    #[ink(environment=ink::env::DefaultEnvironment)]
-                    #[ink(keep_attr="")]
-                    fn my_fn() {
-                    }
-                "#,
-                Some("<-fn"),
-                vec![TestResultAction {
-                    label: "Flatten",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: r#"#[ink_e2e::test(additional_contracts = "", environment = ink::env::DefaultEnvironment, keep_attr = "")]"#,
-                            start_pat: Some("<-#[ink_e2e::test]"),
-                            end_pat: Some("#[ink_e2e::test]"),
-                        },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some(r#"<-#[ink(additional_contracts="")]"#),
-                            end_pat: Some(r#"#[ink(additional_contracts="")]"#),
-                        },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some(
-                                r#"<-#[ink(environment=ink::env::DefaultEnvironment)]"#,
-                            ),
-                            end_pat: Some(r#"#[ink(environment=ink::env::DefaultEnvironment)]"#),
-                        },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some(r#"<-#[ink(keep_attr="")]"#),
-                            end_pat: Some(r#"#[ink(keep_attr="")]"#),
-                        },
-                    ],
-                }],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-fn"),
+                    vec![],
+                ),
+                (
+                    r#"
                     #[ink(constructor)]
                     fn my_fn() {
                     }
-                "#,
-                Some("<-fn"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", default",
-                            start_pat: Some("#[ink(constructor"),
-                            end_pat: Some("#[ink(constructor"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", payable",
-                            start_pat: Some("#[ink(constructor"),
-                            end_pat: Some("#[ink(constructor"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", selector = 1",
-                            start_pat: Some("#[ink(constructor"),
-                            end_pat: Some("#[ink(constructor"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-fn"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("#[ink(constructor"),
+                                end_pat: Some("#[ink(constructor"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("#[ink(constructor"),
+                                end_pat: Some("#[ink(constructor"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 1",
+                                start_pat: Some("#[ink(constructor"),
+                                end_pat: Some("#[ink(constructor"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
                     #[ink(constructor)]
                     #[ink(selector=1)]
                     #[ink(default, payable)]
                     fn my_fn() {
                     }
-                "#,
-                Some("<-fn"),
-                vec![TestResultAction {
-                    label: "Flatten",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "#[ink(constructor, selector = 1, default, payable)]",
-                            start_pat: Some("<-#[ink(constructor)]"),
-                            end_pat: Some("#[ink(constructor)]"),
-                        },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(selector=1)]"),
-                            end_pat: Some("#[ink(selector=1)]"),
-                        },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(default, payable)]"),
-                            end_pat: Some("#[ink(default, payable)]"),
-                        },
-                    ],
-                }],
-            ),
-            // impl focus.
-            (
-                r#"
+                    "#,
+                    Some("<-fn"),
+                    vec![TestResultAction {
+                        label: "Flatten",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink(constructor, selector = 1, default, payable)]",
+                                start_pat: Some("<-#[ink(constructor)]"),
+                                end_pat: Some("#[ink(constructor)]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(selector=1)]"),
+                                end_pat: Some("#[ink(selector=1)]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(default, payable)]"),
+                                end_pat: Some("#[ink(default, payable)]"),
+                            },
+                        ],
+                    }],
+                ),
+                // impl focus.
+                (
+                    r#"
                     impl MyContract {
                     }
-                "#,
-                Some("<-impl MyContract {"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(impl)]",
-                            start_pat: Some("<-impl MyContract {"),
-                            end_pat: Some("<-impl MyContract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: r#"#[ink(namespace = "my_namespace")]"#,
-                            start_pat: Some("<-impl MyContract {"),
-                            end_pat: Some("<-impl MyContract {"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-impl MyContract {"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(impl)]",
+                                start_pat: Some("<-impl MyContract {"),
+                                end_pat: Some("<-impl MyContract {"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"#[ink(namespace = "my_namespace")]"#,
+                                start_pat: Some("<-impl MyContract {"),
+                                end_pat: Some("<-impl MyContract {"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
                     #[ink(impl)]
                     impl MyContract {
                     }
-                "#,
-                Some("<-impl MyContract {"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: r#", namespace = "my_namespace""#,
-                            start_pat: Some("#[ink(impl"),
-                            end_pat: Some("#[ink(impl"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("impl MyContract {"),
-                            end_pat: Some("impl MyContract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("impl MyContract {"),
-                            end_pat: Some("impl MyContract {"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-impl MyContract {"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#", namespace = "my_namespace""#,
+                                start_pat: Some("#[ink(impl"),
+                                end_pat: Some("#[ink(impl"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(constructor)]",
+                                start_pat: Some("impl MyContract {"),
+                                end_pat: Some("impl MyContract {"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("impl MyContract {"),
+                                end_pat: Some("impl MyContract {"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
                     impl MyContract {
                         #[ink(constructor)]
                         pub fn new() -> Self {}
                     }
-                "#,
-                Some("<-impl MyContract {"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(impl)]",
-                            start_pat: Some("<-impl MyContract {"),
-                            end_pat: Some("<-impl MyContract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: r#"#[ink(namespace = "my_namespace")]"#,
-                            start_pat: Some("<-impl MyContract {"),
-                            end_pat: Some("<-impl MyContract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("pub fn new() -> Self {}"),
-                            end_pat: Some("pub fn new() -> Self {}"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("pub fn new() -> Self {}"),
-                            end_pat: Some("pub fn new() -> Self {}"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-impl MyContract {"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(impl)]",
+                                start_pat: Some("<-impl MyContract {"),
+                                end_pat: Some("<-impl MyContract {"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"#[ink(namespace = "my_namespace")]"#,
+                                start_pat: Some("<-impl MyContract {"),
+                                end_pat: Some("<-impl MyContract {"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(constructor)]",
+                                start_pat: Some("pub fn new() -> Self {}"),
+                                end_pat: Some("pub fn new() -> Self {}"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("pub fn new() -> Self {}"),
+                                end_pat: Some("pub fn new() -> Self {}"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
                     impl MyTrait for MyContract {
                         #[ink(constructor)]
                         pub fn new() -> Self {}
                     }
-                "#,
-                Some("<-impl MyTrait for MyContract {"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink(impl)]",
-                        start_pat: Some("<-impl MyTrait for MyContract {"),
-                        end_pat: Some("<-impl MyTrait for MyContract {"),
+                    "#,
+                    Some("<-impl MyTrait for MyContract {"),
+                    vec![TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(impl)]",
+                            start_pat: Some("<-impl MyTrait for MyContract {"),
+                            end_pat: Some("<-impl MyTrait for MyContract {"),
+                        }],
                     }],
-                }],
-            ),
-            (
-                r#"
+                ),
+                (
+                    r#"
                     #[ink(impl)]
                     #[ink(namespace="my_namespace")]
                     impl MyContract {
                     }
-                "#,
-                Some("<-impl MyContract {"),
-                vec![
-                    TestResultAction {
-                        label: "Flatten",
-                        edits: vec![
-                            TestResultTextRange {
-                                text: r#"#[ink(impl, namespace = "my_namespace")]"#,
-                                start_pat: Some("<-#[ink(impl)]"),
-                                end_pat: Some("#[ink(impl)]"),
-                            },
-                            TestResultTextRange {
-                                text: "",
-                                start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
-                                end_pat: Some(r#"#[ink(namespace="my_namespace")]"#),
-                            },
-                        ],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(constructor)]",
-                            start_pat: Some("impl MyContract {"),
-                            end_pat: Some("impl MyContract {"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(message)]",
-                            start_pat: Some("impl MyContract {"),
-                            end_pat: Some("impl MyContract {"),
-                        }],
-                    },
-                ],
-            ),
-            // Unique ids.
-            (
-                r#"
+                    "#,
+                    Some("<-impl MyContract {"),
+                    vec![
+                        TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: r#"#[ink(impl, namespace = "my_namespace")]"#,
+                                    start_pat: Some("<-#[ink(impl)]"),
+                                    end_pat: Some("#[ink(impl)]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(r#"<-#[ink(namespace="my_namespace")]"#),
+                                    end_pat: Some(r#"#[ink(namespace="my_namespace")]"#),
+                                },
+                            ],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(constructor)]",
+                                start_pat: Some("impl MyContract {"),
+                                end_pat: Some("impl MyContract {"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(message)]",
+                                start_pat: Some("impl MyContract {"),
+                                end_pat: Some("impl MyContract {"),
+                            }],
+                        },
+                    ],
+                ),
+                // Unique ids.
+                (
+                    r#"
                     #[ink::contract]
                     mod my_contract {
                         impl MyContract {
@@ -1965,37 +2185,37 @@ mod tests {
                             pub fn constructor_2(&self) {}
                         }
                     }
-                "#,
-                Some("<-fn constructor_2(&self) {}"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", default",
-                            start_pat: Some("#[ink(constructor->"),
-                            end_pat: Some("#[ink(constructor->"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", payable",
-                            start_pat: Some("#[ink(constructor->"),
-                            end_pat: Some("#[ink(constructor->"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", selector = 2",
-                            start_pat: Some("#[ink(constructor->"),
-                            end_pat: Some("#[ink(constructor->"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-fn constructor_2(&self) {}"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("#[ink(constructor->"),
+                                end_pat: Some("#[ink(constructor->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("#[ink(constructor->"),
+                                end_pat: Some("#[ink(constructor->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 2",
+                                start_pat: Some("#[ink(constructor->"),
+                                end_pat: Some("#[ink(constructor->"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
                     #[ink::contract]
                     mod my_contract {
                         impl MyContract {
@@ -2006,37 +2226,37 @@ mod tests {
                             pub fn message_2(&self) {}
                         }
                     }
-                "#,
-                Some("<-fn message_2(&self) {}"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", default",
-                            start_pat: Some("#[ink(message->"),
-                            end_pat: Some("#[ink(message->"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", payable",
-                            start_pat: Some("#[ink(message->"),
-                            end_pat: Some("#[ink(message->"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", selector = 2",
-                            start_pat: Some("#[ink(message->"),
-                            end_pat: Some("#[ink(message->"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
+                    "#,
+                    Some("<-fn message_2(&self) {}"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 2",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                    ],
+                ),
+                (
+                    r#"
                     #[ink::trait_definition]
                     pub trait MyTrait {
                         #[ink(message, selector=1)]
@@ -2045,65 +2265,48 @@ mod tests {
                         #[ink(message)]
                         fn message_2(&self);
                     }
-                "#,
-                Some("<-fn message_2(&self);"),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", default",
-                            start_pat: Some("#[ink(message->"),
-                            end_pat: Some("#[ink(message->"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", payable",
-                            start_pat: Some("#[ink(message->"),
-                            end_pat: Some("#[ink(message->"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: ", selector = 2",
-                            start_pat: Some("#[ink(message->"),
-                            end_pat: Some("#[ink(message->"),
-                        }],
-                    },
-                ],
-            ),
-            (
-                r#"
-                    #[ink::chain_extension]
-                    pub trait MyChainExtension {
-                        #[ink(extension=1)]
-                        fn extension_1(&self);
+                    "#,
+                    Some("<-fn message_2(&self);"),
+                    vec![
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 2",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                    ],
+                ),
+            ]
+            .into_iter()
+            .chain(fixtures)
+            {
+                let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
+                let range = TextRange::new(offset, offset);
 
-                        #[ink(handle_status=true)]
-                        fn extension_2(&self);
-                    }
-                "#,
-                Some("<-fn extension_2(&self);"),
-                vec![TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "extension = 2, ",
-                        start_pat: Some("#[ink(->"),
-                        end_pat: Some("#[ink(->"),
-                    }],
-                }],
-            ),
-        ] {
-            let offset = TextSize::from(parse_offset_at(code, pat).unwrap() as u32);
-            let range = TextRange::new(offset, offset);
+                let mut results = Vec::new();
+                actions(&mut results, &InkFile::parse(code), range, version);
 
-            let mut results = Vec::new();
-            actions(&mut results, &InkFile::parse(code), range, Version::V4);
-
-            // Verifies actions.
-            verify_actions(code, &results, &expected_results);
+                // Verifies actions.
+                verify_actions(code, &results, &expected_results);
+            }
         }
     }
 

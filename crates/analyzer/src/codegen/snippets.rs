@@ -14,6 +14,13 @@ pub struct ${1:Event} {
     $2
 }"#;
 
+pub const EVENT_V2_PLAIN: &str = r#"#[ink::event]
+pub struct Event {}"#;
+pub const EVENT_V2_SNIPPET: &str = r#"#[ink::event]
+pub struct ${1:Event} {
+    $2
+}"#;
+
 pub const TOPIC_PLAIN: &str = r#"#[ink(topic)]
 my_topic: bool,"#;
 pub const TOPIC_SNIPPET: &str = r#"#[ink(topic)]
