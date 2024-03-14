@@ -78,7 +78,7 @@ pub fn content(attr_kind: &InkAttributeKind, version: Version) -> &str {
             | InkArgKind::Node
             | InkArgKind::Url
             | InkArgKind::RuntimeOnly
-            | InkArgKind::Runtime
+            | InkArgKind::Sandbox
                 if version == Version::V5 =>
             {
                 args::BACKEND_DOC

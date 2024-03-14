@@ -928,7 +928,7 @@ mod tests {
                         "#[ink_e2e::test(backend(runtime_only",
                         Some("runtime_only"),
                         vec![(
-                            "(runtime=ink_e2e::MinimalRuntime)",
+                            "(sandbox=ink_e2e::MinimalSandbox)",
                             Some("runtime_only"),
                             Some("runtime_only"),
                         )],
@@ -937,7 +937,7 @@ mod tests {
                         "#[ink_e2e::test(backend(runtime_only(",
                         Some("(->"),
                         vec![(
-                            "(runtime=ink_e2e::MinimalRuntime)",
+                            "(sandbox=ink_e2e::MinimalSandbox)",
                             Some("<-(->"),
                             Some("(->"),
                         )],

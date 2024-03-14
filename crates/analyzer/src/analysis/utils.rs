@@ -888,9 +888,9 @@ pub fn ink_arg_insert_text(
                 r#""my_namespace""#.to_owned(),
                 r#""${1:my_namespace}""#.to_owned(),
             ),
-            InkArgKind::Runtime => (
-                "ink_e2e::MinimalRuntime".to_owned(),
-                "${1:ink_e2e::MinimalRuntime}".to_owned(),
+            InkArgKind::Sandbox => (
+                "ink_e2e::MinimalSandbox".to_owned(),
+                "${1:ink_e2e::MinimalSandbox}".to_owned(),
             ),
             InkArgKind::Selector => {
                 let mut unavailable_ids = HashSet::new();

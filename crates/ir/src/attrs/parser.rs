@@ -401,13 +401,13 @@ mod tests {
             (
                 quote_as_str! {
                     #[ink_e2e::test(
-                        backend(runtime_only(runtime = ::ink_e2e::MinimalRuntime)),
+                        backend(runtime_only(sandbox = ::ink_e2e::MinimalSandbox)),
                     )]
                 },
                 vec![NestedArg::new(&[
                     (InkArgKind::Backend, None),
                     (InkArgKind::RuntimeOnly, None),
-                    (InkArgKind::Runtime, Some(SyntaxKind::PATH)),
+                    (InkArgKind::Sandbox, Some(SyntaxKind::PATH)),
                 ])],
             ),
             // Unknown argument.

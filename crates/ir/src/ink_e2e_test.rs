@@ -64,7 +64,7 @@ mod tests {
                 false,
             ),
             (
-                quote! { (backend(runtime_only(runtime = ink_e2e::MinimalRuntime))) },
+                quote! { (backend(runtime_only(sandbox = ink_e2e::MinimalSandbox))) },
                 false,
                 true,
                 false,

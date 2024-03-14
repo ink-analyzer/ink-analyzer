@@ -2157,7 +2157,7 @@ mod tests {
                     #[ink_e2e::test(backend(runtime_only))]
                 },
                 quote_as_str! {
-                    #[ink_e2e::test(backend(runtime_only(runtime = ink_e2e::MinimalRuntime)))]
+                    #[ink_e2e::test(backend(runtime_only(sandbox = ink_e2e::MinimalSandbox)))]
                 },
                 quote_as_str! {
                     #[ink_e2e::test(environment = ink::env::DefaultEnvironment, backend(node))]
@@ -2665,24 +2665,24 @@ mod tests {
                         }],
                     ),
                     (
-                        "#[ink_e2e::test(backend(runtime_only(runtime)))]", // missing value.
+                        "#[ink_e2e::test(backend(runtime_only(sandbox)))]", // missing value.
                         vec![TestResultAction {
                             label: "argument value",
                             edits: vec![TestResultTextRange {
-                                text: "runtime = ink_e2e::MinimalRuntime",
-                                start_pat: Some("<-runtime->"),
-                                end_pat: Some("runtime->"),
+                                text: "sandbox = ink_e2e::MinimalSandbox",
+                                start_pat: Some("<-sandbox"),
+                                end_pat: Some("sandbox"),
                             }],
                         }],
                     ),
                     (
-                        r#"#[ink_e2e::test(backend(runtime_only(runtime = "ink_e2e::MinimalRuntime")))]"#, // bad value, should be a path.
+                        r#"#[ink_e2e::test(backend(runtime_only(sandbox = "ink_e2e::MinimalSandbox")))]"#, // bad value, should be a path.
                         vec![TestResultAction {
                             label: "argument value",
                             edits: vec![TestResultTextRange {
-                                text: "runtime = ink_e2e::MinimalRuntime",
-                                start_pat: Some("<-runtime->"),
-                                end_pat: Some(r#""ink_e2e::MinimalRuntime""#),
+                                text: "sandbox = ink_e2e::MinimalSandbox",
+                                start_pat: Some("<-sandbox"),
+                                end_pat: Some(r#""ink_e2e::MinimalSandbox""#),
                             }],
                         }],
                     ),

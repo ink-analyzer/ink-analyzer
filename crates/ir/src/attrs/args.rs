@@ -129,10 +129,10 @@ pub enum InkArgKind {
     Node,
     /// `#[ink(payable)]`
     Payable,
-    /// `#[ink(runtime)]`
-    Runtime,
     /// `#[ink(runtime_only)]`
     RuntimeOnly,
+    /// `#[ink(sandbox)]`
+    Sandbox,
     /// `#[ink(selector)]`
     Selector,
     /// `#[ink(signature_topic)]`
@@ -193,10 +193,10 @@ impl From<&str> for InkArgKind {
             "node" => InkArgKind::Node,
             // `#[ink(payable)]`
             "payable" => InkArgKind::Payable,
-            // `#[ink(runtime)]`
-            "runtime" => InkArgKind::Runtime,
             // `#[ink(runtime_only)]`
             "runtime_only" => InkArgKind::RuntimeOnly,
+            // `#[ink(sandbox)]`
+            "sandbox" => InkArgKind::Sandbox,
             // `#[ink(selector)]`
             "selector" => InkArgKind::Selector,
             // `#[ink(signature_topic)]`
@@ -261,10 +261,10 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::Node => "node",
                 // `#[ink(payable)]`
                 InkArgKind::Payable => "payable",
-                // `#[ink(runtime)]`
-                InkArgKind::Runtime => "runtime",
                 // `#[ink(runtime_only)]`
                 InkArgKind::RuntimeOnly => "runtime_only",
+                // `#[ink(sandbox)]`
+                InkArgKind::Sandbox => "sandbox",
                 // `#[ink(selector)]`
                 InkArgKind::Selector => "selector",
                 // `#[ink(signature_topic)]`
@@ -320,8 +320,8 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         | InkArgKind::Namespace
         | InkArgKind::Node
         | InkArgKind::Payable
-        | InkArgKind::Runtime
         | InkArgKind::RuntimeOnly
+        | InkArgKind::Sandbox
         | InkArgKind::Selector
         | InkArgKind::SignatureTopic
         | InkArgKind::TypeInfo
@@ -373,8 +373,8 @@ impl InkArgKind {
             InkArgKind::Namespace => "Changes the resulting selectors of all the ink! messages and ink! constructors within the trait implementation.",
             InkArgKind::Node if version == Version::V5 => "Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.",
             InkArgKind::Payable => "Allows receiving value as part of the call of the ink! message.",
-            InkArgKind::Runtime if version == Version::V5 => "Tells the ink! e2e test runner which runtime emulator to use when executing the test.",
             InkArgKind::RuntimeOnly if version == Version::V5 => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.",
+            InkArgKind::Sandbox if version == Version::V5 => "Tells the ink! e2e test runner which runtime emulator to use when executing the test.",
             InkArgKind::Selector => "The `u32` variant specifies a concrete dispatch selector for the flagged entity, \
             which allows a contract author to precisely control the selectors of their APIs making it possible to rename their API without breakage.\n\n\
             While the `_` variant specifies a fallback message that is invoked if no other ink! message matches a selector.",
@@ -438,7 +438,7 @@ pub enum InkArgValueStringKind {
 pub enum InkArgValuePathKind {
     Default,
     Environment,
-    Runtime,
+    Sandbox,
 }
 
 /// Converts an ink! attribute argument kind to an ink! attribute argument value kind.
@@ -469,8 +469,8 @@ impl From<InkArgKind> for InkArgValueKind {
             InkArgKind::KeepAttr => InkArgValueKind::String(InkArgValueStringKind::CommaList),
             InkArgKind::Namespace => InkArgValueKind::String(InkArgValueStringKind::Identifier),
             InkArgKind::Node => InkArgValueKind::Arg(InkArgKind::Url, false),
-            InkArgKind::Runtime => InkArgValueKind::Path(InkArgValuePathKind::Runtime),
-            InkArgKind::RuntimeOnly => InkArgValueKind::Arg(InkArgKind::Runtime, false),
+            InkArgKind::RuntimeOnly => InkArgValueKind::Arg(InkArgKind::Sandbox, false),
+            InkArgKind::Sandbox => InkArgValueKind::Path(InkArgValuePathKind::Sandbox),
             // TODO: Set to `InkArgValueKind::U32OrWildcardOrComplement` for ink! v5.
             InkArgKind::Selector => InkArgValueKind::U32OrWildcard,
             InkArgKind::SignatureTopic => InkArgValueKind::String(InkArgValueStringKind::Hex),
@@ -506,7 +506,7 @@ impl fmt::Display for InkArgValueKind {
                 InkArgValueKind::Bool => "bool".to_owned(),
                 InkArgValueKind::Path(path_kind) => match path_kind {
                     InkArgValuePathKind::Environment => "impl Environment".to_owned(),
-                    InkArgValuePathKind::Runtime => "impl drink::SandboxConfig".to_owned(),
+                    InkArgValuePathKind::Sandbox => "impl drink::Sandbox".to_owned(),
                     _ => "Path".to_owned(),
                 },
                 InkArgValueKind::Arg(kind, required) if *required => kind.to_string(),
@@ -535,8 +535,8 @@ impl InkArgValueKind {
             InkArgValueKind::Path(InkArgValuePathKind::Environment) => {
                 "A `ink::env::Environment` implementation.".to_owned()
             }
-            InkArgValueKind::Path(InkArgValuePathKind::Runtime) => {
-                "A `drink::SandboxConfig` implementation.".to_owned()
+            InkArgValueKind::Path(InkArgValuePathKind::Sandbox) => {
+                "A `drink::Sandbox` implementation.".to_owned()
             }
             InkArgValueKind::String(InkArgValueStringKind::CommaList) => {
                 "A comma separated list.".to_owned()

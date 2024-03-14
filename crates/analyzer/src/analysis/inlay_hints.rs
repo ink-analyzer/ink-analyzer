@@ -220,7 +220,7 @@ mod tests {
                     (
                         r#"#[ink_e2e::test(
                         environment=ink::env::DefaultEnvironment,
-                        backend(runtime_only(runtime=ink_e2e::MinimalRuntime))
+                        backend(runtime_only(sandbox=ink_e2e::MinimalSandbox))
                         )]"#,
                         None,
                         vec![
@@ -235,9 +235,9 @@ mod tests {
                                 (Some("<-backend"), Some("backend")),
                             ),
                             (
-                                "impl drink::SandboxConfig",
-                                Some("runtime->"),
-                                (Some("<-runtime->"), Some("runtime->")),
+                                "impl drink::Sandbox",
+                                Some("sandbox"),
+                                (Some("<-sandbox"), Some("sandbox")),
                             ),
                         ],
                     ),

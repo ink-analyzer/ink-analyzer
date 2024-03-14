@@ -137,7 +137,7 @@ mod my_contract {
 pub const BACKEND_DOC: &str = r#"
 # Attribute
 
-`#[ink_e2e::test(backend(node|runtime_only))]` or `#[ink_e2e::test(backend(node(url = U: string))]` or `#[ink_e2e::test(backend(runtime_only(runtime = R: impl drink::SandboxConfig))]`
+`#[ink_e2e::test(backend(node|runtime_only))]` or `#[ink_e2e::test(backend(node(url = U: string))]` or `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl drink::Sandbox))]`
 
 # Description
 
@@ -150,9 +150,9 @@ In the case of `#[ink_e2e::test(backend(node))]`, a fresh node instance will be 
 
 In the case of `#[ink_e2e::test(backend(node(url = U: string))]`, the test will run against an already running node at the supplied URL.
 
-In the case of `#[ink_e2e::test(backend(runtime_only))]`, the `ink_e2e::MinimalRuntime` runtime (which is a re-export of `drink::MinimalRuntime`) is used.
+In the case of `#[ink_e2e::test(backend(runtime_only))]`, the `ink_e2e::MinimalSandbox` runtime (which is a re-export of `drink::MinimalRuntime`) is used.
 
-In the case of `#[ink_e2e::test(backend(runtime_only(runtime = R: impl drink::SandboxConfig))]`, the runtime must implement the `drink::SandboxConfig` trait.
+In the case of `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl drink::Sandbox))]`, the runtime must implement the `drink::Sandbox` trait.
 
 # Usage
 
@@ -190,7 +190,7 @@ async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
 OR
 
 ```
-#[ink_e2e::test(backend(runtime_only(runtime = ink_e2e::MinimalRuntime))]
+#[ink_e2e::test(backend(runtime_only(sandbox = ink_e2e::MinimalSandbox))]
 async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
     // --snip--
 }
