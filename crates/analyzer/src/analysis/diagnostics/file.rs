@@ -69,7 +69,7 @@ fn ensure_contract_quantity(results: &mut Vec<Diagnostic>, file: &InkFile) {
     );
 }
 
-/// Ensures that only ink! attribute macro quasi-direct descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only ink! attribute macro quasi-direct descendants (i.e. ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L98-L114>.
 fn ensure_valid_quasi_direct_ink_descendants(

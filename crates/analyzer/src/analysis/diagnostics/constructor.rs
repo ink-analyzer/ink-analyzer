@@ -1,14 +1,15 @@
 //! ink! constructor diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{ast, Constructor, IsInkFn};
+use ink_analyzer_ir::{ast, Constructor, InkArgKind, InkAttributeKind, IsInkFn};
 
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
-const CONSTRUCTOR_SCOPE_NAME: &str = "constructor";
+const SCOPE_NAME: &str = "constructor";
+const ATTR_KIND: InkAttributeKind = InkAttributeKind::Arg(InkArgKind::Constructor);
 
 /// Runs all ink! constructor diagnostics.
 ///
@@ -21,7 +22,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor, ver
 
     // Ensures that ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155>.
-    if let Some(diagnostic) = utils::ensure_fn(constructor, CONSTRUCTOR_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_fn(constructor, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -30,12 +31,12 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor, ver
         // see `utils::ensure_callable_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L156>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-        utils::ensure_callable_invariants(results, fn_item, CONSTRUCTOR_SCOPE_NAME);
+        utils::ensure_callable_invariants(results, fn_item, SCOPE_NAME);
 
         // Ensures that ink! constructor `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L158>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L107-L128>.
-        if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, CONSTRUCTOR_SCOPE_NAME) {
+        if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, SCOPE_NAME) {
             results.push(diagnostic);
         }
 
@@ -46,7 +47,13 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor, ver
     }
 
     // Ensures that ink! constructor has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, constructor, CONSTRUCTOR_SCOPE_NAME);
+    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+        results,
+        constructor,
+        ATTR_KIND,
+        version,
+        SCOPE_NAME,
+    );
 }
 
 /// Ensures that ink! constructor has a return type.
@@ -196,7 +203,7 @@ mod tests {
             utils::ensure_callable_invariants(
                 &mut results,
                 constructor.fn_item().unwrap(),
-                CONSTRUCTOR_SCOPE_NAME,
+                SCOPE_NAME,
             );
             assert!(results.is_empty(), "constructor: {code}");
         }
@@ -439,7 +446,7 @@ mod tests {
             utils::ensure_callable_invariants(
                 &mut results,
                 constructor.fn_item().unwrap(),
-                CONSTRUCTOR_SCOPE_NAME,
+                SCOPE_NAME,
             );
 
             // Verifies diagnostics.
@@ -461,10 +468,7 @@ mod tests {
                 #code
             });
 
-            let result = utils::ensure_no_self_receiver(
-                constructor.fn_item().unwrap(),
-                CONSTRUCTOR_SCOPE_NAME,
-            );
+            let result = utils::ensure_no_self_receiver(constructor.fn_item().unwrap(), SCOPE_NAME);
             assert!(result.is_none(), "constructor: {code}");
         }
     }
@@ -508,10 +512,7 @@ mod tests {
             };
             let constructor = parse_first_constructor(&code);
 
-            let result = utils::ensure_no_self_receiver(
-                constructor.fn_item().unwrap(),
-                CONSTRUCTOR_SCOPE_NAME,
-            );
+            let result = utils::ensure_no_self_receiver(constructor.fn_item().unwrap(), SCOPE_NAME);
 
             // Verifies diagnostics.
             assert!(result.is_some(), "constructor: {code}");
@@ -602,9 +603,17 @@ mod tests {
                 #code
             });
 
-            let mut results = Vec::new();
-            utils::ensure_no_ink_descendants(&mut results, &constructor, CONSTRUCTOR_SCOPE_NAME);
-            assert!(results.is_empty(), "constructor: {code}");
+            for version in [Version::V4, Version::V5] {
+                let mut results = Vec::new();
+                utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                    &mut results,
+                    &constructor,
+                    ATTR_KIND,
+                    version,
+                    SCOPE_NAME,
+                );
+                assert!(results.is_empty(), "constructor: {code}");
+            }
         }
     }
 
@@ -622,51 +631,59 @@ mod tests {
         };
         let constructor = parse_first_constructor(&code);
 
-        let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &constructor, CONSTRUCTOR_SCOPE_NAME);
+        for version in [Version::V4, Version::V5] {
+            let mut results = Vec::new();
+            utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                &mut results,
+                &constructor,
+                ATTR_KIND,
+                version,
+                SCOPE_NAME,
+            );
 
-        // 2 diagnostics for `event` and `topic`.
-        assert_eq!(results.len(), 2);
-        // both diagnostics should be errors.
-        assert_eq!(
-            results
-                .iter()
-                .filter(|item| item.severity == Severity::Error)
-                .count(),
-            2
-        );
-        // Verifies quickfixes.
-        let expected_quickfixes = vec![
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(event)]`",
+            // 2 diagnostics for `event` and `topic`.
+            assert_eq!(results.len(), 2);
+            // both diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                2
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(event)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("#[ink(event)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("}"),
+                        }],
+                    },
+                ],
+                vec![TestResultAction {
+                    label: "Remove `#[ink(topic)]`",
                     edits: vec![TestResultTextRange {
                         text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("#[ink(event)]"),
+                        start_pat: Some("<-#[ink(topic)]"),
+                        end_pat: Some("#[ink(topic)]"),
                     }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("}"),
-                    }],
-                },
-            ],
-            vec![TestResultAction {
-                label: "Remove `#[ink(topic)]`",
-                edits: vec![TestResultTextRange {
-                    text: "",
-                    start_pat: Some("<-#[ink(topic)]"),
-                    end_pat: Some("#[ink(topic)]"),
                 }],
-            }],
-        ];
-        for (idx, item) in results.iter().enumerate() {
-            let quickfixes = item.quickfixes.as_ref().unwrap();
-            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            ];
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            }
         }
     }
 

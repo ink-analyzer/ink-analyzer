@@ -1,13 +1,17 @@
 //! ink! extension/function diagnostics.
 
 use ink_analyzer_ir::syntax::{AstNode, SyntaxNode};
-use ink_analyzer_ir::{ast, IsChainExtensionFn};
+use ink_analyzer_ir::{ast, InkArgKind, InkAttributeKind, IsChainExtensionFn};
 use itertools::Itertools;
 
 use super::utils;
 use crate::{Diagnostic, Version};
 
-const EXTENSION_SCOPE_NAME: &str = "extension";
+const SCOPE_NAME_EXTENSION: &str = "extension";
+const SCOPE_NAME_FUNCTION: &str = "function";
+
+const ATTR_KIND_EXTENSION: InkAttributeKind = InkAttributeKind::Arg(InkArgKind::Extension);
+const ATTR_KIND_FUNCTION: InkAttributeKind = InkAttributeKind::Arg(InkArgKind::Function);
 
 /// Runs all ink! extension/function diagnostics.
 ///
@@ -23,31 +27,39 @@ where
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     utils::run_generic_diagnostics(results, extension_fn, version);
 
-    // Ensures that ink! extension is an `fn` item, see `utils::ensure_fn` doc.
+    let scope_name = versioned_scope_name(version);
+
+    // Ensures that ink! extension/function is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L473>.
-    if let Some(diagnostic) = utils::ensure_fn(extension_fn, EXTENSION_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_fn(extension_fn, scope_name) {
         results.push(diagnostic);
     }
 
     if let Some(fn_item) = extension_fn.fn_item() {
-        // Ensures that ink! extension `fn` item satisfies all common invariants of function-based ink! entities,
+        // Ensures that ink! extension/function `fn` item satisfies all common invariants of function-based ink! entities,
         // see `utils::ensure_fn_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L395-L465>.
-        utils::ensure_fn_invariants(results, fn_item, EXTENSION_SCOPE_NAME);
+        utils::ensure_fn_invariants(results, fn_item, scope_name);
 
         // Ensures that ink! extension `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L488-L493>.
-        if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, EXTENSION_SCOPE_NAME) {
+        if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, scope_name) {
             results.push(diagnostic);
         }
     }
 
-    // Ensures that ink! extension input and output types implement SCALE codec traits,
+    // Ensures that ink! extension/function input and output types implement SCALE codec traits,
     // see `ensure_custom_types_impl_scale_codec_traits` doc.
-    ensure_custom_types_impl_scale_codec_traits(results, extension_fn);
+    ensure_custom_types_impl_scale_codec_traits(results, extension_fn, version);
 
-    // Ensures that ink! extension has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, extension_fn, EXTENSION_SCOPE_NAME);
+    // Ensures that ink! extension/function has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
+    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+        results,
+        extension_fn,
+        versioned_attr_kind(version),
+        version,
+        scope_name,
+    );
 }
 
 // Ensures that the ink! extension/function input and output types implement SCALE codec traits.
@@ -55,8 +67,11 @@ where
 // Ref: <https://docs.substrate.io/reference/scale-codec/>.
 //
 // Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L859-L860>.
-fn ensure_custom_types_impl_scale_codec_traits<T>(results: &mut Vec<Diagnostic>, extension_fn: &T)
-where
+fn ensure_custom_types_impl_scale_codec_traits<T>(
+    results: &mut Vec<Diagnostic>,
+    extension_fn: &T,
+    version: Version,
+) where
     T: IsChainExtensionFn,
 {
     // Extracts all custom types from input and output types.
@@ -102,7 +117,11 @@ where
                 // Deduplicate custom types.
                 .unique_by(|adt| adt.syntax().text_range())
                 .filter_map(|adt| {
-                    utils::ensure_impl_scale_codec_traits(&adt, "extension input and output types")
+                    utils::ensure_impl_scale_codec_traits(
+                        &adt,
+                        "extension input and output types",
+                        version,
+                    )
                 }),
         );
     }
@@ -165,6 +184,22 @@ fn extract_resolvable_custom_types(
                     .flatten()
                     .collect::<Vec<_>>()
             }))
+}
+
+fn versioned_scope_name(version: Version) -> &'static str {
+    if version == Version::V5 {
+        SCOPE_NAME_FUNCTION
+    } else {
+        SCOPE_NAME_EXTENSION
+    }
+}
+
+fn versioned_attr_kind(version: Version) -> InkAttributeKind {
+    if version == Version::V5 {
+        ATTR_KIND_FUNCTION
+    } else {
+        ATTR_KIND_EXTENSION
+    }
 }
 
 #[cfg(test)]
@@ -250,7 +285,7 @@ mod tests {
                     utils::ensure_fn_invariants(
                         &mut results,
                         extension.fn_item().unwrap(),
-                        EXTENSION_SCOPE_NAME,
+                        SCOPE_NAME_FUNCTION,
                     );
                 } else {
                     let extension: Extension = parse_first_ink_entity_of_type(quote_as_str! {
@@ -259,7 +294,7 @@ mod tests {
                     utils::ensure_fn_invariants(
                         &mut results,
                         extension.fn_item().unwrap(),
-                        EXTENSION_SCOPE_NAME,
+                        SCOPE_NAME_EXTENSION,
                     );
                 }
                 assert!(
@@ -380,14 +415,14 @@ mod tests {
                     utils::ensure_fn_invariants(
                         &mut results,
                         extension.fn_item().unwrap(),
-                        EXTENSION_SCOPE_NAME,
+                        SCOPE_NAME_FUNCTION,
                     );
                 } else {
                     let extension: Extension = parse_first_ink_entity_of_type(&code);
                     utils::ensure_fn_invariants(
                         &mut results,
                         extension.fn_item().unwrap(),
-                        EXTENSION_SCOPE_NAME,
+                        SCOPE_NAME_EXTENSION,
                     );
                 }
 
@@ -424,7 +459,7 @@ mod tests {
                     });
                     utils::ensure_no_self_receiver(
                         extension.fn_item().unwrap(),
-                        EXTENSION_SCOPE_NAME,
+                        SCOPE_NAME_FUNCTION,
                     )
                 } else {
                     let extension: Extension = parse_first_ink_entity_of_type(quote_as_str! {
@@ -432,7 +467,7 @@ mod tests {
                     });
                     utils::ensure_no_self_receiver(
                         extension.fn_item().unwrap(),
-                        EXTENSION_SCOPE_NAME,
+                        SCOPE_NAME_EXTENSION,
                     )
                 };
                 assert!(
@@ -491,13 +526,13 @@ mod tests {
                     let extension: Function = parse_first_ink_entity_of_type(&code);
                     utils::ensure_no_self_receiver(
                         extension.fn_item().unwrap(),
-                        EXTENSION_SCOPE_NAME,
+                        SCOPE_NAME_FUNCTION,
                     )
                 } else {
                     let extension: Extension = parse_first_ink_entity_of_type(&code);
                     utils::ensure_no_self_receiver(
                         extension.fn_item().unwrap(),
-                        EXTENSION_SCOPE_NAME,
+                        SCOPE_NAME_EXTENSION,
                     )
                 };
 
@@ -540,12 +575,12 @@ mod tests {
                     let extension: Function = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
-                    ensure_custom_types_impl_scale_codec_traits(&mut results, &extension);
+                    ensure_custom_types_impl_scale_codec_traits(&mut results, &extension, version);
                 } else {
                     let extension: Extension = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
-                    ensure_custom_types_impl_scale_codec_traits(&mut results, &extension);
+                    ensure_custom_types_impl_scale_codec_traits(&mut results, &extension, version);
                 }
                 assert!(
                     results.is_empty(),
@@ -558,18 +593,31 @@ mod tests {
 
     #[test]
     fn custom_types_missing_impl_scale_codec_traits_fails() {
-        let expected_quickfixes = vec![TestResultAction {
-            label: "Derive `scale::Encode`, `scale::Decode`, `scale_info::TypeInfo`",
-            edits: vec![TestResultTextRange {
-                text: "scale::Encode, scale::Decode, scale_info::TypeInfo",
-                start_pat: Some("<-struct MyType;"),
-                end_pat: Some("<-struct MyType;"),
-            }],
-        }];
-
-        for (version, id_arg_kind) in [
-            (Version::V4, quote! { extension }),
-            (Version::V5, quote! { function }),
+        for (version, id_arg_kind, expected_quickfixes) in [
+            (
+                Version::V4,
+                quote! { extension },
+                vec![TestResultAction {
+                    label: "Derive `scale::Encode`, `scale::Decode`, `scale_info::TypeInfo`",
+                    edits: vec![TestResultTextRange {
+                        text: "#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]",
+                        start_pat: Some("<-struct MyType;"),
+                        end_pat: Some("<-struct MyType;"),
+                    }],
+                }],
+            ),
+            (
+                Version::V5,
+                quote! { function },
+                vec![TestResultAction {
+                    label: "Derive `scale::Encode`, `scale::Decode`, `scale_info::TypeInfo`",
+                    edits: vec![TestResultTextRange {
+                        text: "#[ink::scale_derive(Encode, Decode, TypeInfo)]",
+                        start_pat: Some("<-struct MyType;"),
+                        end_pat: Some("<-struct MyType;"),
+                    }],
+                }],
+            ),
         ] {
             for fn_def in [
                 // Simple custom type.
@@ -683,10 +731,10 @@ mod tests {
 
                 if version == Version::V5 {
                     let extension: Function = parse_first_ink_entity_of_type(&code);
-                    ensure_custom_types_impl_scale_codec_traits(&mut results, &extension);
+                    ensure_custom_types_impl_scale_codec_traits(&mut results, &extension, version);
                 } else {
                     let extension: Extension = parse_first_ink_entity_of_type(&code);
-                    ensure_custom_types_impl_scale_codec_traits(&mut results, &extension);
+                    ensure_custom_types_impl_scale_codec_traits(&mut results, &extension, version);
                 }
 
                 // Verifies diagnostics.
@@ -721,19 +769,23 @@ mod tests {
                     let extension: Function = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
-                    utils::ensure_no_ink_descendants(
+                    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
                         &mut results,
                         &extension,
-                        EXTENSION_SCOPE_NAME,
+                        versioned_attr_kind(version),
+                        version,
+                        versioned_scope_name(version),
                     );
                 } else {
                     let extension: Extension = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
-                    utils::ensure_no_ink_descendants(
+                    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
                         &mut results,
                         &extension,
-                        EXTENSION_SCOPE_NAME,
+                        versioned_attr_kind(version),
+                        version,
+                        versioned_scope_name(version),
                     );
                 }
                 assert!(
@@ -765,10 +817,22 @@ mod tests {
 
             if version == Version::V5 {
                 let extension: Function = parse_first_ink_entity_of_type(&code);
-                utils::ensure_no_ink_descendants(&mut results, &extension, EXTENSION_SCOPE_NAME);
+                utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                    &mut results,
+                    &extension,
+                    versioned_attr_kind(version),
+                    version,
+                    versioned_scope_name(version),
+                );
             } else {
                 let extension: Extension = parse_first_ink_entity_of_type(&code);
-                utils::ensure_no_ink_descendants(&mut results, &extension, EXTENSION_SCOPE_NAME);
+                utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                    &mut results,
+                    &extension,
+                    versioned_attr_kind(version),
+                    version,
+                    versioned_scope_name(version),
+                );
             }
 
             // 2 diagnostics for `event` and `topic`.

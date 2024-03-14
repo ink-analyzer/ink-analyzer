@@ -5,7 +5,7 @@ use ink_analyzer_ir::{InkEntity, Topic};
 use super::utils;
 use crate::{Action, Diagnostic, Severity, Version};
 
-const TOPIC_SCOPE_NAME: &str = "topic";
+const SCOPE_NAME: &str = "topic";
 
 /// Runs all ink! topic diagnostics.
 ///
@@ -22,7 +22,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, topic: &Topic, version: Versio
     }
 
     // Ensures that ink! topic has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, topic, TOPIC_SCOPE_NAME);
+    utils::ensure_no_ink_descendants(results, topic, SCOPE_NAME, false);
 }
 
 /// Ensures that ink! topic is a `struct` field.

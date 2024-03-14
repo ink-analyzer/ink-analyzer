@@ -1,7 +1,7 @@
 //! ink! chain extension `ErrorCode` diagnostics.
 
 use ink_analyzer_ir::ast::{AstNode, HasName};
-use ink_analyzer_ir::{ast, ChainExtension, InkEntity};
+use ink_analyzer_ir::{ast, ChainExtension, InkEntity, Version};
 
 use super::utils;
 use crate::codegen::snippets::{FROM_STATUS_CODE_IMPL_PLAIN, FROM_STATUS_CODE_IMPL_SNIPPET};
@@ -17,7 +17,11 @@ const INK_ENV_CHAIN_EXTENSION_QUALIFIERS: [&str; 2] =
 /// Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L1269-L1274>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L1092-L1094>.
-pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtension) {
+pub fn diagnostics(
+    results: &mut Vec<Diagnostic>,
+    chain_extension: &ChainExtension,
+    version: Version,
+) {
     // Ensures that ink! chain extension `ErrorCode` type can be resolved, see `ensure_resolvable` doc.
     if let Some(diagnostic) = ensure_resolvable(chain_extension) {
         results.push(diagnostic);
@@ -31,7 +35,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, chain_extension: &ChainExtensi
 
     // Ensures that ink! chain extension `ErrorCode` type implements the SCALE codec traits,
     // see `ensure_impl_scale_codec_traits` doc.
-    if let Some(diagnostic) = ensure_impl_scale_codec_traits(chain_extension) {
+    if let Some(diagnostic) = ensure_impl_scale_codec_traits(chain_extension, version) {
         results.push(diagnostic);
     }
 
@@ -110,10 +114,14 @@ fn ensure_impl_from_status_code(chain_extension: &ChainExtension) -> Option<Diag
 // Ref: <https://docs.substrate.io/reference/scale-codec/>.
 //
 // Ref: <https://github.com/paritytech/ink/blob/v4.3.0/crates/ink/macro/src/lib.rs#L1092-L1094>.
-fn ensure_impl_scale_codec_traits(chain_extension: &ChainExtension) -> Option<Diagnostic> {
+fn ensure_impl_scale_codec_traits(
+    chain_extension: &ChainExtension,
+    version: Version,
+) -> Option<Diagnostic> {
     // Only continue if there's an `ErrorCode` type.
-    error_code_adt(chain_extension)
-        .and_then(|adt| utils::ensure_impl_scale_codec_traits(&adt, "`ErrorCode` associated type"))
+    error_code_adt(chain_extension).and_then(|adt| {
+        utils::ensure_impl_scale_codec_traits(&adt, "`ErrorCode` associated type", version)
+    })
 }
 
 // Returns an error diagnostic for every usage of `Self::ErrorCode` in the chain extension or its defined methods.
@@ -171,8 +179,25 @@ mod tests {
     use test_utils::{quote_as_pretty_string, TestResultAction, TestResultTextRange};
 
     // `ErrorCode` type definition.
+    macro_rules! error_code_type_defs_versioned {
+        (v4) => {
+            []
+        };
+        (v5) => {
+            [(
+                quote! {},
+                quote! {
+                    #[ink::scale_derive(Encode, Decode, TypeInfo)]
+                },
+                quote! {},
+            )]
+        };
+    }
     macro_rules! error_code_type_defs {
         () => {
+            error_code_type_defs!(v4)
+        };
+        ($version: tt) => {
             [
                 // Fully qualified paths.
                 (
@@ -255,6 +280,7 @@ mod tests {
                 ),
             ]
             .into_iter()
+            .chain(error_code_type_defs_versioned!($version))
             .chain(
                 // Custom implementations.
                 [
@@ -360,6 +386,15 @@ mod tests {
 
     macro_rules! valid_error_codes {
         () => {
+            valid_error_codes!(v4)
+        };
+        (v4) => {
+            valid_error_codes!(extension)
+        };
+        (v5) => {
+            valid_error_codes!(function, extension = 1)
+        };
+        ($id_arg_kind: expr $(, $macro_args: meta)?) => {
             error_code_type_defs!()
                 .flat_map(|type_def| {
                     [
@@ -372,25 +407,25 @@ mod tests {
                 })
                 .flat_map(|(type_def, type_alias)| {
                     [
-                        // No extensions.
+                        // No extension fns.
                         quote! {},
-                        // Extension variations.
+                        // Extension fn variations.
                         quote! {
-                            #[ink(extension=1)]
+                            #[ink($id_arg_kind=1)]
                             fn my_extension();
 
-                            #[ink(extension=2)]
+                            #[ink($id_arg_kind=2)]
                             fn my_extension4(a: i32) -> bool;
                         },
                     ]
                     .into_iter()
-                    .map(move |extensions| {
+                    .map(move |extension_fns| {
                         quote_as_pretty_string! {
-                            #[ink::chain_extension]
+                            #[ink::chain_extension$(($macro_args))?]
                             pub trait my_chain_extension {
                                 #type_alias
 
-                                #extensions
+                                #extension_fns
                             }
 
                             #type_def
@@ -573,115 +608,183 @@ mod tests {
 
     #[test]
     fn impl_scale_codec_traits_works() {
-        for code in valid_error_codes!() {
-            let chain_extension = parse_first_ink_entity_of_type(&code);
+        for (version, error_codes) in versioned_fixtures!(valid_error_codes) {
+            for code in error_codes {
+                let chain_extension = parse_first_ink_entity_of_type(&code);
 
-            let result = ensure_impl_scale_codec_traits(&chain_extension);
-            assert!(result.is_none(), "code: {code}");
+                let result = ensure_impl_scale_codec_traits(&chain_extension, version);
+                assert!(result.is_none(), "code: {code}, version: {:?}", version);
+            }
         }
     }
 
     #[test]
     fn missing_impl_scale_codec_traits_fails() {
-        for (attrs, expected_quickfixes) in [
+        for (version, fixtures) in [
             (
-                quote! {},
-                vec![TestResultAction {
-                    label: "Derive `scale::Encode`, `scale::Decode`, `scale_info::TypeInfo`",
-                    edits: vec![TestResultTextRange {
-                        text: "scale::Encode, scale::Decode, scale_info::TypeInfo",
-                        start_pat: Some("<-pub enum MyErrorCode {"),
-                        end_pat: Some("<-pub enum MyErrorCode {"),
-                    }],
-                }],
+                Version::V4,
+                vec![
+                    (
+                        quote! {},
+                        vec![TestResultAction {
+                            label:
+                                "Derive `scale::Encode`, `scale::Decode`, `scale_info::TypeInfo`",
+                            edits: vec![TestResultTextRange {
+                                text:
+                                    "#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]",
+                                start_pat: Some("<-pub enum MyErrorCode {"),
+                                end_pat: Some("<-pub enum MyErrorCode {"),
+                            }],
+                        }],
+                    ),
+                    (
+                        quote! {
+                            #[derive(scale::Encode, scale::Decode)]
+                        },
+                        vec![TestResultAction {
+                            label: "Derive `scale_info::TypeInfo`",
+                            edits: vec![TestResultTextRange {
+                                text: "scale_info::TypeInfo",
+                                start_pat: Some("<-#[derive(scale::Encode, scale::Decode)]"),
+                                end_pat: Some("#[derive(scale::Encode, scale::Decode)]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        quote! {
+                            #[derive(scale::Encode, scale_info::TypeInfo)]
+                        },
+                        vec![TestResultAction {
+                            label: "Derive `scale::Decode`",
+                            edits: vec![TestResultTextRange {
+                                text: "scale::Decode",
+                                start_pat: Some("<-#[derive(scale::Encode, scale_info::TypeInfo)]"),
+                                end_pat: Some("#[derive(scale::Encode, scale_info::TypeInfo)]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        quote! {
+                            #[derive(scale::Decode, scale_info::TypeInfo)]
+                        },
+                        vec![TestResultAction {
+                            label: "Derive `scale::Encode`",
+                            edits: vec![TestResultTextRange {
+                                text: "scale::Encode",
+                                start_pat: Some("<-#[derive(scale::Decode, scale_info::TypeInfo)]"),
+                                end_pat: Some("#[derive(scale::Decode, scale_info::TypeInfo)]"),
+                            }],
+                        }],
+                    ),
+                ],
             ),
             (
-                quote! {
-                    #[derive(scale::Encode, scale::Decode)]
-                },
-                vec![TestResultAction {
-                    label: "Derive `scale_info::TypeInfo`",
-                    edits: vec![TestResultTextRange {
-                        text: "scale_info::TypeInfo",
-                        start_pat: Some("<-#[derive(scale::Encode, scale::Decode)]"),
-                        end_pat: Some("#[derive(scale::Encode, scale::Decode)]"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    #[derive(scale::Encode, scale_info::TypeInfo)]
-                },
-                vec![TestResultAction {
-                    label: "Derive `scale::Decode`",
-                    edits: vec![TestResultTextRange {
-                        text: "scale::Decode",
-                        start_pat: Some("<-#[derive(scale::Encode, scale_info::TypeInfo)]"),
-                        end_pat: Some("#[derive(scale::Encode, scale_info::TypeInfo)]"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    #[derive(scale::Decode, scale_info::TypeInfo)]
-                },
-                vec![TestResultAction {
-                    label: "Derive `scale::Encode`",
-                    edits: vec![TestResultTextRange {
-                        text: "scale::Encode",
-                        start_pat: Some("<-#[derive(scale::Decode, scale_info::TypeInfo)]"),
-                        end_pat: Some("#[derive(scale::Decode, scale_info::TypeInfo)]"),
-                    }],
-                }],
+                Version::V5,
+                vec![
+                    (
+                        quote! {},
+                        vec![TestResultAction {
+                            label:
+                                "Derive `scale::Encode`, `scale::Decode`, `scale_info::TypeInfo`",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink::scale_derive(Encode, Decode, TypeInfo)]",
+                                start_pat: Some("<-pub enum MyErrorCode {"),
+                                end_pat: Some("<-pub enum MyErrorCode {"),
+                            }],
+                        }],
+                    ),
+                    (
+                        quote! {
+                            #[ink::scale_derive(Encode, Decode)]
+                        },
+                        vec![TestResultAction {
+                            label: "Derive `scale_info::TypeInfo`",
+                            edits: vec![TestResultTextRange {
+                                text: "TypeInfo",
+                                start_pat: Some("<-#[ink::scale_derive(Encode, Decode)]"),
+                                end_pat: Some("#[ink::scale_derive(Encode, Decode)]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        quote! {
+                            #[ink::scale_derive(Encode, TypeInfo)]
+                        },
+                        vec![TestResultAction {
+                            label: "Derive `scale::Decode`",
+                            edits: vec![TestResultTextRange {
+                                text: "Decode",
+                                start_pat: Some("<-#[ink::scale_derive(Encode, TypeInfo)]"),
+                                end_pat: Some("#[ink::scale_derive(Encode, TypeInfo)]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        quote! {
+                            #[ink::scale_derive(Decode, TypeInfo)]
+                        },
+                        vec![TestResultAction {
+                            label: "Derive `scale::Encode`",
+                            edits: vec![TestResultTextRange {
+                                text: "Encode",
+                                start_pat: Some("<-#[ink::scale_derive(Decode, TypeInfo)]"),
+                                end_pat: Some("#[ink::scale_derive(Decode, TypeInfo)]"),
+                            }],
+                        }],
+                    ),
+                ],
             ),
         ] {
-            let code = quote_as_pretty_string! {
-                #[ink::chain_extension]
-                pub trait my_chain_extension {
-                    type ErrorCode = crate::MyErrorCode;
+            for (attrs, expected_quickfixes) in fixtures {
+                let code = quote_as_pretty_string! {
+                    #[ink::chain_extension]
+                    pub trait my_chain_extension {
+                        type ErrorCode = crate::MyErrorCode;
 
-                    // --snip--
-                }
+                        // --snip--
+                    }
 
-                #attrs
-                pub enum MyErrorCode {
-                    InvalidKey,
-                    CannotWriteToKey,
-                    CannotReadFromKey,
-                }
+                    #attrs
+                    pub enum MyErrorCode {
+                        InvalidKey,
+                        CannotWriteToKey,
+                        CannotReadFromKey,
+                    }
 
-                impl ink::env::chain_extension::FromStatusCode for MyErrorCode {
-                    fn from_status_code(status_code: u32) -> Result<(), Self> {
-                        match status_code {
-                            0 => Ok(()),
-                            1 => Err(Self::InvalidKey),
-                            2 => Err(Self::CannotWriteToKey),
-                            3 => Err(Self::CannotReadFromKey),
-                            _ => panic!("encountered unknown status code"),
+                    impl ink::env::chain_extension::FromStatusCode for MyErrorCode {
+                        fn from_status_code(status_code: u32) -> Result<(), Self> {
+                            match status_code {
+                                0 => Ok(()),
+                                1 => Err(Self::InvalidKey),
+                                2 => Err(Self::CannotWriteToKey),
+                                3 => Err(Self::CannotReadFromKey),
+                                _ => panic!("encountered unknown status code"),
+                            }
                         }
                     }
-                }
-            };
-            let chain_extension = parse_first_ink_entity_of_type(&code);
+                };
+                let chain_extension = parse_first_ink_entity_of_type(&code);
 
-            let result = ensure_impl_scale_codec_traits(&chain_extension);
+                let result = ensure_impl_scale_codec_traits(&chain_extension, version);
 
-            // Verifies diagnostics.
-            assert!(result.is_some(), "code: {code}");
-            assert_eq!(
-                result.as_ref().unwrap().severity,
-                Severity::Error,
-                "code: {code}"
-            );
-            // Verifies quickfixes.
-            let empty = Vec::new();
-            let quickfixes = result
-                .as_ref()
-                .unwrap()
-                .quickfixes
-                .as_ref()
-                .unwrap_or(&empty);
-            verify_actions(&code, quickfixes, &expected_quickfixes);
+                // Verifies diagnostics.
+                assert!(result.is_some(), "code: {code}, version: {:?}", version);
+                assert_eq!(
+                    result.as_ref().unwrap().severity,
+                    Severity::Error,
+                    "code: {code}, version: {:?}",
+                    version
+                );
+                // Verifies quickfixes.
+                let empty = Vec::new();
+                let quickfixes = result
+                    .as_ref()
+                    .unwrap()
+                    .quickfixes
+                    .as_ref()
+                    .unwrap_or(&empty);
+                verify_actions(&code, quickfixes, &expected_quickfixes);
+            }
         }
     }
 

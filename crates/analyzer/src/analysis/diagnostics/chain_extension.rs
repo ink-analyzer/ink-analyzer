@@ -8,7 +8,7 @@ use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::{
     ast, ChainExtension, Extension, Function, InkArg, InkArgKind, InkAttributeKind, InkEntity,
-    InkFile, IsChainExtensionFn, IsInkTrait, IsIntId,
+    InkFile, InkMacroKind, IsChainExtensionFn, IsInkTrait, IsIntId,
 };
 
 use super::{extension_fn, utils};
@@ -17,7 +17,7 @@ use crate::analysis::{
 };
 use crate::{Action, ActionKind, Diagnostic, Severity, TextRange, Version};
 
-const CHAIN_EXTENSION_SCOPE_NAME: &str = "chain extension";
+const SCOPE_NAME: &str = "chain extension";
 
 /// Runs all ink! chain extension diagnostics.
 ///
@@ -44,7 +44,7 @@ pub fn diagnostics(
 
     // Ensures that ink! chain extension is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L222>.
-    if let Some(diagnostic) = utils::ensure_trait(chain_extension, CHAIN_EXTENSION_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_trait(chain_extension, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -52,7 +52,7 @@ pub fn diagnostics(
         // Ensures that ink! chain extension `trait` item satisfies all common invariants of trait-based ink! entities,
         // see `utils::ensure_trait_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
-        utils::ensure_trait_invariants(results, trait_item, CHAIN_EXTENSION_SCOPE_NAME);
+        utils::ensure_trait_invariants(results, trait_item, SCOPE_NAME);
     }
 
     // Ensures that ink! chain extension `trait` item's associated items satisfy all invariants,
@@ -75,7 +75,7 @@ pub fn diagnostics(
     ensure_valid_quasi_direct_ink_descendants(results, chain_extension, version);
 
     // Runs ink! chain extension `ErrorCode` type diagnostics, see `error_code::diagnostics` doc.
-    error_code::diagnostics(results, chain_extension);
+    error_code::diagnostics(results, chain_extension, version);
 }
 
 /// Ensures that ink! chain extension has an ink! extension attribute argument,
@@ -475,14 +475,13 @@ fn ensure_valid_quasi_direct_ink_descendants(
     chain_extension: &ChainExtension,
     version: Version,
 ) {
-    utils::ensure_valid_quasi_direct_ink_descendants(results, chain_extension, |attr| {
-        let id_arg_kind = match version {
-            Version::V4 => InkArgKind::Extension,
-            Version::V5 => InkArgKind::Function,
-        };
-        *attr.kind() == InkAttributeKind::Arg(id_arg_kind)
-            || *attr.kind() == InkAttributeKind::Arg(InkArgKind::HandleStatus)
-    });
+    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+        results,
+        chain_extension,
+        InkAttributeKind::Macro(InkMacroKind::ChainExtension),
+        version,
+        SCOPE_NAME,
+    );
 }
 
 /// Initializes unavailable extension ids.
@@ -531,12 +530,12 @@ mod tests {
             valid_chain_extensions!(v4)
         };
         (v4) => {
-            valid_chain_extensions!(extension)
+            valid_chain_extensions!(extension, derive(scale::Encode, scale::Decode, scale_info::TypeInfo))
         };
         (v5) => {
-            valid_chain_extensions!(function, extension=1)
+            valid_chain_extensions!(function, ink::scale_derive(Encode, Decode, TypeInfo), extension=1)
         };
-        ($id_arg_kind: expr $(, $macro_args: meta)?) => {
+        ($id_arg_kind: expr, $scale_derive_attr: meta $(, $macro_args: meta)?) => {
             [
                 // No functions.
                 quote! {
@@ -609,7 +608,7 @@ mod tests {
                             #extensions
                         }
 
-                        #[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]
+                        #[$scale_derive_attr]
                         pub enum MyErrorCode {
                             InvalidKey,
                             CannotWriteToKey,
@@ -1441,7 +1440,6 @@ mod tests {
 
                 let mut results = Vec::new();
                 ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension, version);
-                dbg!(&results);
                 assert!(
                     results.is_empty(),
                     "chain extension: {code}, version: {:?}",

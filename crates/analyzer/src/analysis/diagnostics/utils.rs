@@ -19,7 +19,7 @@ use crate::analysis::utils;
 use crate::{resolution, Action, ActionKind, Diagnostic, Severity, Version};
 
 /// Runs generic diagnostics that apply to all ink! entities.
-/// (e.g `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
+/// (e.g. `ensure_no_unknown_ink_attributes`, `ensure_no_ink_identifiers`,
 /// `ensure_no_duplicate_attributes_and_arguments`, `validate_arg`).
 pub fn run_generic_diagnostics<T: InkEntity>(
     results: &mut Vec<Diagnostic>,
@@ -103,12 +103,12 @@ fn ensure_no_ink_identifiers<T: InkEntity>(results: &mut Vec<Diagnostic>, item: 
 
 /// Returns a warning diagnostic for every unknown ink! attribute found.
 ///
-/// Handles both ink! attribute macros (e.g `#[ink::xyz]`)
-/// and ink! attribute arguments (e.g `#[ink(xyz)]`).
-/// Relies on the ink! attribute kind, so while it catches all unknown ink! attribute macros (e.g `#[ink::xyz]`),
-/// It only catches unknown ink! attribute arguments if they're the only annotation for the attribute (e.g `#[ink(xyz)]`),
+/// Handles both ink! attribute macros (e.g. `#[ink::xyz]`)
+/// and ink! attribute arguments (e.g. `#[ink(xyz)]`).
+/// Relies on the ink! attribute kind, so while it catches all unknown ink! attribute macros (e.g. `#[ink::xyz]`),
+/// It only catches unknown ink! attribute arguments if they're the only annotation for the attribute (e.g. `#[ink(xyz)]`),
 /// It doesn't catch unknown arguments appearing in combination with valid ink! attribute macros and arguments
-/// (e.g `#[ink::contract(xyz)]` or `#[ink(storage, xyz)]`).
+/// (e.g. `#[ink::contract(xyz)]` or `#[ink(storage, xyz)]`).
 /// Those are handled by `validate_arg`.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L876-L1024>.
@@ -317,7 +317,7 @@ fn validate_arg(
                         .is_some_and(|value| value.as_path_with_inaccurate_text_range().is_some());
                     if !is_path {
                         add_diagnostic(format!(
-                            "`{arg_name_text}` argument should have a `path` (e.g `foo::bar::Baz`) value."
+                            "`{arg_name_text}` argument should have a `path` (e.g. `foo::bar::Baz`) value."
                         ));
                     }
                 }
@@ -352,7 +352,7 @@ fn validate_arg(
         if let Some(value) = arg.value() {
             results.push(Diagnostic {
                 message: format!(
-                    "`{name}` argument should use nested meta-item syntax (e.g `{name}({default_kind})`)."
+                    "`{name}` argument should use nested meta-item syntax (e.g. `{name}({default_kind})`)."
                 ),
                 range,
                 severity: Severity::Error,
@@ -385,7 +385,7 @@ fn validate_arg(
                 message: format!(
                     "`{name}` argument should have a nested meta-item{}.",
                     if let Some(default_kind) = options.first() {
-                        format!(" (e.g `{name}({default_kind})`)")
+                        format!(" (e.g. `{name}({default_kind})`)")
                     } else {
                         "".to_owned()
                     }
@@ -491,16 +491,16 @@ fn ensure_no_duplicate_attributes_and_arguments(
 /// Ensures that no conflicting ink! attributes and/or arguments.
 ///
 /// In addition to straight forward conflicts
-/// (e.g both `contract` and `trait_definition` applied to the same item,
+/// (e.g. both `contract` and `trait_definition` applied to the same item,
 /// `anonymous` combined with `message`  or `derive` on a `contract` attribute),
 /// 3 more cases are considered conflicts:
 ///
 /// 1. Wrong order of otherwise valid attributes and/or arguments
-/// (e.g `payable` declared before `message` or `anonymous` declared before `event`).
+/// (e.g. `payable` before `message` or `anonymous` before `event`).
 ///
-/// 2. Incompleteness (e.g `anonymous` without `event` or `derive` without `storage_item` attribute macro)
+/// 2. Incompleteness (e.g. `anonymous` without `event` or `derive` without `storage_item` attribute macro)
 ///
-/// 3. Ambiguity (e.g `payable` with neither `constructor` nor `message` or
+/// 3. Ambiguity (e.g. `payable` with neither `constructor` nor `message` or
 /// `keep_attr` with neither `contract` nor `trait_definition` attribute macros) are also treated as conflicts
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L613-L658>.
@@ -648,8 +648,8 @@ fn ensure_no_conflicting_attributes_and_arguments(
             }
         }
 
-        // Suggests possible primary ink! attributes if the primary candidate is either incomplete or ambiguous or both
-        // and it's also not `namespace` (which is valid on it's own).
+        // Suggests possible primary ink! attributes if the primary candidate is either incomplete
+        // or ambiguous or both, and its also not `namespace` (which is valid on its own).
         if !primary_attribute_kind_suggestions.is_empty() && !is_namespace {
             // Quickfix for adding a ink! attribute of the given kind as the primary attribute (if possible).
             let add_primary_ink_attribute = |attr_kind: &InkAttributeKind| {
@@ -784,17 +784,30 @@ fn ensure_no_conflicting_attributes_and_arguments(
 
         for (idx, attr) in attrs.iter().enumerate() {
             // Check for attribute kind level conflict.
-            let is_conflicting_attribute =
+            let is_valid_sibling_attr =
                 if *attr == primary_ink_attr_candidate || (idx == 0 && !primary_candidate_first) {
-                    // Primary attribute can't conflict with itself
+                    // Primary attribute can't conflict with itself,
                     // and we ignore any conflict errors with the first attribute if it's not the primary attribute
                     // in favor of placing the error on the primary attribute candidate which was already done earlier.
-                    false
+                    true
                 } else {
                     match primary_ink_attr_candidate.kind() {
-                        // ink! attribute macros are never mixed with other ink! attributes.
-                        // So any additional ink! attribute macro is always a conflict.
-                        InkAttributeKind::Macro(_) => true,
+                        // Generally, ink! attribute macros are never mixed with other ink! attributes,
+                        // except for `scale_derive` and `storage_item` but only in ink! v5.
+                        InkAttributeKind::Macro(primary_macro_kind) if version == Version::V5 => {
+                            // Duplicates are handled by `ensure_no_duplicate_attributes_and_arguments`, so we don't need that logic here.
+                            matches!(
+                                primary_macro_kind,
+                                InkMacroKind::ScaleDerive | InkMacroKind::StorageItem
+                            ) && matches!(
+                                attr.kind(),
+                                InkAttributeKind::Macro(
+                                    InkMacroKind::ScaleDerive | InkMacroKind::StorageItem
+                                )
+                            )
+                        }
+                        // For v4, any additional ink! attributes mixed with a "primary" ink! attribute macro is always a conflict.
+                        InkAttributeKind::Macro(_) => false,
                         // ink! attribute arguments can be mixed with other ink! attributes.
                         InkAttributeKind::Arg(_) => {
                             match attr.kind() {
@@ -802,11 +815,11 @@ fn ensure_no_conflicting_attributes_and_arguments(
                                 // potential primary attributes inorder not to conflict,
                                 // in which case our we let incompleteness and ambiguity above checks take care of that case.
                                 InkAttributeKind::Macro(_) => {
-                                    !primary_attribute_kind_suggestions.contains(attr.kind())
+                                    primary_attribute_kind_suggestions.contains(attr.kind())
                                 }
                                 // Additional ink! attribute arguments have to be valid siblings.
                                 InkAttributeKind::Arg(arg_kind) => {
-                                    !valid_sibling_args.contains(arg_kind)
+                                    valid_sibling_args.contains(arg_kind)
                                 }
                             }
                         }
@@ -814,7 +827,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
                 };
 
             // Handle attribute kind level conflict.
-            if is_conflicting_attribute {
+            if !is_valid_sibling_attr {
                 results.push(Diagnostic {
                     message: format!(
                         "ink! attribute `{}` conflicts with the {} ink! attribute `{}` for this item.",
@@ -872,7 +885,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
             } else {
                 // Handle argument level conflicts if the top level attribute kind doesn't conflict.
                 for arg in attr.args() {
-                    // Checks if the this arg kind is the same as the one being used by the attribute,
+                    // Checks if this arg kind is the same as the one being used by the attribute,
                     // which is already known to not be conflicting at this point.
                     let is_attribute_kind =
                         if let InkAttributeKind::Arg(attr_arg_kind) = attr.kind() {
@@ -1554,7 +1567,43 @@ where
     })
 }
 
-/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants
+/// (i.e. ink! descendants without any ink! ancestors).
+pub fn ensure_valid_quasi_direct_ink_descendants_by_kind<T>(
+    results: &mut Vec<Diagnostic>,
+    item: &T,
+    attr_kind: InkAttributeKind,
+    version: Version,
+    ink_scope_name: &str,
+) where
+    T: InkEntity,
+{
+    let valid_direct_descendants: Vec<_> =
+        utils::valid_quasi_direct_descendant_ink_macros(attr_kind, version)
+            .into_iter()
+            .map(InkAttributeKind::Macro)
+            .chain(
+                utils::valid_quasi_direct_descendant_ink_args(attr_kind, version)
+                    .into_iter()
+                    .map(InkAttributeKind::Arg),
+            )
+            .collect();
+    let allows_none = valid_direct_descendants.is_empty();
+    let allows_only_scale_derive = !allows_none
+        && !valid_direct_descendants
+            .iter()
+            .any(|attr_kind| *attr_kind != InkAttributeKind::Macro(InkMacroKind::ScaleDerive));
+    if allows_none || allows_only_scale_derive {
+        ensure_no_ink_descendants(results, item, ink_scope_name, allows_only_scale_derive)
+    } else {
+        let is_valid_quasi_direct_descendant =
+            |attr: &InkAttribute| valid_direct_descendants.contains(attr.kind());
+        ensure_valid_quasi_direct_ink_descendants(results, item, is_valid_quasi_direct_descendant)
+    }
+}
+
+/// Ensures that only valid quasi-direct ink! attribute descendants
+/// (i.e. ink! descendants without any ink! ancestors).
 pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
     results: &mut Vec<Diagnostic>,
     item: &T,
@@ -1570,7 +1619,7 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
                 | InkAttributeKind::Arg(InkArgKind::Unknown)
         )
     }) {
-        // Only show ink! scope diagnostics for the "primary" ink! attribute for it's parent item.
+        // Only show ink! scope diagnostics for the "primary" ink! attribute for its parent item.
         let is_primary_attribute = [attr.clone()]
             .into_iter()
             .chain(attr.siblings())
@@ -1603,8 +1652,12 @@ pub fn ensure_valid_quasi_direct_ink_descendants<T, F>(
 }
 
 /// Ensures that no ink! descendants in the item's scope.
-pub fn ensure_no_ink_descendants<T>(results: &mut Vec<Diagnostic>, item: &T, ink_scope_name: &str)
-where
+pub fn ensure_no_ink_descendants<T>(
+    results: &mut Vec<Diagnostic>,
+    item: &T,
+    ink_scope_name: &str,
+    allow_scale_derive: bool,
+) where
     T: InkEntity,
 {
     for attr in item.tree().ink_attrs_descendants().filter(|it| {
@@ -1612,7 +1665,8 @@ where
             it.kind(),
             InkAttributeKind::Macro(InkMacroKind::Unknown)
                 | InkAttributeKind::Arg(InkArgKind::Unknown)
-        )
+        ) && (!allow_scale_derive
+            || *it.kind() != InkAttributeKind::Macro(InkMacroKind::ScaleDerive))
     }) {
         results.push(Diagnostic {
             message: format!(
@@ -1692,7 +1746,18 @@ pub fn ensure_external_trait_impl(
 /// Ensures that the ADT item (i.e. struct, enum or union) implements all SCALE codec traits.
 ///
 /// Ref: <https://docs.substrate.io/reference/scale-codec/>.
-pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> Option<Diagnostic> {
+pub fn ensure_impl_scale_codec_traits(
+    adt: &ast::Adt,
+    message_prefix: &str,
+    version: Version,
+) -> Option<Diagnostic> {
+    // `scale_derive` attribute for v5 (if any).
+    let scale_derive_attr = if version == Version::V5 {
+        ink_analyzer_ir::ink_attrs(adt.syntax())
+            .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::ScaleDerive))
+    } else {
+        None
+    };
     // Standalone derive attribute (if any).
     let standalone_derive_attr = adt.attrs().find(|attr| {
         attr.path()
@@ -1773,18 +1838,44 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
     const SCALE_QUALIFIERS: [&str; 3] = ["scale", "ink::scale", "parity_scale_codec"];
     const SCALE_INFO_QUALIFIERS: [&str; 2] = ["scale_info", "ink::scale_info"];
     let unimplemented_traits: Vec<_> = ([
-        ("Encode", &SCALE_QUALIFIERS, "scale::Encode"),
-        ("Decode", &SCALE_QUALIFIERS, "scale::Decode"),
-        ("TypeInfo", &SCALE_INFO_QUALIFIERS, "scale_info::TypeInfo"),
-    ] as [(&str, &[&str], &str); 3])
+        (
+            "Encode",
+            &SCALE_QUALIFIERS,
+            "scale::Encode",
+            InkArgKind::Encode,
+        ),
+        (
+            "Decode",
+            &SCALE_QUALIFIERS,
+            "scale::Decode",
+            InkArgKind::Decode,
+        ),
+        (
+            "TypeInfo",
+            &SCALE_INFO_QUALIFIERS,
+            "scale_info::TypeInfo",
+            InkArgKind::TypeInfo,
+        ),
+    ] as [(&str, &[&str], &str, InkArgKind); 3])
         .into_iter()
-        .filter_map(|(trait_name, qualifiers, trait_path)| {
+        .filter_map(|(trait_name, qualifiers, trait_path, arg_kind)| {
             // Finds derived trait implementation for the custom type (if any).
-            let is_derived = derived_items.as_ref().is_some_and(|item_paths| {
-                item_paths.iter().any(|path| {
-                    resolution::is_external_crate_item(trait_name, path, qualifiers, adt.syntax())
+            let is_v5_derived = version == Version::V5
+                && scale_derive_attr
+                    .as_ref()
+                    .is_some_and(|attr| attr.args().iter().any(|arg| *arg.kind() == arg_kind));
+            let is_derived = || {
+                derived_items.as_ref().is_some_and(|item_paths| {
+                    item_paths.iter().any(|path| {
+                        resolution::is_external_crate_item(
+                            trait_name,
+                            path,
+                            qualifiers,
+                            adt.syntax(),
+                        )
+                    })
                 })
-            });
+            };
             // Finds trait implementation for the custom type (if any).
             let is_implemented = || {
                 adt.name()
@@ -1802,52 +1893,86 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
                     .is_some()
             };
 
-            (!is_derived && !is_implemented()).then_some(trait_path)
+            (!is_v5_derived && !is_derived() && !is_implemented()).then_some((trait_path, arg_kind))
         })
         .collect();
 
     // Returns diagnostic for unimplemented SCALE codec traits (if any).
     (!unimplemented_traits.is_empty()).then(|| {
         // Determines the insert text, range and snippet for adding a derive implementation.
-        let trait_paths_plain = unimplemented_traits.join(", ");
+        let trait_paths_plain = unimplemented_traits
+            .iter()
+            .map(|(path, arg_kind)| {
+                if version == Version::V5 {
+                    arg_kind.to_string()
+                } else {
+                    path.to_string()
+                }
+            })
+            .join(", ");
         let trait_paths_snippet = unimplemented_traits
             .iter()
             .enumerate()
-            .map(|(idx, path)| format!("${{{}:{path}}}", idx + 1))
+            .map(|(idx, (path, arg_kind))| {
+                format!(
+                    "${{{}:{}}}",
+                    idx + 1,
+                    if version == Version::V5 {
+                        arg_kind.to_string()
+                    } else {
+                        path.to_string()
+                    }
+                )
+            })
             .join(", ");
         let trait_paths_display = unimplemented_traits
             .iter()
-            .map(|path| format!("`{path}`"))
+            .map(|(path, _)| format!("`{path}`"))
             .join(", ");
-        // Either updates an existing standalone derive attribute or creates a new one.
-        let (insert_text, insert_range, insert_snippet) = standalone_derive_attr
+
+        // Either updates an existing `scale_derive` attribute (for v5) or
+        // standalone `derive` attribute (for v4), or creates a new one.
+        let (target_attr, attr_path) = if version == Version::V5 {
+            (
+                scale_derive_attr.as_ref().map(|attr| attr.ast()),
+                "ink::scale_derive",
+            )
+        } else {
+            (standalone_derive_attr.as_ref(), "derive")
+        };
+
+        let (insert_text, insert_range, insert_snippet) = target_attr
             .as_ref()
             .map(|attr| {
-                let meta_prefix = standalone_derive_meta.as_ref().map(|meta| {
-                    format!(
-                        "{meta}{}",
-                        if meta.trim_end().ends_with(',') {
-                            ""
-                        } else {
-                            ", "
-                        }
-                    )
-                });
+                let meta_prefix = if version == Version::V4 {
+                    standalone_derive_meta.as_ref().map(|meta| {
+                        format!(
+                            "{meta}{}",
+                            if meta.trim_end().ends_with(',') {
+                                ""
+                            } else {
+                                ", "
+                            }
+                        )
+                    })
+                } else {
+                    None
+                };
                 (
                     format!(
-                        "#[derive({}{trait_paths_plain})]",
+                        "#[{attr_path}({}{trait_paths_plain})]",
                         meta_prefix.as_deref().unwrap_or_default()
                     ),
                     attr.syntax().text_range(),
                     format!(
-                        "#[derive({}{trait_paths_snippet})]",
+                        "#[{attr_path}({}{trait_paths_snippet})]",
                         meta_prefix.as_deref().unwrap_or_default()
                     ),
                 )
             })
             .unwrap_or_else(|| {
                 (
-                    format!("#[derive({trait_paths_plain})]"),
+                    format!("#[{attr_path}({trait_paths_plain})]"),
                     TextRange::empty(
                         adt.attrs()
                             .last()
@@ -1864,9 +1989,10 @@ pub fn ensure_impl_scale_codec_traits(adt: &ast::Adt, message_prefix: &str) -> O
                             .map_or(adt.syntax().text_range(), SyntaxToken::text_range)
                             .start(),
                     ),
-                    format!("#[derive({trait_paths_snippet})]"),
+                    format!("#[{attr_path}({trait_paths_snippet})]"),
                 )
             });
+
         // Determines text range for item "declaration" (fallbacks to range of the entire item).
         let item_declaration_text_range = utils::ast_item_declaration_range(&match adt.clone() {
             ast::Adt::Enum(it) => ast::Item::Enum(it),
@@ -3593,6 +3719,14 @@ mod tests {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: r#"#[ink::trait_definition(keep_attr = "foo,bar")]"#,
+                                start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                                end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"#[ink_e2e::test(keep_attr = "foo,bar")]"#,
                                 start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
                                 end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
                             }],

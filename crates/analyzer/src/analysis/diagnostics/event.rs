@@ -7,7 +7,7 @@ use super::{topic, utils};
 use crate::analysis::text_edit::TextEdit;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
-const EVENT_SCOPE_NAME: &str = "event";
+const SCOPE_NAME: &str = "event";
 
 /// Runs all ink! event diagnostics.
 ///
@@ -24,7 +24,7 @@ where
     // Ensures that ink! event is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L86>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L105>.
-    if let Some(diagnostic) = utils::ensure_pub_struct(event, EVENT_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_pub_struct(event, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -36,7 +36,7 @@ where
         // Ensures that ink! event is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L475>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L79>.
-        if let Some(diagnostic) = utils::ensure_contract_parent(event, EVENT_SCOPE_NAME) {
+        if let Some(diagnostic) = utils::ensure_contract_parent(event, SCOPE_NAME) {
             results.push(diagnostic);
         }
     }
@@ -237,12 +237,12 @@ mod tests {
                     let event: EventV2 = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
-                    utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME)
+                    utils::ensure_pub_struct(&event, SCOPE_NAME)
                 } else {
                     let event: Event = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
-                    utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME)
+                    utils::ensure_pub_struct(&event, SCOPE_NAME)
                 };
                 assert!(result.is_none(), "event: {code}, version: {:?}", version);
             }
@@ -323,10 +323,10 @@ mod tests {
 
                 let result = if is_event_v2!(version, code) {
                     let event: EventV2 = parse_first_ink_entity_of_type(&code);
-                    utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME)
+                    utils::ensure_pub_struct(&event, SCOPE_NAME)
                 } else {
                     let event: Event = parse_first_ink_entity_of_type(&code);
-                    utils::ensure_pub_struct(&event, EVENT_SCOPE_NAME)
+                    utils::ensure_pub_struct(&event, SCOPE_NAME)
                 };
 
                 // Verifies diagnostics.
@@ -355,7 +355,7 @@ mod tests {
                     let event: Event = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
-                    let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
+                    let result = utils::ensure_contract_parent(&event, SCOPE_NAME);
                     assert!(result.is_none(), "event: {code}, version: {:?}", version);
                 }
             }
@@ -411,7 +411,7 @@ mod tests {
         ] {
             let event = parse_first_event(&code);
 
-            let result = utils::ensure_contract_parent(&event, EVENT_SCOPE_NAME);
+            let result = utils::ensure_contract_parent(&event, SCOPE_NAME);
 
             // Verifies diagnostics.
             assert!(result.is_some(), "event: {code}");

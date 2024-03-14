@@ -16,7 +16,7 @@ use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
-const IMPL_SCOPE_NAME: &str = "impl";
+const SCOPE_NAME: &str = "impl";
 
 /// Runs all ink! impl diagnostics.
 ///
@@ -66,7 +66,7 @@ pub fn diagnostics(
     // Ensures that ink! impl is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, IMPL_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -75,7 +75,7 @@ pub fn diagnostics(
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
-    ensure_valid_quasi_direct_ink_descendants(results, ink_impl);
+    ensure_valid_quasi_direct_ink_descendants(results, ink_impl, version);
 }
 
 /// Ensures that ink! impl is an `impl` item.
@@ -131,7 +131,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             });
         }
 
-        if let Some(diagnostic) = utils::ensure_no_generics(impl_item, IMPL_SCOPE_NAME) {
+        if let Some(diagnostic) = utils::ensure_no_generics(impl_item, SCOPE_NAME) {
             results.push(diagnostic);
         }
 
@@ -928,22 +928,21 @@ fn ensure_trait_definition_impl_message_args(
     }
 }
 
-/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants (i.e. ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/impl_item.rs#L62-L106>.
-fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl) {
-    utils::ensure_valid_quasi_direct_ink_descendants(results, ink_impl, |attr| {
-        matches!(
-            attr.kind(),
-            InkAttributeKind::Arg(
-                InkArgKind::Constructor
-                    | InkArgKind::Message
-                    | InkArgKind::Payable
-                    | InkArgKind::Default
-                    | InkArgKind::Selector
-            )
-        )
-    });
+fn ensure_valid_quasi_direct_ink_descendants(
+    results: &mut Vec<Diagnostic>,
+    ink_impl: &InkImpl,
+    version: Version,
+) {
+    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+        results,
+        ink_impl,
+        InkAttributeKind::Arg(InkArgKind::Impl),
+        version,
+        SCOPE_NAME,
+    );
 }
 
 #[cfg(test)]
@@ -1777,18 +1776,20 @@ mod tests {
             };
             let ink_impl = parse_first_ink_impl(&code);
 
-            let mut results = Vec::new();
-            ensure_trait_definition_impl_invariants(&mut results, &ink_impl, Version::V4);
+            for version in [Version::V4, Version::V5] {
+                let mut results = Vec::new();
+                ensure_trait_definition_impl_invariants(&mut results, &ink_impl, version);
 
-            // Verifies diagnostics.
-            assert_eq!(results.len(), 1, "impl: {code}");
-            assert_eq!(results[0].severity, Severity::Error, "impl: {code}");
-            // Verifies quickfixes.
-            verify_actions(
-                &code,
-                results[0].quickfixes.as_ref().unwrap(),
-                &expected_quickfixes,
-            );
+                // Verifies diagnostics.
+                assert_eq!(results.len(), 1, "impl: {code}");
+                assert_eq!(results[0].severity, Severity::Error, "impl: {code}");
+                // Verifies quickfixes.
+                verify_actions(
+                    &code,
+                    results[0].quickfixes.as_ref().unwrap(),
+                    &expected_quickfixes,
+                );
+            }
         }
     }
 
@@ -1800,7 +1801,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl);
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl, Version::V4);
             assert!(results.is_empty(), "impl: {code}");
         }
     }
@@ -1828,115 +1829,117 @@ mod tests {
         };
         let ink_impl = parse_first_ink_impl(&code);
 
-        let mut results = Vec::new();
-        ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl);
+        for version in [Version::V4, Version::V5] {
+            let mut results = Vec::new();
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl, version);
 
-        // There should be 5 errors (i.e `storage`, `event`, `trait_definition`, `chain_extension` and `storage_item`).
-        assert_eq!(results.len(), 5);
-        // All diagnostics should be errors.
-        assert_eq!(
-            results
-                .iter()
-                .filter(|item| item.severity == Severity::Error)
-                .count(),
-            5
-        );
-        // Verifies quickfixes.
-        let expected_quickfixes = vec![
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(storage)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(storage)]"),
-                        end_pat: Some("#[ink(storage)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(storage)]"),
-                        end_pat: Some("fn my_storage() {}"),
-                    }],
-                },
-            ],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(event)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("#[ink(event)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("fn my_event() {}"),
-                    }],
-                },
-            ],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink::trait_definition]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink::trait_definition]"),
-                        end_pat: Some("#[ink::trait_definition]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink::trait_definition]"),
-                        end_pat: Some("fn my_trait_definition() {}"),
-                    }],
-                },
-            ],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink::chain_extension]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink::chain_extension]"),
-                        end_pat: Some("#[ink::chain_extension]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink::chain_extension]"),
-                        end_pat: Some("fn my_chain_extension() {}"),
-                    }],
-                },
-            ],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink::storage_item]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink::storage_item]"),
-                        end_pat: Some("#[ink::storage_item]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink::storage_item]"),
-                        end_pat: Some("fn my_storage_item() {}"),
-                    }],
-                },
-            ],
-        ];
-        for (idx, item) in results.iter().enumerate() {
-            let quickfixes = item.quickfixes.as_ref().unwrap();
-            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            // There should be 5 errors (i.e `storage`, `event`, `trait_definition`, `chain_extension` and `storage_item`).
+            assert_eq!(results.len(), 5);
+            // All diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                5
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(storage)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(storage)]"),
+                            end_pat: Some("#[ink(storage)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(storage)]"),
+                            end_pat: Some("fn my_storage() {}"),
+                        }],
+                    },
+                ],
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(event)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("#[ink(event)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("fn my_event() {}"),
+                        }],
+                    },
+                ],
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink::trait_definition]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink::trait_definition]"),
+                            end_pat: Some("#[ink::trait_definition]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink::trait_definition]"),
+                            end_pat: Some("fn my_trait_definition() {}"),
+                        }],
+                    },
+                ],
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink::chain_extension]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink::chain_extension]"),
+                            end_pat: Some("#[ink::chain_extension]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink::chain_extension]"),
+                            end_pat: Some("fn my_chain_extension() {}"),
+                        }],
+                    },
+                ],
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink::storage_item]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink::storage_item]"),
+                            end_pat: Some("#[ink::storage_item]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink::storage_item]"),
+                            end_pat: Some("fn my_storage_item() {}"),
+                        }],
+                    },
+                ],
+            ];
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            }
         }
     }
 

@@ -1,11 +1,12 @@
 //! ink! e2e test diagnostics.
 
-use ink_analyzer_ir::InkE2ETest;
+use ink_analyzer_ir::{InkAttributeKind, InkE2ETest, InkMacroKind};
 
 use super::{environment, utils};
 use crate::{Diagnostic, Version};
 
-const E2E_TEST_SCOPE_NAME: &str = "e2e test";
+const SCOPE_NAME: &str = "e2e test";
+const ATTR_KIND: InkAttributeKind = InkAttributeKind::Macro(InkMacroKind::E2ETest);
 
 /// Runs all ink! test diagnostics.
 ///
@@ -18,12 +19,18 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_e2e_test: &InkE2ETest, ver
 
     // Ensures that ink! e2e test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/ir.rs#L42>.
-    if let Some(diagnostic) = utils::ensure_fn(ink_e2e_test, E2E_TEST_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_fn(ink_e2e_test, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
     // Ensures that ink! e2e test has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, ink_e2e_test, E2E_TEST_SCOPE_NAME);
+    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+        results,
+        ink_e2e_test,
+        ATTR_KIND,
+        version,
+        SCOPE_NAME,
+    );
 
     // Runs ink! environment diagnostics, see `environment::diagnostics` doc.
     environment::diagnostics(results, ink_e2e_test);
@@ -55,7 +62,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_fn(&ink_e2e_test, E2E_TEST_SCOPE_NAME);
+        let result = utils::ensure_fn(&ink_e2e_test, SCOPE_NAME);
         assert!(result.is_none());
     }
 
@@ -84,7 +91,7 @@ mod tests {
             };
             let ink_e2e_test = parse_first_ink_e2e_test(&code);
 
-            let result = utils::ensure_fn(&ink_e2e_test, E2E_TEST_SCOPE_NAME);
+            let result = utils::ensure_fn(&ink_e2e_test, SCOPE_NAME);
 
             // Verifies diagnostics.
             assert!(result.is_some(), "ink e2e test: {code}");
@@ -119,9 +126,17 @@ mod tests {
             }
         });
 
-        let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &ink_e2e_test, E2E_TEST_SCOPE_NAME);
-        assert!(results.is_empty());
+        for version in [Version::V4, Version::V5] {
+            let mut results = Vec::new();
+            utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                &mut results,
+                &ink_e2e_test,
+                ATTR_KIND,
+                version,
+                SCOPE_NAME,
+            );
+            assert!(results.is_empty());
+        }
     }
 
     #[test]
@@ -140,50 +155,58 @@ mod tests {
         };
         let ink_e2e_test = parse_first_ink_e2e_test(&code);
 
-        let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &ink_e2e_test, E2E_TEST_SCOPE_NAME);
-        // 2 diagnostics for `event` and `topic`.
-        assert_eq!(results.len(), 2);
-        // All diagnostics should be errors.
-        assert_eq!(
-            results
-                .iter()
-                .filter(|item| item.severity == Severity::Error)
-                .count(),
-            2
-        );
-        // Verifies quickfixes.
-        let expected_quickfixes = vec![
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(event)]`",
+        for version in [Version::V4, Version::V5] {
+            let mut results = Vec::new();
+            utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                &mut results,
+                &ink_e2e_test,
+                ATTR_KIND,
+                version,
+                SCOPE_NAME,
+            );
+            // 2 diagnostics for `event` and `topic`.
+            assert_eq!(results.len(), 2);
+            // All diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                2
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(event)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("#[ink(event)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("}"),
+                        }],
+                    },
+                ],
+                vec![TestResultAction {
+                    label: "Remove `#[ink(topic)]`",
                     edits: vec![TestResultTextRange {
                         text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("#[ink(event)]"),
+                        start_pat: Some("<-#[ink(topic)]"),
+                        end_pat: Some("#[ink(topic)]"),
                     }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("}"),
-                    }],
-                },
-            ],
-            vec![TestResultAction {
-                label: "Remove `#[ink(topic)]`",
-                edits: vec![TestResultTextRange {
-                    text: "",
-                    start_pat: Some("<-#[ink(topic)]"),
-                    end_pat: Some("#[ink(topic)]"),
                 }],
-            }],
-        ];
-        for (idx, item) in results.iter().enumerate() {
-            let quickfixes = item.quickfixes.as_ref().unwrap();
-            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            ];
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            }
         }
     }
 

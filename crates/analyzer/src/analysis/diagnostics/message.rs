@@ -1,14 +1,15 @@
 //! ink! message diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{ast, IsInkFn, Message};
+use ink_analyzer_ir::{ast, InkArgKind, InkAttributeKind, IsInkFn, Message};
 
 use super::utils;
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
-const MESSAGE_SCOPE_NAME: &str = "message";
+const SCOPE_NAME: &str = "message";
+const ATTR_KIND: InkAttributeKind = InkAttributeKind::Arg(InkArgKind::Message);
 
 /// Runs all ink! message diagnostics.
 ///
@@ -21,7 +22,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message, version: Ve
 
     // Ensures that ink! message is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
-    if let Some(diagnostic) = utils::ensure_fn(message, MESSAGE_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_fn(message, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -30,7 +31,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message, version: Ve
         // see `utils::ensure_callable_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L202>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-        utils::ensure_callable_invariants(results, fn_item, MESSAGE_SCOPE_NAME);
+        utils::ensure_callable_invariants(results, fn_item, SCOPE_NAME);
 
         // Ensures that ink! message `fn` item has a self reference receiver, see `ensure_receiver_is_self_ref` doc.
         if let Some(diagnostic) = ensure_receiver_is_self_ref(fn_item) {
@@ -44,7 +45,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message, version: Ve
     }
 
     // Ensures that ink! message has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, message, MESSAGE_SCOPE_NAME);
+    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+        results, message, ATTR_KIND, version, SCOPE_NAME,
+    );
 }
 
 /// Ensures that ink! message `fn` has a self reference receiver (i.e `&self` or `&mut self`).
@@ -247,11 +250,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            utils::ensure_callable_invariants(
-                &mut results,
-                message.fn_item().unwrap(),
-                MESSAGE_SCOPE_NAME,
-            );
+            utils::ensure_callable_invariants(&mut results, message.fn_item().unwrap(), SCOPE_NAME);
             assert!(results.is_empty(), "message: {code}");
         }
     }
@@ -647,11 +646,7 @@ mod tests {
             let message = parse_first_message(&code);
 
             let mut results = Vec::new();
-            utils::ensure_callable_invariants(
-                &mut results,
-                message.fn_item().unwrap(),
-                MESSAGE_SCOPE_NAME,
-            );
+            utils::ensure_callable_invariants(&mut results, message.fn_item().unwrap(), SCOPE_NAME);
 
             // Verifies diagnostics.
             assert_eq!(results.len(), 1, "message: {code}");
@@ -801,9 +796,17 @@ mod tests {
                 #code
             });
 
-            let mut results = Vec::new();
-            utils::ensure_no_ink_descendants(&mut results, &message, MESSAGE_SCOPE_NAME);
-            assert!(results.is_empty(), "message: {code}");
+            for version in [Version::V4, Version::V5] {
+                let mut results = Vec::new();
+                utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                    &mut results,
+                    &message,
+                    ATTR_KIND,
+                    version,
+                    SCOPE_NAME,
+                );
+                assert!(results.is_empty(), "message: {code}");
+            }
         }
     }
 
@@ -821,51 +824,59 @@ mod tests {
         };
         let message = parse_first_message(&code);
 
-        let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &message, MESSAGE_SCOPE_NAME);
+        for version in [Version::V4, Version::V5] {
+            let mut results = Vec::new();
+            utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                &mut results,
+                &message,
+                ATTR_KIND,
+                version,
+                SCOPE_NAME,
+            );
 
-        // 2 diagnostics for `event` and `topic`.
-        assert_eq!(results.len(), 2);
-        // All diagnostics should be errors.
-        assert_eq!(
-            results
-                .iter()
-                .filter(|item| item.severity == Severity::Error)
-                .count(),
-            2
-        );
-        // Verifies quickfixes.
-        let expected_quickfixes = vec![
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(event)]`",
+            // 2 diagnostics for `event` and `topic`.
+            assert_eq!(results.len(), 2);
+            // All diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                2
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(event)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("#[ink(event)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("}"),
+                        }],
+                    },
+                ],
+                vec![TestResultAction {
+                    label: "Remove `#[ink(topic)]`",
                     edits: vec![TestResultTextRange {
                         text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("#[ink(event)]"),
+                        start_pat: Some("<-#[ink(topic)]"),
+                        end_pat: Some("#[ink(topic)]"),
                     }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("}"),
-                    }],
-                },
-            ],
-            vec![TestResultAction {
-                label: "Remove `#[ink(topic)]`",
-                edits: vec![TestResultTextRange {
-                    text: "",
-                    start_pat: Some("<-#[ink(topic)]"),
-                    end_pat: Some("#[ink(topic)]"),
                 }],
-            }],
-        ];
-        for (idx, item) in results.iter().enumerate() {
-            let quickfixes = item.quickfixes.as_ref().unwrap();
-            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            ];
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            }
         }
     }
 

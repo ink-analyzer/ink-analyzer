@@ -287,7 +287,6 @@ pub fn valid_quasi_direct_descendant_ink_args(
 /// (i.e. macro kinds that are allowed in the scope of the given ink! attribute kind,
 /// e.g. for the `contract` attribute macro kind, this would be `chain_extension`, `storage_item`,
 /// `test` and `trait_definition`).
-// FIXME: Properly handle `scale_derive` macro.
 pub fn valid_quasi_direct_descendant_ink_macros(
     attr_kind: InkAttributeKind,
     version: Version,
@@ -298,20 +297,37 @@ pub fn valid_quasi_direct_descendant_ink_macros(
             match macro_kind {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
                 InkMacroKind::Contract => {
-                    let mut macros = vec![
-                        InkMacroKind::ChainExtension,
-                        InkMacroKind::StorageItem,
-                        InkMacroKind::Test,
-                        InkMacroKind::TraitDefinition,
-                        InkMacroKind::E2ETest,
-                    ];
                     if version == Version::V5 {
-                        // Add v5 only macros.
-                        macros.extend([InkMacroKind::Event, InkMacroKind::ScaleDerive])
+                        vec![
+                            InkMacroKind::ChainExtension,
+                            InkMacroKind::Event,
+                            InkMacroKind::ScaleDerive,
+                            InkMacroKind::StorageItem,
+                            InkMacroKind::Test,
+                            InkMacroKind::TraitDefinition,
+                            InkMacroKind::E2ETest,
+                        ]
+                    } else {
+                        vec![
+                            InkMacroKind::ChainExtension,
+                            InkMacroKind::StorageItem,
+                            InkMacroKind::Test,
+                            InkMacroKind::TraitDefinition,
+                            InkMacroKind::E2ETest,
+                        ]
                     }
-                    macros
                 }
-                // All other ink! attribute macros can't have ink! macro descendants.
+                // All v5 macros that are either applied to `fn` items or can have associated `fn` items
+                // can have scale_derive as a descendant (essentially everything except `event`, `scale_derive` and `storage_item`).
+                InkMacroKind::ChainExtension
+                | InkMacroKind::TraitDefinition
+                | InkMacroKind::Test
+                | InkMacroKind::E2ETest
+                    if version == Version::V5 =>
+                {
+                    vec![InkMacroKind::ScaleDerive]
+                }
+                // All other v4 ink! attribute macros can't have ink! macro descendants.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L848-L1280>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L772-L799>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L805-L846>.
@@ -320,9 +336,27 @@ pub fn valid_quasi_direct_descendant_ink_macros(
                 _ => Vec::new(),
             }
         }
-        // ink! attribute arguments can't have ink! macro descendants.
-        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs>.
-        InkAttributeKind::Arg(_) => Vec::new(),
+        // Returns valid quasi-direct descendant macros (if any) for ink! attribute arguments.
+        InkAttributeKind::Arg(arg_kind) => {
+            match arg_kind {
+                // All v5 attribute arguments used on `fn` items can have scale_derive as a descendant
+                // (essentially everything except `storage`, `event`, `anonymous` and `signature_topic`).
+                InkArgKind::Storage
+                | InkArgKind::Event
+                | InkArgKind::Anonymous
+                | InkArgKind::SignatureTopic
+                    if version == Version::V5 =>
+                {
+                    Vec::new()
+                }
+                _ if version == Version::V5 => {
+                    vec![InkMacroKind::ScaleDerive]
+                }
+                // v4 ink! attribute arguments can't have ink! macro descendants.
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs>.
+                _ => Vec::new(),
+            }
+        }
     }
 }
 
@@ -455,6 +489,13 @@ pub fn primary_ink_attribute_kind_suggestions(
             // the potential to be either incomplete or ambiguous.
             // See respective match pattern in the [`utils::valid_sibling_ink_args`] function for the rationale and references.
             match arg_kind {
+                InkArgKind::AdditionalContracts if version == Version::V5 => Vec::new(),
+                InkArgKind::Backend | InkArgKind::Environment if version == Version::V5 => {
+                    vec![InkAttributeKind::Macro(InkMacroKind::E2ETest)]
+                }
+                InkArgKind::AdditionalContracts | InkArgKind::Environment => {
+                    vec![InkAttributeKind::Macro(InkMacroKind::E2ETest)]
+                }
                 InkArgKind::Anonymous | InkArgKind::SignatureTopic if version == Version::V5 => {
                     vec![
                         InkAttributeKind::Macro(InkMacroKind::Event),
@@ -463,9 +504,15 @@ pub fn primary_ink_attribute_kind_suggestions(
                     ]
                 }
                 InkArgKind::Anonymous => vec![InkAttributeKind::Arg(InkArgKind::Event)],
+                InkArgKind::Decode | InkArgKind::Encode | InkArgKind::TypeInfo
+                    if version == Version::V5 =>
+                {
+                    vec![InkAttributeKind::Macro(InkMacroKind::ScaleDerive)]
+                }
                 InkArgKind::KeepAttr => vec![
                     InkAttributeKind::Macro(InkMacroKind::Contract),
                     InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
+                    InkAttributeKind::Macro(InkMacroKind::E2ETest),
                 ],
                 InkArgKind::HandleStatus => vec![InkAttributeKind::Arg(InkArgKind::Extension)],
                 InkArgKind::Namespace => vec![

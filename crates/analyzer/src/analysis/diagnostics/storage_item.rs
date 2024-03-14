@@ -5,7 +5,7 @@ use ink_analyzer_ir::{InkEntity, StorageItem};
 use super::utils;
 use crate::{Action, Diagnostic, Severity, Version};
 
-const STORAGE_ITEM_SCOPE_NAME: &str = "storage_item";
+const SCOPE_NAME: &str = "storage_item";
 
 /// Runs all ink! storage item diagnostics.
 ///
@@ -22,7 +22,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, storage_item: &StorageItem, ve
     }
 
     // Ensures that ink! storage item has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, storage_item, STORAGE_ITEM_SCOPE_NAME);
+    utils::ensure_no_ink_descendants(results, storage_item, SCOPE_NAME, false);
 }
 
 /// Ensures that ink! storage item is an `adt` (i.e `enum`, `struct` or `union`) item.
@@ -152,7 +152,7 @@ mod tests {
         });
 
         let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &storage_item, STORAGE_ITEM_SCOPE_NAME);
+        utils::ensure_no_ink_descendants(&mut results, &storage_item, SCOPE_NAME, false);
         assert!(results.is_empty());
     }
 
@@ -170,7 +170,7 @@ mod tests {
         let storage_item = parse_first_storage_item(&code);
 
         let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &storage_item, STORAGE_ITEM_SCOPE_NAME);
+        utils::ensure_no_ink_descendants(&mut results, &storage_item, SCOPE_NAME, false);
         // 1 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.

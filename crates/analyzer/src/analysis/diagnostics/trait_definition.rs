@@ -2,7 +2,8 @@
 
 use ink_analyzer_ir::ast::AstNode;
 use ink_analyzer_ir::{
-    ast, InkArgKind, InkAttributeKind, InkEntity, IsInkTrait, Message, TraitDefinition,
+    ast, InkArgKind, InkAttributeKind, InkEntity, InkMacroKind, IsInkTrait, Message,
+    TraitDefinition,
 };
 
 use super::{message, utils};
@@ -11,7 +12,7 @@ use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils as analysis_utils;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
-const TRAIT_DEFINITION_SCOPE_NAME: &str = "trait definition";
+const SCOPE_NAME: &str = "trait definition";
 
 /// Runs all ink! trait definition diagnostics.
 ///
@@ -30,7 +31,7 @@ pub fn diagnostics(
 
     // Ensures that ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
-    if let Some(diagnostic) = utils::ensure_trait(trait_definition, TRAIT_DEFINITION_SCOPE_NAME) {
+    if let Some(diagnostic) = utils::ensure_trait(trait_definition, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -38,7 +39,7 @@ pub fn diagnostics(
         // Ensures that ink! trait definition `trait` item satisfies all common invariants of trait-based ink! entities,
         // see `utils::ensure_trait_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
-        utils::ensure_trait_invariants(results, trait_item, TRAIT_DEFINITION_SCOPE_NAME);
+        utils::ensure_trait_invariants(results, trait_item, SCOPE_NAME);
 
         // Ensures that ink! trait definition `trait` item's associated items satisfy all invariants,
         // see `ensure_trait_item_invariants` doc.
@@ -57,7 +58,7 @@ pub fn diagnostics(
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // see `ensure_valid_quasi_direct_ink_descendants` doc.
-    ensure_valid_quasi_direct_ink_descendants(results, trait_definition);
+    ensure_valid_quasi_direct_ink_descendants(results, trait_definition, version);
 }
 
 /// Ensures that ink! trait definition is a `trait` item whose associated items satisfy all invariants.
@@ -201,7 +202,7 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
     )
 }
 
-/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants (i.e. ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L85-L99>.
 ///
@@ -211,18 +212,15 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
 fn ensure_valid_quasi_direct_ink_descendants(
     results: &mut Vec<Diagnostic>,
     trait_definition: &TraitDefinition,
+    version: Version,
 ) {
-    utils::ensure_valid_quasi_direct_ink_descendants(results, trait_definition, |attr| {
-        matches!(
-            attr.kind(),
-            InkAttributeKind::Arg(
-                InkArgKind::Message
-                    | InkArgKind::Payable
-                    | InkArgKind::Default
-                    | InkArgKind::Selector
-            )
-        )
-    });
+    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+        results,
+        trait_definition,
+        InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
+        version,
+        SCOPE_NAME,
+    );
 }
 
 #[cfg(test)]
@@ -339,7 +337,7 @@ mod tests {
             utils::ensure_trait_invariants(
                 &mut results,
                 trait_definition.trait_item().unwrap(),
-                TRAIT_DEFINITION_SCOPE_NAME,
+                SCOPE_NAME,
             );
             assert!(results.is_empty(), "trait definition: {code}");
         }
@@ -486,7 +484,7 @@ mod tests {
             utils::ensure_trait_invariants(
                 &mut results,
                 trait_definition.trait_item().unwrap(),
-                TRAIT_DEFINITION_SCOPE_NAME,
+                SCOPE_NAME,
             );
 
             // Verifies diagnostics.
@@ -992,9 +990,11 @@ mod tests {
                 #code
             });
 
-            let mut results = Vec::new();
-            ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition);
-            assert!(results.is_empty());
+            for version in [Version::V4, Version::V5] {
+                let mut results = Vec::new();
+                ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
+                assert!(results.is_empty());
+            }
         }
     }
 
@@ -1013,60 +1013,62 @@ mod tests {
         };
         let trait_definition = parse_first_trait_definition(&code);
 
-        let mut results = Vec::new();
-        ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition);
-        // 1 diagnostic each for `constructor` and `event`.
-        assert_eq!(results.len(), 2);
-        // All diagnostics should be errors.
-        assert_eq!(
-            results
-                .iter()
-                .filter(|item| item.severity == Severity::Error)
-                .count(),
-            2
-        );
-        // Verifies quickfixes.
-        let expected_quickfixes = vec![
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(constructor)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(constructor)]"),
-                        end_pat: Some("#[ink(constructor)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(constructor)]"),
-                        end_pat: Some("fn my_constructor() -> Self;"),
-                    }],
-                },
-            ],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(event)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("#[ink(event)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(event)]"),
-                        end_pat: Some("fn unsupported_method(&self);"),
-                    }],
-                },
-            ],
-        ];
-        for (idx, item) in results.iter().enumerate() {
-            let quickfixes = item.quickfixes.as_ref().unwrap();
-            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+        for version in [Version::V4, Version::V5] {
+            let mut results = Vec::new();
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
+            // 1 diagnostic each for `constructor` and `event`.
+            assert_eq!(results.len(), 2);
+            // All diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                2
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(constructor)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("#[ink(constructor)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(constructor)]"),
+                            end_pat: Some("fn my_constructor() -> Self;"),
+                        }],
+                    },
+                ],
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(event)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("#[ink(event)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("fn unsupported_method(&self);"),
+                        }],
+                    },
+                ],
+            ];
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            }
         }
     }
 

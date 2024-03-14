@@ -105,7 +105,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract, version: 
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // See `ensure_valid_quasi_direct_ink_descendants` doc.
-    ensure_valid_quasi_direct_ink_descendants(results, contract);
+    ensure_valid_quasi_direct_ink_descendants(results, contract, version);
 
     // Runs ink! environment diagnostics, see `environment::diagnostics` doc.
     environment::diagnostics(results, contract);
@@ -666,33 +666,21 @@ fn ensure_impl_parent_for_callables(results: &mut Vec<Diagnostic>, contract: &Co
     }
 }
 
-/// Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors).
+/// Ensures that only valid quasi-direct ink! attribute descendants (i.e. ink! descendants without any ink! ancestors).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L98-L114>.
-fn ensure_valid_quasi_direct_ink_descendants(results: &mut Vec<Diagnostic>, contract: &Contract) {
-    utils::ensure_valid_quasi_direct_ink_descendants(results, contract, |attr| {
-        matches!(
-            attr.kind(),
-            InkAttributeKind::Arg(
-                InkArgKind::Storage
-                    | InkArgKind::Event
-                    | InkArgKind::Anonymous
-                    | InkArgKind::Impl
-                    | InkArgKind::Namespace
-                    | InkArgKind::Constructor
-                    | InkArgKind::Message
-                    | InkArgKind::Payable
-                    | InkArgKind::Default
-                    | InkArgKind::Selector
-            ) | InkAttributeKind::Macro(
-                InkMacroKind::ChainExtension
-                    | InkMacroKind::StorageItem
-                    | InkMacroKind::Test
-                    | InkMacroKind::TraitDefinition
-                    | InkMacroKind::E2ETest
-            )
-        )
-    });
+fn ensure_valid_quasi_direct_ink_descendants(
+    results: &mut Vec<Diagnostic>,
+    contract: &Contract,
+    version: Version,
+) {
+    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+        results,
+        contract,
+        InkAttributeKind::Macro(InkMacroKind::Contract),
+        version,
+        "contract",
+    );
 }
 
 #[cfg(test)]
@@ -828,6 +816,9 @@ mod tests {
         };
     }
     macro_rules! valid_contracts {
+        () => {
+            valid_contracts!(v4)
+        };
         ($version: tt) => {
             [
                 // Minimal.
@@ -1187,9 +1178,6 @@ mod tests {
                     },
                 ]
             })
-        };
-        () => {
-            valid_contracts!(v4)
         };
     }
 
@@ -2097,14 +2085,16 @@ mod tests {
 
     #[test]
     fn valid_quasi_direct_descendant_works() {
-        for code in valid_contracts!() {
-            let contract = parse_first_contract(quote_as_str! {
-                #code
-            });
+        for (version, contracts) in versioned_fixtures!(valid_contracts) {
+            for code in contracts {
+                let contract = parse_first_contract(quote_as_str! {
+                    #code
+                });
 
-            let mut results = Vec::new();
-            ensure_valid_quasi_direct_ink_descendants(&mut results, &contract);
-            assert!(results.is_empty(), "contract: {code}");
+                let mut results = Vec::new();
+                ensure_valid_quasi_direct_ink_descendants(&mut results, &contract, version);
+                assert!(results.is_empty(), "contract: {code}");
+            }
         }
     }
 
@@ -2124,51 +2114,53 @@ mod tests {
         };
         let contract = parse_first_contract(&code);
 
-        let mut results = Vec::new();
-        ensure_valid_quasi_direct_ink_descendants(&mut results, &contract);
+        for version in [Version::V4, Version::V5] {
+            let mut results = Vec::new();
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &contract, version);
 
-        // There should be 2 errors (i.e `topic`, `extension/handle_status`).
-        assert_eq!(results.len(), 2);
-        // All diagnostics should be errors.
-        assert_eq!(
-            results
-                .iter()
-                .filter(|item| item.severity == Severity::Error)
-                .count(),
-            2
-        );
-        // Verifies quickfixes.
-        let expected_quickfixes = vec![
-            vec![TestResultAction {
-                label: "Remove `#[ink(topic)]`",
-                edits: vec![TestResultTextRange {
-                    text: "",
-                    start_pat: Some("<-#[ink(topic)]"),
-                    end_pat: Some("#[ink(topic)]"),
+            // There should be 2 errors (i.e `topic`, `extension/handle_status`).
+            assert_eq!(results.len(), 2);
+            // All diagnostics should be errors.
+            assert_eq!(
+                results
+                    .iter()
+                    .filter(|item| item.severity == Severity::Error)
+                    .count(),
+                2
+            );
+            // Verifies quickfixes.
+            let expected_quickfixes = vec![
+                vec![TestResultAction {
+                    label: "Remove `#[ink(topic)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(topic)]"),
+                        end_pat: Some("#[ink(topic)]"),
+                    }],
                 }],
-            }],
-            vec![
-                TestResultAction {
-                    label: "Remove `#[ink(extension = 1, handle_status = false)]`",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(extension = 1, handle_status = false)]"),
-                        end_pat: Some("#[ink(extension = 1, handle_status = false)]"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Remove item",
-                    edits: vec![TestResultTextRange {
-                        text: "",
-                        start_pat: Some("<-#[ink(extension = 1, handle_status = false)]"),
-                        end_pat: Some("fn my_extension();"),
-                    }],
-                },
-            ],
-        ];
-        for (idx, item) in results.iter().enumerate() {
-            let quickfixes = item.quickfixes.as_ref().unwrap();
-            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+                vec![
+                    TestResultAction {
+                        label: "Remove `#[ink(extension = 1, handle_status = false)]`",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(extension = 1, handle_status = false)]"),
+                            end_pat: Some("#[ink(extension = 1, handle_status = false)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove item",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(extension = 1, handle_status = false)]"),
+                            end_pat: Some("fn my_extension();"),
+                        }],
+                    },
+                ],
+            ];
+            for (idx, item) in results.iter().enumerate() {
+                let quickfixes = item.quickfixes.as_ref().unwrap();
+                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
+            }
         }
     }
 
