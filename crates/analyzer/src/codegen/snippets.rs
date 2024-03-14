@@ -224,6 +224,51 @@ impl ink::env::chain_extension::FromStatusCode for ${2:CustomErrorCode} {
   }
 }"#;
 
+pub const CHAIN_EXTENSION_V5_PLAIN: &str = r#"#[ink::chain_extension(extension = 1)]
+pub trait ChainExtension {
+    type ErrorCode = CustomErrorCode;
+
+    #[ink(function = 1)]
+    fn my_function();
+}
+
+#[ink::scale_derive(Encode, Decode, TypeInfo)]
+pub enum CustomErrorCode {
+  CustomError,
+}
+
+impl ink::env::chain_extension::FromStatusCode for CustomErrorCode {
+  fn from_status_code(status_code: u32) -> Result<(), Self> {
+    match status_code {
+      0 => Ok(()),
+      1 => Err(Self::CustomError),
+      _ => panic!("encountered unknown status code"),
+    }
+  }
+}"#;
+pub const CHAIN_EXTENSION_V5_SNIPPET: &str = r#"#[ink::chain_extension(extension = ${1:1})]
+pub trait ${2:ChainExtension} {
+    type ErrorCode = ${3:CustomErrorCode};
+
+    #[ink(function = ${4:1})]
+    fn ${5:my_function}();
+}
+
+#[ink::scale_derive(Encode, Decode, TypeInfo)]
+pub enum ${3:CustomErrorCode} {
+  ${6:CustomError},
+}
+
+impl ink::env::chain_extension::FromStatusCode for ${3:CustomErrorCode} {
+  fn from_status_code(${7:status_code}: u32) -> Result<(), Self> {
+    match ${7:status_code} {
+      0 => Ok(()),
+      1 => Err(Self::${6:CustomError}),
+      _ => panic!("encountered unknown status code"),
+    }
+  }
+}"#;
+
 pub const STORAGE_ITEM_PLAIN: &str = r#"#[ink::storage_item]
 pub struct StorageItem {}"#;
 pub const STORAGE_ITEM_SNIPPET: &str = r#"#[ink::storage_item]
@@ -233,6 +278,10 @@ pub ${1:struct} ${2:StorageItem} {
 
 pub const ENVIRONMENT_DEF: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum MyEnvironment {}"#;
+
+pub const ENVIRONMENT_DEF_V5: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+#[ink::scale_derive(TypeInfo)]
 pub enum MyEnvironment {}"#;
 
 pub const ENVIRONMENT_IMPL_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironment {

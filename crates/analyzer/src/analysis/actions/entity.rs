@@ -6,14 +6,15 @@ use ink_analyzer_ir::{
     ast::{self, HasModuleItem, HasName},
     syntax::{AstNode, TextRange},
     ChainExtension, Constructor, Contract, Extension, InkEntity, IsInkEvent, IsInkFn, IsInkTrait,
-    Message, TraitDefinition,
+    Message, TraitDefinition, Version,
 };
 
 use super::{Action, ActionKind};
 use crate::analysis::utils;
 use crate::codegen::snippets::{
-    CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_SNIPPET, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET,
-    CONTRACT_PLAIN, CONTRACT_SNIPPET, ENVIRONMENT_DEF, ENVIRONMENT_IMPL_PLAIN,
+    CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_SNIPPET, CHAIN_EXTENSION_V5_PLAIN,
+    CHAIN_EXTENSION_V5_SNIPPET, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, CONTRACT_PLAIN,
+    CONTRACT_SNIPPET, ENVIRONMENT_DEF, ENVIRONMENT_DEF_V5, ENVIRONMENT_IMPL_PLAIN,
     ENVIRONMENT_IMPL_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN, EVENT_SNIPPET,
     EVENT_V2_PLAIN, EVENT_V2_SNIPPET, EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN,
     INK_E2E_TEST_SNIPPET, INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET,
@@ -703,15 +704,24 @@ pub fn add_chain_extension(
     range: TextRange,
     kind: ActionKind,
     indent_option: Option<&str>,
+    version: Version,
 ) -> Action {
     Action {
         label: "Add ink! chain extension `trait`.".to_owned(),
         kind,
         range,
         edits: vec![compose_edit_with_snippet_and_indent(
-            CHAIN_EXTENSION_PLAIN,
+            if version == Version::V5 {
+                CHAIN_EXTENSION_V5_PLAIN
+            } else {
+                CHAIN_EXTENSION_PLAIN
+            },
             range,
-            Some(CHAIN_EXTENSION_SNIPPET),
+            Some(if version == Version::V5 {
+                CHAIN_EXTENSION_V5_SNIPPET
+            } else {
+                CHAIN_EXTENSION_SNIPPET
+            }),
             indent_option,
         )],
     }
@@ -733,15 +743,34 @@ pub fn add_storage_item(range: TextRange, kind: ActionKind, indent_option: Optio
 }
 
 /// Add an ink! environment.
-pub fn add_environment(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
+pub fn add_environment(
+    range: TextRange,
+    kind: ActionKind,
+    indent_option: Option<&str>,
+    version: Version,
+) -> Action {
     Action {
         label: "Add custom ink! environment implementation.".to_owned(),
         kind,
         range,
         edits: vec![compose_edit_with_snippet_and_indent(
-            &format!("{ENVIRONMENT_DEF}\n\n{ENVIRONMENT_IMPL_PLAIN}"),
+            &format!(
+                "{}\n\n{ENVIRONMENT_IMPL_PLAIN}",
+                if version == Version::V5 {
+                    ENVIRONMENT_DEF_V5
+                } else {
+                    ENVIRONMENT_DEF
+                }
+            ),
             range,
-            Some(&format!("{ENVIRONMENT_DEF}\n\n{ENVIRONMENT_IMPL_SNIPPET}")),
+            Some(&format!(
+                "{}\n\n{ENVIRONMENT_IMPL_SNIPPET}",
+                if version == Version::V5 {
+                    ENVIRONMENT_DEF_V5
+                } else {
+                    ENVIRONMENT_DEF
+                }
+            )),
             indent_option,
         )],
     }

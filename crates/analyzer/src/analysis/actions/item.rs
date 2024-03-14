@@ -525,13 +525,19 @@ fn root_ink_entity_actions(
         range,
         ActionKind::Refactor,
         None,
+        version,
     ));
 
     // Adds ink! storage item.
     results.push(entity::add_storage_item(range, ActionKind::Refactor, None));
 
     // Adds ink! environment.
-    results.push(entity::add_environment(range, ActionKind::Refactor, None));
+    results.push(entity::add_environment(
+        range,
+        ActionKind::Refactor,
+        None,
+        version,
+    ));
 }
 
 /// Computes actions for "flattening" ink! attributes for the target syntax node.
@@ -831,7 +837,7 @@ mod tests {
                     "#[ink::contract]",
                     "#[ink::event]",
                     "#[ink::trait_definition]",
-                    "#[ink::chain_extension]",
+                    "#[ink::chain_extension(extension = 1)]",
                     "#[ink::storage_item]",
                     "pub enum MyEnvironment {}",
                 ],
