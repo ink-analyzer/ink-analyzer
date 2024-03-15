@@ -63,8 +63,8 @@ pub fn run_generic_diagnostics<T: InkEntity>(
             ensure_no_duplicate_attributes_and_arguments(results, &attrs);
 
             // Ensures that no conflicting ink! attributes and/or arguments,
-            // see `ensure_no_conflicting_attributes_and_arguments` doc.
-            ensure_no_conflicting_attributes_and_arguments(results, &attrs, version);
+            // see `validate_entity_attributes` doc.
+            validate_entity_attributes(results, &attrs, version);
         }
     }
 }
@@ -136,13 +136,15 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
     }
 }
 
-/// Ensures that ink! attribute arguments are of the right format and have values (if any) of the correct type.
+/// Ensures that ink! attribute arguments are of the right format and have values (if any)
+/// of the correct type.
 ///
 /// This utility only cares about ink! attribute arguments, not ink! attribute macros.
 /// So `#[ink(env=my::env::Types)]` will pass with no complaints.
-/// Invalid ink! attribute macros are handled by `ensure_no_unknown_ink_attributes`
-/// while `ensure_no_conflicting_attributes_and_arguments` is responsible for
-/// flagging ink! attribute conflicts across ink! attribute macros and ink! attribute arguments.
+/// Unknown ink! attribute macros are handled by `ensure_no_unknown_ink_attributes`
+/// while `validate_entity_attributes` is responsible for entity-level validation
+/// across a group of ink! attribute macros and ink! attribute arguments
+/// (e.g. flagging conflicts, incompleteness, ambiguity e.t.c).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L879-L1023>.
 ///
@@ -488,20 +490,21 @@ fn ensure_no_duplicate_attributes_and_arguments(
     }
 }
 
-/// Ensures that no conflicting ink! attributes and/or arguments.
+/// Ensures that a group of sibling ink! attributes and/or arguments declare a valid ink! entity.
 ///
-/// In addition to straight forward conflicts
+/// In addition to straight forward validation of conflicts
 /// (e.g. both `contract` and `trait_definition` applied to the same item,
 /// `anonymous` combined with `message`  or `derive` on a `contract` attribute),
-/// 3 more cases are considered conflicts:
+/// 3 more cases are validated:
 ///
 /// 1. Wrong order of otherwise valid attributes and/or arguments
-/// (e.g. `payable` before `message` or `anonymous` before `event`).
+///    (e.g. `payable` before `message` or `anonymous` before `event`).
 ///
-/// 2. Incompleteness (e.g. `anonymous` without `event` or `derive` without `storage_item` attribute macro)
+/// 2. Incompleteness (e.g. `anonymous` without `event` or `derive` without `storage_item`
+///    attribute macro, or a `chain_extension` macro without an `extension` argument in ink! v5).
 ///
 /// 3. Ambiguity (e.g. `payable` with neither `constructor` nor `message` or
-/// `keep_attr` with neither `contract` nor `trait_definition` attribute macros) are also treated as conflicts
+///    `keep_attr` with neither `contract` nor `trait_definition` attribute macros).
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L613-L658>.
 ///
@@ -510,7 +513,7 @@ fn ensure_no_duplicate_attributes_and_arguments(
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L154-L167>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/attrs.rs#L829-L873>.
-fn ensure_no_conflicting_attributes_and_arguments(
+fn validate_entity_attributes(
     results: &mut Vec<Diagnostic>,
     attrs: &[InkAttribute],
     version: Version,
@@ -651,7 +654,7 @@ fn ensure_no_conflicting_attributes_and_arguments(
         // Suggests possible primary ink! attributes if the primary candidate is either incomplete
         // or ambiguous or both, and its also not `namespace` (which is valid on its own).
         if !primary_attribute_kind_suggestions.is_empty() && !is_namespace {
-            // Quickfix for adding a ink! attribute of the given kind as the primary attribute (if possible).
+            // Quickfix for adding an ink! attribute of the given kind as the primary attribute (if possible).
             let add_primary_ink_attribute = |attr_kind: &InkAttributeKind| {
                 primary_attr_insert_offset_option().map(|insert_offset| {
                     let (insert_text, attr_desc, snippet) = match attr_kind {
@@ -932,6 +935,49 @@ fn ensure_no_conflicting_attributes_and_arguments(
                         });
                     }
                 }
+            }
+
+            // For v5, the `chain_extension` macro without an `extension` argument is incomplete.
+            let has_extension_arg = || {
+                attr.args()
+                    .iter()
+                    .any(|arg| *arg.kind() == InkArgKind::Extension)
+            };
+            if version == Version::V5
+                && *attr.kind() == InkAttributeKind::Macro(InkMacroKind::ChainExtension)
+                && !has_extension_arg()
+            {
+                results.push(Diagnostic {
+                    message: "Missing required ink! `extension` argument.".to_owned(),
+                    range: attr.syntax().text_range(),
+                    severity: Severity::Error,
+                    quickfixes: utils::first_ink_arg_insert_offset_and_affixes(attr).map(
+                        |(insert_offset, prefix, suffix)| {
+                            let (edit, snippet) =
+                                utils::ink_arg_insert_text(InkArgKind::Extension, None, None);
+                            vec![Action {
+                                label: "Add ink! `extension` argument.".to_owned(),
+                                kind: ActionKind::QuickFix,
+                                range: attr.syntax().text_range(),
+                                edits: vec![TextEdit::insert_with_snippet(
+                                    format!(
+                                        "{}{edit}{}",
+                                        prefix.unwrap_or_default(),
+                                        suffix.unwrap_or_default()
+                                    ),
+                                    insert_offset,
+                                    snippet.as_ref().map(|snippet| {
+                                        format!(
+                                            "{}{snippet}{}",
+                                            prefix.unwrap_or_default(),
+                                            suffix.unwrap_or_default()
+                                        )
+                                    }),
+                                )],
+                            }]
+                        },
+                    ),
+                });
             }
         }
     }
@@ -2083,9 +2129,13 @@ mod tests {
     macro_rules! valid_attributes_versioned {
         (v4) => {
             [
-                // Change in v5.
-                // `extension` was replaced with `function`.
+                // Changed in v5.
                 // Ref: <https://github.com/paritytech/ink/pull/1958>
+                // `chain_extension` requires an `extension` argument in v5.
+                quote_as_str! {
+                    #[ink::chain_extension]
+                },
+                // `extension` was replaced with `function`.
                 quote_as_str! {
                     #[ink(extension=1, handle_status=true)]
                 },
@@ -2169,9 +2219,6 @@ mod tests {
         ($version: tt) => {
             [
                 // ink! attribute macros.
-                quote_as_str! {
-                    #[ink::chain_extension]
-                },
                 quote_as_str! {
                     #[ink::contract]
                 },
@@ -2446,7 +2493,7 @@ mod tests {
     }
 
     #[test]
-    fn valid_attribute_argument_format_and_value_type_works() {
+    fn valid_argument_works() {
         // NOTE: This test only cares about ink! attribute arguments not macros,
         // See `validate_arg` doc.
         for (version, attributes) in versioned_fixtures!(valid_attributes) {
@@ -2467,7 +2514,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_attribute_argument_format_and_value_type_fails() {
+    fn invalid_argument_fails() {
         // NOTE: This test only cares about ink! attribute arguments not macros,
         // See `validate_arg` doc.
         for (version, fixtures) in [
@@ -3159,7 +3206,7 @@ mod tests {
     }
 
     #[test]
-    fn no_conflicting_attributes_and_arguments_works() {
+    fn valid_entity_attributes_works() {
         // NOTE: Unknown attributes are ignored by this test,
         // See `ensure_no_duplicate_attributes_and_arguments` doc.
         for (version, attributes) in versioned_fixtures!(valid_attributes) {
@@ -3167,7 +3214,7 @@ mod tests {
                 let attrs = parse_all_ink_attrs(code);
 
                 let mut results = Vec::new();
-                ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs, version);
+                validate_entity_attributes(&mut results, &attrs, version);
                 assert!(
                     results.is_empty(),
                     "attributes: {code}, version: {:?}",
@@ -3178,7 +3225,7 @@ mod tests {
     }
 
     #[test]
-    fn conflicting_attributes_and_arguments_fails() {
+    fn invalid_entity_attributes_fails() {
         // NOTE: Unknown attributes are ignored by this test,
         // See `ensure_no_duplicate_attributes_and_arguments` doc.
         for (version, fixtures) in [
@@ -3232,6 +3279,17 @@ mod tests {
                                 text: "event, ",
                                 start_pat: Some("#[ink("),
                                 end_pat: Some("#[ink("),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink::chain_extension(env=my::env::Types)]", // conflicting `env`.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-(env"),
+                                end_pat: Some("my::env::Types)"),
                             }],
                         }],
                     ),
@@ -3301,6 +3359,28 @@ mod tests {
                         }],
                     ),
                     (
+                        "#[ink::chain_extension]", // `chain_extension` macro requires an `extension` argument in v5.
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "(extension = 1)",
+                                start_pat: Some("#[ink::chain_extension"),
+                                end_pat: Some("#[ink::chain_extension"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink::chain_extension(extension=1, env=my::env::Types)]", // conflicting `env`.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-, env"),
+                                end_pat: Some("my::env::Types"),
+                            }],
+                        }],
+                    ),
+                    (
                         "#[ink(extension=1, handle_status=true)]", // `extension` was replaced with `function` in v5 so `handle_status` conflicts here.
                         vec![TestResultAction {
                             label: "Remove",
@@ -3316,17 +3396,6 @@ mod tests {
         ] {
             for (code, expected_quickfixes) in [
                 // Single attributes.
-                (
-                    "#[ink::chain_extension(env=my::env::Types)]", // conflicting `env`.
-                    vec![TestResultAction {
-                        label: "Remove",
-                        edits: vec![TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-(env"),
-                            end_pat: Some("my::env::Types)"),
-                        }],
-                    }],
-                ),
                 (
                     r#"#[ink::contract(namespace="my_namespace")]"#, // conflicting `namespace`.
                     vec![TestResultAction {
@@ -3797,7 +3866,7 @@ mod tests {
                 let attrs = parse_all_ink_attrs(code);
 
                 let mut results = Vec::new();
-                ensure_no_conflicting_attributes_and_arguments(&mut results, &attrs, version);
+                validate_entity_attributes(&mut results, &attrs, version);
 
                 // Verifies diagnostics.
                 assert_eq!(
