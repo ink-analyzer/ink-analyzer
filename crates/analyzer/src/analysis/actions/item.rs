@@ -443,6 +443,7 @@ fn item_ink_entity_actions(
                                     &chain_extension,
                                     ActionKind::Refactor,
                                     range_option,
+                                    version,
                                 ));
                             }
                         }
@@ -990,7 +991,7 @@ mod tests {
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
-                                    text: "#[ink(extension = 1)]",
+                                    text: "#[ink(function = 1)]",
                                     start_pat: Some("pub trait MyTrait {"),
                                     end_pat: Some("pub trait MyTrait {"),
                                 }],

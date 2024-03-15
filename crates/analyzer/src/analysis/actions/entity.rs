@@ -16,11 +16,11 @@ use crate::codegen::snippets::{
     CHAIN_EXTENSION_V5_SNIPPET, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, CONTRACT_PLAIN,
     CONTRACT_SNIPPET, ENVIRONMENT_DEF, ENVIRONMENT_DEF_V5, ENVIRONMENT_IMPL_PLAIN,
     ENVIRONMENT_IMPL_SNIPPET, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN, EVENT_SNIPPET,
-    EVENT_V2_PLAIN, EVENT_V2_SNIPPET, EXTENSION_PLAIN, EXTENSION_SNIPPET, INK_E2E_TEST_PLAIN,
-    INK_E2E_TEST_SNIPPET, INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET,
-    STORAGE_ITEM_PLAIN, STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN,
-    TOPIC_SNIPPET, TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN,
-    TRAIT_MESSAGE_SNIPPET,
+    EVENT_V2_PLAIN, EVENT_V2_SNIPPET, EXTENSION_FN_PLAIN, EXTENSION_FN_SNIPPET,
+    EXTENSION_FN_V5_PLAIN, EXTENSION_FN_V5_SNIPPET, INK_E2E_TEST_PLAIN, INK_E2E_TEST_SNIPPET,
+    INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN,
+    STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN, TOPIC_SNIPPET,
+    TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
 };
 use crate::TextEdit;
 
@@ -529,6 +529,7 @@ pub fn add_extension(
     chain_extension: &ChainExtension,
     kind: ActionKind,
     range_option: Option<TextRange>,
+    version: Version,
 ) -> Option<Action> {
     chain_extension.trait_item().and_then(|trait_item| {
         // Sets insert offset or defaults to inserting at the end of the
@@ -548,8 +549,21 @@ pub fn add_extension(
                         .iter()
                         .filter_map(Extension::fn_item),
                 );
-                let (mut text, mut snippet) =
-                    text_and_snippet(EXTENSION_PLAIN, EXTENSION_SNIPPET, "my_extension", &names);
+                let (mut text, mut snippet) = if version == Version::V5 {
+                    text_and_snippet(
+                        EXTENSION_FN_V5_PLAIN,
+                        EXTENSION_FN_V5_SNIPPET,
+                        "my_function",
+                        &names,
+                    )
+                } else {
+                    text_and_snippet(
+                        EXTENSION_FN_PLAIN,
+                        EXTENSION_FN_SNIPPET,
+                        "my_extension",
+                        &names,
+                    )
+                };
                 let unavailable_ids = chain_extension
                     .extensions()
                     .iter()
@@ -562,7 +576,14 @@ pub fn add_extension(
                 }
 
                 Action {
-                    label: "Add ink! extension `fn`.".to_owned(),
+                    label: format!(
+                        "Add ink! {} `fn`.",
+                        if version == Version::V5 {
+                            "function"
+                        } else {
+                            "extension"
+                        }
+                    ),
                     kind,
                     range: utils::ink_trait_declaration_range(chain_extension),
                     edits: vec![TextEdit::replace_with_snippet(

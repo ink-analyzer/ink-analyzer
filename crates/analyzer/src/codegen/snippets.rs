@@ -52,10 +52,15 @@ fn ${1:my_message}(&${2:self});"#;
 pub const ERROR_CODE_PLAIN: &str = r#"type ErrorCode = ();"#;
 pub const ERROR_CODE_SNIPPET: &str = r#"type ErrorCode = ${1:()};"#;
 
-pub const EXTENSION_PLAIN: &str = r#"#[ink(extension = 1)]
+pub const EXTENSION_FN_PLAIN: &str = r#"#[ink(extension = 1)]
 fn my_extension();"#;
-pub const EXTENSION_SNIPPET: &str = r#"#[ink(extension = ${1:1})]
+pub const EXTENSION_FN_SNIPPET: &str = r#"#[ink(extension = ${1:1})]
 fn ${2:my_extension}();"#;
+
+pub const EXTENSION_FN_V5_PLAIN: &str = r#"#[ink(function = 1)]
+fn my_function();"#;
+pub const EXTENSION_FN_V5_SNIPPET: &str = r#"#[ink(function = ${1:1})]
+fn ${2:my_function}();"#;
 
 pub const INK_TEST_PLAIN: &str = r#"#[ink::test]
 pub fn it_works() {
