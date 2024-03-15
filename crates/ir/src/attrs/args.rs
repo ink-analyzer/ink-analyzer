@@ -351,7 +351,7 @@ impl InkArgKind {
     /// Returns extra details/docs about the ink! attribute argument kind.
     pub fn detail(&self, version: Version) -> &str {
         match self {
-            InkArgKind::AdditionalContracts if version == Version::V5 => "This ink! argument is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.",
+            InkArgKind::AdditionalContracts if version == Version::V5 => "ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.",
             InkArgKind::AdditionalContracts => "Tells the ink! e2e test runner which additional contracts to build before executing the test.",
             InkArgKind::Anonymous => "Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.",
             InkArgKind::Backend if version == Version::V5 => "Tells the ink! e2e test runner which type of architecture to use to execute the test.",

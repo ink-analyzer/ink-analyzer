@@ -890,12 +890,7 @@ fn validate_entity_attributes(
                 for arg in attr.args() {
                     // Checks if this arg kind is the same as the one being used by the attribute,
                     // which is already known to not be conflicting at this point.
-                    let is_attribute_kind =
-                        if let InkAttributeKind::Arg(attr_arg_kind) = attr.kind() {
-                            arg.kind() == attr_arg_kind
-                        } else {
-                            false
-                        };
+                    let is_attribute_kind = *attr.kind() == InkAttributeKind::Arg(*arg.kind());
 
                     // Ignore arg if it's already been handled at attribute level.
                     if !is_attribute_kind && !valid_sibling_args.contains(arg.kind()) {
@@ -936,47 +931,114 @@ fn validate_entity_attributes(
                     }
                 }
             }
+        }
 
-            // For v5, the `chain_extension` macro without an `extension` argument is incomplete.
-            let has_extension_arg = || {
-                attr.args()
+        // v5 only pedantic validation (i.e. validation that cannot be properly expressed/declared using the existing generic utilities).
+        // NOTE: It's intentionally performed based on the primary attribute to keep diagnostics less noisy.
+        if version == Version::V5 {
+            let find_arg = |arg_kind: InkArgKind| {
+                attrs
                     .iter()
-                    .any(|arg| *arg.kind() == InkArgKind::Extension)
+                    .find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == arg_kind))
             };
-            if version == Version::V5
-                && *attr.kind() == InkAttributeKind::Macro(InkMacroKind::ChainExtension)
-                && !has_extension_arg()
+
+            // `anonymous` and `signature_topic` arguments conflict.
+            // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
+            if matches!(
+                primary_ink_attr_candidate.kind(),
+                InkAttributeKind::Macro(InkMacroKind::Event)
+                    | InkAttributeKind::Arg(
+                        InkArgKind::Event | InkArgKind::Anonymous | InkArgKind::SignatureTopic
+                    )
+            ) {
+                if let (Some(anonymous_arg), Some(signature_topic_arg)) = (
+                    find_arg(InkArgKind::Anonymous),
+                    find_arg(InkArgKind::SignatureTopic),
+                ) {
+                    let (first_arg, second_arg) = if anonymous_arg.text_range().start()
+                        < signature_topic_arg.text_range().start()
+                    {
+                        (anonymous_arg, signature_topic_arg)
+                    } else {
+                        (signature_topic_arg, anonymous_arg)
+                    };
+                    // Edit range for quickfix.
+                    let range = utils::ink_arg_and_delimiter_removal_range(second_arg, None);
+                    results.push(Diagnostic {
+                        message: format!(
+                            "ink! attribute argument `{}` conflicts with the ink! attribute argument `{}` for this item.",
+                            second_arg.kind(),
+                            first_arg.kind(),
+                        ),
+                        range: second_arg.text_range(),
+                        severity: Severity::Error,
+                        quickfixes: Some(vec![Action {
+                            label: format!(
+                                "Remove ink! `{}` attribute argument.",
+                                second_arg.kind()
+                            ),
+                            kind: ActionKind::QuickFix,
+                            range,
+                            edits: vec![TextEdit::delete(range)],
+                        }]),
+                    });
+                }
+            }
+
+            // `chain_extension` macro without an `extension` argument is incomplete.
+            // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html#macro-attributes>
+            if *primary_ink_attr_candidate.kind()
+                == InkAttributeKind::Macro(InkMacroKind::ChainExtension)
+                && find_arg(InkArgKind::Extension).is_none()
             {
+                let range = primary_ink_attr_candidate.syntax().text_range();
                 results.push(Diagnostic {
                     message: "Missing required ink! `extension` argument.".to_owned(),
-                    range: attr.syntax().text_range(),
+                    range,
                     severity: Severity::Error,
-                    quickfixes: utils::first_ink_arg_insert_offset_and_affixes(attr).map(
-                        |(insert_offset, prefix, suffix)| {
-                            let (edit, snippet) =
-                                utils::ink_arg_insert_text(InkArgKind::Extension, None, None);
-                            vec![Action {
-                                label: "Add ink! `extension` argument.".to_owned(),
-                                kind: ActionKind::QuickFix,
-                                range: attr.syntax().text_range(),
-                                edits: vec![TextEdit::insert_with_snippet(
+                    quickfixes: utils::first_ink_arg_insert_offset_and_affixes(
+                        &primary_ink_attr_candidate,
+                    )
+                    .map(|(insert_offset, prefix, suffix)| {
+                        let (edit, snippet) =
+                            utils::ink_arg_insert_text(InkArgKind::Extension, None, None);
+                        vec![Action {
+                            label: "Add ink! `extension` argument.".to_owned(),
+                            kind: ActionKind::QuickFix,
+                            range,
+                            edits: vec![TextEdit::insert_with_snippet(
+                                format!(
+                                    "{}{edit}{}",
+                                    prefix.unwrap_or_default(),
+                                    suffix.unwrap_or_default()
+                                ),
+                                insert_offset,
+                                snippet.as_ref().map(|snippet| {
                                     format!(
-                                        "{}{edit}{}",
+                                        "{}{snippet}{}",
                                         prefix.unwrap_or_default(),
                                         suffix.unwrap_or_default()
-                                    ),
-                                    insert_offset,
-                                    snippet.as_ref().map(|snippet| {
-                                        format!(
-                                            "{}{snippet}{}",
-                                            prefix.unwrap_or_default(),
-                                            suffix.unwrap_or_default()
-                                        )
-                                    }),
-                                )],
-                            }]
-                        },
-                    ),
+                                    )
+                                }),
+                            )],
+                        }]
+                    }),
+                });
+            }
+
+            // `additional_contracts` attribute argument is deprecated.
+            // Ref: <https://github.com/paritytech/ink/pull/2098>
+            // It's reported as a conflict when paired with the `ink_e2e::test` attribute macro,
+            // however, there's nothing for handling a standalone argument, hence this.
+            if *primary_ink_attr_candidate.kind()
+                == InkAttributeKind::Arg(InkArgKind::AdditionalContracts)
+            {
+                let range = primary_ink_attr_candidate.syntax().text_range();
+                results.push(Diagnostic {
+                    message: "ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.".to_owned(),
+                    range,
+                    severity: Severity::Error,
+                    quickfixes: Some(vec![Action::remove_attribute(&primary_ink_attr_candidate)]),
                 });
             }
         }
@@ -3320,6 +3382,53 @@ mod tests {
                         ],
                     ),
                     (
+                        r#"#[ink(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#, // missing `event`.
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"#[ink::event(signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]"#,
+                                    start_pat: Some("<-#[ink("),
+                                    end_pat: Some(")]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "event, ",
+                                    start_pat: Some("#[ink("),
+                                    end_pat: Some("#[ink("),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"#[ink::event(anonymous, signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#, // `anonymous` and `signature_topic` conflict.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("#[ink::event(anonymous"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        r#"
+                        #[ink(event)]
+                        #[ink(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]
+                        #[ink(anonymous)]
+                        "#, // `anonymous` and `signature_topic` conflict.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(anonymous)]"),
+                                end_pat: Some("#[ink(anonymous)]"),
+                            }],
+                        }],
+                    ),
+                    (
                         "#[ink(handle_status=true, function=1)]", // `function` should come first.
                         vec![TestResultAction {
                             label: "first argument",
@@ -3388,6 +3497,39 @@ mod tests {
                                 text: "",
                                 start_pat: Some("<-, handle_status=true"),
                                 end_pat: Some("handle_status=true"),
+                            }],
+                        }],
+                    ),
+                    (
+                        r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#, // `additional_contracts` is deprecated.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("#[ink_e2e::test"),
+                                end_pat: Some("<-]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        r#"#[ink_e2e::test(keep_attr="foo, bar")]"#, // `keep_attr` for `ink_e2e::test` macro is deprecated.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("#[ink_e2e::test"),
+                                end_pat: Some("<-]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        r#"#[ink(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#, // `additional_contracts` is deprecated.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#["),
+                                end_pat: Some(")]"),
                             }],
                         }],
                     ),
