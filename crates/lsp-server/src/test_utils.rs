@@ -4,6 +4,7 @@
 
 use crate::dispatch::{Snapshot, Snapshots};
 use crate::utils;
+use ink_analyzer::Version;
 
 /// Returns uri for a test document.
 pub fn document_uri() -> lsp_types::Url {
@@ -28,6 +29,7 @@ pub fn init_snapshots(
             content,
             utils::position_encoding(&client_capabilities),
             Some(0),
+            Version::V4,
         ),
     );
     (snapshots, uri)

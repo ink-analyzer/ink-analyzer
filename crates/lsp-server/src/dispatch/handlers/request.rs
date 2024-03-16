@@ -223,7 +223,7 @@ pub fn handle_execute_command(
                     .zip(root.join("Cargo.toml").ok());
                 match uris {
                     Some((lib_uri, cargo_uri)) => {
-                        match ink_analyzer::new_project(name.to_owned(), Version::V4) {
+                        match ink_analyzer::new_project(name.to_owned(), Version::V5) {
                             Ok(project) => {
                                 // Returns create project edits.
                                 Ok(serde_json::to_value(CreateProjectResponse {

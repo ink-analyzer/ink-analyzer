@@ -8,6 +8,7 @@ use crossbeam_channel::Sender;
 use ink_analyzer::{Analysis, Version};
 use lsp_types::request::Request;
 use std::collections::HashMap;
+use std::fs;
 
 use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
@@ -68,7 +69,8 @@ pub type Snapshots = HashMap<String, Snapshot>;
 pub struct Snapshot {
     analysis: Analysis,
     context: PositionTranslationContext,
-    version: Option<i32>,
+    doc_version: Option<i32>,
+    lang_version: Version,
 }
 
 impl Snapshot {
@@ -76,12 +78,14 @@ impl Snapshot {
     pub fn new(
         content: String,
         encoding: lsp_types::PositionEncodingKind,
-        version: Option<i32>,
+        doc_version: Option<i32>,
+        lang_version: Version,
     ) -> Self {
         Self {
-            analysis: Analysis::new(&content, Version::V4),
+            analysis: Analysis::new(&content, lang_version),
             context: PositionTranslationContext::new(&content, encoding),
-            version,
+            doc_version,
+            lang_version,
         }
     }
 }
@@ -253,20 +257,39 @@ impl<'a> Dispatcher<'a> {
                 let doc_uri = lsp_types::Url::parse(&id);
 
                 // Update analysis snapshot.
-                match self.memory.get(&id) {
-                    Some(doc) => {
-                        self.snapshots.insert(
-                            id,
-                            Snapshot::new(
-                                doc.content.clone(),
-                                utils::position_encoding(&self.client_capabilities),
-                                Some(doc.version),
-                            ),
-                        );
-                    }
-                    None => {
-                        self.snapshots.remove(&id);
-                    }
+                if let Some(doc) = self.memory.get(&id) {
+                    // Parse the ink! version.
+                    let lang_version = self
+                        .snapshots
+                        .get(&id)
+                        .map(|snapshot| snapshot.lang_version)
+                        .unwrap_or_else(|| {
+                            doc_uri
+                                .as_ref()
+                                .ok()
+                                .and_then(parse_ink_project_version)
+                                .map(|ink_cargo_version| {
+                                    if ink_cargo_version.starts_with("5.") {
+                                        Version::V5
+                                    } else {
+                                        Version::V4
+                                    }
+                                })
+                                // FIXME: We default to v4 for now because v5 is super new, but this should be changed at some point.
+                                .unwrap_or(Version::V4)
+                        });
+
+                    self.snapshots.insert(
+                        id,
+                        Snapshot::new(
+                            doc.content.clone(),
+                            utils::position_encoding(&self.client_capabilities),
+                            Some(doc.version),
+                            lang_version,
+                        ),
+                    );
+                } else {
+                    self.snapshots.remove(&id);
                 }
 
                 // Publish diagnostics for each document with changes.
@@ -298,6 +321,42 @@ impl<'a> Dispatcher<'a> {
             .send(msg)
             .map_err(|error| anyhow::format_err!("Failed to send message: {error}"))
     }
+}
+
+// Parses the ink! version from the Cargo.toml file for a given lib.rs file (if possible).
+fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<String> {
+    if let Ok(path) = doc_uri.to_file_path() {
+        if path.file_name().is_some_and(|name| name == "lib.rs") {
+            let mut cargo_toml_path = path.clone();
+            cargo_toml_path.set_file_name("Cargo.toml");
+            if cargo_toml_path.is_file() {
+                if let Ok(cargo_toml) = fs::read_to_string(cargo_toml_path) {
+                    if let Ok(package) = toml::from_str::<toml::Table>(&cargo_toml) {
+                        if let Some(toml::Value::Table(deps)) = package.get("dependencies") {
+                            if let Some(ink_dep) = deps.get("ink") {
+                                let ink_version = match ink_dep {
+                                    toml::Value::String(ink_version) => Some(ink_version),
+                                    toml::Value::Table(ink_dep_info) => {
+                                        if let Some(toml::Value::String(ink_version)) =
+                                            ink_dep_info.get("version")
+                                        {
+                                            Some(ink_version)
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    _ => None,
+                                };
+
+                                return ink_version.cloned();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]

@@ -22,7 +22,7 @@ pub fn publish_diagnostics(
                         translator::to_lsp::diagnostic(diagnostic, &snapshot.context)
                     })
                     .collect(),
-                snapshot.version,
+                snapshot.doc_version,
             )
         }
         // Clears diagnostics for missing documents.
@@ -43,6 +43,7 @@ mod tests {
     use crate::dispatch::Snapshot;
     use crate::test_utils::document_uri;
     use crate::utils;
+    use ink_analyzer::Version;
     use std::collections::HashMap;
     use test_utils::simple_client_config;
 
@@ -66,6 +67,7 @@ mod tests {
                 ),
                 utils::position_encoding(&client_capabilities),
                 Some(0),
+                Version::V4,
             ),
         );
 
