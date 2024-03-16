@@ -4,7 +4,7 @@ use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
     ast, ChainExtension, Contract, Event, EventV2, InkArgKind, InkAttributeKind, InkEntity,
-    InkFile, InkImpl, InkMacroKind, TraitDefinition,
+    InkFile, InkImpl, InkMacroKind, IsInkCallable, TraitDefinition,
 };
 use itertools::Itertools;
 
@@ -46,7 +46,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                             };
 
                         // Only computes ink! attribute actions if the focus is on either a
-                        // struct record field or an AST item's declaration (i.e not on attributes
+                        // struct record field or an AST item's declaration (i.e. not on attributes
                         // nor rustdoc nor inside the AST item's item list or body) for an item
                         // that can be annotated with ink! attributes.
                         if record_field.is_some()
@@ -361,12 +361,23 @@ fn item_ink_entity_actions(
                             range_option,
                         ));
 
-                        // Adds ink! message.
-                        add_result(entity::add_message_to_contract(
-                            &contract,
-                            ActionKind::Refactor,
-                            range_option,
-                        ));
+                        // For v5 messages, we only suggest adding messages,
+                        // if there isn't a message with a wildcard selector.
+                        let has_message_with_wildcard_selector = || {
+                            contract.messages().iter().any(|message| {
+                                message
+                                    .selector_arg()
+                                    .is_some_and(|selector| selector.is_wildcard())
+                            })
+                        };
+                        if version != Version::V5 || !has_message_with_wildcard_selector() {
+                            // Adds ink! message.
+                            add_result(entity::add_message_to_contract(
+                                &contract,
+                                ActionKind::Refactor,
+                                range_option,
+                            ));
+                        }
                     }
                 }
                 None => {
@@ -411,12 +422,31 @@ fn item_ink_entity_actions(
                     range_option,
                 ));
 
-                // Adds ink! message.
-                add_result(entity::add_message_to_impl(
-                    impl_item,
-                    ActionKind::Refactor,
-                    range_option,
-                ));
+                // For v5 messages, we only suggest adding messages,
+                // if there isn't a message with a wildcard selector.
+                let has_message_with_wildcard_selector = || {
+                    ink_analyzer_ir::ink_parent::<Contract>(impl_item.syntax())
+                        .as_ref()
+                        .map(Contract::messages)
+                        .or(InkImpl::cast(impl_item.syntax().clone())
+                            .as_ref()
+                            .map(InkImpl::messages))
+                        .is_some_and(|messages| {
+                            messages.iter().any(|message| {
+                                message
+                                    .selector_arg()
+                                    .is_some_and(|selector| selector.is_wildcard())
+                            })
+                        })
+                };
+                if version != Version::V5 || !has_message_with_wildcard_selector() {
+                    // Adds ink! message.
+                    add_result(entity::add_message_to_impl(
+                        impl_item,
+                        ActionKind::Refactor,
+                        range_option,
+                    ));
+                }
             }
         }
         ast::Item::Trait(trait_item) => {
@@ -585,7 +615,7 @@ fn flatten_attrs(results: &mut Vec<Action>, target: &SyntaxNode, range: TextRang
 }
 
 /// Determines if the selection range is in an AST item's declaration
-/// (i.e not on meta - attributes/rustdoc - nor inside the AST item's item list or body)
+/// (i.e. not on meta - attributes/rustdoc - nor inside the AST item's item list or body)
 /// for an item that can be annotated with ink! attributes or can have ink! attribute descendants.
 fn is_focused_on_item_declaration(item: &ast::Item, range: TextRange) -> bool {
     // Returns false for "unsupported" item types (see [`utils::ast_item_declaration_range`] doc and implementation).
@@ -596,7 +626,7 @@ fn is_focused_on_item_declaration(item: &ast::Item, range: TextRange) -> bool {
 }
 
 /// Determines if the selection range is in an AST item's body
-/// (i.e inside the AST item's item list or body)
+/// (i.e. inside the AST item's item list or body)
 /// for an item that can be annotated with ink! attributes or can have ink! attribute descendants.
 fn is_focused_on_item_body(item: &ast::Item, range: TextRange) -> bool {
     // Returns false for "unsupported" item types (see [`utils::ast_item_declaration_range`] doc and implementation).
