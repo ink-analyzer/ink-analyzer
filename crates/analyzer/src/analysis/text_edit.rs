@@ -220,7 +220,15 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                             // Handles beginning of file.
                             None => Some("\n".to_owned()),
                             Some(token_before) => token_before.text().contains('\n').then(|| {
-                                format!("\n{}", utils::end_indenting(token_before.text()))
+                                format!(
+                                    "\n{}{}",
+                                    if starts_with_two_or_more_newlines(token_before.text()) {
+                                        "\n"
+                                    } else {
+                                        ""
+                                    },
+                                    utils::end_indenting(token_before.text())
+                                )
                             }),
                         },
                     )
@@ -339,6 +347,17 @@ mod tests {
 "#,
                 Some("\n->"),
                 Some("\n->"),
+            ),
+            (
+                "mod contract {}",
+                "mod contract {}\n\n",
+                r#"
+#![cfg_attr(not(feature = "std"), no_std, no_main)]
+
+#[cfg(test)]
+mod tests {}"#,
+                Some("<-#[cfg(test)]"),
+                Some("<-#[cfg(test)]"),
             ),
             (
                 "mod contract {}",
