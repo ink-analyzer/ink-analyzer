@@ -12,7 +12,8 @@ It currently implements an [Analysis](https://github.com/ink-analyzer/ink-analyz
 - [completions](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros and arguments.
 - [code/intent actions](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros, arguments and entities.
 - [hover content](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/hover.rs) - descriptive/informational text for ink! attribute macros and arguments.
-- [inlay hints](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/inlay_hints.rs) - inline type and format information for ink! attribute arguments values (e.g. `u32 | _` for ink! selector).
+- [inlay hints](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/inlay_hints.rs) - inline type and format information for ink! attribute arguments values
+  (e.g. `u32 | _ | @` for ink! message selectors).
 - [signature help](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/signature_help.rs) - popup information for valid ink! attribute arguments for the current context/cursor position.
 
 ## Installation
