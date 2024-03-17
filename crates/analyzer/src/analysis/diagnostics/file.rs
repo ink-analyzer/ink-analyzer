@@ -3,14 +3,15 @@
 use ink_analyzer_ir::{InkAttributeKind, InkFile, InkMacroKind};
 
 use super::{
-    chain_extension, contract, event, ink_e2e_test, ink_test, storage_item, trait_definition, utils,
+    chain_extension, common, contract, event, ink_e2e_test, ink_test, storage_item,
+    trait_definition,
 };
 use crate::{Diagnostic, Severity, Version};
 
 /// Runs ink! file level diagnostics.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile, version: Version) {
     // Runs generic diagnostics `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, file, version);
+    common::run_generic_diagnostics(results, file, version);
 
     // Ensures that at most one ink! contract, See `ensure_contract_quantity`.
     ensure_contract_quantity(results, file);
@@ -61,7 +62,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile, version: Versi
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/codegen/src/generator/metadata.rs#L51>.
 fn ensure_contract_quantity(results: &mut Vec<Diagnostic>, file: &InkFile) {
-    utils::ensure_at_most_one_item(
+    common::ensure_at_most_one_item(
         results,
         file.contracts(),
         "Only one ink! contract per file is currently supported.",
@@ -77,7 +78,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
     file: &InkFile,
     version: Version,
 ) {
-    utils::ensure_valid_quasi_direct_ink_descendants(results, file, |attr| match version {
+    common::ensure_valid_quasi_direct_ink_descendants(results, file, |attr| match version {
         Version::V4 => matches!(
             attr.kind(),
             InkAttributeKind::Macro(

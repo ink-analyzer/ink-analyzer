@@ -4,7 +4,7 @@ use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::{Environment, HasInkEnvironment};
 
-use super::utils;
+use super::common;
 use crate::codegen::snippets::{ENVIRONMENT_IMPL_PLAIN, ENVIRONMENT_IMPL_SNIPPET};
 use crate::{resolution, Action, ActionKind, Diagnostic, Severity, TextEdit};
 
@@ -100,7 +100,7 @@ where
     let adt = item.environment().as_ref().map(Environment::adt).cloned()?;
     let name = adt.name()?.to_string();
 
-    utils::ensure_external_trait_impl(
+    common::ensure_external_trait_impl(
         &adt,
         (
             "Environment",

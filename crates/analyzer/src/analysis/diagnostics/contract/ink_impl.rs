@@ -1,5 +1,8 @@
 //! ink! impl diagnostics.
 
+use std::collections::{HashMap, HashSet};
+use std::iter;
+
 use ink_analyzer_ir::ast::{AstNode, HasName, HasVisibility, Trait};
 use ink_analyzer_ir::syntax::{SyntaxNode, TextRange};
 use ink_analyzer_ir::{
@@ -7,13 +10,12 @@ use ink_analyzer_ir::{
     InkImpl, IsInkFn, IsInkTrait, Message,
 };
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
-use std::iter;
 
-use super::{constructor, message, utils};
+use super::constructor;
 use crate::analysis::actions::entity as entity_actions;
+use crate::analysis::diagnostics::{common, message};
 use crate::analysis::text_edit::TextEdit;
-use crate::analysis::utils as analysis_utils;
+use crate::analysis::utils;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const SCOPE_NAME: &str = "impl";
@@ -30,7 +32,7 @@ pub fn diagnostics(
     skip_callable_diagnostics: bool,
 ) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, ink_impl, version);
+    common::run_generic_diagnostics(results, ink_impl, version);
 
     // Ensures that ink! impl is an `impl` item, see `ensure_impl` doc.
     if let Some(diagnostic) = ensure_impl(ink_impl) {
@@ -66,7 +68,7 @@ pub fn diagnostics(
     // Ensures that ink! impl is defined in the root of an ink! contract, see `utils::ensure_contract_parent` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L410-L469>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L88-L97>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(ink_impl, SCOPE_NAME) {
+    if let Some(diagnostic) = common::ensure_contract_parent(ink_impl, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -84,7 +86,7 @@ pub fn diagnostics(
 fn ensure_impl(ink_impl: &InkImpl) -> Option<Diagnostic> {
     ink_impl.impl_item().is_none().then(|| Diagnostic {
         message: "ink! impl must be an `impl` item.".to_owned(),
-        range: analysis_utils::ink_impl_declaration_range(ink_impl),
+        range: utils::ink_impl_declaration_range(ink_impl),
         severity: Severity::Error,
         quickfixes: ink_impl
             .impl_attr()
@@ -101,7 +103,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
     if let Some(impl_item) = ink_impl.impl_item() {
         if let Some(default_token) = impl_item.default_token() {
             // Edit range for quickfix.
-            let range = analysis_utils::token_and_trivia_range(&default_token);
+            let range = utils::token_and_trivia_range(&default_token);
             results.push(Diagnostic {
                 message: "ink! impl must not be `default`.".to_owned(),
                 range: default_token.text_range(),
@@ -117,7 +119,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
 
         if let Some(unsafe_token) = impl_item.unsafe_token() {
             // Edit range for quickfix.
-            let range = analysis_utils::token_and_trivia_range(&unsafe_token);
+            let range = utils::token_and_trivia_range(&unsafe_token);
             results.push(Diagnostic {
                 message: "ink! impl must not be `unsafe`.".to_owned(),
                 range: unsafe_token.text_range(),
@@ -131,7 +133,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
             });
         }
 
-        if let Some(diagnostic) = utils::ensure_no_generics(impl_item, SCOPE_NAME) {
+        if let Some(diagnostic) = common::ensure_no_generics(impl_item, SCOPE_NAME) {
             results.push(diagnostic);
         }
 
@@ -163,7 +165,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
 
         if let Some((_, arg)) = ink_impl.trait_type().zip(ink_impl.namespace_arg()) {
             // Edit range for quickfix.
-            let range = analysis_utils::ink_arg_and_delimiter_removal_range(&arg, None);
+            let range = utils::ink_arg_and_delimiter_removal_range(&arg, None);
             results.push(Diagnostic {
                 message: "ink! namespace argument is not allowed on trait ink! impl blocks."
                     .to_owned(),
@@ -194,7 +196,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                     // Callables must have inherent visibility for trait implementation blocks.
                     if let Some(visibility) = fn_item.visibility() {
                         // Edit range for quickfix.
-                        let range = analysis_utils::node_and_trivia_range(visibility.syntax());
+                        let range = utils::node_and_trivia_range(visibility.syntax());
                         results.push(Diagnostic {
                             message: format!("ink! {name}s in trait ink! impl blocks must have inherited visibility."),
                             range: visibility.syntax().text_range(),
@@ -221,10 +223,8 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                     if !has_pub_visibility {
                         // Gets the declaration range for the `fn` item.
                         let fn_declaration_range = || {
-                            analysis_utils::ast_item_declaration_range(&ast::Item::Fn(
-                                fn_item.clone(),
-                            ))
-                            .unwrap_or(fn_item.syntax().text_range())
+                            utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+                                .unwrap_or(fn_item.syntax().text_range())
                         };
                         results.push(Diagnostic {
                             message: format!(
@@ -281,7 +281,7 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
 /// Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/mod.rs#L119-L210>.
 fn ensure_annotation_or_contains_callable(ink_impl: &InkImpl) -> Option<Diagnostic> {
     // Gets the declaration range for the item.
-    let range = analysis_utils::ink_impl_declaration_range(ink_impl);
+    let range = utils::ink_impl_declaration_range(ink_impl);
     (ink_impl.impl_attr().is_none()
         && ink_impl.constructors().is_empty()
         && ink_impl.messages().is_empty())
@@ -317,7 +317,7 @@ where
         message: format!(
             "ink! {ink_scope_name}s must be defined in the root of an ink! contract's `impl` block."
         ),
-        range: analysis_utils::ink_impl_declaration_range(ink_impl),
+        range: utils::ink_impl_declaration_range(ink_impl),
         severity: Severity::Error,
         quickfixes: ink_impl
             .impl_item()
@@ -326,9 +326,9 @@ where
                 // Moves the item to the root of the `impl` block.
                 vec![Action::move_item(
                     item.syntax(),
-                    analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
+                    utils::assoc_item_insert_offset_end(&assoc_item_list),
                     "Move item to the root of the ink! contract's `impl` block.".to_owned(),
-                    Some(analysis_utils::item_children_indenting(ink_impl.syntax()).as_str()),
+                    Some(utils::item_children_indenting(ink_impl.syntax()).as_str()),
                 )]
             }),
     })
@@ -533,8 +533,8 @@ fn ensure_trait_definition_impl_invariants(
                 .assoc_item_list()
                 .map(|assoc_item_list| {
                     (
-                        analysis_utils::assoc_item_insert_offset_end(&assoc_item_list),
-                        Some(analysis_utils::item_children_indenting(impl_item.syntax())),
+                        utils::assoc_item_insert_offset_end(&assoc_item_list),
+                        Some(utils::item_children_indenting(impl_item.syntax())),
                         None,
                         None,
                     )
@@ -542,17 +542,17 @@ fn ensure_trait_definition_impl_invariants(
                 .unwrap_or_else(|| {
                     (
                         impl_item.syntax().text_range().end(),
-                        Some(analysis_utils::item_children_indenting(impl_item.syntax())),
+                        Some(utils::item_children_indenting(impl_item.syntax())),
                         Some(" {"),
                         Some(format!(
                             "{}}}",
-                            analysis_utils::item_indenting(impl_item.syntax())
+                            utils::item_indenting(impl_item.syntax())
                                 .as_deref()
                                 .unwrap_or_default()
                         )),
                     )
                 });
-            let range = analysis_utils::ink_impl_declaration_range(ink_impl);
+            let range = utils::ink_impl_declaration_range(ink_impl);
             let mut edit_option = None;
             let mut snippet_option = None;
             let mut snippet_idx = 1;
@@ -604,7 +604,7 @@ fn ensure_trait_definition_impl_invariants(
                     prefix_option.unwrap_or_default(),
                     indent_option
                         .as_ref()
-                        .map(|indent| { analysis_utils::apply_indenting(&edit, indent) })
+                        .map(|indent| { utils::apply_indenting(&edit, indent) })
                         .unwrap_or_else(|| edit.clone()),
                     suffix_option.as_deref().unwrap_or_default()
                 )
@@ -645,7 +645,7 @@ fn verify_signature_part_match(
         // Handles all cases with a declared option.
         (Some(declared), _) => {
             if implemented_option.map_or(true, |implemented| {
-                !analysis_utils::is_trivia_insensitive_eq(implemented, declared)
+                !utils::is_trivia_insensitive_eq(implemented, declared)
             }) {
                 results.push(Diagnostic {
                     message: format!(
@@ -708,7 +708,7 @@ fn ensure_trait_definition_impl_message_args(
     // Only ink! message (and it's complementary arguments) are allowed.
     let allowed_arg_kinds: HashSet<InkArgKind> = [InkArgKind::Message]
         .into_iter()
-        .chain(analysis_utils::valid_sibling_ink_args(
+        .chain(utils::valid_sibling_ink_args(
             InkAttributeKind::Arg(InkArgKind::Message),
             version,
         ))
@@ -792,7 +792,7 @@ fn ensure_trait_definition_impl_message_args(
                 }
             } else if !is_macro_attr {
                 // Edit range for quickfix.
-                let range = analysis_utils::ink_arg_and_delimiter_removal_range(arg, Some(&attr));
+                let range = utils::ink_arg_and_delimiter_removal_range(arg, Some(&attr));
 
                 results.push(Diagnostic {
                     message: format!(
@@ -835,52 +835,51 @@ fn ensure_trait_definition_impl_message_args(
             .chain(missing_args.clone())
             .map(|arg| format!("`{arg}`"))
             .join(", ");
-        let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+        let range = utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
             .unwrap_or(fn_item.syntax().text_range());
         let missing_arg_edits = ink_attr_option
             .and_then(|attr| match first_arg.kind() {
-                InkArgKind::Message => analysis_utils::first_ink_arg_insert_offset_and_affixes(
-                    &attr,
-                )
-                .map(|(insert_offset, prefix, suffix)| {
-                    let message_arg_edit = TextEdit::insert(
-                        format!(
-                            "{}{first_arg}{}",
-                            prefix.unwrap_or_default(),
-                            suffix.unwrap_or_default(),
-                        ),
-                        insert_offset,
-                    );
-                    let other_args = missing_args.join(", ");
-                    if other_args.is_empty() {
-                        vec![message_arg_edit]
-                    } else {
-                        analysis_utils::ink_arg_insert_offset_and_affixes(&attr, None)
-                            .map(|(other_insert_offset, other_prefix, other_suffix)| {
-                                vec![
-                                    message_arg_edit,
-                                    TextEdit::insert(
-                                        format!(
-                                            "{}{other_args}{}",
-                                            other_prefix.unwrap_or_default(),
-                                            other_suffix.unwrap_or_default(),
+                InkArgKind::Message => utils::first_ink_arg_insert_offset_and_affixes(&attr).map(
+                    |(insert_offset, prefix, suffix)| {
+                        let message_arg_edit = TextEdit::insert(
+                            format!(
+                                "{}{first_arg}{}",
+                                prefix.unwrap_or_default(),
+                                suffix.unwrap_or_default(),
+                            ),
+                            insert_offset,
+                        );
+                        let other_args = missing_args.join(", ");
+                        if other_args.is_empty() {
+                            vec![message_arg_edit]
+                        } else {
+                            utils::ink_arg_insert_offset_and_affixes(&attr, None)
+                                .map(|(other_insert_offset, other_prefix, other_suffix)| {
+                                    vec![
+                                        message_arg_edit,
+                                        TextEdit::insert(
+                                            format!(
+                                                "{}{other_args}{}",
+                                                other_prefix.unwrap_or_default(),
+                                                other_suffix.unwrap_or_default(),
+                                            ),
+                                            other_insert_offset,
                                         ),
-                                        other_insert_offset,
+                                    ]
+                                })
+                                .unwrap_or(vec![TextEdit::insert(
+                                    format!(
+                                        "{}{}{}",
+                                        prefix.unwrap_or_default(),
+                                        [first_arg.to_string(), other_args].join(", "),
+                                        suffix.unwrap_or_default(),
                                     ),
-                                ]
-                            })
-                            .unwrap_or(vec![TextEdit::insert(
-                                format!(
-                                    "{}{}{}",
-                                    prefix.unwrap_or_default(),
-                                    [first_arg.to_string(), other_args].join(", "),
-                                    suffix.unwrap_or_default(),
-                                ),
-                                insert_offset,
-                            )])
-                    }
-                }),
-                _ => analysis_utils::ink_arg_insert_offset_and_affixes(&attr, None).map(
+                                    insert_offset,
+                                )])
+                        }
+                    },
+                ),
+                _ => utils::ink_arg_insert_offset_and_affixes(&attr, None).map(
                     |(insert_offset, prefix, suffix)| {
                         vec![TextEdit::insert(
                             format!(
@@ -904,9 +903,9 @@ fn ensure_trait_definition_impl_message_args(
                 ),
                 match first_arg.kind() {
                     InkArgKind::Message => {
-                        analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax())
+                        utils::first_ink_attribute_insert_offset(fn_item.syntax())
                     }
-                    _ => analysis_utils::ink_attribute_insert_offset(fn_item.syntax()),
+                    _ => utils::ink_attribute_insert_offset(fn_item.syntax()),
                 },
             )]);
         results.push(Diagnostic {
@@ -936,7 +935,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
     ink_impl: &InkImpl,
     version: Version,
 ) {
-    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+    common::ensure_valid_quasi_direct_ink_descendants_by_kind(
         results,
         ink_impl,
         InkAttributeKind::Arg(InkArgKind::Impl),

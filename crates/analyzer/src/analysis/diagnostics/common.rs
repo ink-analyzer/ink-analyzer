@@ -1,5 +1,7 @@
 //! Utilities for ink! diagnostics.
 
+use std::collections::HashSet;
+
 use ink_analyzer_ir::ast::{
     AstNode, AstToken, HasAttrs, HasGenericParams, HasName, HasTypeBounds, HasVisibility,
 };
@@ -12,7 +14,6 @@ use ink_analyzer_ir::{
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::HashSet;
 
 use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils;

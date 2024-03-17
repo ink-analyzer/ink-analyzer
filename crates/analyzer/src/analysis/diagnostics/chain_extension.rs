@@ -1,6 +1,7 @@
 //! ink! chain extension diagnostics.
 
 mod error_code;
+mod extension_fn;
 
 use std::collections::HashSet;
 
@@ -11,10 +12,8 @@ use ink_analyzer_ir::{
     InkFile, InkMacroKind, IsChainExtensionFn, IsInkTrait, IsIntId,
 };
 
-use super::{extension_fn, utils};
-use crate::analysis::{
-    actions::entity as entity_actions, text_edit::TextEdit, utils as analysis_utils,
-};
+use super::common;
+use crate::analysis::{actions::entity as entity_actions, text_edit::TextEdit, utils};
 use crate::{Action, ActionKind, Diagnostic, Severity, TextRange, Version};
 
 const SCOPE_NAME: &str = "chain extension";
@@ -32,7 +31,7 @@ pub fn diagnostics(
     version: Version,
 ) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, chain_extension, version);
+    common::run_generic_diagnostics(results, chain_extension, version);
 
     if version == Version::V5 {
         // For ink! v5, ensures that ink! chain extension has an ink! extension attribute argument,
@@ -44,7 +43,7 @@ pub fn diagnostics(
 
     // Ensures that ink! chain extension is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L222>.
-    if let Some(diagnostic) = utils::ensure_trait(chain_extension, SCOPE_NAME) {
+    if let Some(diagnostic) = common::ensure_trait(chain_extension, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -52,7 +51,7 @@ pub fn diagnostics(
         // Ensures that ink! chain extension `trait` item satisfies all common invariants of trait-based ink! entities,
         // see `utils::ensure_trait_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L213-L254>.
-        utils::ensure_trait_invariants(results, trait_item, SCOPE_NAME);
+        common::ensure_trait_invariants(results, trait_item, SCOPE_NAME);
     }
 
     // Ensures that ink! chain extension `trait` item's associated items satisfy all invariants,
@@ -92,14 +91,14 @@ fn ensure_extension_arg(chain_extension: &ChainExtension) -> Option<Diagnostic> 
         let range = chain_extension
             .ink_attr()
             .map(|attr| attr.syntax().text_range())
-            .unwrap_or_else(|| analysis_utils::ink_trait_declaration_range(chain_extension));
+            .unwrap_or_else(|| utils::ink_trait_declaration_range(chain_extension));
         Diagnostic {
             message: "An ink! chain extension must have a ink! extension argument.".to_owned(),
             range,
             severity: Severity::Error,
             quickfixes: chain_extension
                 .ink_attr()
-                .and_then(|attr| analysis_utils::ink_arg_insert_offset_and_affixes(attr, None))
+                .and_then(|attr| utils::ink_arg_insert_offset_and_affixes(attr, None))
                 .map(|(insert_offset, insert_prefix, insert_suffix)| {
                     // Range for the quickfix.
                     let range = TextRange::new(insert_offset, insert_offset);
@@ -115,7 +114,7 @@ fn ensure_extension_arg(chain_extension: &ChainExtension) -> Option<Diagnostic> 
                                 .iter()
                                 .filter_map(ChainExtension::id)
                                 .collect();
-                            analysis_utils::suggest_unique_id(None, &unavailable_ids)
+                            utils::suggest_unique_id(None, &unavailable_ids)
                         })
                         .unwrap_or(1);
 
@@ -171,9 +170,7 @@ fn ensure_trait_item_invariants(
                     .as_ref()
                     // Defaults to the declaration range for the chain extension.
                     .map(|it| it.syntax().text_range())
-                    .unwrap_or_else(|| {
-                        analysis_utils::ink_trait_declaration_range(chain_extension)
-                    }),
+                    .unwrap_or_else(|| utils::ink_trait_declaration_range(chain_extension)),
                 severity: Severity::Error,
                 quickfixes: name_marker.as_ref().map(|name| {
                     vec![Action {
@@ -190,12 +187,12 @@ fn ensure_trait_item_invariants(
         }
 
         if let Some(diagnostic) =
-            utils::ensure_no_generics(type_alias, "chain extension `ErrorCode` type")
+            common::ensure_no_generics(type_alias, "chain extension `ErrorCode` type")
         {
             results.push(diagnostic);
         }
 
-        if let Some(diagnostic) = utils::ensure_no_trait_bounds(
+        if let Some(diagnostic) = common::ensure_no_trait_bounds(
             type_alias,
             "Trait bounds on ink! chain extension `ErrorCode` types are not supported.",
         ) {
@@ -243,7 +240,7 @@ fn ensure_trait_item_invariants(
         ($trait_item: ident, $entity: ty, $id_arg_kind: ident, $id_type: ty) => {
             // Tracks already used and suggested ids for quickfixes.
             let mut unavailable_ids: HashSet<$id_type> = init_unavailable_ids(chain_extension, version);
-            utils::ensure_trait_item_invariants(
+            common::ensure_trait_item_invariants(
                 results,
                 $trait_item,
                 "chain extension",
@@ -283,12 +280,11 @@ fn ensure_trait_item_invariants(
         T: IsIntId,
     {
         // Determines quickfix insertion offset and affixes.
-        let insert_offset = analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax());
+        let insert_offset = utils::first_ink_attribute_insert_offset(fn_item.syntax());
         // Computes a unique id for the chain extension function.
-        let suggested_id =
-            analysis_utils::suggest_unique_id_mut(None, unavailable_ids).unwrap_or(1.into());
+        let suggested_id = utils::suggest_unique_id_mut(None, unavailable_ids).unwrap_or(1.into());
         // Gets the declaration range for the item.
-        let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+        let range = utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
             .unwrap_or(fn_item.syntax().text_range());
 
         results.push(Diagnostic {
@@ -345,7 +341,7 @@ fn ensure_error_code_type_quantity(
                 results.push(Diagnostic {
                     message: "Missing `ErrorCode` associated type for ink! chain extension."
                         .to_owned(),
-                    range: analysis_utils::ink_trait_declaration_range(chain_extension),
+                    range: utils::ink_trait_declaration_range(chain_extension),
                     severity: Severity::Error,
                     quickfixes: entity_actions::add_error_code(
                         chain_extension,
@@ -437,7 +433,7 @@ fn ensure_no_overlapping_ids(
                             .unwrap_or(extension_fn.syntax().text_range()),
                         severity: Severity::Error,
                         quickfixes: value_range_option
-                            .zip(analysis_utils::suggest_unique_id_mut(None, unavailable_ids))
+                            .zip(utils::suggest_unique_id_mut(None, unavailable_ids))
                             .map(|(range, suggested_id)| {
                                 vec![Action {
                                     label: format!(
@@ -475,7 +471,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
     chain_extension: &ChainExtension,
     version: Version,
 ) {
-    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+    common::ensure_valid_quasi_direct_ink_descendants_by_kind(
         results,
         chain_extension,
         InkAttributeKind::Macro(InkMacroKind::ChainExtension),
@@ -678,7 +674,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            utils::ensure_trait_invariants(
+            common::ensure_trait_invariants(
                 &mut results,
                 chain_extension.trait_item().unwrap(),
                 "chain extension",
@@ -825,7 +821,7 @@ mod tests {
             let chain_extension = parse_first_chain_extension(&code);
 
             let mut results = Vec::new();
-            utils::ensure_trait_invariants(
+            common::ensure_trait_invariants(
                 &mut results,
                 chain_extension.trait_item().unwrap(),
                 "chain extension",

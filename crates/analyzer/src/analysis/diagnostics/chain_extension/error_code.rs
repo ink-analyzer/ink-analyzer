@@ -3,7 +3,7 @@
 use ink_analyzer_ir::ast::{AstNode, HasName};
 use ink_analyzer_ir::{ast, ChainExtension, InkEntity, Version};
 
-use super::utils;
+use crate::analysis::diagnostics::common;
 use crate::codegen::snippets::{FROM_STATUS_CODE_IMPL_PLAIN, FROM_STATUS_CODE_IMPL_SNIPPET};
 use crate::{resolution, Action, ActionKind, Diagnostic, Severity, TextEdit};
 
@@ -95,7 +95,7 @@ fn ensure_impl_from_status_code(chain_extension: &ChainExtension) -> Option<Diag
     let adt = error_code_adt(chain_extension)?;
     let name = adt.name()?.to_string();
 
-    utils::ensure_external_trait_impl(
+    common::ensure_external_trait_impl(
         &adt,
         (
             "FromStatusCode",
@@ -120,7 +120,7 @@ fn ensure_impl_scale_codec_traits(
 ) -> Option<Diagnostic> {
     // Only continue if there's an `ErrorCode` type.
     error_code_adt(chain_extension).and_then(|adt| {
-        utils::ensure_impl_scale_codec_traits(&adt, "`ErrorCode` associated type", version)
+        common::ensure_impl_scale_codec_traits(&adt, "`ErrorCode` associated type", version)
     })
 }
 

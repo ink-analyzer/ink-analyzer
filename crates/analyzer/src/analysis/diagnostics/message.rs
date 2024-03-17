@@ -3,9 +3,9 @@
 use ink_analyzer_ir::ast::AstNode;
 use ink_analyzer_ir::{ast, InkArgKind, InkAttributeKind, IsInkFn, Message};
 
-use super::utils;
+use super::common;
 use crate::analysis::text_edit::TextEdit;
-use crate::analysis::utils as analysis_utils;
+use crate::analysis::utils;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const SCOPE_NAME: &str = "message";
@@ -18,11 +18,11 @@ const ATTR_KIND: InkAttributeKind = InkAttributeKind::Arg(InkArgKind::Message);
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201-L216>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, message, version);
+    common::run_generic_diagnostics(results, message, version);
 
     // Ensures that ink! message is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L201>.
-    if let Some(diagnostic) = utils::ensure_fn(message, SCOPE_NAME) {
+    if let Some(diagnostic) = common::ensure_fn(message, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -31,7 +31,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message, version: Ve
         // see `utils::ensure_callable_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L202>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-        utils::ensure_callable_invariants(results, fn_item, SCOPE_NAME);
+        common::ensure_callable_invariants(results, fn_item, SCOPE_NAME);
 
         // Ensures that ink! message `fn` item has a self reference receiver, see `ensure_receiver_is_self_ref` doc.
         if let Some(diagnostic) = ensure_receiver_is_self_ref(fn_item) {
@@ -45,7 +45,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message, version: Ve
     }
 
     // Ensures that ink! message has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+    common::ensure_valid_quasi_direct_ink_descendants_by_kind(
         results, message, ATTR_KIND, version, SCOPE_NAME,
     );
 }
@@ -64,7 +64,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
         .is_some_and(|self_param| self_param.amp_token().is_some());
 
     // Gets the declaration range for the item.
-    let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+    let range = utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
         .unwrap_or(fn_item.syntax().text_range());
 
     (!has_self_ref_receiver).then(|| Diagnostic {
@@ -113,7 +113,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
 fn ensure_not_return_self(fn_item: &ast::Fn) -> Option<Diagnostic> {
     let return_type = fn_item.ret_type()?.ty()?;
     // Edit range for quickfix.
-    let range = analysis_utils::node_and_trivia_range(fn_item.ret_type()?.syntax());
+    let range = utils::node_and_trivia_range(fn_item.ret_type()?.syntax());
     (return_type.to_string() == "Self").then(|| Diagnostic {
         message: "ink! message must not return `Self`.".to_owned(),
         range: return_type.syntax().text_range(),
@@ -250,7 +250,11 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            utils::ensure_callable_invariants(&mut results, message.fn_item().unwrap(), SCOPE_NAME);
+            common::ensure_callable_invariants(
+                &mut results,
+                message.fn_item().unwrap(),
+                SCOPE_NAME,
+            );
             assert!(results.is_empty(), "message: {code}");
         }
     }
@@ -646,7 +650,11 @@ mod tests {
             let message = parse_first_message(&code);
 
             let mut results = Vec::new();
-            utils::ensure_callable_invariants(&mut results, message.fn_item().unwrap(), SCOPE_NAME);
+            common::ensure_callable_invariants(
+                &mut results,
+                message.fn_item().unwrap(),
+                SCOPE_NAME,
+            );
 
             // Verifies diagnostics.
             assert_eq!(results.len(), 1, "message: {code}");
@@ -798,7 +806,7 @@ mod tests {
 
             for version in [Version::V4, Version::V5] {
                 let mut results = Vec::new();
-                utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                     &mut results,
                     &message,
                     ATTR_KIND,
@@ -826,7 +834,7 @@ mod tests {
 
         for version in [Version::V4, Version::V5] {
             let mut results = Vec::new();
-            utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+            common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,
                 &message,
                 ATTR_KIND,

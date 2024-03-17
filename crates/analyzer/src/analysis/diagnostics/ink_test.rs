@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::{InkAttributeKind, InkMacroKind, InkTest};
 
-use super::utils;
+use super::common;
 use crate::{Diagnostic, Version};
 
 const SCOPE_NAME: &str = "test";
@@ -17,16 +17,16 @@ const ATTR_KIND: InkAttributeKind = InkAttributeKind::Macro(InkMacroKind::Test);
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27-L30>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_test: &InkTest, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, ink_test, version);
+    common::run_generic_diagnostics(results, ink_test, version);
 
     // Ensures that ink! test is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27>.
-    if let Some(diagnostic) = utils::ensure_fn(ink_test, SCOPE_NAME) {
+    if let Some(diagnostic) = common::ensure_fn(ink_test, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
     // Ensures that ink! test has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+    common::ensure_valid_quasi_direct_ink_descendants_by_kind(
         results, ink_test, ATTR_KIND, version, SCOPE_NAME,
     );
 }
@@ -55,7 +55,7 @@ mod tests {
             }
         });
 
-        let result = utils::ensure_fn(&ink_test, SCOPE_NAME);
+        let result = common::ensure_fn(&ink_test, SCOPE_NAME);
         assert!(result.is_none());
     }
 
@@ -84,7 +84,7 @@ mod tests {
             };
             let ink_test = parse_first_ink_test(&code);
 
-            let result = utils::ensure_fn(&ink_test, SCOPE_NAME);
+            let result = common::ensure_fn(&ink_test, SCOPE_NAME);
 
             // Verifies diagnostics.
             assert!(result.is_some(), "ink test: {code}");
@@ -117,7 +117,7 @@ mod tests {
 
         for version in [Version::V4, Version::V5] {
             let mut results = Vec::new();
-            utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+            common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,
                 &ink_test,
                 ATTR_KIND,
@@ -144,7 +144,7 @@ mod tests {
 
         for version in [Version::V4, Version::V5] {
             let mut results = Vec::new();
-            utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+            common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,
                 &ink_test,
                 ATTR_KIND,

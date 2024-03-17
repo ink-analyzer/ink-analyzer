@@ -3,9 +3,9 @@
 use ink_analyzer_ir::ast::AstNode;
 use ink_analyzer_ir::{ast, Constructor, InkArgKind, InkAttributeKind, IsInkFn};
 
-use super::utils;
+use crate::analysis::diagnostics::common;
 use crate::analysis::text_edit::TextEdit;
-use crate::analysis::utils as analysis_utils;
+use crate::analysis::utils;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const SCOPE_NAME: &str = "constructor";
@@ -18,11 +18,11 @@ const ATTR_KIND: InkAttributeKind = InkAttributeKind::Arg(InkArgKind::Constructo
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155-L170>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, constructor, version);
+    common::run_generic_diagnostics(results, constructor, version);
 
     // Ensures that ink! constructor is an `fn` item, see `utils::ensure_fn` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L155>.
-    if let Some(diagnostic) = utils::ensure_fn(constructor, SCOPE_NAME) {
+    if let Some(diagnostic) = common::ensure_fn(constructor, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -31,12 +31,12 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor, ver
         // see `utils::ensure_callable_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L156>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/callable.rs#L355-L440>.
-        utils::ensure_callable_invariants(results, fn_item, SCOPE_NAME);
+        common::ensure_callable_invariants(results, fn_item, SCOPE_NAME);
 
         // Ensures that ink! constructor `fn` item has no self receiver, see `utils::ensure_no_self_receiver` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L158>.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L107-L128>.
-        if let Some(diagnostic) = utils::ensure_no_self_receiver(fn_item, SCOPE_NAME) {
+        if let Some(diagnostic) = common::ensure_no_self_receiver(fn_item, SCOPE_NAME) {
             results.push(diagnostic);
         }
 
@@ -47,7 +47,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, constructor: &Constructor, ver
     }
 
     // Ensures that ink! constructor has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+    common::ensure_valid_quasi_direct_ink_descendants_by_kind(
         results,
         constructor,
         ATTR_KIND,
@@ -68,7 +68,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
         .is_some_and(|ret_type| ret_type.ty().is_some());
 
     // Gets the declaration range for the item.
-    let range = analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+    let range = utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
         .unwrap_or(fn_item.syntax().text_range());
 
     (!has_return_type).then(|| Diagnostic {
@@ -200,7 +200,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            utils::ensure_callable_invariants(
+            common::ensure_callable_invariants(
                 &mut results,
                 constructor.fn_item().unwrap(),
                 SCOPE_NAME,
@@ -443,7 +443,7 @@ mod tests {
             let constructor = parse_first_constructor(&code);
 
             let mut results = Vec::new();
-            utils::ensure_callable_invariants(
+            common::ensure_callable_invariants(
                 &mut results,
                 constructor.fn_item().unwrap(),
                 SCOPE_NAME,
@@ -468,7 +468,8 @@ mod tests {
                 #code
             });
 
-            let result = utils::ensure_no_self_receiver(constructor.fn_item().unwrap(), SCOPE_NAME);
+            let result =
+                common::ensure_no_self_receiver(constructor.fn_item().unwrap(), SCOPE_NAME);
             assert!(result.is_none(), "constructor: {code}");
         }
     }
@@ -512,7 +513,8 @@ mod tests {
             };
             let constructor = parse_first_constructor(&code);
 
-            let result = utils::ensure_no_self_receiver(constructor.fn_item().unwrap(), SCOPE_NAME);
+            let result =
+                common::ensure_no_self_receiver(constructor.fn_item().unwrap(), SCOPE_NAME);
 
             // Verifies diagnostics.
             assert!(result.is_some(), "constructor: {code}");
@@ -605,7 +607,7 @@ mod tests {
 
             for version in [Version::V4, Version::V5] {
                 let mut results = Vec::new();
-                utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+                common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                     &mut results,
                     &constructor,
                     ATTR_KIND,
@@ -633,7 +635,7 @@ mod tests {
 
         for version in [Version::V4, Version::V5] {
             let mut results = Vec::new();
-            utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+            common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,
                 &constructor,
                 ATTR_KIND,

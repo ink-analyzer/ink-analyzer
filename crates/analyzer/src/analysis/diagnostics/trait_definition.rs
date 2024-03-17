@@ -6,10 +6,10 @@ use ink_analyzer_ir::{
     TraitDefinition,
 };
 
-use super::{message, utils};
+use super::{common, message};
 use crate::analysis::actions::entity as entity_actions;
 use crate::analysis::text_edit::TextEdit;
-use crate::analysis::utils as analysis_utils;
+use crate::analysis::utils;
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
 const SCOPE_NAME: &str = "trait definition";
@@ -27,11 +27,11 @@ pub fn diagnostics(
     version: Version,
 ) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, trait_definition, version);
+    common::run_generic_diagnostics(results, trait_definition, version);
 
     // Ensures that ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
-    if let Some(diagnostic) = utils::ensure_trait(trait_definition, SCOPE_NAME) {
+    if let Some(diagnostic) = common::ensure_trait(trait_definition, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -39,7 +39,7 @@ pub fn diagnostics(
         // Ensures that ink! trait definition `trait` item satisfies all common invariants of trait-based ink! entities,
         // see `utils::ensure_trait_invariants` doc.
         // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
-        utils::ensure_trait_invariants(results, trait_item, SCOPE_NAME);
+        common::ensure_trait_invariants(results, trait_item, SCOPE_NAME);
 
         // Ensures that ink! trait definition `trait` item's associated items satisfy all invariants,
         // see `ensure_trait_item_invariants` doc.
@@ -74,7 +74,7 @@ fn ensure_trait_item_invariants(
     trait_item: &ast::Trait,
     version: Version,
 ) {
-    utils::ensure_trait_item_invariants(
+    common::ensure_trait_item_invariants(
         results,
         trait_item,
         "trait definition",
@@ -90,12 +90,10 @@ fn ensure_trait_item_invariants(
                 message::diagnostics(results, &message_item, version);
             } else {
                 // Determines the insertion offset and affixes for the quickfix.
-                let insert_offset =
-                    analysis_utils::first_ink_attribute_insert_offset(fn_item.syntax());
+                let insert_offset = utils::first_ink_attribute_insert_offset(fn_item.syntax());
                 // Gets the declaration range for the item.
-                let range =
-                    analysis_utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
-                        .unwrap_or(fn_item.syntax().text_range());
+                let range = utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+                    .unwrap_or(fn_item.syntax().text_range());
                 results.push(Diagnostic {
                     message: "All ink! trait definition methods must be ink! messages.".to_owned(),
                     range,
@@ -136,10 +134,8 @@ fn ensure_trait_item_invariants(
                     if let Some(value) = arg.value() {
                         if value.is_wildcard() {
                             // Edit range for quickfix.
-                            let range = analysis_utils::ink_arg_and_delimiter_removal_range(
-                                arg,
-                                Some(&attr),
-                            );
+                            let range =
+                                utils::ink_arg_and_delimiter_removal_range(arg, Some(&attr));
                             results.push(Diagnostic {
                                 message:
                                 "Wildcard selectors (i.e `selector=_`) on ink! trait definition methods are not supported. \
@@ -183,9 +179,9 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
     // Gets the declaration range for the item.
     let range = trait_definition
         .trait_item()
-        .and_then(|it| analysis_utils::ast_item_declaration_range(&ast::Item::Trait(it.clone())))
+        .and_then(|it| utils::ast_item_declaration_range(&ast::Item::Trait(it.clone())))
         .unwrap_or(trait_definition.syntax().text_range());
-    utils::ensure_at_least_one_item(
+    common::ensure_at_least_one_item(
         trait_definition.messages(),
         Diagnostic {
             message: "At least one ink! message must be defined for an ink! trait definition."
@@ -214,7 +210,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
     trait_definition: &TraitDefinition,
     version: Version,
 ) {
-    utils::ensure_valid_quasi_direct_ink_descendants_by_kind(
+    common::ensure_valid_quasi_direct_ink_descendants_by_kind(
         results,
         trait_definition,
         InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
@@ -334,7 +330,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            utils::ensure_trait_invariants(
+            common::ensure_trait_invariants(
                 &mut results,
                 trait_definition.trait_item().unwrap(),
                 SCOPE_NAME,
@@ -481,7 +477,7 @@ mod tests {
             let trait_definition = parse_first_trait_definition(&code);
 
             let mut results = Vec::new();
-            utils::ensure_trait_invariants(
+            common::ensure_trait_invariants(
                 &mut results,
                 trait_definition.trait_item().unwrap(),
                 SCOPE_NAME,

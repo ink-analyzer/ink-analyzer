@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::Storage;
 
-use super::utils;
+use crate::analysis::diagnostics::common;
 use crate::{Diagnostic, Version};
 
 const SCOPE_NAME: &str = "storage";
@@ -14,12 +14,12 @@ const SCOPE_NAME: &str = "storage";
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81-L101>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, storage: &Storage, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, storage, version);
+    common::run_generic_diagnostics(results, storage, version);
 
     // Ensures that ink! storage is a `struct` with `pub` visibility, see `utils::ensure_pub_struct` doc.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L81>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L94>.
-    if let Some(diagnostic) = utils::ensure_pub_struct(storage, SCOPE_NAME) {
+    if let Some(diagnostic) = common::ensure_pub_struct(storage, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
@@ -27,12 +27,12 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, storage: &Storage, version: Ve
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L377-L379>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/storage.rs#L28-L29>.
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L64-L74>.
-    if let Some(diagnostic) = utils::ensure_contract_parent(storage, SCOPE_NAME) {
+    if let Some(diagnostic) = common::ensure_contract_parent(storage, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
     // Ensures that ink! storage has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, storage, SCOPE_NAME, false);
+    common::ensure_no_ink_descendants(results, storage, SCOPE_NAME, false);
 }
 
 #[cfg(test)]
@@ -77,7 +77,7 @@ mod tests {
                 #code
             });
 
-            let result = utils::ensure_pub_struct(&storage, SCOPE_NAME);
+            let result = common::ensure_pub_struct(&storage, SCOPE_NAME);
             assert!(result.is_none(), "storage: {code}");
         }
     }
@@ -150,7 +150,7 @@ mod tests {
             };
             let storage = parse_first_storage_definition(&code);
 
-            let result = utils::ensure_pub_struct(&storage, SCOPE_NAME);
+            let result = common::ensure_pub_struct(&storage, SCOPE_NAME);
 
             // Verifies diagnostics.
             assert!(result.is_some());
@@ -171,7 +171,7 @@ mod tests {
                 #code
             });
 
-            let result = utils::ensure_contract_parent(&storage, SCOPE_NAME);
+            let result = common::ensure_contract_parent(&storage, SCOPE_NAME);
             assert!(result.is_none(), "storage: {code}");
         }
     }
@@ -223,7 +223,7 @@ mod tests {
         ] {
             let storage = parse_first_storage_definition(&code);
 
-            let result = utils::ensure_contract_parent(&storage, SCOPE_NAME);
+            let result = common::ensure_contract_parent(&storage, SCOPE_NAME);
 
             // Verifies diagnostics.
             assert!(result.is_some());
@@ -250,7 +250,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            utils::ensure_no_ink_descendants(&mut results, &storage, SCOPE_NAME, false);
+            common::ensure_no_ink_descendants(&mut results, &storage, SCOPE_NAME, false);
             assert!(results.is_empty(), "storage: {code}");
         }
     }
@@ -267,7 +267,7 @@ mod tests {
         let storage = parse_first_storage_definition(&code);
 
         let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &storage, SCOPE_NAME, false);
+        common::ensure_no_ink_descendants(&mut results, &storage, SCOPE_NAME, false);
 
         // Verifies diagnostics.
         assert_eq!(results.len(), 1);

@@ -2,7 +2,7 @@
 
 use ink_analyzer_ir::{InkEntity, StorageItem};
 
-use super::utils;
+use super::common;
 use crate::{Action, Diagnostic, Severity, Version};
 
 const SCOPE_NAME: &str = "storage_item";
@@ -14,7 +14,7 @@ const SCOPE_NAME: &str = "storage_item";
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/mod.rs#L33-L54>.
 pub fn diagnostics(results: &mut Vec<Diagnostic>, storage_item: &StorageItem, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    utils::run_generic_diagnostics(results, storage_item, version);
+    common::run_generic_diagnostics(results, storage_item, version);
 
     // Ensures that ink! storage item is applied to an `adt` (i.e `enum`, `struct` or `union`) item., see `ensure_adt` doc.
     if let Some(diagnostic) = ensure_adt(storage_item) {
@@ -22,7 +22,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, storage_item: &StorageItem, ve
     }
 
     // Ensures that ink! storage item has no ink! descendants, see `utils::ensure_no_ink_descendants` doc.
-    utils::ensure_no_ink_descendants(results, storage_item, SCOPE_NAME, false);
+    common::ensure_no_ink_descendants(results, storage_item, SCOPE_NAME, false);
 }
 
 /// Ensures that ink! storage item is an `adt` (i.e `enum`, `struct` or `union`) item.
@@ -152,7 +152,7 @@ mod tests {
         });
 
         let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &storage_item, SCOPE_NAME, false);
+        common::ensure_no_ink_descendants(&mut results, &storage_item, SCOPE_NAME, false);
         assert!(results.is_empty());
     }
 
@@ -170,7 +170,7 @@ mod tests {
         let storage_item = parse_first_storage_item(&code);
 
         let mut results = Vec::new();
-        utils::ensure_no_ink_descendants(&mut results, &storage_item, SCOPE_NAME, false);
+        common::ensure_no_ink_descendants(&mut results, &storage_item, SCOPE_NAME, false);
         // 1 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.

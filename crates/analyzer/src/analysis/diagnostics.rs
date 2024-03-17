@@ -25,22 +25,17 @@
 //! and [its constructor](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/contract.rs#L61-L73)
 //! as well as related unit tests.
 
+mod common;
 mod file;
-mod utils;
 
 mod chain_extension;
-mod constructor;
 mod contract;
 mod environment;
 mod event;
-mod extension_fn;
 mod ink_e2e_test;
-mod ink_impl;
 mod ink_test;
 mod message;
-mod storage;
 mod storage_item;
-mod topic;
 mod trait_definition;
 
 use ink_analyzer_ir::syntax::TextRange;
