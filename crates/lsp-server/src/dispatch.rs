@@ -4,11 +4,15 @@ mod actions;
 mod handlers;
 mod routers;
 
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+
 use crossbeam_channel::Sender;
 use ink_analyzer::{Analysis, Version};
 use lsp_types::request::Request;
-use std::collections::HashMap;
-use std::fs;
+use once_cell::sync::Lazy;
+use regex::Regex;
 
 use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
@@ -268,13 +272,8 @@ impl<'a> Dispatcher<'a> {
                                 .as_ref()
                                 .ok()
                                 .and_then(parse_ink_project_version)
-                                .map(|ink_cargo_version| {
-                                    if ink_cargo_version.starts_with("5.") {
-                                        Version::V5
-                                    } else {
-                                        Version::V4
-                                    }
-                                })
+                                .as_ref()
+                                .map(InkProjectVersion::guess_version)
                                 // FIXME: We default to v4 for now because v5 is super new, but this should be changed at some point.
                                 .unwrap_or(Version::V4)
                         });
@@ -323,40 +322,100 @@ impl<'a> Dispatcher<'a> {
     }
 }
 
-// Parses the ink! version from the Cargo.toml file for a given lib.rs file (if possible).
-fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<String> {
-    if let Ok(path) = doc_uri.to_file_path() {
-        if path.file_name().is_some_and(|name| name == "lib.rs") {
-            let mut cargo_toml_path = path.clone();
-            cargo_toml_path.set_file_name("Cargo.toml");
-            if cargo_toml_path.is_file() {
-                if let Ok(cargo_toml) = fs::read_to_string(cargo_toml_path) {
-                    if let Ok(package) = toml::from_str::<toml::Table>(&cargo_toml) {
-                        if let Some(toml::Value::Table(deps)) = package.get("dependencies") {
-                            if let Some(ink_dep) = deps.get("ink") {
-                                let ink_version = match ink_dep {
-                                    toml::Value::String(ink_version) => Some(ink_version),
-                                    toml::Value::Table(ink_dep_info) => {
-                                        if let Some(toml::Value::String(ink_version)) =
-                                            ink_dep_info.get("version")
-                                        {
-                                            Some(ink_version)
-                                        } else {
-                                            None
-                                        }
-                                    }
-                                    _ => None,
-                                };
+/// Parses the ink! project version from the Cargo.toml file for a given lib.rs file (if possible).
+fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<InkProjectVersion> {
+    fn parse_ink_project_version_inner(cargo_toml_path: PathBuf) -> Option<InkProjectVersion> {
+        if cargo_toml_path.is_file() {
+            if let Ok(cargo_toml) = fs::read_to_string(cargo_toml_path) {
+                if let Ok(package) = toml::from_str::<toml::Table>(&cargo_toml) {
+                    if let Some(toml::Value::Table(deps)) = package.get("dependencies") {
+                        if let Some(ink_dep) = deps.get("ink") {
+                            let (version, path, git) = match ink_dep {
+                                toml::Value::String(ink_version) => {
+                                    (Some(ink_version.to_owned()), None, None)
+                                }
+                                toml::Value::Table(ink_dep_info) => {
+                                    let parse_dep_value = |key: &str| match ink_dep_info.get(key) {
+                                        Some(toml::Value::String(it)) => Some(it.to_owned()),
+                                        _ => None,
+                                    };
+                                    (
+                                        parse_dep_value("version"),
+                                        parse_dep_value("path"),
+                                        parse_dep_value("git"),
+                                    )
+                                }
+                                _ => (None, None, None),
+                            };
 
-                                return ink_version.cloned();
-                            }
+                            return (version.is_some() || path.is_some() || git.is_some())
+                                .then_some(InkProjectVersion { version, path, git });
                         }
                     }
                 }
             }
         }
+
+        None
+    }
+
+    if let Ok(path) = doc_uri.to_file_path() {
+        if path.file_name().is_some_and(|name| name == "lib.rs") {
+            // Tries to find `Cargo.toml` in the same directory.
+            // This is the typical setup for ink! projects created with `cargo contract new`.
+            let mut cargo_toml_path = path.clone();
+            cargo_toml_path.set_file_name("Cargo.toml");
+            return parse_ink_project_version_inner(cargo_toml_path).or_else(|| {
+                // Tries to find `Cargo.toml` in the parent directory.
+                // This is the typical setup for most Rust projects created with `cargo new`.
+                let mut cargo_toml_path = path.clone();
+                cargo_toml_path.pop();
+                cargo_toml_path.set_file_name("Cargo.toml");
+                parse_ink_project_version_inner(cargo_toml_path)
+            });
+        }
     }
     None
+}
+
+/// Represents the ink! project version details as parsed from a `Cargo.toml` file.
+struct InkProjectVersion {
+    version: Option<String>,
+    path: Option<String>,
+    git: Option<String>,
+}
+
+impl InkProjectVersion {
+    // Returns the best guess for the ink! project version.
+    // FIXME: We default to v4 for now because v5 is super new, but this should be changed at some point.
+    fn guess_version(&self) -> Version {
+        self.version
+            .as_ref()
+            .map(|version| {
+                if is_v5_version_string(version) || version.trim().starts_with('*') {
+                    Version::V5
+                } else {
+                    Version::V4
+                }
+            })
+            .unwrap_or_else(|| {
+                if self.path.is_some() || self.git.is_some() {
+                    Version::V5
+                } else {
+                    Version::V4
+                }
+            })
+    }
+}
+
+/// Checks whether the version string should match version 5.
+///
+/// Ref: <https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html>
+///
+/// NOTE: We intentionally match `>5.x.x` to v5, because no version greater than v5 currently exists.
+fn is_v5_version_string(text: &str) -> bool {
+    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^|\b)(([\^~>=])|(>=))?(\s)*5\.").unwrap());
+    RE.is_match(text)
 }
 
 #[cfg(test)]

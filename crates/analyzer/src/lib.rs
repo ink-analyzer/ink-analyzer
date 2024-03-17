@@ -58,7 +58,7 @@
 //!
 //! fn project_code_stubs() {
 //!     // Generates ink! project code stubs/snippets.
-//!     let project = ink_analyzer::new_project(String::from("hello_world"), Version::V4);
+//!     let project = ink_analyzer::new_project(String::from("hello_world"), Version::V5);
 //!     dbg!(&project);
 //! }
 //! ```

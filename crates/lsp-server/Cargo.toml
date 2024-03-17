@@ -20,8 +20,10 @@ ink-analyzer = { version = "0.9", path = "../analyzer" }
 line-index = "0.1.1"
 lsp-server = "0.7.6"
 lsp-types = { version = "0.95.0", features = ["proposed"] }
+once_cell = "1.19.0"
 serde = "1.0.196"
 serde_json = "1.0.113"
+regex = "1.10.3"
 toml = "0.8.11"
 
 [dev-dependencies]
