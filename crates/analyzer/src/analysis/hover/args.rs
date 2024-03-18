@@ -28,6 +28,15 @@ async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
 ```
 "#;
 
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L29-L30>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
+pub const ADDITIONAL_CONTRACTS_DOC_V5: &str = r#"
+ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
@@ -690,6 +699,68 @@ Call builders are used to doing cross-contract calls and are automatically gener
 # Usage
 
 Additional argument for ink! contract, ink! trait definition and ink! e2e test attribute macros.
+
+**Allowed attributes by default:** `cfg`, `cfg_attr`, `allow`, `warn`, `deny`, `forbid`, `deprecated`, `must_use`, `doc`, `rustfmt`.
+
+# Example
+
+```
+#[ink::contract(keep_attr = "foo, bar")]
+mod my_contract {
+    #[ink(storage)]
+    pub struct MyContract;
+
+    impl MyContract {
+        #[ink(constructor)]
+        #[bar]
+        pub fn new() -> Self { MyContract {} }
+
+        #[ink(message)]
+        #[foo]
+        pub fn message(&self) {}
+    }
+
+    // --snip--
+}
+```
+
+OR
+
+```
+#[ink::trait_definition(keep_attr = "foo, bar")]
+pub trait MyTrait {
+    #[ink(message)]
+    #[foo]
+    fn message1(&self);
+
+    #[ink(message)]
+    #[bar]
+    fn message2(&self);
+}
+```
+"#;
+
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L116-L138>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L622-L640>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink/attr.trait_definition.html>.
+pub const KEEP_ATTR_DOC_V5: &str = r#"
+# Attribute
+
+`#[ink::contract(keep_attr = N: string)]` or `#[ink::trait_definition(keep_attr = N: string)]`
+
+# Description
+
+Tells the ink! code generator which attributes should be passed to call builders.
+
+Call builders are used to doing cross-contract calls and are automatically generated for contracts.
+
+# Usage
+
+Additional argument for ink! contract and ink! trait definition attribute macros.
 
 **Allowed attributes by default:** `cfg`, `cfg_attr`, `allow`, `warn`, `deny`, `forbid`, `deprecated`, `must_use`, `doc`, `rustfmt`.
 

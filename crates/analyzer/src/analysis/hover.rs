@@ -69,6 +69,9 @@ pub fn hover(file: &InkFile, range: TextRange, version: Version) -> Option<Hover
 pub fn content(attr_kind: &InkAttributeKind, version: Version) -> &str {
     match attr_kind {
         InkAttributeKind::Arg(arg_kind) => match arg_kind {
+            InkArgKind::AdditionalContracts if version == Version::V5 => {
+                args::ADDITIONAL_CONTRACTS_DOC_V5
+            }
             InkArgKind::AdditionalContracts => args::ADDITIONAL_CONTRACTS_DOC,
             InkArgKind::Anonymous if version == Version::V5 => args::ANONYMOUS_DOC_V5,
             InkArgKind::Anonymous => args::ANONYMOUS_DOC,
@@ -95,6 +98,7 @@ pub fn content(attr_kind: &InkAttributeKind, version: Version) -> &str {
             InkArgKind::Function if version == Version::V5 => args::FUNCTION_DOC,
             InkArgKind::HandleStatus => args::HANDLE_STATUS_DOC,
             InkArgKind::Impl => args::IMPL_DOC,
+            InkArgKind::KeepAttr if version == Version::V5 => args::KEEP_ATTR_DOC_V5,
             InkArgKind::KeepAttr => args::KEEP_ATTR_DOC,
             InkArgKind::Message => args::MESSAGE_DOC,
             InkArgKind::Namespace => args::NAMESPACE_DOC,
