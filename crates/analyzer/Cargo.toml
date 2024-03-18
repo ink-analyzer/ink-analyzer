@@ -1,6 +1,6 @@
 [package]
 name = "ink-analyzer"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2021"
 description = "A library for semantic analysis of ink! smart contract code."
 license = "MIT OR Apache-2.0"

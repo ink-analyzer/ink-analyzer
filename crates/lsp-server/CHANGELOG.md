@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.28] - 2024-03-18
+
+- Improve support for [ink! v5](https://github.com/paritytech/ink/releases/tag/v5.0.0)
+
 ## [0.2.27] - 2024-03-17
 
 - Improve support for [ink! v5](https://github.com/paritytech/ink/releases/tag/v5.0.0)
