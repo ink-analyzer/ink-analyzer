@@ -8,8 +8,9 @@ use ink_analyzer_ir::ast::{
 use ink_analyzer_ir::meta::MetaValue;
 use ink_analyzer_ir::syntax::{SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
-    ast, Contract, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkArgValueStringKind,
-    InkAttribute, InkAttributeKind, InkEntity, InkMacroKind, IsInkFn, IsInkStruct, IsInkTrait,
+    ast, ChainExtension, Contract, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind,
+    InkArgValueStringKind, InkAttribute, InkAttributeKind, InkEntity, InkMacroKind, IsInkFn,
+    IsInkStruct, IsInkTrait,
 };
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -294,11 +295,11 @@ fn validate_arg(
                     if !is_valid_string {
                         let value_kind_description = arg_value_kind.detail();
                         add_diagnostic(format!(
-                            "`{arg_name_text}` argument should have a `string` (`&str`) value{}.",
+                            "`{arg_name_text}` argument should have a `string` (`&str`) value{}",
                             if !value_kind_description.is_empty() {
                                 format!(" - {value_kind_description}")
                             } else {
-                                "".to_owned()
+                                ".".to_owned()
                             },
                         ));
                     }
@@ -519,6 +520,12 @@ fn validate_entity_attributes(
     attrs: &[InkAttribute],
     version: Version,
 ) {
+    let has_chain_extension_parent = |node: &SyntaxNode| {
+        ink_analyzer_ir::ink_closest_ancestors::<ChainExtension>(node)
+            .next()
+            .is_some()
+    };
+
     // We can only move forward if there is at least one "valid" attribute.
     // We get the primary ink! attribute candidate (if any) that other attributes and arguments shouldn't conflict with.
     if let Some((primary_ink_attr_candidate, primary_candidate_first)) =
@@ -535,6 +542,198 @@ fn validate_entity_attributes(
             *primary_ink_attr_candidate.kind(),
             version,
         );
+
+        // v5 only pedantic validation (i.e. validation that cannot be properly expressed/declared
+        // using the existing generic utilities).
+        // NOTE: It's intentionally performed based on the primary attribute to keep diagnostics less noisy.
+        if version == Version::V5 {
+            let find_arg = |arg_kind: InkArgKind| {
+                attrs
+                    .iter()
+                    .find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == arg_kind))
+            };
+
+            // `anonymous` and `signature_topic` arguments conflict.
+            // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
+            if matches!(
+                primary_ink_attr_candidate.kind(),
+                InkAttributeKind::Macro(InkMacroKind::Event)
+                    | InkAttributeKind::Arg(
+                        InkArgKind::Event | InkArgKind::Anonymous | InkArgKind::SignatureTopic
+                    )
+            ) {
+                if let (Some(anonymous_arg), Some(signature_topic_arg)) = (
+                    find_arg(InkArgKind::Anonymous),
+                    find_arg(InkArgKind::SignatureTopic),
+                ) {
+                    let (first_arg, second_arg) = if anonymous_arg.text_range().start()
+                        < signature_topic_arg.text_range().start()
+                    {
+                        (anonymous_arg, signature_topic_arg)
+                    } else {
+                        (signature_topic_arg, anonymous_arg)
+                    };
+                    // Edit range for quickfix.
+                    let range = utils::ink_arg_and_delimiter_removal_range(second_arg, None);
+                    results.push(Diagnostic {
+                        message: format!(
+                            "ink! attribute argument `{}` conflicts with the ink! attribute argument `{}` for this item.",
+                            second_arg.kind(),
+                            first_arg.kind(),
+                        ),
+                        range: second_arg.text_range(),
+                        severity: Severity::Error,
+                        quickfixes: Some(vec![Action {
+                            label: format!(
+                                "Remove ink! `{}` attribute argument.",
+                                second_arg.kind()
+                            ),
+                            kind: ActionKind::QuickFix,
+                            range,
+                            edits: vec![TextEdit::delete(range)],
+                        }]),
+                    });
+                }
+            }
+
+            // `chain_extension` macro without an `extension` argument is incomplete.
+            // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html#macro-attributes>
+            // Ref: <https://github.com/paritytech/ink/pull/1958>
+            if *primary_ink_attr_candidate.kind()
+                == InkAttributeKind::Macro(InkMacroKind::ChainExtension)
+                && find_arg(InkArgKind::Extension).is_none()
+            {
+                let range = primary_ink_attr_candidate.syntax().text_range();
+                results.push(Diagnostic {
+                    message: "Missing required ink! `extension` argument.".to_owned(),
+                    range,
+                    severity: Severity::Error,
+                    quickfixes: utils::first_ink_arg_insert_offset_and_affixes(
+                        &primary_ink_attr_candidate,
+                    )
+                    .map(|(insert_offset, prefix, suffix)| {
+                        let (edit, snippet) =
+                            utils::ink_arg_insert_text(InkArgKind::Extension, None, None);
+                        vec![Action {
+                            label: "Add ink! `extension` argument.".to_owned(),
+                            kind: ActionKind::QuickFix,
+                            range,
+                            edits: vec![TextEdit::insert_with_snippet(
+                                format!(
+                                    "{}{edit}{}",
+                                    prefix.unwrap_or_default(),
+                                    suffix.unwrap_or_default()
+                                ),
+                                insert_offset,
+                                snippet.as_ref().map(|snippet| {
+                                    format!(
+                                        "{}{snippet}{}",
+                                        prefix.unwrap_or_default(),
+                                        suffix.unwrap_or_default()
+                                    )
+                                }),
+                            )],
+                        }]
+                    }),
+                });
+            }
+
+            // `extension` argument for chain extension functions was replaced by `function`.
+            // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html#method-attributes>
+            // Ref: <https://github.com/paritytech/ink/pull/1958>
+            // NOTE: This is different from the new `extension` argument now use with the `chain_extension` attribute macro.
+            if *primary_ink_attr_candidate.kind() == InkAttributeKind::Arg(InkArgKind::Extension)
+                && has_chain_extension_parent(primary_ink_attr_candidate.syntax())
+            {
+                if let Some(extension_arg) = find_arg(InkArgKind::Extension) {
+                    results.push(Diagnostic {
+                        message: "ink! attribute argument `extension` is deprecated. \
+                        Use the new `function` attribute argument instead. \
+                        See https://use.ink/faq/migrating-from-ink-4-to-5/#chain-extension-api-changed--support-for-multiple-chain-extensions for details.".to_owned(),
+                        range: extension_arg.text_range(),
+                        severity: Severity::Error,
+                        quickfixes: extension_arg.name().map(|name| name.syntax().text_range()).map(|range| {
+                            vec![Action {
+                                label: "Replace deprecated ink! `extension` attribute argument with `function`.".to_owned(),
+                                kind: ActionKind::QuickFix,
+                                range: extension_arg.text_range(),
+                                edits: vec![TextEdit::replace("function".to_owned(), range)],
+                            }]
+                        }),
+                    });
+
+                    // Bail if the primary attribute is deprecated.
+                    return;
+                }
+            }
+
+            // `additional_contracts` attribute argument is deprecated.
+            // Ref: <https://github.com/paritytech/ink/pull/2098>
+            if matches!(
+                primary_ink_attr_candidate.kind(),
+                InkAttributeKind::Macro(InkMacroKind::E2ETest)
+                    | InkAttributeKind::Arg(InkArgKind::AdditionalContracts)
+            ) {
+                if let Some(additional_contracts_arg) = find_arg(InkArgKind::AdditionalContracts) {
+                    // Edit range for quickfix.
+                    let range =
+                        utils::ink_arg_and_delimiter_removal_range(additional_contracts_arg, None);
+                    results.push(Diagnostic {
+                        message: "ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.".to_owned(),
+                        range,
+                        severity: Severity::Error,
+                        quickfixes: Some(vec![Action {
+                            label: "Remove ink! `additional_contracts` attribute argument.".to_owned(),
+                            kind: ActionKind::QuickFix,
+                            range,
+                            edits: vec![TextEdit::delete(range)],
+                        }]),
+                    });
+
+                    if *primary_ink_attr_candidate.kind()
+                        == InkAttributeKind::Arg(InkArgKind::AdditionalContracts)
+                    {
+                        // Bail if the primary attribute is deprecated.
+                        return;
+                    }
+                }
+            }
+
+            // `keep_attr` is deprecated when used as an argument for the `ink_e2e::test` macro.
+            // Ref: <https://github.com/paritytech/ink/pull/1830>
+            if *primary_ink_attr_candidate.kind() == InkAttributeKind::Macro(InkMacroKind::E2ETest)
+            {
+                if let Some(keep_attr) = find_arg(InkArgKind::KeepAttr) {
+                    // Edit range for quickfix.
+                    let range = utils::ink_arg_and_delimiter_removal_range(keep_attr, None);
+                    results.push(Diagnostic {
+                        message: "ink! attribute argument `keep_attr` is deprecated for the ink! e2e test attribute macro. See https://github.com/paritytech/ink/pull/1830 for details.".to_owned(),
+                        range,
+                        severity: Severity::Error,
+                        quickfixes: Some(vec![Action {
+                            label: "Remove ink! `keep_attr` attribute argument.".to_owned(),
+                            kind: ActionKind::QuickFix,
+                            range,
+                            edits: vec![TextEdit::delete(range)],
+                        }]),
+                    });
+                }
+            }
+        }
+
+        // Used to suppress conflict errors for deprecated attributes/arguments,
+        // that should already be reported as such at this point.
+        let is_already_reported_as_deprecated = |arg: &InkArg| {
+            // deprecated `extension` on chain extension functions is typically the "primary" attribute,
+            // so it early returns and doesn't need to be checked here.
+            version == Version::V5
+                && *primary_ink_attr_candidate.kind()
+                    == InkAttributeKind::Macro(InkMacroKind::E2ETest)
+                && matches!(
+                    arg.kind(),
+                    InkArgKind::AdditionalContracts | InkArgKind::KeepAttr
+                )
+        };
 
         // Determines the insertion offset for creating a valid "primary" attribute as the first attribute.
         let primary_attr_insert_offset_option = || {
@@ -788,50 +987,46 @@ fn validate_entity_attributes(
 
         for (idx, attr) in attrs.iter().enumerate() {
             // Check for attribute kind level conflict.
-            let is_valid_sibling_attr =
-                if *attr == primary_ink_attr_candidate || (idx == 0 && !primary_candidate_first) {
-                    // Primary attribute can't conflict with itself,
-                    // and we ignore any conflict errors with the first attribute if it's not the primary attribute
-                    // in favor of placing the error on the primary attribute candidate which was already done earlier.
-                    true
-                } else {
-                    match primary_ink_attr_candidate.kind() {
-                        // Generally, ink! attribute macros are never mixed with other ink! attributes,
-                        // except for `scale_derive` and `storage_item` but only in ink! v5.
-                        InkAttributeKind::Macro(primary_macro_kind) if version == Version::V5 => {
-                            // Duplicates are handled by `ensure_no_duplicate_attributes_and_arguments`, so we don't need that logic here.
-                            matches!(
-                                primary_macro_kind,
-                                InkMacroKind::ScaleDerive | InkMacroKind::StorageItem
-                            ) && matches!(
-                                attr.kind(),
-                                InkAttributeKind::Macro(
-                                    InkMacroKind::ScaleDerive | InkMacroKind::StorageItem
-                                )
-                            )
+            let is_valid_sibling_attr = || match primary_ink_attr_candidate.kind() {
+                // Generally, ink! attribute macros are never mixed with other ink! attributes,
+                // except for `scale_derive` and `storage_item` but only in ink! v5.
+                InkAttributeKind::Macro(primary_macro_kind) if version == Version::V5 => {
+                    // Duplicates are handled by `ensure_no_duplicate_attributes_and_arguments`, so we don't need that logic here.
+                    matches!(
+                        primary_macro_kind,
+                        InkMacroKind::ScaleDerive | InkMacroKind::StorageItem
+                    ) && matches!(
+                        attr.kind(),
+                        InkAttributeKind::Macro(
+                            InkMacroKind::ScaleDerive | InkMacroKind::StorageItem
+                        )
+                    )
+                }
+                // For v4, any additional ink! attributes mixed with a "primary" ink! attribute macro is always a conflict.
+                InkAttributeKind::Macro(_) => false,
+                // ink! attribute arguments can be mixed with other ink! attributes.
+                InkAttributeKind::Arg(_) => {
+                    match attr.kind() {
+                        // Additional ink! attribute macros have to be
+                        // potential primary attributes inorder not to conflict,
+                        // in which case our we let incompleteness and ambiguity above checks take care of that case.
+                        InkAttributeKind::Macro(_) => {
+                            primary_attribute_kind_suggestions.contains(attr.kind())
                         }
-                        // For v4, any additional ink! attributes mixed with a "primary" ink! attribute macro is always a conflict.
-                        InkAttributeKind::Macro(_) => false,
-                        // ink! attribute arguments can be mixed with other ink! attributes.
-                        InkAttributeKind::Arg(_) => {
-                            match attr.kind() {
-                                // Additional ink! attribute macros have to be
-                                // potential primary attributes inorder not to conflict,
-                                // in which case our we let incompleteness and ambiguity above checks take care of that case.
-                                InkAttributeKind::Macro(_) => {
-                                    primary_attribute_kind_suggestions.contains(attr.kind())
-                                }
-                                // Additional ink! attribute arguments have to be valid siblings.
-                                InkAttributeKind::Arg(arg_kind) => {
-                                    valid_sibling_args.contains(arg_kind)
-                                }
-                            }
-                        }
+                        // Additional ink! attribute arguments have to be valid siblings.
+                        InkAttributeKind::Arg(arg_kind) => valid_sibling_args.contains(arg_kind),
                     }
-                };
+                }
+            };
+            // Primary attribute can't conflict with itself,
+            // and we ignore any conflict errors with the first attribute if it's not the primary attribute
+            // in favor of placing the error (and quickfix) on the primary attribute candidate which was already done earlier.
+            let is_primary_or_first_or_valid_sibling_attr = *attr == primary_ink_attr_candidate
+                || (idx == 0 && !primary_candidate_first)
+                || is_valid_sibling_attr();
 
             // Handle attribute kind level conflict.
-            if !is_valid_sibling_attr {
+            if !is_primary_or_first_or_valid_sibling_attr {
                 results.push(Diagnostic {
                     message: format!(
                         "ink! attribute `{}` conflicts with the {} ink! attribute `{}` for this item.",
@@ -890,11 +1085,16 @@ fn validate_entity_attributes(
                 // Handle argument level conflicts if the top level attribute kind doesn't conflict.
                 for arg in attr.args() {
                     // Checks if this arg kind is the same as the one being used by the attribute,
-                    // which is already known to not be conflicting at this point.
-                    let is_attribute_kind = *attr.kind() == InkAttributeKind::Arg(*arg.kind());
+                    // which is already known to not be conflicting (or at least not deserving of flagging)
+                    // at this point.
+                    let is_attr_kind = *attr.kind() == InkAttributeKind::Arg(*arg.kind());
 
-                    // Ignore arg if it's already been handled at attribute level.
-                    if !is_attribute_kind && !valid_sibling_args.contains(arg.kind()) {
+                    // Ignore arg if it's already been handled at attribute level or
+                    // reported as deprecated.
+                    if !is_attr_kind
+                        && !valid_sibling_args.contains(arg.kind())
+                        && !is_already_reported_as_deprecated(arg)
+                    {
                         // Edit range for quickfix.
                         let range = utils::ink_arg_and_delimiter_removal_range(arg, Some(attr));
                         results.push(Diagnostic {
@@ -931,116 +1131,6 @@ fn validate_entity_attributes(
                         });
                     }
                 }
-            }
-        }
-
-        // v5 only pedantic validation (i.e. validation that cannot be properly expressed/declared using the existing generic utilities).
-        // NOTE: It's intentionally performed based on the primary attribute to keep diagnostics less noisy.
-        if version == Version::V5 {
-            let find_arg = |arg_kind: InkArgKind| {
-                attrs
-                    .iter()
-                    .find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == arg_kind))
-            };
-
-            // `anonymous` and `signature_topic` arguments conflict.
-            // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
-            if matches!(
-                primary_ink_attr_candidate.kind(),
-                InkAttributeKind::Macro(InkMacroKind::Event)
-                    | InkAttributeKind::Arg(
-                        InkArgKind::Event | InkArgKind::Anonymous | InkArgKind::SignatureTopic
-                    )
-            ) {
-                if let (Some(anonymous_arg), Some(signature_topic_arg)) = (
-                    find_arg(InkArgKind::Anonymous),
-                    find_arg(InkArgKind::SignatureTopic),
-                ) {
-                    let (first_arg, second_arg) = if anonymous_arg.text_range().start()
-                        < signature_topic_arg.text_range().start()
-                    {
-                        (anonymous_arg, signature_topic_arg)
-                    } else {
-                        (signature_topic_arg, anonymous_arg)
-                    };
-                    // Edit range for quickfix.
-                    let range = utils::ink_arg_and_delimiter_removal_range(second_arg, None);
-                    results.push(Diagnostic {
-                        message: format!(
-                            "ink! attribute argument `{}` conflicts with the ink! attribute argument `{}` for this item.",
-                            second_arg.kind(),
-                            first_arg.kind(),
-                        ),
-                        range: second_arg.text_range(),
-                        severity: Severity::Error,
-                        quickfixes: Some(vec![Action {
-                            label: format!(
-                                "Remove ink! `{}` attribute argument.",
-                                second_arg.kind()
-                            ),
-                            kind: ActionKind::QuickFix,
-                            range,
-                            edits: vec![TextEdit::delete(range)],
-                        }]),
-                    });
-                }
-            }
-
-            // `chain_extension` macro without an `extension` argument is incomplete.
-            // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html#macro-attributes>
-            if *primary_ink_attr_candidate.kind()
-                == InkAttributeKind::Macro(InkMacroKind::ChainExtension)
-                && find_arg(InkArgKind::Extension).is_none()
-            {
-                let range = primary_ink_attr_candidate.syntax().text_range();
-                results.push(Diagnostic {
-                    message: "Missing required ink! `extension` argument.".to_owned(),
-                    range,
-                    severity: Severity::Error,
-                    quickfixes: utils::first_ink_arg_insert_offset_and_affixes(
-                        &primary_ink_attr_candidate,
-                    )
-                    .map(|(insert_offset, prefix, suffix)| {
-                        let (edit, snippet) =
-                            utils::ink_arg_insert_text(InkArgKind::Extension, None, None);
-                        vec![Action {
-                            label: "Add ink! `extension` argument.".to_owned(),
-                            kind: ActionKind::QuickFix,
-                            range,
-                            edits: vec![TextEdit::insert_with_snippet(
-                                format!(
-                                    "{}{edit}{}",
-                                    prefix.unwrap_or_default(),
-                                    suffix.unwrap_or_default()
-                                ),
-                                insert_offset,
-                                snippet.as_ref().map(|snippet| {
-                                    format!(
-                                        "{}{snippet}{}",
-                                        prefix.unwrap_or_default(),
-                                        suffix.unwrap_or_default()
-                                    )
-                                }),
-                            )],
-                        }]
-                    }),
-                });
-            }
-
-            // `additional_contracts` attribute argument is deprecated.
-            // Ref: <https://github.com/paritytech/ink/pull/2098>
-            // It's reported as a conflict when paired with the `ink_e2e::test` attribute macro,
-            // however, there's nothing for handling a standalone argument, hence this.
-            if *primary_ink_attr_candidate.kind()
-                == InkAttributeKind::Arg(InkArgKind::AdditionalContracts)
-            {
-                let range = primary_ink_attr_candidate.syntax().text_range();
-                results.push(Diagnostic {
-                    message: "ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.".to_owned(),
-                    range,
-                    severity: Severity::Error,
-                    quickfixes: Some(vec![Action::remove_attribute(&primary_ink_attr_candidate)]),
-                });
             }
         }
     }
@@ -2151,6 +2241,7 @@ pub fn ensure_impl_scale_codec_traits(
 mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
+    use ink_analyzer_ir::syntax::Direction;
     use ink_analyzer_ir::InkFile;
     use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
@@ -2163,7 +2254,20 @@ mod tests {
     }
 
     fn parse_all_ink_attrs(code: &str) -> Vec<InkAttribute> {
-        InkFile::parse(code).tree().ink_attrs_in_scope().collect()
+        InkFile::parse(code)
+            .tree()
+            .ink_attrs_in_scope()
+            // Filter out attributes marked with `// ink-test-skip`.
+            .filter(|attr| {
+                let next_comment = attr
+                    .syntax()
+                    .siblings_with_tokens(Direction::Next)
+                    .find(|elem| elem.kind() == SyntaxKind::COMMENT);
+                next_comment.map_or(true, |comment| {
+                    !comment.to_string().contains("ink-test-skip")
+                })
+            })
+            .collect()
     }
 
     // List of valid ink! attributes used for positive(`works`) tests
@@ -2212,6 +2316,7 @@ mod tests {
                     #[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment=my::env::Types, keep_attr="foo,bar")]
                 },
                 // `keep_attr` for `ink_e2e::test` is deprecated.
+                // Ref: <https://github.com/paritytech/ink/pull/1830>
                 quote_as_str! {
                     #[ink_e2e::test(keep_attr="foo,bar")]
                 },
@@ -3451,7 +3556,7 @@ mod tests {
                         r#"
                         #[ink(handle_status=true)]
                         #[ink(function=1)]
-                        "#, // `extension` should come first.
+                        "#, // `function` should come first.
                         vec![TestResultAction {
                             label: "first ink! attribute",
                             edits: vec![
@@ -3491,7 +3596,86 @@ mod tests {
                         }],
                     ),
                     (
-                        "#[ink(extension=1, handle_status=true)]", // `extension` was replaced with `function` in v5 so `handle_status` conflicts here.
+                        r#"
+                        #[ink::chain_extension] // ink-test-skip
+                        pub trait MyExtension {
+                            #[ink(extension=1)]
+                            fn my_extension();
+                        }
+                        "#, // `extension` was replaced with `function` for chain extension `fn`s in v5.
+                        vec![TestResultAction {
+                            label: "Replace",
+                            edits: vec![TestResultTextRange {
+                                text: "function",
+                                start_pat: Some("<-extension=1"),
+                                end_pat: Some("ink(extension"),
+                            }],
+                        }],
+                    ),
+                    (
+                        // `extension` was replaced with `function` for chain extension `fn`s in v5,
+                        // so `handle_status` shouldn't be reported as an issue in this context.
+                        r#"
+                        #[ink::chain_extension] // ink-test-skip
+                        pub trait MyExtension {
+                            #[ink(extension=1, handle_status=true)]
+                            fn my_extension();
+                        }
+                        "#,
+                        vec![TestResultAction {
+                            label: "Replace",
+                            edits: vec![TestResultTextRange {
+                                text: "function",
+                                start_pat: Some("<-extension=1"),
+                                end_pat: Some("ink(extension"),
+                            }],
+                        }],
+                    ),
+                    (
+                        // `extension` was replaced with `function` for chain extension `fn`s in v5,
+                        // so `handle_status` shouldn't be reported as an issue in this context.
+                        r#"
+                        #[ink::chain_extension] // ink-test-skip
+                        pub trait MyExtension {
+                            #[ink(extension=1)]
+                            #[ink(handle_status=true)]
+                            fn my_extension();
+                        }
+                        "#,
+                        vec![TestResultAction {
+                            label: "Replace",
+                            edits: vec![TestResultTextRange {
+                                text: "function",
+                                start_pat: Some("<-extension=1"),
+                                end_pat: Some("ink(extension"),
+                            }],
+                        }],
+                    ),
+                    (
+                        // `extension` was replaced with `function` for chain extension `fn`s in v5,
+                        // so `handle_status` shouldn't be reported as an issue in this context.
+                        r#"
+                        #[ink::chain_extension] // ink-test-skip
+                        pub trait MyExtension {
+                            #[ink(handle_status=true)]
+                            #[ink(extension=1)]
+                            fn my_extension();
+                        }
+                        "#,
+                        vec![TestResultAction {
+                            label: "Replace",
+                            edits: vec![TestResultTextRange {
+                                text: "function",
+                                start_pat: Some("<-extension=1"),
+                                end_pat: Some("ink(extension"),
+                            }],
+                        }],
+                    ),
+                    (
+                        // `extension` was replaced with `function` in v5, but it's still
+                        // a valid attribute for the `chain_extension` macro,
+                        // so without additional context, `handle_status` is reported as a conflict here.
+                        "#[ink(extension=1, handle_status=true)]",
                         vec![TestResultAction {
                             label: "Remove",
                             edits: vec![TestResultTextRange {
