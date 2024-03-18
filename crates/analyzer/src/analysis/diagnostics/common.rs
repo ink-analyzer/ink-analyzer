@@ -44,7 +44,7 @@ pub fn run_generic_diagnostics<T: InkEntity>(
     // See `validate_arg` doc.
     for attr in item.tree().ink_attrs_in_scope() {
         for arg in attr.args() {
-            validate_arg(results, arg, version, Some(attr.kind()));
+            validate_arg(results, arg, version, Some(&attr));
         }
     }
 
@@ -156,14 +156,14 @@ fn validate_arg(
     results: &mut Vec<Diagnostic>,
     arg: &InkArg,
     version: Version,
-    attr_kind: Option<&InkAttributeKind>,
+    attr: Option<&InkAttribute>,
 ) {
     let arg_name_text = arg.meta().name().to_string();
     match arg.kind() {
         // Handle unknown argument.
         InkArgKind::Unknown => {
             // Edit range for quickfix.
-            let range = utils::ink_arg_and_delimiter_removal_range(arg, None);
+            let range = utils::ink_arg_and_delimiter_removal_range(arg, attr);
             results.push(Diagnostic {
                 message: if arg_name_text.is_empty() {
                     "Missing ink! attribute argument.".to_owned()
@@ -190,15 +190,13 @@ fn validate_arg(
             let arg_value_kind = if version == Version::V5 {
                 InkArgValueKind::from_v5(
                     *arg_kind,
-                    attr_kind.map(|attr_kind| {
-                        *attr_kind == InkAttributeKind::Arg(InkArgKind::Constructor)
-                    }),
+                    attr.map(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Constructor)),
                 )
             } else {
                 InkArgValueKind::from(*arg_kind)
             };
             let mut add_diagnostic = |message: String| {
-                let (text, snippet) = utils::ink_arg_insert_text(*arg_kind, None, None);
+                let (text, snippet) = utils::ink_arg_insert_text(*arg_kind, None, attr);
                 results.push(Diagnostic {
                     message,
                     range: arg.text_range(),
@@ -326,7 +324,7 @@ fn validate_arg(
                 }
                 // Nested arguments.
                 InkArgValueKind::Arg(kind, required) => {
-                    nested_arg_validator(results, arg, &kind, &[kind], required, version);
+                    nested_arg_validator(results, arg, &kind, &[kind], required, version, attr);
                 }
                 InkArgValueKind::Choice(kind_1, kind_2, required) => {
                     nested_arg_validator(
@@ -336,6 +334,7 @@ fn validate_arg(
                         &[kind_1, kind_2],
                         required,
                         version,
+                        attr,
                     );
                 }
             }
@@ -349,6 +348,7 @@ fn validate_arg(
         options: &[InkArgKind],
         required: bool,
         version: Version,
+        attr: Option<&InkAttribute>,
     ) {
         let name = arg.meta().name().to_string();
         let range = arg.text_range();
@@ -400,7 +400,7 @@ fn validate_arg(
         } else if let Some(nested_arg) = arg.nested() {
             if options.contains(nested_arg.kind()) {
                 // Validate nested args.
-                validate_arg(results, &nested_arg, version, None);
+                validate_arg(results, &nested_arg, version, attr);
             } else {
                 let edit_range = nested_arg.text_range();
                 let quickfixes: Vec<_> = options
@@ -2565,7 +2565,7 @@ mod tests {
 
                 let mut results = Vec::new();
                 for arg in attr.args() {
-                    validate_arg(&mut results, arg, version, Some(attr.kind()));
+                    validate_arg(&mut results, arg, version, Some(&attr));
                 }
                 assert!(
                     results.is_empty(),
@@ -3137,7 +3137,7 @@ mod tests {
 
                 let mut results = Vec::new();
                 for arg in attr.args() {
-                    validate_arg(&mut results, arg, version, Some(attr.kind()));
+                    validate_arg(&mut results, arg, version, Some(&attr));
                 }
 
                 // Verifies diagnostics.
