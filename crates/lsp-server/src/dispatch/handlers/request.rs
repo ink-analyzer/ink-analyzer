@@ -267,34 +267,37 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        // Initializes snapshots with test document.
-        let (snapshots, uri) = init_snapshots(String::from("#[ink::co]"), &client_capabilities);
+        for version in [Version::V4, Version::V5] {
+            // Initializes snapshots with test document.
+            let (snapshots, uri) =
+                init_snapshots(String::from("#[ink::co]"), &client_capabilities, version);
 
-        // Calls handler and verifies that the expected completion items are returned.
-        let result = handle_completion(
-            lsp_types::CompletionParams {
-                text_document_position: lsp_types::TextDocumentPositionParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri },
-                    position: lsp_types::Position {
-                        line: 0,
-                        character: 9,
+            // Calls handler and verifies that the expected completion items are returned.
+            let result = handle_completion(
+                lsp_types::CompletionParams {
+                    text_document_position: lsp_types::TextDocumentPositionParams {
+                        text_document: lsp_types::TextDocumentIdentifier { uri },
+                        position: lsp_types::Position {
+                            line: 0,
+                            character: 9,
+                        },
                     },
+                    work_done_progress_params: Default::default(),
+                    partial_result_params: Default::default(),
+                    context: None,
                 },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
-                context: None,
-            },
-            &snapshots,
-            &client_capabilities,
-        );
-        assert!(result.is_ok());
-        let completion_items = match result.unwrap().unwrap() {
-            lsp_types::CompletionResponse::List(it) => Some(it),
-            lsp_types::CompletionResponse::Array(_) => None,
+                &snapshots,
+                &client_capabilities,
+            );
+            assert!(result.is_ok());
+            let completion_items = match result.unwrap().unwrap() {
+                lsp_types::CompletionResponse::List(it) => Some(it),
+                lsp_types::CompletionResponse::Array(_) => None,
+            }
+            .unwrap()
+            .items;
+            assert!(completion_items[0].label.contains("contract"));
         }
-        .unwrap()
-        .items;
-        assert!(completion_items[0].label.contains("contract"));
     }
 
     #[test]
@@ -302,32 +305,37 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        // Initializes snapshots with test document.
-        let (snapshots, uri) =
-            init_snapshots(String::from("#[ink::contract]"), &client_capabilities);
+        for version in [Version::V4, Version::V5] {
+            // Initializes snapshots with test document.
+            let (snapshots, uri) = init_snapshots(
+                String::from("#[ink::contract]"),
+                &client_capabilities,
+                version,
+            );
 
-        // Calls handler and verifies that the expected hover content is returned.
-        let result = handle_hover(
-            lsp_types::HoverParams {
-                text_document_position_params: lsp_types::TextDocumentPositionParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri },
-                    position: lsp_types::Position {
-                        line: 0,
-                        character: 1,
+            // Calls handler and verifies that the expected hover content is returned.
+            let result = handle_hover(
+                lsp_types::HoverParams {
+                    text_document_position_params: lsp_types::TextDocumentPositionParams {
+                        text_document: lsp_types::TextDocumentIdentifier { uri },
+                        position: lsp_types::Position {
+                            line: 0,
+                            character: 1,
+                        },
                     },
+                    work_done_progress_params: Default::default(),
                 },
-                work_done_progress_params: Default::default(),
-            },
-            &snapshots,
-            &client_capabilities,
-        );
-        assert!(result.is_ok());
-        let hover_content = match result.unwrap().unwrap().contents {
-            lsp_types::HoverContents::Scalar(lsp_types::MarkedString::String(it)) => Some(it),
-            _ => None,
+                &snapshots,
+                &client_capabilities,
+            );
+            assert!(result.is_ok());
+            let hover_content = match result.unwrap().unwrap().contents {
+                lsp_types::HoverContents::Scalar(lsp_types::MarkedString::String(it)) => Some(it),
+                _ => None,
+            }
+            .unwrap();
+            assert!(hover_content.contains("`#[ink::contract]`"));
         }
-        .unwrap();
-        assert!(hover_content.contains("`#[ink::contract]`"));
     }
 
     #[test]
@@ -335,40 +343,45 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        // Initializes snapshots with test document.
-        let (snapshots, uri) =
-            init_snapshots(String::from("mod my_contract {}"), &client_capabilities);
+        for version in [Version::V4, Version::V5] {
+            // Initializes snapshots with test document.
+            let (snapshots, uri) = init_snapshots(
+                String::from("mod my_contract {}"),
+                &client_capabilities,
+                version,
+            );
 
-        // Calls handler and verifies that the expected code actions are returned.
-        let result = handle_code_action(
-            lsp_types::CodeActionParams {
-                text_document: lsp_types::TextDocumentIdentifier { uri },
-                range: lsp_types::Range {
-                    start: lsp_types::Position {
-                        line: 0,
-                        character: 0,
+            // Calls handler and verifies that the expected code actions are returned.
+            let result = handle_code_action(
+                lsp_types::CodeActionParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri },
+                    range: lsp_types::Range {
+                        start: lsp_types::Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: lsp_types::Position {
+                            line: 0,
+                            character: 15,
+                        },
                     },
-                    end: lsp_types::Position {
-                        line: 0,
-                        character: 15,
-                    },
+                    context: Default::default(),
+                    work_done_progress_params: Default::default(),
+                    partial_result_params: Default::default(),
                 },
-                context: Default::default(),
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
-            },
-            &snapshots,
-            &client_capabilities,
-        );
-        assert!(result.is_ok());
-        let code_actions = result.unwrap().unwrap();
-        assert!(match &code_actions[0] {
-            lsp_types::CodeActionOrCommand::CodeAction(it) => Some(it),
-            lsp_types::CodeActionOrCommand::Command(_) => None,
+                &snapshots,
+                &client_capabilities,
+            );
+            assert!(result.is_ok());
+            let code_actions = result.unwrap().unwrap();
+            assert!(match &code_actions[0] {
+                lsp_types::CodeActionOrCommand::CodeAction(it) => Some(it),
+                lsp_types::CodeActionOrCommand::Command(_) => None,
+            }
+            .unwrap()
+            .title
+            .contains("Add ink! contract"));
         }
-        .unwrap()
-        .title
-        .contains("Add ink! contract"));
     }
 
     #[test]
@@ -376,55 +389,58 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        // Initializes snapshots with test document.
-        let (snapshots, uri) = init_snapshots(
-            String::from(r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar")]"#),
-            &client_capabilities,
-        );
+        for version in [Version::V4, Version::V5] {
+            // Initializes snapshots with test document.
+            let (snapshots, uri) = init_snapshots(
+                String::from(r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar")]"#),
+                &client_capabilities,
+                version,
+            );
 
-        // Calls handler and verifies that the expected inlay hints are returned.
-        let result = handle_inlay_hint(
-            lsp_types::InlayHintParams {
-                text_document: lsp_types::TextDocumentIdentifier { uri },
-                range: lsp_types::Range {
-                    start: lsp_types::Position {
-                        line: 0,
-                        character: 0,
+            // Calls handler and verifies that the expected inlay hints are returned.
+            let result = handle_inlay_hint(
+                lsp_types::InlayHintParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri },
+                    range: lsp_types::Range {
+                        start: lsp_types::Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: lsp_types::Position {
+                            line: 0,
+                            character: 57,
+                        },
                     },
-                    end: lsp_types::Position {
-                        line: 0,
-                        character: 57,
-                    },
+                    work_done_progress_params: Default::default(),
                 },
-                work_done_progress_params: Default::default(),
-            },
-            &snapshots,
-            &client_capabilities,
-        );
-        assert!(result.is_ok());
-        let inlay_hints = result.unwrap().unwrap();
-        assert_eq!(
-            match &inlay_hints[0].label {
-                lsp_types::InlayHintLabel::String(value) => Some(value.as_str()),
+                &snapshots,
+                &client_capabilities,
+            );
+            assert!(result.is_ok());
+            let inlay_hints = result.unwrap().unwrap();
+            assert_eq!(
+                match &inlay_hints[0].label {
+                    lsp_types::InlayHintLabel::String(value) => Some(value.as_str()),
+                    _ => None,
+                }
+                .unwrap(),
+                ": impl Environment"
+            );
+            assert_eq!(
+                match &inlay_hints[1].label {
+                    lsp_types::InlayHintLabel::String(value) => Some(value.as_str()),
+                    _ => None,
+                }
+                .unwrap(),
+                ": &str"
+            );
+            assert!(match &inlay_hints[1].tooltip.as_ref().unwrap() {
+                lsp_types::InlayHintTooltip::String(value) => Some(value.as_str()),
                 _ => None,
             }
-            .unwrap(),
-            ": impl Environment"
-        );
-        assert_eq!(
-            match &inlay_hints[1].label {
-                lsp_types::InlayHintLabel::String(value) => Some(value.as_str()),
-                _ => None,
-            }
-            .unwrap(),
-            ": &str"
-        );
-        assert!(match &inlay_hints[1].tooltip.as_ref().unwrap() {
-            lsp_types::InlayHintTooltip::String(value) => Some(value.as_str()),
-            _ => None,
+            .unwrap()
+            .contains("comma separated"));
         }
-        .unwrap()
-        .contains("comma separated"));
     }
 
     #[test]
@@ -432,50 +448,55 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        // Initializes snapshots with test document.
-        let (snapshots, uri) =
-            init_snapshots(String::from("#[ink::contract()]"), &client_capabilities);
+        for version in [Version::V4, Version::V5] {
+            // Initializes snapshots with test document.
+            let (snapshots, uri) = init_snapshots(
+                String::from("#[ink::contract()]"),
+                &client_capabilities,
+                version,
+            );
 
-        // Calls handler and verifies that the expected signature help is returned.
-        let result = handle_signature_help(
-            lsp_types::SignatureHelpParams {
-                text_document_position_params: lsp_types::TextDocumentPositionParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri },
-                    position: lsp_types::Position {
-                        line: 0,
-                        character: 16,
+            // Calls handler and verifies that the expected signature help is returned.
+            let result = handle_signature_help(
+                lsp_types::SignatureHelpParams {
+                    text_document_position_params: lsp_types::TextDocumentPositionParams {
+                        text_document: lsp_types::TextDocumentIdentifier { uri },
+                        position: lsp_types::Position {
+                            line: 0,
+                            character: 16,
+                        },
                     },
+                    work_done_progress_params: Default::default(),
+                    context: None,
                 },
-                work_done_progress_params: Default::default(),
-                context: None,
-            },
-            &snapshots,
-            &simple_client_config(),
-        );
-        assert!(result.is_ok());
-        let signature_help = result.unwrap().unwrap();
-        let signature_label = &signature_help.signatures[0].label;
-        assert_eq!(
-            signature_help.signatures[0].label,
-            "env: impl Environment, keep_attr: &str"
-        );
-        let params: Vec<[u32; 2]> = signature_help.signatures[0]
-            .parameters
-            .as_ref()
-            .unwrap()
-            .iter()
-            .map(|param| match &param.label {
-                lsp_types::ParameterLabel::LabelOffsets(offsets) => [offsets[0], offsets[1]],
-                lsp_types::ParameterLabel::Simple(label) => {
-                    let end_offset =
-                        test_utils::parse_offset_at(signature_label, Some(label)).unwrap() as u32;
-                    let start_offset = end_offset - label.len() as u32;
-                    [start_offset, end_offset]
-                }
-            })
-            .collect();
-        assert_eq!(params, vec![[0, 21], [23, 38]]);
-        assert_eq!(signature_help.active_parameter.unwrap(), 0);
+                &snapshots,
+                &simple_client_config(),
+            );
+            assert!(result.is_ok());
+            let signature_help = result.unwrap().unwrap();
+            let signature_label = &signature_help.signatures[0].label;
+            assert_eq!(
+                signature_help.signatures[0].label,
+                "env: impl Environment, keep_attr: &str"
+            );
+            let params: Vec<[u32; 2]> = signature_help.signatures[0]
+                .parameters
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|param| match &param.label {
+                    lsp_types::ParameterLabel::LabelOffsets(offsets) => [offsets[0], offsets[1]],
+                    lsp_types::ParameterLabel::Simple(label) => {
+                        let end_offset = test_utils::parse_offset_at(signature_label, Some(label))
+                            .unwrap() as u32;
+                        let start_offset = end_offset - label.len() as u32;
+                        [start_offset, end_offset]
+                    }
+                })
+                .collect();
+            assert_eq!(params, vec![[0, 21], [23, 38]]);
+            assert_eq!(signature_help.active_parameter.unwrap(), 0);
+        }
     }
 
     #[test]

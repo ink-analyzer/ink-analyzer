@@ -109,6 +109,7 @@ mod tests {
     use super::*;
     use crate::dispatch::handlers;
     use crate::test_utils::init_snapshots;
+    use ink_analyzer::Version;
     use test_utils::simple_client_config;
 
     #[test]
@@ -116,72 +117,78 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        // Initializes snapshots with test document.
-        let (snapshots, uri) = init_snapshots(String::from(""), &client_capabilities);
+        for version in [Version::V4, Version::V5] {
+            // Initializes snapshots with test document.
+            let (snapshots, uri) = init_snapshots(String::from(""), &client_capabilities, version);
 
-        // Creates LSP completion request.
-        use lsp_types::request::Request;
-        let req_id = lsp_server::RequestId::from(1);
-        let req = lsp_server::Request {
-            id: req_id.clone(),
-            method: lsp_types::request::Completion::METHOD.to_owned(),
-            params: serde_json::to_value(lsp_types::CompletionParams {
-                text_document_position: lsp_types::TextDocumentPositionParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri },
-                    position: Default::default(),
-                },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
-                context: None,
-            })
-            .unwrap(),
-        };
+            // Creates LSP completion request.
+            use lsp_types::request::Request;
+            let req_id = lsp_server::RequestId::from(1);
+            let req = lsp_server::Request {
+                id: req_id.clone(),
+                method: lsp_types::request::Completion::METHOD.to_owned(),
+                params: serde_json::to_value(lsp_types::CompletionParams {
+                    text_document_position: lsp_types::TextDocumentPositionParams {
+                        text_document: lsp_types::TextDocumentIdentifier { uri },
+                        position: Default::default(),
+                    },
+                    work_done_progress_params: Default::default(),
+                    partial_result_params: Default::default(),
+                    context: None,
+                })
+                .unwrap(),
+            };
 
-        // Processes completion request through a request router with a completion handler,
-        // retrieves response and verifies that it's a success response.
-        let mut router = RequestRouter::new(req.clone(), &snapshots, &client_capabilities);
-        let result = router
-            .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
-            .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
-            .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
-            .finish();
-        assert!(result.is_some());
-        let response = result.unwrap();
-        assert_eq!(response.id, req_id);
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
+            // Processes completion request through a request router with a completion handler,
+            // retrieves response and verifies that it's a success response.
+            let mut router = RequestRouter::new(req.clone(), &snapshots, &client_capabilities);
+            let result = router
+                .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
+                .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
+                .process::<lsp_types::request::CodeActionRequest>(
+                    handlers::request::handle_code_action,
+                )
+                .finish();
+            assert!(result.is_some());
+            let response = result.unwrap();
+            assert_eq!(response.id, req_id);
+            assert!(response.result.is_some());
+            assert!(response.error.is_none());
 
-        // Processes completion request through a request router with NO completion handler,
-        // retrieves response and verifies that it's an "unknown or unsupported request" error response.
-        let mut router = RequestRouter::new(req.clone(), &snapshots, &client_capabilities);
-        let result = router
-            .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
-            .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
-            .finish();
-        assert!(result.is_some());
-        let response = result.unwrap();
-        assert_eq!(response.id, req_id);
-        assert!(response.result.is_none());
-        assert!(response.error.is_some());
-        let message = response.error.as_ref().unwrap().message.to_lowercase();
-        assert!(message.contains("unknown") || message.contains("unsupported"));
+            // Processes completion request through a request router with NO completion handler,
+            // retrieves response and verifies that it's an "unknown or unsupported request" error response.
+            let mut router = RequestRouter::new(req.clone(), &snapshots, &client_capabilities);
+            let result = router
+                .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
+                .process::<lsp_types::request::CodeActionRequest>(
+                    handlers::request::handle_code_action,
+                )
+                .finish();
+            assert!(result.is_some());
+            let response = result.unwrap();
+            assert_eq!(response.id, req_id);
+            assert!(response.result.is_none());
+            assert!(response.error.is_some());
+            let message = response.error.as_ref().unwrap().message.to_lowercase();
+            assert!(message.contains("unknown") || message.contains("unsupported"));
 
-        // Processes modified completion request with invalid parameters through a request router with a completion handler,
-        // retrieves response and verifies that it's an "invalid request" error response.
-        let mut req_invalid = req;
-        req_invalid.params = serde_json::Value::Null;
-        let req_id_invalid = req_invalid.id.clone();
-        let mut router = RequestRouter::new(req_invalid, &snapshots, &client_capabilities);
-        let result = router
-            .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
-            .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
-            .finish();
-        assert!(result.is_some());
-        let response = result.unwrap();
-        assert_eq!(response.id, req_id_invalid);
-        assert!(response.result.is_none());
-        assert!(response.error.is_some());
-        let message = response.error.as_ref().unwrap().message.to_lowercase();
-        assert!(message.contains("invalid") && message.contains("parameters"));
+            // Processes modified completion request with invalid parameters through a request router with a completion handler,
+            // retrieves response and verifies that it's an "invalid request" error response.
+            let mut req_invalid = req;
+            req_invalid.params = serde_json::Value::Null;
+            let req_id_invalid = req_invalid.id.clone();
+            let mut router = RequestRouter::new(req_invalid, &snapshots, &client_capabilities);
+            let result = router
+                .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
+                .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
+                .finish();
+            assert!(result.is_some());
+            let response = result.unwrap();
+            assert_eq!(response.id, req_id_invalid);
+            assert!(response.result.is_none());
+            assert!(response.error.is_some());
+            let message = response.error.as_ref().unwrap().message.to_lowercase();
+            assert!(message.contains("invalid") && message.contains("parameters"));
+        }
     }
 }

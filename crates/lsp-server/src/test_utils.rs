@@ -20,6 +20,7 @@ pub fn document_uri() -> lsp_types::Url {
 pub fn init_snapshots(
     content: String,
     client_capabilities: &lsp_types::ClientCapabilities,
+    version: Version,
 ) -> (Snapshots, lsp_types::Url) {
     let mut snapshots = Snapshots::new();
     let uri = document_uri();
@@ -29,7 +30,7 @@ pub fn init_snapshots(
             content,
             utils::position_encoding(&client_capabilities),
             Some(0),
-            Version::V4,
+            version,
         ),
     );
     (snapshots, uri)
