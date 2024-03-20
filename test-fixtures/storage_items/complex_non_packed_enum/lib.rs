@@ -1,4 +1,3 @@
-// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/tests/ui/storage_item/pass/complex_non_packed_enum.rs>.
 use ink_prelude::vec::Vec;
 use ink_primitives::KeyComposer;
 use ink_storage::{

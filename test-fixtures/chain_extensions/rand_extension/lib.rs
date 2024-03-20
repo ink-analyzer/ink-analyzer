@@ -1,4 +1,3 @@
-// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/integration-tests/rand-extension/lib.rs>.
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 use ink::env::Environment;

@@ -1481,7 +1481,7 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
         },
         // Trait definitions.
         TestGroup {
-            source: "trait_definitions/erc20_trait",
+            source: "trait_definitions/trait_erc20",
             test_cases: vec![
                 TestCase {
                     modifications: None,
@@ -1879,7 +1879,7 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
             ],
         },
         TestGroup {
-            source: "trait_definitions/flipper_trait",
+            source: "trait_definitions/trait_flipper",
             test_cases: vec![
                 TestCase {
                     modifications: None,
@@ -2257,7 +2257,7 @@ pub fn completions_fixtures() -> Vec<TestGroup> {
         },
         // Trait definitions.
         TestGroup {
-            source: "trait_definitions/erc20_trait",
+            source: "trait_definitions/trait_erc20",
             test_cases: vec![
                 TestCase {
                     modifications: Some(vec![TestCaseModification {
@@ -3054,7 +3054,7 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
         },
         // Trait definitions.
         TestGroup {
-            source: "trait_definitions/erc20_trait",
+            source: "trait_definitions/trait_erc20",
             test_cases: vec![
                 TestCase {
                     modifications: Some(vec![TestCaseModification {
@@ -3603,7 +3603,7 @@ pub fn hover_fixtures() -> Vec<TestGroup> {
         },
         // Trait definitions.
         TestGroup {
-            source: "trait_definitions/erc20_trait",
+            source: "trait_definitions/trait_erc20",
             test_cases: vec![
                 TestCase {
                     modifications: None,
@@ -3870,7 +3870,7 @@ pub fn inlay_hints_fixtures() -> Vec<TestGroup> {
         },
         // Trait definitions.
         TestGroup {
-            source: "trait_definitions/erc20_trait",
+            source: "trait_definitions/trait_erc20",
             test_cases: vec![
                 TestCase {
                     modifications: None,
@@ -4313,7 +4313,7 @@ pub fn signature_help_fixtures() -> Vec<TestGroup> {
         },
         // Trait definitions.
         TestGroup {
-            source: "trait_definitions/erc20_trait",
+            source: "trait_definitions/trait_erc20",
             test_cases: vec![
                 TestCase {
                     modifications: Some(vec![TestCaseModification {

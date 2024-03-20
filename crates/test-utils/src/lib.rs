@@ -37,7 +37,7 @@ macro_rules! quote_as_pretty_string {
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn read_source_code(location: &str) -> String {
-    fs::read_to_string(format!("../../test-fixtures/{location}.rs"))
+    fs::read_to_string(format!("../../test-fixtures/{location}/lib.rs"))
         .unwrap()
         .replace("\r\n", "\n")
 }
@@ -47,7 +47,7 @@ pub fn read_source_code(location: &str) -> String {
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn source_uri(location: &str) -> lsp_types::Url {
     lsp_types::Url::from_file_path(
-        Path::new(&format!("../../test-fixtures/{location}.rs"))
+        Path::new(&format!("../../test-fixtures/{location}/lib.rs"))
             .canonicalize()
             .unwrap(),
     )

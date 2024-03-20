@@ -3,9 +3,9 @@
 use std::thread;
 
 /// Creates an LSP server, starts its message dispatch loop and
-/// returns a in memory connection to it to simulate a connected client.
+/// returns an in memory connection to it to simulate a connected client.
 pub fn create_initialized_lsp_server() -> lsp_server::Connection {
-    // Creates pair of in-memory connections to simulate an LSP client and server.
+    // Creates a pair of in-memory connections to simulate an LSP client and server.
     let (server_connection, client_connection) = lsp_server::Connection::memory();
 
     // Creates client capabilities.

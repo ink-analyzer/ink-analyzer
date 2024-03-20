@@ -1,4 +1,3 @@
-// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/tests/ui/storage_item/pass/default_storage_key_1.rs>.
 use ink::storage::traits::{
     ManualKey,
     StorageKey,

@@ -1,4 +1,3 @@
-// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/integration-tests/mother/lib.rs>.
 //! # The Mother of All Contracts
 //!
 //! This contract is intended to make use of all features that are observable
