@@ -2045,3 +2045,18 @@ pub fn is_trait_definition_impl_message(target: &SyntaxNode) -> bool {
             .parent_impl_item()
             .is_some_and(|impl_item| impl_item.trait_().is_some())
 }
+
+/// Converts token tree into a non-delimited (i.e. with brackets excluded) string.
+///
+/// # Example:
+/// `TokenTree` for `#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]` becomes
+/// "scale::Encode, scale::Decode, scale_info::TypeInfo"
+pub fn token_tree_to_non_delimited_meta_string(token_tree: &ast::TokenTree) -> String {
+    let r_paren_option = token_tree.r_paren_token();
+    token_tree
+        .syntax()
+        .children_with_tokens()
+        .skip(usize::from(token_tree.l_paren_token().is_some()))
+        .take_while(|it| r_paren_option.is_none() || it.as_token() != r_paren_option.as_ref())
+        .join("")
+}
