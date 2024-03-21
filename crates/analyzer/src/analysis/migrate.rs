@@ -1,12 +1,13 @@
 //! ink! 5.0 migration.
 
-use crate::analysis::text_edit::format_edits;
+use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::syntax::{AstNode, AstToken, SyntaxKind, SyntaxToken, TextRange, TextSize};
-use ink_analyzer_ir::{ast, ChainExtension, InkArg, InkArgKind, InkEntity, InkFile};
+use ink_analyzer_ir::{ast, ChainExtension, InkArg, InkArgKind, InkEntity, InkFile, IsInkStruct};
 use itertools::Itertools;
 use std::collections::HashMap;
 
 use super::{utils, TextEdit};
+use crate::analysis::text_edit::format_edits;
 use crate::resolution;
 
 /// Computes text edits for migrating an ink! file to ink! 5.0.
@@ -32,11 +33,20 @@ pub fn migrate(file: &InkFile) -> Vec<TextEdit> {
 /// Computes text edits for migrating ink! events to ink! 5.0 standalone events (aka events 2.0).
 fn events(results: &mut Vec<TextEdit>, file: &InkFile) {
     for contract in file.contracts() {
+        let contract_indent = utils::item_indenting(contract.syntax());
+        let use_insert_offset = contract
+            .module()
+            .and_then(ast::Module::item_list)
+            .map(|item_list| utils::item_insert_offset_start(&item_list));
+
         // Replace legacy events with 2.0 events.
         for event in contract.events() {
             if let Some(ink_attr) = event.ink_attr() {
-                results.push(TextEdit::replace(
-                    format!(
+                // Replace legacy event with event 2.0.
+                let mut code = event.syntax().to_string();
+                code = code.replace(
+                    &ink_attr.syntax().to_string(),
+                    &format!(
                         "#[ink::event{}]",
                         if event.anonymous_arg().is_some() {
                             "(anonymous)"
@@ -44,20 +54,48 @@ fn events(results: &mut Vec<TextEdit>, file: &InkFile) {
                             ""
                         }
                     ),
-                    ink_attr.syntax().text_range(),
-                ));
+                );
 
-                // Remove standalone anonymous attribute (if any).
+                // Remove standalone `anonymous` attribute (if any).
                 if let Some(arg) = event.anonymous_arg() {
                     if !ink_attr
                         .syntax()
                         .text_range()
                         .contains_range(arg.text_range())
                     {
-                        let range = utils::ink_arg_and_delimiter_removal_range(&arg, None);
-                        results.push(TextEdit::delete(range));
+                        if let Some(anonymous_attr) =
+                            event.item_at_offset(arg.text_range().start()).parent_attr()
+                        {
+                            code = code.replace(&anonymous_attr.syntax().to_string(), "");
+                        }
                     }
                 }
+
+                // Update indenting.
+                if let Some(indent) = utils::item_indenting(event.syntax()) {
+                    code = utils::reduce_indenting(&code, &indent);
+                }
+                if let Some(indent) = contract_indent.as_ref() {
+                    code = utils::apply_indenting(&code, indent);
+                }
+
+                // Insert event 2.0 before contract.
+                results.push(TextEdit::insert(
+                    code,
+                    contract.syntax().text_range().start(),
+                ));
+
+                // Add event 2.0 import.
+                let event_name = event.struct_item().and_then(ast::Struct::name);
+                if let Some((use_insert_offset, event_name)) = use_insert_offset.zip(event_name) {
+                    results.push(TextEdit::insert(
+                        format!("use super::{event_name};"),
+                        use_insert_offset,
+                    ));
+                }
+
+                // Remove legacy event.
+                results.push(TextEdit::delete(event.syntax().text_range()));
             }
         }
     }
@@ -356,22 +394,42 @@ mod tests {
                     #[ink(event)]
                     pub struct MyEvent {}
                 },
-                vec![(
-                    "#[ink::event]",
-                    Some("<-#[ink(event)]"),
-                    Some("#[ink(event)]"),
-                )],
+                vec![
+                    (
+                        "#[ink::event]\npub struct MyEvent {}",
+                        Some("<-#[ink::contract]"),
+                        Some("<-#[ink::contract]"),
+                    ),
+                    (
+                        "use super::MyEvent;",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
+                    ("", Some("<-#[ink(event)]"), Some("pub struct MyEvent {}")),
+                ],
             ),
             (
                 quote! {
                     #[ink(event, anonymous)]
                     pub struct MyEvent {}
                 },
-                vec![(
-                    "#[ink::event(anonymous)]",
-                    Some("<-#[ink(event, anonymous)]"),
-                    Some("#[ink(event, anonymous)]"),
-                )],
+                vec![
+                    (
+                        "#[ink::event(anonymous)]\npub struct MyEvent {}",
+                        Some("<-#[ink::contract]"),
+                        Some("<-#[ink::contract]"),
+                    ),
+                    (
+                        "use super::MyEvent;",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
+                    (
+                        "",
+                        Some("<-#[ink(event, anonymous)]"),
+                        Some("pub struct MyEvent {}"),
+                    ),
+                ],
             ),
             (
                 quote! {
@@ -381,11 +439,16 @@ mod tests {
                 },
                 vec![
                     (
-                        "#[ink::event(anonymous)]",
-                        Some("<-#[ink(event)]"),
-                        Some("#[ink(event)]"),
+                        "#[ink::event(anonymous)]\n\npub struct MyEvent {}",
+                        Some("<-#[ink::contract]"),
+                        Some("<-#[ink::contract]"),
                     ),
-                    ("", Some("<-#[ink(anonymous)]"), Some("#[ink(anonymous)]")),
+                    (
+                        "use super::MyEvent;",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
+                    ("", Some("<-#[ink(event)]"), Some("pub struct MyEvent {}")),
                 ],
             ),
             (
@@ -398,14 +461,30 @@ mod tests {
                 },
                 vec![
                     (
-                        "#[ink::event]",
-                        Some("<-#[ink(event)]"),
-                        Some("#[ink(event)]"),
+                        "#[ink::event]\npub struct MyEvent {}",
+                        Some("<-#[ink::contract]"),
+                        Some("<-#[ink::contract]"),
                     ),
                     (
-                        "#[ink::event(anonymous)]",
+                        "use super::MyEvent;",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
+                    ("", Some("<-#[ink(event)]"), Some("pub struct MyEvent {}")),
+                    (
+                        "#[ink::event(anonymous)]\npub struct MyEvent2 {}",
+                        Some("<-#[ink::contract]"),
+                        Some("<-#[ink::contract]"),
+                    ),
+                    (
+                        "use super::MyEvent2;",
+                        Some("mod my_contract {"),
+                        Some("mod my_contract {"),
+                    ),
+                    (
+                        "",
                         Some("<-#[ink(event, anonymous)]"),
-                        Some("#[ink(event, anonymous)]"),
+                        Some("pub struct MyEvent2 {}"),
                     ),
                 ],
             ),
