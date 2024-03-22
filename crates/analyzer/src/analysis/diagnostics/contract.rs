@@ -8,10 +8,10 @@ use std::collections::HashSet;
 
 use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::meta::MetaValue;
-use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
+use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
 use ink_analyzer_ir::{
     ast, Contract, InkArg, InkArgKind, InkAttributeKind, InkEntity, InkMacroKind, IsInkCallable,
-    Message, Selector, SelectorArg, Storage,
+    IsInkFn, Message, Selector, SelectorArg, Storage,
 };
 
 use super::{common, environment, event, ink_e2e_test, ink_test, message};
@@ -506,10 +506,17 @@ fn validate_wildcard_complement_selector(results: &mut Vec<Diagnostic>, contract
                     });
                 }
             } else {
+                let decl_range = || {
+                    message
+                        .fn_item()
+                        .and_then(|fn_item| {
+                            utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+                        })
+                        .unwrap_or_else(|| message.syntax().text_range())
+                };
                 let quickfix = if wildcard_complement_exists {
                     Some(Action::remove_item(message.syntax()))
-                } else if let Some(selector) =
-                    message.tree().ink_args_by_kind(InkArgKind::Selector).next()
+                } else if let Some(selector) = message.selector_arg().as_ref().map(SelectorArg::arg)
                 {
                     Some(Action {
                         label: "Replace with wildcard complement selector.".to_owned(),
@@ -523,21 +530,18 @@ fn validate_wildcard_complement_selector(results: &mut Vec<Diagnostic>, contract
                 } else {
                     message.ink_attr().and_then(|ink_attr| {
                         utils::ink_arg_insert_offset_and_affixes(ink_attr, None).map(
-                            |(insert_offset, insert_prefix, insert_suffix)| {
-                                let range = TextRange::new(insert_offset, insert_offset);
-                                Action {
-                                    label: "Add wildcard complement selector.".to_owned(),
-                                    kind: ActionKind::QuickFix,
-                                    range,
-                                    edits: vec![TextEdit::insert(
-                                        format!(
-                                            "{}selector = @{}",
-                                            insert_prefix.unwrap_or_default(),
-                                            insert_suffix.unwrap_or_default()
-                                        ),
-                                        insert_offset,
-                                    )],
-                                }
+                            |(insert_offset, insert_prefix, insert_suffix)| Action {
+                                label: "Add wildcard complement selector.".to_owned(),
+                                kind: ActionKind::QuickFix,
+                                range: decl_range(),
+                                edits: vec![TextEdit::insert(
+                                    format!(
+                                        "{}selector = @{}",
+                                        insert_prefix.unwrap_or_default(),
+                                        insert_suffix.unwrap_or_default()
+                                    ),
+                                    insert_offset,
+                                )],
                             },
                         )
                     })
@@ -547,7 +551,12 @@ fn validate_wildcard_complement_selector(results: &mut Vec<Diagnostic>, contract
                         a wildcard complement (`@`) selector can be defined in an ink! contract \
                         that contains a wildcard (`_`) selector."
                         .to_owned(),
-                    range: message.syntax().text_range(),
+                    range: message
+                        .selector_arg()
+                        .as_ref()
+                        .map(SelectorArg::arg)
+                        .map(InkArg::text_range)
+                        .unwrap_or_else(decl_range),
                     severity: Severity::Error,
                     quickfixes: quickfix.map(|action| vec![action]),
                 });

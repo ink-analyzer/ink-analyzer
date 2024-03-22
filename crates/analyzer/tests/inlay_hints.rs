@@ -1,11 +1,14 @@
 //! integration tests for ink! analyzer inlay hints.
 
-use ink_analyzer::{Analysis, TextRange, TextSize, Version};
+mod utils;
+
+use crate::utils::ink_version_from_path;
+use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for inlay hints test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory
-//   (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+//   (e.g. https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/v4/erc20.rs).
 // - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - Compute inlay hints for the modified source code and a specific text range.
 // - Verify that the actual results match the expected results.
@@ -44,7 +47,8 @@ fn inlay_hints_works() {
             });
 
             // Computes inlay hints.
-            let results = Analysis::new(&test_code, Version::V4).inlay_hints(range);
+            let version = ink_version_from_path(test_group.source);
+            let results = Analysis::new(&test_code, version).inlay_hints(range);
 
             // Verifies actions results.
             let expected_results = match test_case.results {

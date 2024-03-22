@@ -1,11 +1,14 @@
 //! integration tests for ink! analyzer actions.
 
-use ink_analyzer::{Analysis, TextRange, TextSize, Version};
+mod utils;
+
+use crate::utils::ink_version_from_path;
+use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils::{PartialMatchStr, TestCaseParams, TestCaseResults};
 
 // The high-level methodology for code/intent actions test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory
-//   (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+//   (e.g. https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/v4/erc20.rs).
 // - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - Compute code/intent actions for the modified source code and a specific offset position.
 // - Verify that the actual results match the expected results.
@@ -39,7 +42,8 @@ fn actions_works() {
             let range = TextRange::new(offset, offset);
 
             // Computes actions.
-            let results = Analysis::new(&test_code, Version::V4).actions(range);
+            let version = ink_version_from_path(test_group.source);
+            let results = Analysis::new(&test_code, version).actions(range);
 
             // Verifies actions results.
             let expected_results = match test_case.results {

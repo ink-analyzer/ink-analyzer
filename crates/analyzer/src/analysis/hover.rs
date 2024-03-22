@@ -33,8 +33,10 @@ pub fn hover(file: &InkFile, range: TextRange, version: Version) -> Option<Hover
         match ink_arg {
             // Returns hover content for the covered ink! attribute argument if it's valid.
             Some(ink_arg) => {
-                let attr_kind = InkAttributeKind::Arg(*ink_arg.kind());
-                let doc = content(&attr_kind, version);
+                let arg_attr_kind = InkAttributeKind::Arg(*ink_arg.kind());
+                let primary_attr_kind =
+                    (*ink_attr.kind() != arg_attr_kind).then_some(ink_attr.kind());
+                let doc = content(&arg_attr_kind, version, primary_attr_kind);
                 (!doc.is_empty()).then(|| Hover {
                     range: ink_arg
                         .name()
@@ -46,7 +48,7 @@ pub fn hover(file: &InkFile, range: TextRange, version: Version) -> Option<Hover
             // Returns hover content based on the ink! attribute macro, ink! e2e attribute macro
             // or "primary" ink! attribute argument for the ink! attribute.
             None => {
-                let doc = content(ink_attr.kind(), version);
+                let doc = content(ink_attr.kind(), version, None);
                 (!doc.is_empty()).then(|| Hover {
                     range: match ink_attr.kind() {
                         InkAttributeKind::Arg(_) => ink_attr
@@ -66,11 +68,15 @@ pub fn hover(file: &InkFile, range: TextRange, version: Version) -> Option<Hover
 }
 
 /// Returns documentation for the ink! attribute kind.
-pub fn content(attr_kind: &InkAttributeKind, version: Version) -> &str {
+pub fn content(
+    attr_kind: &InkAttributeKind,
+    version: Version,
+    primary_attr_kind: Option<&InkAttributeKind>,
+) -> &'static str {
     match attr_kind {
         InkAttributeKind::Arg(arg_kind) => match arg_kind {
             InkArgKind::AdditionalContracts if version == Version::V5 => {
-                args::ADDITIONAL_CONTRACTS_DOC_V5
+                args::ADDITIONAL_CONTRACTS_DOC_V5_DEPRECATED
             }
             InkArgKind::AdditionalContracts => args::ADDITIONAL_CONTRACTS_DOC,
             InkArgKind::Anonymous if version == Version::V5 => args::ANONYMOUS_DOC_V5,
@@ -98,6 +104,15 @@ pub fn content(attr_kind: &InkAttributeKind, version: Version) -> &str {
             InkArgKind::Function if version == Version::V5 => args::FUNCTION_DOC,
             InkArgKind::HandleStatus => args::HANDLE_STATUS_DOC,
             InkArgKind::Impl => args::IMPL_DOC,
+            InkArgKind::KeepAttr
+                if version == Version::V5
+                    && matches!(
+                        primary_attr_kind,
+                        Some(InkAttributeKind::Macro(InkMacroKind::E2ETest))
+                    ) =>
+            {
+                args::KEEP_ATTR_E2E_DOC_V5_DEPRECATED
+            }
             InkArgKind::KeepAttr if version == Version::V5 => args::KEEP_ATTR_DOC_V5,
             InkArgKind::KeepAttr => args::KEEP_ATTR_DOC,
             InkArgKind::Message => args::MESSAGE_DOC,
@@ -138,8 +153,8 @@ mod tests {
 
     fn content(attr_kind: &InkAttributeKind) -> (&str, &str) {
         (
-            super::content(attr_kind, Version::V4),
-            super::content(attr_kind, Version::V5),
+            super::content(attr_kind, Version::V4, None),
+            super::content(attr_kind, Version::V5, None),
         )
     }
 

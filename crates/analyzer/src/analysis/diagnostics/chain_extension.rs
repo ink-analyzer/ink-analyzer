@@ -287,6 +287,15 @@ fn ensure_trait_item_invariants(
         let range = utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
             .unwrap_or(fn_item.syntax().text_range());
 
+        // Suppress missing `function` arg warnings if the deprecated `extension` arg is present
+        // to reduce noise, because there will be a deprecation warning (and quickfix) added by
+        // `utils::validate_entity_attributes`.
+        let is_extension_arg =
+            || ink_analyzer_ir::ink_arg_by_kind(fn_item.syntax(), InkArgKind::Extension).is_some();
+        if id_arg_kind == InkArgKind::Function && is_extension_arg() {
+            return;
+        }
+
         results.push(Diagnostic {
             message: format!("All ink! chain extension functions must be ink! {id_arg_kind}s."),
             range,

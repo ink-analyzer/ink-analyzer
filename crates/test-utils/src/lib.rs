@@ -174,7 +174,7 @@ pub struct TestGroup {
 }
 
 /// Describes a single test case in a [`TestGroup`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestCase {
     /// List of modifications to perform on the original source before running the test.
     pub modifications: Option<Vec<TestCaseModification>>,
@@ -196,7 +196,7 @@ pub struct TestCaseModification {
 }
 
 /// Variants for [`TestCase`] parameters.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TestCaseParams {
     Action(TestParamsOffsetOnly),
     Completion(TestParamsOffsetOnly),
@@ -206,7 +206,7 @@ pub enum TestCaseParams {
 }
 
 /// Variants for [`TestCase`] results.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TestCaseResults {
     Action(Vec<TestResultAction>),
     Completion(Vec<TestResultTextRange>),
@@ -222,14 +222,14 @@ pub enum TestCaseResults {
 }
 
 /// Test parameters for offset-based tests.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestParamsOffsetOnly {
     /// Substring used to find the cursor offset parameter for the test case (see [`parse_offset_at`] doc).
     pub pat: Option<&'static str>,
 }
 
 /// Test parameters for text range based tests.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestParamsRangeOnly {
     /// Substring used to find the start offset for the focus range (see [`parse_offset_at`] doc).
     pub start_pat: Option<&'static str>,
@@ -249,7 +249,7 @@ pub struct TestResultTextRange {
 }
 
 /// Describes the expected text, offset and range result.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestResultTextOffsetRange {
     /// Expected text.
     pub text: &'static str,
@@ -271,7 +271,7 @@ pub struct TestResultAction {
 }
 
 /// Describes the expected signature help.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestResultSignatureHelp {
     /// Expected label.
     pub label: &'static str,
@@ -286,7 +286,7 @@ pub struct TestResultSignatureHelp {
 }
 
 /// Describes the expected signature parameter.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestResultSignatureParam {
     /// Substring used to find the start of the offset of the expected result (see [`parse_offset_at`] doc).
     pub start_pat: Option<&'static str>,

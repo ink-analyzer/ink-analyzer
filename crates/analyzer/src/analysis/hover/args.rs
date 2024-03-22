@@ -33,7 +33,7 @@ async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
-pub const ADDITIONAL_CONTRACTS_DOC_V5: &str = r#"
+pub const ADDITIONAL_CONTRACTS_DOC_V5_DEPRECATED: &str = r#"
 ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.
 "#;
 
@@ -802,6 +802,17 @@ pub trait MyTrait {
 ```
 "#;
 
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L27-L28>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L50>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
+pub const KEEP_ATTR_E2E_DOC_V5_DEPRECATED: &str = r#"
+ink! argument `keep_attr` for `ink_e2e::test` attribute macro is deprecated. See https://github.com/paritytech/ink/pull/1830 for details.
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L265-L308>.
@@ -1082,7 +1093,7 @@ mod my_contract {
 pub const SIGNATURE_TOPIC: &str = r#"
 # Attribute
 
-`#[ink::event(signature_topic = S: string)]`
+`#[ink::event(signature_topic = S: string)]` or `#[ink(signature_topic = S: string)]`
 
 # Description
 

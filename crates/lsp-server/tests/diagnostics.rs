@@ -6,7 +6,7 @@ use test_utils::TestCaseResults;
 
 // The high-level methodology for diagnostics test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory
-//   (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+//   (e.g. https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/v4/erc20.rs).
 // - (Optionally) Make modifications to the source code at specific offsets/text ranges to create a specific test case.
 // - Send the modified source code from client to server via a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.
 // - Retrieve the `PublishDiagnostics` notification that's sent from the server to the client when the server receives a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.

@@ -1795,8 +1795,15 @@ pub fn ensure_valid_quasi_direct_ink_descendants_by_kind<T>(
     if allows_none || allows_only_scale_derive {
         ensure_no_ink_descendants(results, item, ink_scope_name, allows_only_scale_derive)
     } else {
-        let is_valid_quasi_direct_descendant =
-            |attr: &InkAttribute| valid_direct_descendants.contains(attr.kind());
+        let is_valid_quasi_direct_descendant = |attr: &InkAttribute| {
+            valid_direct_descendants.contains(attr.kind())
+                // Suppress scope warnings for deprecated `extension` args on `chain extension`
+                // associated functions to reduce noise, because there will be a deprecation warning
+                // (and quickfix) added by `validate_entity_attributes`.
+                || (version == Version::V5
+                    && attr_kind == InkAttributeKind::Macro(InkMacroKind::ChainExtension)
+                    && *attr.kind() == InkAttributeKind::Arg(InkArgKind::Extension))
+        };
         ensure_valid_quasi_direct_ink_descendants(results, item, is_valid_quasi_direct_descendant)
     }
 }

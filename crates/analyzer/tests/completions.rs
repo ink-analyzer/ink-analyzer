@@ -1,11 +1,14 @@
 //! integration tests for ink! analyzer completions.
 
-use ink_analyzer::{Analysis, TextRange, TextSize, Version};
+mod utils;
+
+use crate::utils::ink_version_from_path;
+use ink_analyzer::{Analysis, TextRange, TextSize};
 use test_utils::{TestCaseParams, TestCaseResults};
 
 // The high-level methodology for completions test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory
-//   (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+//   (e.g. https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/v4/erc20.rs).
 // - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - Compute completions for the modified source code and a specific offset position.
 // - Verify that the actual results match the expected results.
@@ -38,7 +41,8 @@ fn completions_works() {
                 TextSize::from(test_utils::parse_offset_at(&test_code, offset_pat).unwrap() as u32);
 
             // Computes completions.
-            let results = Analysis::new(&test_code, Version::V4).completions(offset);
+            let version = ink_version_from_path(test_group.source);
+            let results = Analysis::new(&test_code, version).completions(offset);
 
             // Verifies completion results.
             let expected_results = match test_case.results {

@@ -9,7 +9,7 @@ use test_utils::{
 
 // The high-level methodology for code/intent actions test cases is:
 // - Read the source code of an ink! entity file in the `test-fixtures` directory
-//   (e.g https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/contracts/erc20.rs).
+//   (e.g. https://github.com/ink-analyzer/ink-analyzer/blob/master/test-fixtures/v4/erc20.rs).
 // - (Optionally) Make some modifications to the source code at a specific offset/text range to create a specific test case.
 // - Send the modified source code from client to server via a `DidOpenTextDocument` or `DidChangeTextDocument` LSP notification.
 // - Send an LSP code action request from client to server for the test case.
