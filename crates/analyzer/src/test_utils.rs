@@ -6,7 +6,7 @@ use ink_analyzer_ir::syntax::{AstNode, SourceFile, TextRange, TextSize};
 use ink_analyzer_ir::{InkEntity, InkFile};
 use test_utils::{parse_offset_at, PartialMatchStr, TestResultAction};
 
-use crate::Action;
+use crate::{Action, TextEdit};
 
 /// Verifies that code action results match the expected results description.
 pub fn verify_actions(
@@ -82,4 +82,23 @@ macro_rules! versioned_fixtures {
             (crate::Version::V5, $call!(v5).collect::<Vec<_>>()),
         ]
     };
+}
+
+pub fn text_edits_from_fixtures(
+    code: &str,
+    expected_results: Vec<(&str, Option<&str>, Option<&str>)>,
+) -> Vec<TextEdit> {
+    expected_results
+        .into_iter()
+        .map(|(text, start, end)| {
+            TextEdit::new(
+                text.to_owned(),
+                TextRange::new(
+                    TextSize::from(parse_offset_at(&code, start).unwrap() as u32),
+                    TextSize::from(parse_offset_at(&code, end).unwrap() as u32),
+                ),
+                None,
+            )
+        })
+        .collect()
 }

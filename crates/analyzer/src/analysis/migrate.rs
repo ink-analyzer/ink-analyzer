@@ -1,5 +1,7 @@
 //! ink! 5.0 migration.
 
+mod e2e_test;
+
 use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::syntax::{AstNode, AstToken, SyntaxKind, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{ast, ChainExtension, InkArg, InkArgKind, InkEntity, InkFile, IsInkStruct};
@@ -20,11 +22,11 @@ pub fn migrate(file: &InkFile) -> Vec<TextEdit> {
     // Migrate chain extensions.
     chain_extensions(&mut results, file);
 
-    // Migrate e2e test attribute arguments.
-    e2e_tests(&mut results, file);
-
     // Migrate built-in `derive`s of SCALE codec traits.
     scale_derive(&mut results, file);
+
+    // Migrate e2e tests.
+    e2e_test::migrate(&mut results, file);
 
     // Format and return edits.
     format_edits(results.into_iter(), file).collect()
@@ -137,38 +139,6 @@ fn chain_extensions(results: &mut Vec<TextEdit>, file: &InkFile) {
                     "function".to_owned(),
                     arg_name.syntax().text_range(),
                 ));
-            }
-        }
-    }
-}
-
-/// Computes text edits for migrating ink! chain extension to ink! 5.0.
-fn e2e_tests(results: &mut Vec<TextEdit>, file: &InkFile) {
-    for e2e_test in file.e2e_tests().iter().chain(
-        file.contracts()
-            .iter()
-            .flat_map(|contract| contract.e2e_tests()),
-    ) {
-        if e2e_test.environment_arg().is_none()
-            && (e2e_test.additional_contracts_arg().is_some()
-                || e2e_test.additional_contracts_arg().is_some())
-        {
-            // Remove all attribute arguments if the ink! e2e attribute has either an
-            // `additional_contracts` and/or `keep_attr` argument but no `environment` argument.
-            if let Some(meta) = e2e_test.ink_attr().and_then(|attr| attr.ast().token_tree()) {
-                results.push(TextEdit::delete(meta.syntax().text_range()));
-            }
-        } else {
-            // Remove `additional_contracts` argument (if any).
-            if let Some(arg) = e2e_test.additional_contracts_arg() {
-                let range = utils::ink_arg_and_delimiter_removal_range(&arg, None);
-                results.push(TextEdit::delete(range));
-            }
-
-            // Remove `keep_attr` argument (if any).
-            if let Some(arg) = e2e_test.keep_attr_arg() {
-                let range = utils::ink_arg_and_delimiter_removal_range(&arg, None);
-                results.push(TextEdit::delete(range));
             }
         }
     }
@@ -363,28 +333,9 @@ fn scale_derive(results: &mut Vec<TextEdit>, file: &InkFile) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TextSize;
+    use crate::test_utils::text_edits_from_fixtures;
     use quote::quote;
-    use test_utils::{parse_offset_at, quote_as_pretty_string};
-
-    fn convert_results(
-        code: &str,
-        expected_results: Vec<(&str, Option<&str>, Option<&str>)>,
-    ) -> Vec<TextEdit> {
-        expected_results
-            .into_iter()
-            .map(|(text, start, end)| {
-                TextEdit::new(
-                    text.to_owned(),
-                    TextRange::new(
-                        TextSize::from(parse_offset_at(&code, start).unwrap() as u32),
-                        TextSize::from(parse_offset_at(&code, end).unwrap() as u32),
-                    ),
-                    None,
-                )
-            })
-            .collect()
-    }
+    use test_utils::quote_as_pretty_string;
 
     #[test]
     fn events_works() {
@@ -499,7 +450,7 @@ mod tests {
             let mut results = Vec::new();
             events(&mut results, &InkFile::parse(&code));
 
-            assert_eq!(results, convert_results(&code, expected_results));
+            assert_eq!(results, text_edits_from_fixtures(&code, expected_results));
         }
     }
 
@@ -565,86 +516,7 @@ mod tests {
             let mut results = Vec::new();
             chain_extensions(&mut results, &InkFile::parse(&code));
 
-            assert_eq!(results, convert_results(&code, expected_results));
-        }
-    }
-
-    #[test]
-    fn e2e_tests_works() {
-        for (code, expected_results) in [
-            (
-                quote_as_pretty_string! {
-                    type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-                    #[ink_e2e::test]
-                    async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {}
-                },
-                vec![],
-            ),
-            (
-                quote_as_pretty_string! {
-                    type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-                    #[ink_e2e::test(environment = ink::env::DefaultEnvironment)]
-                    async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {}
-                },
-                vec![],
-            ),
-            (
-                quote_as_pretty_string! {
-                    type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-                    #[ink_e2e::test(additional_contracts = "adder/Cargo.toml flipper/Cargo.toml")]
-                    async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {}
-                },
-                vec![("", Some("#[ink_e2e::test"), Some("<-]"))],
-            ),
-            (
-                quote_as_pretty_string! {
-                    type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-                    #[ink_e2e::test(keep_attr = "foo,bar")]
-                    async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {}
-                },
-                vec![("", Some("#[ink_e2e::test"), Some("<-]"))],
-            ),
-            (
-                quote_as_pretty_string! {
-                    type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-                    #[ink_e2e::test(
-                        additional_contracts = "adder/Cargo.toml flipper/Cargo.toml",
-                        keep_attr = "foo,bar"
-                    )]
-                    async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {}
-                },
-                vec![("", Some("#[ink_e2e::test"), Some("<-]"))],
-            ),
-            (
-                quote_as_pretty_string! {
-                    type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-                    #[ink_e2e::test(
-                        additional_contracts = "adder/Cargo.toml flipper/Cargo.toml",
-                        environment = ink::env::DefaultEnvironment,
-                        keep_attr = "foo,bar"
-                    )]
-                    async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {}
-                },
-                vec![
-                    (
-                        "",
-                        Some("<-additional_contracts"),
-                        Some(r#""adder/Cargo.toml flipper/Cargo.toml","#),
-                    ),
-                    ("", Some("<-keep_attr"), Some("\"foo,bar\"\n")),
-                ],
-            ),
-        ] {
-            let mut results = Vec::new();
-            e2e_tests(&mut results, &InkFile::parse(&code));
-
-            assert_eq!(results, convert_results(&code, expected_results));
+            assert_eq!(results, text_edits_from_fixtures(&code, expected_results));
         }
     }
 
@@ -789,7 +661,7 @@ mod tests {
             let mut results = Vec::new();
             scale_derive(&mut results, &InkFile::parse(&code));
 
-            assert_eq!(results, convert_results(&code, expected_results));
+            assert_eq!(results, text_edits_from_fixtures(&code, expected_results));
         }
     }
 }
