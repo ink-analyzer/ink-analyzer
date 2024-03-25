@@ -7,7 +7,7 @@ use crate::tree::{ast_ext, utils};
 use crate::{Constructor, InkArgKind, InkAttribute, InkAttributeKind, Message, TraitDefinition};
 
 /// An ink! impl block.
-#[ink_analyzer_macro::entity(call = self::can_cast)]
+#[ink_analyzer_macro::entity(call = can_cast)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InkImpl {
     // ASTNode type.
@@ -399,6 +399,25 @@ mod tests {
 
                     impl MyTrait for MyContract {
                         // Incomplete trait implementation.
+                    }
+                },
+                false,
+                false,
+                0,
+                0, // impl has no messages.
+                true,
+            ),
+            (
+                quote_as_str! {
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, payable, default, selector=1)]
+                        fn my_message(&self);
+                    }
+
+                    impl MyTrait for MyContract {
+                        // Incomplete trait implementation, missing ink! attributes.
+                        fn my_message(&self) {}
                     }
                 },
                 false,

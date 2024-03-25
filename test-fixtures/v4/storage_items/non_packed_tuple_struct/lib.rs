@@ -1,9 +1,4 @@
-use ink_primitives::KeyComposer;
-use ink_storage::{
-    traits::StorageKey,
-    Lazy,
-    Mapping,
-};
+use ink::storage::{Lazy, Mapping};
 
 #[ink::storage_item]
 #[derive(Default)]

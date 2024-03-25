@@ -963,7 +963,7 @@ pub fn ink_arg_insert_text(
     let text = format!("{arg_kind}{eq_sign}{l_paren}{text_value}{r_paren}");
     // Creates a snippet with tab stops and/or placeholders (where applicable).
     let snippet =
-        insert_equal_token.then(|| format!("{arg_kind}{eq_sign}{l_paren}{snippet_value}{r_paren}"));
+        (insert_equal_token || insert_nested_value).then(|| format!("{arg_kind}{eq_sign}{l_paren}{snippet_value}{r_paren}"));
     (text, snippet)
 }
 

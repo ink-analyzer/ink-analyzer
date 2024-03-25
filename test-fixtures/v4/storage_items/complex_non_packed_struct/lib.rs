@@ -1,6 +1,6 @@
-use ink_prelude::vec::Vec;
-use ink_primitives::KeyComposer;
-use ink_storage::{
+use ink::prelude::vec::Vec;
+use ink::primitives::KeyComposer;
+use ink::storage::{
     traits::{
         AutoKey,
         StorageKey,
