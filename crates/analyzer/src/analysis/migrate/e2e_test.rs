@@ -53,10 +53,10 @@ fn attribute(results: &mut Vec<TextEdit>, e2e_test: &InkE2ETest) {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(dead_code)]
 enum E2ETrait {
     Contracts,
     Chain,
+    #[allow(dead_code)]
     E2E,
 }
 impl fmt::Display for E2ETrait {
@@ -398,6 +398,26 @@ fn process_method_call(
                     required_traits.insert(E2ETrait::Contracts);
                 }
             }
+            "create_and_fund_account" => {
+                if args.count() == 2 {
+                    required_traits.insert(E2ETrait::Chain);
+                }
+            }
+            "balance" => {
+                if args.count() == 1 {
+                    results.push(TextEdit::replace(
+                        "free_balance".to_owned(),
+                        method_name.syntax().text_range(),
+                    ));
+
+                    required_traits.insert(E2ETrait::Chain);
+                }
+            }
+            "runtime_call" => {
+                if args.count() == 4 {
+                    required_traits.insert(E2ETrait::Chain);
+                }
+            }
             _ => (),
         }
     }
@@ -637,9 +657,9 @@ mod tests {
                 },
                 vec![
                     (
-                        r#"(&ink_e2e::alice(), transfer).submit()"#,
-                        Some(r#"<-(&ink_e2e::alice(), transfer, 0, None)"#),
-                        Some(r#"(&ink_e2e::alice(), transfer, 0, None)"#),
+                        "(&ink_e2e::alice(), transfer).submit()",
+                        Some("<-(&ink_e2e::alice(), transfer, 0, None)"),
+                        Some("(&ink_e2e::alice(), transfer, 0, None)"),
                     ),
                     ("\nuse ink_e2e::ContractsBackend;", Some(""), Some("")),
                 ],
@@ -653,9 +673,9 @@ mod tests {
                 },
                 vec![
                     (
-                        r#"(&ink_e2e::alice(), transfer).value(1).storage_deposit_limit(1).submit()"#,
-                        Some(r#"<-(&ink_e2e::alice(), transfer, 1, Some(1))"#),
-                        Some(r#"(&ink_e2e::alice(), transfer, 1, Some(1))"#),
+                        "(&ink_e2e::alice(), transfer).value(1).storage_deposit_limit(1).submit()",
+                        Some("<-(&ink_e2e::alice(), transfer, 1, Some(1))"),
+                        Some("(&ink_e2e::alice(), transfer, 1, Some(1))"),
                     ),
                     ("\nuse ink_e2e::ContractsBackend;", Some(""), Some("")),
                 ],
@@ -669,9 +689,9 @@ mod tests {
                 },
                 vec![
                     (
-                        r#"(&ink_e2e::alice(), transfer).dry_run()"#,
-                        Some(r#"<-(&ink_e2e::alice(), transfer, 0, None)"#),
-                        Some(r#"(&ink_e2e::alice(), transfer, 0, None)"#),
+                        "(&ink_e2e::alice(), transfer).dry_run()",
+                        Some("<-(&ink_e2e::alice(), transfer, 0, None)"),
+                        Some("(&ink_e2e::alice(), transfer, 0, None)"),
                     ),
                     ("?", Some("await"), Some("await")),
                     ("\nuse ink_e2e::ContractsBackend;", Some(""), Some("")),
@@ -685,9 +705,9 @@ mod tests {
                 },
                 vec![
                     (
-                        r#"(&ink_e2e::alice(), transfer).value(1).storage_deposit_limit(1).dry_run()"#,
-                        Some(r#"<-(&ink_e2e::alice(), transfer, 1, Some(1))"#),
-                        Some(r#"(&ink_e2e::alice(), transfer, 1, Some(1))"#),
+                        "(&ink_e2e::alice(), transfer).value(1).storage_deposit_limit(1).dry_run()",
+                        Some("<-(&ink_e2e::alice(), transfer, 1, Some(1))"),
+                        Some("(&ink_e2e::alice(), transfer, 1, Some(1))"),
                     ),
                     ("?", Some("await"), Some("await")),
                     ("\nuse ink_e2e::ContractsBackend;", Some(""), Some("")),
@@ -725,6 +745,38 @@ mod tests {
                     ),
                     ("\nuse ink_e2e::ContractsBackend;", Some(""), Some("")),
                 ],
+            ),
+            // create_and_fund_account
+            (
+                quote! {
+                    let origin = client
+                        .create_and_fund_account(&ink_e2e::alice(), 10_000_000_000_000)
+                        .await;
+                },
+                vec![("\nuse ink_e2e::ChainBackend;", Some(""), Some(""))],
+            ),
+            // balance
+            (
+                quote! {
+                    let balance = client
+                        .balance(contract_acc_id)
+                        .await
+                        .expect("Failed to get account balance");
+                },
+                vec![
+                    ("free_balance", Some("<-balance("), Some(".balance")),
+                    ("\nuse ink_e2e::ChainBackend;", Some(""), Some("")),
+                ],
+            ),
+            // runtime_call
+            (
+                quote! {
+                    client
+                    .runtime_call(&ink_e2e::alice(), "Balances", "transfer", call_data)
+                    .await
+                    .expect("runtime call failed");
+                },
+                vec![("\nuse ink_e2e::ChainBackend;", Some(""), Some(""))],
             ),
         ] {
             let code = quote_as_pretty_string! {
