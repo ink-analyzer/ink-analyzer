@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use ink_analyzer_ir::ast::{HasArgList, HasDocComments, HasLoopBody, RangeItem};
-use ink_analyzer_ir::syntax::{AstNode, AstToken};
+use ink_analyzer_ir::ast::{HasArgList, HasDocComments, HasLoopBody, HasName, RangeItem};
+use ink_analyzer_ir::syntax::{AstNode, AstToken, TextRange};
 use ink_analyzer_ir::{ast, Contract, InkE2ETest, InkEntity, InkFile, IsInkFn};
 use itertools::Itertools;
 
@@ -21,7 +21,10 @@ pub fn migrate(results: &mut Vec<TextEdit>, file: &InkFile) {
         // Migrate e2e test attribute.
         attribute(results, e2e_test);
 
-        // Migrate e2e test `fn` signature and body.
+        // Migrate e2e test `fn` signature.
+        fn_sig(results, e2e_test);
+
+        // Migrate e2e test `fn` body.
         fn_body(results, e2e_test);
     }
 }
@@ -52,6 +55,27 @@ fn attribute(results: &mut Vec<TextEdit>, e2e_test: &InkE2ETest) {
     }
 }
 
+/// Computes text edits for migrating ink! e2e test function signatures to ink! 5.0.
+fn fn_sig(results: &mut Vec<TextEdit>, e2e_test: &InkE2ETest) {
+    if let Some(fn_item) = e2e_test.fn_item() {
+        // Edit range for `fn` parameter list.
+        let range = fn_item
+            .param_list()
+            .map(|param_list| param_list.syntax().text_range())
+            .or(fn_item.name().map(|name| {
+                // Default to inserting at end of function name (if any).
+                let name_end = name.syntax().text_range().end();
+                TextRange::new(name_end, name_end)
+            }));
+        if let Some(range) = range {
+            results.push(TextEdit::replace(
+                "<Client: E2EBackend>(mut client: Client)".to_owned(),
+                range,
+            ));
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum E2ETrait {
     Contracts,
@@ -65,7 +89,7 @@ impl fmt::Display for E2ETrait {
     }
 }
 
-/// Computes text edits for migrating ink! e2e test functions to ink! 5.0.
+/// Computes text edits for migrating ink! e2e test function bodies to ink! 5.0.
 fn fn_body(results: &mut Vec<TextEdit>, e2e_test: &InkE2ETest) {
     let Some(body) = e2e_test.fn_item().and_then(ast::Fn::body) else {
         return;
@@ -572,6 +596,27 @@ mod tests {
 
             assert_eq!(results, text_edits_from_fixtures(&code, expected_results));
         }
+    }
+
+    #[test]
+    fn fn_sig_works() {
+        let code = quote_as_pretty_string! {
+            type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            #[ink_e2e::test]
+            async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {}
+        };
+
+        let mut results = Vec::new();
+        let e2e_test = parse_first_ink_entity_of_type::<InkE2ETest>(&code);
+        fn_sig(&mut results, &e2e_test);
+
+        let expected_results = vec![(
+            "<Client: E2EBackend>(mut client: Client)",
+            Some("<-(mut client: ink_e2e::Client<C, E>)"),
+            Some("(mut client: ink_e2e::Client<C, E>)"),
+        )];
+        assert_eq!(results, text_edits_from_fixtures(&code, expected_results));
     }
 
     #[test]
