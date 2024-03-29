@@ -9,7 +9,7 @@ use ink_analyzer_ir::{ast, Contract, InkE2ETest, InkEntity, InkFile, IsInkFn};
 use itertools::Itertools;
 
 use crate::analysis::utils;
-use crate::TextEdit;
+use crate::{resolution, TextEdit};
 
 /// Computes text edits for migrating ink! e2e tests to ink! 5.0.
 pub fn migrate(results: &mut Vec<TextEdit>, file: &InkFile) {
@@ -218,12 +218,7 @@ fn process_expr(
             process_method_call(results, required_traits, sub_exprs, expr);
         }
         ast::Expr::CallExpr(expr) => {
-            if let Some(call) = expr.expr() {
-                sub_exprs.push(call);
-            }
-            if let Some(args) = expr.arg_list().as_ref().map(ast::ArgList::args) {
-                sub_exprs.extend(args);
-            }
+            process_call(results, sub_exprs, expr);
         }
         // Handle nested expressions.
         ast::Expr::ArrayExpr(expr) => match expr.kind() {
@@ -336,114 +331,124 @@ fn process_method_call(
     sub_exprs: &mut Vec<ast::Expr>,
     expr: &ast::MethodCallExpr,
 ) {
-    let Some((ast::Expr::PathExpr(receiver), method_name)) = expr.receiver().zip(expr.name_ref())
-    else {
+    let mut process_nested_exprs = || {
         if let Some(receiver) = expr.receiver() {
             sub_exprs.push(receiver);
         }
         if let Some(args) = expr.arg_list().as_ref().map(ast::ArgList::args) {
             sub_exprs.extend(args);
         }
+    };
+
+    let is_client_receiver = expr
+        .receiver()
+        .and_then(|receiver| match receiver {
+            ast::Expr::PathExpr(path) => Some(path),
+            _ => None,
+        })
+        .is_some_and(|receiver| receiver.to_string() == "client");
+    if !is_client_receiver {
+        process_nested_exprs();
+    }
+
+    let Some(method_name) = expr.name_ref() else {
+        process_nested_exprs();
         return;
     };
-    if receiver.to_string() == "client" {
-        let Some((arg_list, args)) = expr
-            .arg_list()
-            .zip(expr.arg_list().as_ref().map(ast::ArgList::args))
-        else {
-            return;
-        };
-        match method_name.to_string().as_str() {
-            name @ ("instantiate" | "instantiate_dry_run") => {
-                if let Some((contract_name, signer, constructor, value, storage_deposit_limit)) =
-                    args.collect_tuple()
-                {
-                    results.push(TextEdit::replace(
-                        format!(
-                            "({contract_name}, {signer}, {constructor}){}{}{}",
-                            value_call(&value).as_deref().unwrap_or_default(),
-                            storage_deposit_limit_call(&storage_deposit_limit)
-                                .as_deref()
-                                .unwrap_or_default(),
-                            if name == "instantiate_dry_run" {
-                                ".dry_run()"
-                            } else {
-                                ".submit()"
-                            }
-                        ),
-                        arg_list.syntax().text_range(),
-                    ));
+    let Some(arg_list) = expr.arg_list() else {
+        return;
+    };
+    let args = arg_list.args();
 
-                    if name == "instantiate_dry_run" {
-                        unwrap_dry_run_result(results, expr);
-                    }
+    match method_name.to_string().as_str() {
+        name @ ("instantiate" | "instantiate_dry_run") => {
+            if let Some((contract_name, signer, constructor, value, storage_deposit_limit)) =
+                args.collect_tuple()
+            {
+                results.push(TextEdit::replace(
+                    format!(
+                        "({contract_name}, {signer}, {constructor}){}{}{}",
+                        value_call(&value).as_deref().unwrap_or_default(),
+                        storage_deposit_limit_call(&storage_deposit_limit)
+                            .as_deref()
+                            .unwrap_or_default(),
+                        if name == "instantiate_dry_run" {
+                            ".dry_run()"
+                        } else {
+                            ".submit()"
+                        }
+                    ),
+                    arg_list.syntax().text_range(),
+                ));
 
-                    required_traits.insert(E2ETrait::Contracts);
+                if name == "instantiate_dry_run" {
+                    unwrap_dry_run_result(results, expr);
                 }
-            }
-            name @ ("call" | "call_dry_run") => {
-                if let Some((signer, message, value, storage_deposit_limit)) = args.collect_tuple()
-                {
-                    results.push(TextEdit::replace(
-                        format!(
-                            "({signer}, {message}){}{}{}",
-                            value_call(&value).as_deref().unwrap_or_default(),
-                            storage_deposit_limit_call(&storage_deposit_limit)
-                                .as_deref()
-                                .unwrap_or_default(),
-                            if name == "call_dry_run" {
-                                ".dry_run()"
-                            } else {
-                                ".submit()"
-                            }
-                        ),
-                        arg_list.syntax().text_range(),
-                    ));
 
-                    if name == "call_dry_run" {
-                        unwrap_dry_run_result(results, expr);
-                    }
-
-                    required_traits.insert(E2ETrait::Contracts);
-                }
+                required_traits.insert(E2ETrait::Contracts);
             }
-            "upload" => {
-                if let Some((contract_name, signer, storage_deposit_limit)) = args.collect_tuple() {
-                    results.push(TextEdit::replace(
-                        format!(
-                            "({contract_name}, {signer}){}.submit()",
-                            storage_deposit_limit_call(&storage_deposit_limit)
-                                .as_deref()
-                                .unwrap_or_default(),
-                        ),
-                        arg_list.syntax().text_range(),
-                    ));
-
-                    required_traits.insert(E2ETrait::Contracts);
-                }
-            }
-            "create_and_fund_account" => {
-                if args.count() == 2 {
-                    required_traits.insert(E2ETrait::Chain);
-                }
-            }
-            "balance" => {
-                if args.count() == 1 {
-                    results.push(TextEdit::replace(
-                        "free_balance".to_owned(),
-                        method_name.syntax().text_range(),
-                    ));
-
-                    required_traits.insert(E2ETrait::Chain);
-                }
-            }
-            "runtime_call" => {
-                if args.count() == 4 {
-                    required_traits.insert(E2ETrait::Chain);
-                }
-            }
-            _ => (),
         }
+        name @ ("call" | "call_dry_run") => {
+            if let Some((signer, message, value, storage_deposit_limit)) = args.collect_tuple() {
+                results.push(TextEdit::replace(
+                    format!(
+                        "({signer}, {message}){}{}{}",
+                        value_call(&value).as_deref().unwrap_or_default(),
+                        storage_deposit_limit_call(&storage_deposit_limit)
+                            .as_deref()
+                            .unwrap_or_default(),
+                        if name == "call_dry_run" {
+                            ".dry_run()"
+                        } else {
+                            ".submit()"
+                        }
+                    ),
+                    arg_list.syntax().text_range(),
+                ));
+
+                if name == "call_dry_run" {
+                    unwrap_dry_run_result(results, expr);
+                }
+
+                required_traits.insert(E2ETrait::Contracts);
+            }
+        }
+        "upload" => {
+            if let Some((contract_name, signer, storage_deposit_limit)) = args.collect_tuple() {
+                results.push(TextEdit::replace(
+                    format!(
+                        "({contract_name}, {signer}){}.submit()",
+                        storage_deposit_limit_call(&storage_deposit_limit)
+                            .as_deref()
+                            .unwrap_or_default(),
+                    ),
+                    arg_list.syntax().text_range(),
+                ));
+
+                required_traits.insert(E2ETrait::Contracts);
+            }
+        }
+        "create_and_fund_account" => {
+            if args.count() == 2 {
+                required_traits.insert(E2ETrait::Chain);
+            }
+        }
+        "balance" => {
+            if args.count() == 1 {
+                results.push(TextEdit::replace(
+                    "free_balance".to_owned(),
+                    method_name.syntax().text_range(),
+                ));
+
+                required_traits.insert(E2ETrait::Chain);
+            }
+        }
+        "runtime_call" => {
+            if args.count() == 4 {
+                required_traits.insert(E2ETrait::Chain);
+            }
+        }
+        _ => (),
     }
 
     fn value_call(expr: &ast::Expr) -> Option<String> {
@@ -491,6 +496,138 @@ fn process_method_call(
                 "?".to_owned(),
                 await_expr.syntax().text_range().end(),
             ));
+        }
+    }
+}
+
+fn process_call(results: &mut Vec<TextEdit>, sub_exprs: &mut Vec<ast::Expr>, expr: &ast::CallExpr) {
+    let mut process_nested_exprs = || {
+        if let Some(call) = expr.expr() {
+            sub_exprs.push(call);
+        }
+        if let Some(args) = expr.arg_list().as_ref().map(ast::ArgList::args) {
+            sub_exprs.extend(args);
+        }
+    };
+
+    let is_build_message_call_path = |path: &ast::Path| {
+        let simple_path = || {
+            path.segment()
+                .as_ref()
+                .and_then(ast::PathSegment::generic_arg_list)
+                .and_then(|generic_args| {
+                    let generic_args = generic_args.to_string();
+                    let simple_path = path.to_string().replace(&generic_args, "");
+                    ink_analyzer_ir::path_from_str(&simple_path)
+                })
+        };
+        resolution::is_external_crate_item(
+            "build_message",
+            simple_path().as_ref().unwrap_or(path),
+            &["ink_e2e"],
+            expr.syntax(),
+        )
+    };
+    let Some(build_message_call_path) = expr
+        .expr()
+        .and_then(|call_expr| match call_expr {
+            ast::Expr::PathExpr(path) => path.path(),
+            _ => None,
+        })
+        .filter(is_build_message_call_path)
+    else {
+        process_nested_exprs();
+        return;
+    };
+
+    // Replace `build_message` with `create_call_builder` call.
+    let generic_args = build_message_call_path
+        .segment()
+        .as_ref()
+        .and_then(ast::PathSegment::generic_arg_list)
+        .map(|generic_args| generic_args.to_string());
+    results.push(TextEdit::replace(
+        format!(
+            "ink_e2e::create_call_builder{}",
+            generic_args.as_deref().unwrap_or_default()
+        ),
+        build_message_call_path.syntax().text_range(),
+    ));
+
+    // Replace `.call(|contract| contract.message(..))` with `.message(..)`.
+    let Some(chained_call_method) = expr.syntax().parent().and_then(ast::MethodCallExpr::cast)
+    else {
+        return;
+    };
+    let Some(chained_call_method_name) = chained_call_method
+        .name_ref()
+        .filter(|method_name| method_name.to_string() == "call")
+    else {
+        return;
+    };
+    let Some(chained_call_method_args) = chained_call_method
+        .arg_list()
+        .as_ref()
+        .map(ast::ArgList::args)
+    else {
+        return;
+    };
+    let Some((ast::Expr::ClosureExpr(callback),)) = chained_call_method_args.collect_tuple() else {
+        return;
+    };
+    let Some(callback_body) = callback.body() else {
+        return;
+    };
+    let Some(contract_call) = last_method_call(&callback_body) else {
+        return;
+    };
+    let Some(contract_call_name) = contract_call.name_ref() else {
+        return;
+    };
+    results.push(TextEdit::replace(
+        format!(
+            "{}{}",
+            contract_call_name,
+            contract_call
+                .arg_list()
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "()".to_owned())
+        ),
+        TextRange::new(
+            chained_call_method_name.syntax().text_range().start(),
+            chained_call_method.syntax().text_range().end(),
+        ),
+    ));
+
+    fn last_method_call(expr: &ast::Expr) -> Option<ast::MethodCallExpr> {
+        match expr {
+            ast::Expr::MethodCallExpr(method_call) => Some(method_call.clone()),
+            ast::Expr::BlockExpr(body) => {
+                // Only handles tail expr or returned expr.
+                let returned_expr = || {
+                    body.stmt_list()
+                        .as_ref()
+                        .map(ast::StmtList::statements)
+                        .and_then(|mut stmts| stmts.next())
+                        .and_then(|stmt| match stmt {
+                            ast::Stmt::ExprStmt(expr) => expr.expr(),
+                            _ => None,
+                        })
+                        .and_then(|expr| match expr {
+                            ast::Expr::ReturnExpr(return_expr) => return_expr.expr(),
+                            _ => None,
+                        })
+                };
+                body.tail_expr()
+                    .or_else(returned_expr)
+                    .as_ref()
+                    .and_then(last_method_call)
+            }
+            ast::Expr::ReturnExpr(return_expr) => {
+                return_expr.expr().as_ref().and_then(last_method_call)
+            }
+            _ => None,
         }
     }
 }
@@ -621,9 +758,10 @@ mod tests {
 
     #[test]
     fn fn_body_works() {
-        for (code, expected_results) in [
+        for (imports, code, expected_results) in [
             // instantiate
             (
+                quote! {},
                 quote! {
                     let contract_acc_id = client
                         .instantiate("erc20", &ink_e2e::alice(), constructor, 0, None)
@@ -641,6 +779,7 @@ mod tests {
                 ],
             ),
             (
+                quote! {},
                 quote! {
                     let contract_acc_id = client
                         .instantiate("erc20", &ink_e2e::alice(), constructor, 1, Some(1))
@@ -659,6 +798,7 @@ mod tests {
             ),
             // instantiate_dry_run
             (
+                quote! {},
                 quote! {
                     let contract_acc_id = client
                         .instantiate_dry_run("erc20", &ink_e2e::alice(), constructor, 0, None)
@@ -676,6 +816,7 @@ mod tests {
                 ],
             ),
             (
+                quote! {},
                 quote! {
                     let contract_acc_id = client
                         .instantiate_dry_run("erc20", &ink_e2e::alice(), constructor, 1, Some(1))
@@ -694,6 +835,7 @@ mod tests {
             ),
             // call
             (
+                quote! {},
                 quote! {
                     let transfer_res = client
                         .call(&ink_e2e::alice(), transfer, 0, None)
@@ -710,6 +852,7 @@ mod tests {
                 ],
             ),
             (
+                quote! {},
                 quote! {
                     let transfer_res = client
                         .call(&ink_e2e::alice(), transfer, 1, Some(1))
@@ -727,6 +870,7 @@ mod tests {
             ),
             // call_dry_run
             (
+                quote! {},
                 quote! {
                     let transfer_res = client
                         .call_dry_run(&ink_e2e::alice(), transfer, 0, None)
@@ -743,6 +887,7 @@ mod tests {
                 ],
             ),
             (
+                quote! {},
                 quote! {
                     let transfer_res = client
                         .call_dry_run(&ink_e2e::alice(), transfer, 1, Some(1))
@@ -760,6 +905,7 @@ mod tests {
             ),
             // upload
             (
+                quote! {},
                 quote! {
                     let contract = client
                         .upload("erc20", &ink_e2e::alice(), None)
@@ -776,6 +922,7 @@ mod tests {
                 ],
             ),
             (
+                quote! {},
                 quote! {
                     let contract = client
                         .upload("erc20", &ink_e2e::alice(), Some(1))
@@ -793,6 +940,7 @@ mod tests {
             ),
             // create_and_fund_account
             (
+                quote! {},
                 quote! {
                     let origin = client
                         .create_and_fund_account(&ink_e2e::alice(), 10_000_000_000_000)
@@ -802,6 +950,7 @@ mod tests {
             ),
             // balance
             (
+                quote! {},
                 quote! {
                     let balance = client
                         .balance(contract_acc_id)
@@ -815,6 +964,7 @@ mod tests {
             ),
             // runtime_call
             (
+                quote! {},
                 quote! {
                     client
                     .runtime_call(&ink_e2e::alice(), "Balances", "transfer", call_data)
@@ -823,8 +973,70 @@ mod tests {
                 },
                 vec![("\nuse ink_e2e::ChainBackend;", Some(""), Some(""))],
             ),
+            // build_message(..).call(..)
+            (
+                quote! { use ink_e2e::build_message; },
+                quote! {
+                    let total_supply_msg = build_message::<Erc20Ref>(contract_acc_id.clone())
+                        .call(|erc20| erc20.total_supply());
+                },
+                vec![
+                    (
+                        "ink_e2e::create_call_builder::<Erc20Ref>",
+                        Some("<-build_message::<Erc20Ref>"),
+                        Some("build_message::<Erc20Ref>"),
+                    ),
+                    (
+                        "total_supply()",
+                        Some("<-call(|erc20| erc20.total_supply())"),
+                        Some("call(|erc20| erc20.total_supply())"),
+                    ),
+                ],
+            ),
+            (
+                quote! { use ink_e2e::build_message; },
+                quote! {
+                    let transfer = build_message::<Erc20Ref>(contract_acc_id.clone())
+                        .call(|erc20| erc20.transfer(bob_account.clone(), transfer_to_bob));
+                },
+                vec![
+                    (
+                        "ink_e2e::create_call_builder::<Erc20Ref>",
+                        Some("<-build_message::<Erc20Ref>"),
+                        Some("build_message::<Erc20Ref>"),
+                    ),
+                    (
+                        "transfer(bob_account.clone(), transfer_to_bob)",
+                        Some(
+                            "<-call(|erc20| erc20.transfer(bob_account.clone(), transfer_to_bob))",
+                        ),
+                        Some("call(|erc20| erc20.transfer(bob_account.clone(), transfer_to_bob))"),
+                    ),
+                ],
+            ),
+            (
+                quote! {},
+                quote! {
+                    let total_supply_msg = ink_e2e::build_message::<Erc20Ref>(contract_acc_id.clone())
+                        .call(|erc20| erc20.total_supply());
+                },
+                vec![
+                    (
+                        "ink_e2e::create_call_builder::<Erc20Ref>",
+                        Some("<-ink_e2e::build_message::<Erc20Ref>"),
+                        Some("ink_e2e::build_message::<Erc20Ref>"),
+                    ),
+                    (
+                        "total_supply()",
+                        Some("<-call(|erc20| erc20.total_supply())"),
+                        Some("call(|erc20| erc20.total_supply())"),
+                    ),
+                ],
+            ),
         ] {
             let code = quote_as_pretty_string! {
+                #imports
+
                 type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
                 #[ink_e2e::test]
