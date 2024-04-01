@@ -510,48 +510,39 @@ fn process_call(results: &mut Vec<TextEdit>, sub_exprs: &mut Vec<ast::Expr>, exp
         }
     };
 
-    let is_build_message_call_path = |path: &ast::Path| {
-        let simple_path = || {
-            path.segment()
-                .as_ref()
-                .and_then(ast::PathSegment::generic_arg_list)
-                .and_then(|generic_args| {
-                    let generic_args = generic_args.to_string();
-                    let simple_path = path.to_string().replace(&generic_args, "");
-                    ink_analyzer_ir::path_from_str(&simple_path)
-                })
-        };
-        resolution::is_external_crate_item(
-            "build_message",
-            simple_path().as_ref().unwrap_or(path),
-            &["ink_e2e"],
-            expr.syntax(),
-        )
-    };
-    let Some(build_message_call_path) = expr
-        .expr()
-        .and_then(|call_expr| match call_expr {
-            ast::Expr::PathExpr(path) => path.path(),
-            _ => None,
-        })
-        .filter(is_build_message_call_path)
-    else {
+    let Some(message_builder_call) = MessageBuilderCall::parse(expr) else {
         process_nested_exprs();
         return;
     };
 
-    // Replace `build_message` with `create_call_builder` call.
-    let generic_args = build_message_call_path
-        .segment()
-        .as_ref()
-        .and_then(ast::PathSegment::generic_arg_list)
-        .map(|generic_args| generic_args.to_string());
+    // Replace `build_message::<..>(..)` or `MessageBuilder<..>::from_account_id(..)` with `create_call_builder<..>(..)`.
+    let (call_path, generic_args_list) = match message_builder_call {
+        MessageBuilderCall::BuildMessageFn(ref path) => {
+            let generic_args_list = message_builder_call
+                .generic_args()
+                .as_ref()
+                .map(ToString::to_string);
+            (path, generic_args_list)
+        }
+        MessageBuilderCall::MessageBuilderFromAccountId(ref path) => {
+            let generic_args_list = message_builder_call
+                .generic_args()
+                .as_ref()
+                .map(ast::GenericArgList::generic_args)
+                .and_then(|generic_args| {
+                    generic_args
+                        .last()
+                        .map(|last_generic_arg| format!("::<{}>", last_generic_arg))
+                });
+            (path, generic_args_list)
+        }
+    };
     results.push(TextEdit::replace(
         format!(
             "ink_e2e::create_call_builder{}",
-            generic_args.as_deref().unwrap_or_default()
+            generic_args_list.as_deref().unwrap_or_default()
         ),
-        build_message_call_path.syntax().text_range(),
+        call_path.syntax().text_range(),
     ));
 
     // Replace `.call(|contract| contract.message(..))` with `.message(..)`.
@@ -646,6 +637,89 @@ fn process_if_expr(
             ast::ElseBranch::IfExpr(expr) => process_if_expr(results, required_traits, &expr),
         }
     }
+}
+
+/// Represents a `build_message::<..>(..)` or `MessageBuilder<..>::from_account_id(..)` call.
+enum MessageBuilderCall {
+    BuildMessageFn(ast::Path),
+    MessageBuilderFromAccountId(ast::Path),
+}
+
+impl MessageBuilderCall {
+    fn parse(expr: &ast::CallExpr) -> Option<Self> {
+        let simplify_path = |path: &ast::Path, generic_args: &ast::GenericArgList| {
+            let simple_path = path.to_string().replace(&generic_args.to_string(), "");
+            ink_analyzer_ir::path_from_str(&simple_path)
+        };
+        let is_build_message_call_path = |path: &ast::Path| {
+            let fn_path = build_message_generic_args(path)
+                .and_then(|generic_args| simplify_path(path, &generic_args));
+            resolution::is_external_crate_item(
+                "build_message",
+                fn_path.as_ref().unwrap_or(path),
+                &["ink_e2e"],
+                expr.syntax(),
+            )
+        };
+        let is_message_builder_from_account_id_call_path = |path: &ast::Path| {
+            let is_from_account_id_call = path
+                .segment()
+                .is_some_and(|segment| segment.to_string() == "from_account_id");
+            if is_from_account_id_call {
+                if let Some(qualifier) = path.qualifier() {
+                    let type_path = message_builder_generic_args(&qualifier)
+                        .and_then(|generic_args| simplify_path(&qualifier, &generic_args));
+                    return resolution::is_external_crate_item(
+                        "MessageBuilder",
+                        type_path.as_ref().unwrap_or(&qualifier),
+                        &["ink_e2e"],
+                        expr.syntax(),
+                    );
+                }
+            }
+            false
+        };
+
+        expr.expr()
+            .and_then(|call_expr| match call_expr {
+                ast::Expr::PathExpr(path) => path.path(),
+                _ => None,
+            })
+            .and_then(|path| {
+                if is_build_message_call_path(&path) {
+                    Some(MessageBuilderCall::BuildMessageFn(path))
+                } else if is_message_builder_from_account_id_call_path(&path) {
+                    Some(MessageBuilderCall::MessageBuilderFromAccountId(path))
+                } else {
+                    None
+                }
+            })
+    }
+
+    fn generic_args(&self) -> Option<ast::GenericArgList> {
+        match self {
+            MessageBuilderCall::BuildMessageFn(path) => build_message_generic_args(path),
+            MessageBuilderCall::MessageBuilderFromAccountId(path) => {
+                message_builder_generic_args(path)
+            }
+        }
+    }
+}
+
+fn build_message_generic_args(path: &ast::Path) -> Option<ast::GenericArgList> {
+    path.segment()
+        .as_ref()
+        .and_then(ast::PathSegment::generic_arg_list)
+}
+
+fn message_builder_generic_args(path: &ast::Path) -> Option<ast::GenericArgList> {
+    path.segments().find_map(|segment| {
+        if segment.to_string().starts_with("MessageBuilder::") {
+            segment.generic_arg_list()
+        } else {
+            None
+        }
+    })
 }
 
 #[cfg(test)]
@@ -1030,6 +1104,51 @@ mod tests {
                         "total_supply()",
                         Some("<-call(|erc20| erc20.total_supply())"),
                         Some("call(|erc20| erc20.total_supply())"),
+                    ),
+                ],
+            ),
+            // MessageBuilder::from_account_id(..).call(..)
+            (
+                quote! { use ink_e2e::MessageBuilder; },
+                quote! {
+                    let message =
+                        MessageBuilder::<crate::EnvironmentWithManyTopics, TopicsRef>::from_account_id(
+                            contract_acc_id,
+                        )
+                        .call(|caller| caller.trigger());
+                },
+                vec![
+                    (
+                        "ink_e2e::create_call_builder::<TopicsRef>",
+                        Some("<-MessageBuilder::"),
+                        Some("from_account_id"),
+                    ),
+                    (
+                        "trigger()",
+                        Some("<-call(|caller| caller.trigger())"),
+                        Some("call(|caller| caller.trigger())"),
+                    ),
+                ],
+            ),
+            (
+                quote! {},
+                quote! {
+                    let message =
+                        ink_e2e::MessageBuilder::<crate::EnvironmentWithManyTopics, TopicsRef>::from_account_id(
+                            contract_acc_id,
+                        )
+                        .call(|caller| caller.trigger());
+                },
+                vec![
+                    (
+                        "ink_e2e::create_call_builder::<TopicsRef>",
+                        Some("<-ink_e2e::MessageBuilder::"),
+                        Some("from_account_id"),
+                    ),
+                    (
+                        "trigger()",
+                        Some("<-call(|caller| caller.trigger())"),
+                        Some("call(|caller| caller.trigger())"),
                     ),
                 ],
             ),
