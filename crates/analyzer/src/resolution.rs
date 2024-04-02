@@ -7,6 +7,9 @@ use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::iter;
 
+pub const SCALE_QUALIFIERS: [&str; 3] = ["scale", "ink::scale", "parity_scale_codec"];
+pub const SCALE_INFO_QUALIFIERS: [&str; 2] = ["scale_info", "ink::scale_info"];
+
 /// Returns the full qualified path for the item (if possible).
 pub fn item_path<T>(item: &T) -> Option<String>
 where

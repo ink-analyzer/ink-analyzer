@@ -5,6 +5,7 @@ mod completions;
 mod diagnostics;
 mod hover;
 mod inlay_hints;
+mod migrate;
 mod signature_help;
 mod text_edit;
 mod utils;
@@ -86,5 +87,10 @@ impl Analysis {
     /// Computes ink! attribute signature help for the given position.
     pub fn signature_help(&self, position: TextSize) -> Vec<SignatureHelp> {
         signature_help::signature_help(&self.file, position, self.version)
+    }
+
+    /// Computes text edits for migrating the ink! file to ink! 5.0.
+    pub fn migrate(&self) -> Vec<TextEdit> {
+        migrate::migrate(&self.file)
     }
 }

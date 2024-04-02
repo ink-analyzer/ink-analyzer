@@ -1971,15 +1971,6 @@ pub fn ensure_impl_scale_codec_traits(
     });
 
     // Utilities for extracting derive attribute meta items.
-    let token_tree_to_non_delimited_string = |token_tree: &ast::TokenTree| {
-        let r_paren_option = token_tree.r_paren_token();
-        token_tree
-            .syntax()
-            .children_with_tokens()
-            .skip(usize::from(token_tree.l_paren_token().is_some()))
-            .take_while(|it| r_paren_option.is_none() || it.as_token() != r_paren_option.as_ref())
-            .join("")
-    };
     let meta_to_path_list = |meta: &str| {
         meta.replace(' ', "")
             .split(',')
@@ -1992,7 +1983,7 @@ pub fn ensure_impl_scale_codec_traits(
         .as_ref()
         .and_then(ast::Attr::token_tree)
         .as_ref()
-        .map(token_tree_to_non_delimited_string);
+        .map(utils::token_tree_to_non_delimited_meta_string);
 
     // Extracts derive item paths from both the standalone and conditional derive attributes.
     let standalone_derived_items = standalone_derive_meta.as_deref().map(meta_to_path_list);
@@ -2005,7 +1996,7 @@ pub fn ensure_impl_scale_codec_traits(
                 token_tree
                     .syntax()
                     .children()
-                    .filter(|node| {
+                    .filter_map(|node| {
                         let is_after_derive = || {
                             node.first_token()
                                 .and_then(|token| {
@@ -2016,12 +2007,13 @@ pub fn ensure_impl_scale_codec_traits(
                                 })
                                 .is_some_and(|token| token.text() == "derive")
                         };
-                        ast::TokenTree::can_cast(node.kind()) && is_after_derive()
-                    })
-                    .filter_map(|node| {
-                        ast::TokenTree::cast(node)
-                            .as_ref()
-                            .map(token_tree_to_non_delimited_string)
+                        if ast::TokenTree::can_cast(node.kind()) && is_after_derive() {
+                            ast::TokenTree::cast(node)
+                                .as_ref()
+                                .map(utils::token_tree_to_non_delimited_meta_string)
+                        } else {
+                            None
+                        }
                     })
                     .flat_map(|meta| meta_to_path_list(&meta))
                     .collect::<Vec<_>>()
@@ -2041,24 +2033,22 @@ pub fn ensure_impl_scale_codec_traits(
     };
 
     // Finds unimplemented SCALE codec traits.
-    const SCALE_QUALIFIERS: [&str; 3] = ["scale", "ink::scale", "parity_scale_codec"];
-    const SCALE_INFO_QUALIFIERS: [&str; 2] = ["scale_info", "ink::scale_info"];
     let unimplemented_traits: Vec<_> = ([
         (
             "Encode",
-            &SCALE_QUALIFIERS,
+            &resolution::SCALE_QUALIFIERS,
             "scale::Encode",
             InkArgKind::Encode,
         ),
         (
             "Decode",
-            &SCALE_QUALIFIERS,
+            &resolution::SCALE_QUALIFIERS,
             "scale::Decode",
             InkArgKind::Decode,
         ),
         (
             "TypeInfo",
-            &SCALE_INFO_QUALIFIERS,
+            &resolution::SCALE_INFO_QUALIFIERS,
             "scale_info::TypeInfo",
             InkArgKind::TypeInfo,
         ),
