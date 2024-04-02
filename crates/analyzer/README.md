@@ -1,6 +1,6 @@
 # ![icon](https://raw.githubusercontent.com/ink-analyzer/ink-analyzer/master/images/iconx32.png "icon") ink! Analyzer
 
-A library for semantic analysis of [ink!](https://use.ink/) smart contract code.
+A library for semantic analysis of [ink!](https://use.ink/) smart contracts.
 
 It implements utilities for performing semantic analysis of ink! smart contract code.
 It therefore implements the core functionality of ink! analyzer at a high level.

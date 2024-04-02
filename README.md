@@ -1,6 +1,6 @@
 # ![icon](/images/iconx32.png "icon") ink! Analyzer
 
-A collection of modular and reusable libraries and tools for semantic analysis of [ink!](https://use.ink/) smart contract code.
+A collection of modular and reusable libraries and tools for semantic analysis of [ink!](https://use.ink/) smart contracts.
 
 ink! analyzer aims to improve [ink!](https://use.ink/) language support in [integrated development environments (IDEs)](https://en.wikipedia.org/wiki/Integrated_development_environment), [source code editors](https://en.wikipedia.org/wiki/Source-code_editor) and other development tools by providing modular and reusable building blocks for implementing features like diagnostics, code completion, code/intent actions and hover content for the [ink! programming language](https://use.ink/) which is used for writing smart contracts for blockchains built with [Substrate](https://substrate.io/).
 
