@@ -324,15 +324,64 @@ impl<'a> Dispatcher<'a> {
 
 /// Parses the ink! project version from the Cargo.toml file for a given lib.rs file (if possible).
 fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<InkProjectVersion> {
-    fn parse_ink_project_version_inner(cargo_toml_path: PathBuf) -> Option<InkProjectVersion> {
+    if let Ok(path) = doc_uri.to_file_path() {
+        if path.file_name().is_some_and(|name| name == "lib.rs") {
+            // Tries to find `Cargo.toml` in the same directory.
+            // This is the typical setup for ink! projects created with `cargo contract new`.
+            let mut cargo_toml_path = path.clone();
+            cargo_toml_path.set_file_name("Cargo.toml");
+
+            let project_version = parse_ink_project_version_inner(&cargo_toml_path, false);
+            if project_version.as_ref().is_some_and(|it| it.workspace) {
+                // Tries to find `Cargo.toml` in the workspace root directory.
+                let mut workspace_cargo_toml_path = path.clone();
+                let mut depth = 0u8;
+                while depth < 10 && workspace_cargo_toml_path.pop() {
+                    workspace_cargo_toml_path.set_file_name("Cargo.toml");
+                    let workspace_project_version =
+                        parse_ink_project_version_inner(&workspace_cargo_toml_path, true);
+                    if workspace_project_version.is_some() {
+                        return workspace_project_version;
+                    }
+                    if workspace_cargo_toml_path.is_file() {
+                        break;
+                    }
+                    depth += 1;
+                }
+            }
+            return project_version.or_else(|| {
+                // Tries to find `Cargo.toml` in the parent directory.
+                // This is the typical setup for most Rust projects created with `cargo new`.
+                let mut cargo_toml_path = path.clone();
+                cargo_toml_path.pop();
+                cargo_toml_path.set_file_name("Cargo.toml");
+                parse_ink_project_version_inner(&cargo_toml_path, false)
+            });
+        }
+    }
+    return None;
+
+    fn parse_ink_project_version_inner(
+        cargo_toml_path: &PathBuf,
+        workspace: bool,
+    ) -> Option<InkProjectVersion> {
         if cargo_toml_path.is_file() {
             if let Ok(cargo_toml) = fs::read_to_string(cargo_toml_path) {
                 if let Ok(package) = toml::from_str::<toml::Table>(&cargo_toml) {
-                    if let Some(toml::Value::Table(deps)) = package.get("dependencies") {
+                    let dependencies = if workspace {
+                        if let Some(toml::Value::Table(workspace)) = package.get("workspace") {
+                            workspace.get("dependencies")
+                        } else {
+                            None
+                        }
+                    } else {
+                        package.get("dependencies")
+                    };
+                    if let Some(toml::Value::Table(deps)) = dependencies {
                         if let Some(ink_dep) = deps.get("ink") {
-                            let (version, path, git) = match ink_dep {
+                            let (version, path, git, workspace) = match ink_dep {
                                 toml::Value::String(ink_version) => {
-                                    (Some(ink_version.to_owned()), None, None)
+                                    (Some(ink_version.to_owned()), None, None, false)
                                 }
                                 toml::Value::Table(ink_dep_info) => {
                                     let parse_dep_value = |key: &str| match ink_dep_info.get(key) {
@@ -343,13 +392,25 @@ fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<InkProjectVersi
                                         parse_dep_value("version"),
                                         parse_dep_value("path"),
                                         parse_dep_value("git"),
+                                        matches!(
+                                            ink_dep_info.get("workspace"),
+                                            Some(toml::Value::Boolean(true))
+                                        ),
                                     )
                                 }
-                                _ => (None, None, None),
+                                _ => (None, None, None, false),
                             };
 
-                            return (version.is_some() || path.is_some() || git.is_some())
-                                .then_some(InkProjectVersion { version, path, git });
+                            return (version.is_some()
+                                || path.is_some()
+                                || git.is_some()
+                                || workspace)
+                                .then_some(InkProjectVersion {
+                                    version,
+                                    path,
+                                    git,
+                                    workspace,
+                                });
                         }
                     }
                 }
@@ -358,31 +419,15 @@ fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<InkProjectVersi
 
         None
     }
-
-    if let Ok(path) = doc_uri.to_file_path() {
-        if path.file_name().is_some_and(|name| name == "lib.rs") {
-            // Tries to find `Cargo.toml` in the same directory.
-            // This is the typical setup for ink! projects created with `cargo contract new`.
-            let mut cargo_toml_path = path.clone();
-            cargo_toml_path.set_file_name("Cargo.toml");
-            return parse_ink_project_version_inner(cargo_toml_path).or_else(|| {
-                // Tries to find `Cargo.toml` in the parent directory.
-                // This is the typical setup for most Rust projects created with `cargo new`.
-                let mut cargo_toml_path = path.clone();
-                cargo_toml_path.pop();
-                cargo_toml_path.set_file_name("Cargo.toml");
-                parse_ink_project_version_inner(cargo_toml_path)
-            });
-        }
-    }
-    None
 }
 
 /// Represents the ink! project version details as parsed from a `Cargo.toml` file.
+#[derive(Debug)]
 struct InkProjectVersion {
     version: Option<String>,
     path: Option<String>,
     git: Option<String>,
+    workspace: bool,
 }
 
 impl InkProjectVersion {

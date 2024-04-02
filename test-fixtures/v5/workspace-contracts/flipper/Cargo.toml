@@ -1,0 +1,23 @@
+[package]
+name = "flipper"
+version = "5.0.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+publish = false
+
+[dependencies]
+ink = { workspace = true }
+
+[dev-dependencies]
+ink_e2e = { workspace = true }
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+]
+ink-as-dependency = []
+e2e-tests = []

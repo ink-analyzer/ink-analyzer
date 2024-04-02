@@ -1067,9 +1067,32 @@ pub fn diagnostics_fixtures() -> Vec<TestGroup> {
                 },
             ],
         },
-        // e2e runtime-only backend
+        // e2e runtime-only backend.
         TestGroup {
             source: "v5/e2e-runtime-only-backend",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: None,
+                results: TestCaseResults::Diagnostic {
+                    n: 0,
+                    quickfixes: vec![],
+                },
+            }],
+        },
+        // workspace contracts.
+        TestGroup {
+            source: "v5/workspace-contracts/flipper",
+            test_cases: vec![TestCase {
+                modifications: None,
+                params: None,
+                results: TestCaseResults::Diagnostic {
+                    n: 0,
+                    quickfixes: vec![],
+                },
+            }],
+        },
+        TestGroup {
+            source: "v4/workspace-contracts/flipper",
             test_cases: vec![TestCase {
                 modifications: None,
                 params: None,
