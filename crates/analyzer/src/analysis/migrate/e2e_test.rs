@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use ink_analyzer_ir::ast::{HasArgList, HasDocComments, HasLoopBody, HasName, RangeItem};
-use ink_analyzer_ir::syntax::{AstNode, AstToken, TextRange};
+use ink_analyzer_ir::syntax::{AstNode, AstToken, SyntaxKind, TextRange};
 use ink_analyzer_ir::{ast, Contract, InkE2ETest, InkEntity, InkFile, IsInkFn};
 use itertools::Itertools;
 
@@ -26,6 +26,9 @@ pub fn migrate(results: &mut Vec<TextEdit>, file: &InkFile) {
 
         // Migrate e2e test `fn` body.
         fn_body(results, e2e_test);
+
+        // Remove deprecated imports.
+        deprecated_imports(results, e2e_test);
     }
 }
 
@@ -162,6 +165,137 @@ fn fn_body(results: &mut Vec<TextEdit>, e2e_test: &InkE2ETest) {
                 insert_offset,
             ));
         }
+    }
+}
+
+/// Computes text edits for removing use declarations of ink! e2e items deprecated in ink! 5.0.
+fn deprecated_imports(results: &mut Vec<TextEdit>, e2e_test: &InkE2ETest) {
+    if let Some(fn_item) = e2e_test.fn_item() {
+        let parent_module = ink_analyzer_ir::parent_ast_item(fn_item.syntax())
+            .and_then(|item| match item {
+                ast::Item::Module(mod_item) => Some(mod_item.syntax().clone()),
+                _ => None,
+            })
+            .or_else(|| {
+                e2e_test
+                    .syntax()
+                    .ancestors()
+                    .last()
+                    .filter(|node| ast::SourceFile::can_cast(node.kind()))
+            });
+        if let Some(parent_module) = parent_module {
+            for use_item in parent_module.descendants().filter_map(ast::Use::cast) {
+                if let Some(use_tree) = use_item.use_tree() {
+                    let (to_remove, contains_valid_items) = deprecated_imports_inner(&use_tree);
+                    if !to_remove.is_empty() {
+                        if contains_valid_items {
+                            // Remove only the deprecated use tree items.
+                            results.extend(to_remove.into_iter().map(TextEdit::delete))
+                        } else {
+                            // Remove the parent use item if all use tree items are deprecated.
+                            results.push(TextEdit::delete(utils::node_and_delimiter_range(
+                                use_item.syntax(),
+                                SyntaxKind::COMMA,
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Returns the text ranges of imported items to remove, and a flag indicating whether
+    // any other valid imported items where found for the use tree.
+    fn deprecated_imports_inner(use_tree: &ast::UseTree) -> (Vec<TextRange>, bool) {
+        if let Some(path) = use_tree.path() {
+            let is_deprecated_item_path = path.segment().is_some_and(|segment| {
+                matches!(
+                    segment.to_string().as_str(),
+                    "build_message" | "MessageBuilder"
+                )
+            });
+            if is_deprecated_item_path
+                && path
+                    .qualifier()
+                    .is_some_and(|qualifier| qualifier.to_string() == "ink_e2e")
+            {
+                // Handles a simple import (e.g. `use ink_e2e::build_message;`).
+                return (
+                    vec![utils::node_and_delimiter_range(
+                        use_tree.syntax(),
+                        SyntaxKind::COMMA,
+                    )],
+                    false,
+                );
+            } else if path.to_string() == "ink_e2e" {
+                // Handles nested imports (e.g. `use ink_e2e::{build_message, MessageBuilder};`).
+                let mut to_remove = Vec::new();
+                let mut n_valid = 0;
+                if let Some(use_tree_list) = use_tree.use_tree_list() {
+                    for child_use_tree in use_tree_list.use_trees() {
+                        let is_deprecated_item_path = child_use_tree.path().is_some_and(|path| {
+                            matches!(
+                                path.to_string().as_str(),
+                                "build_message" | "MessageBuilder"
+                            )
+                        });
+                        if is_deprecated_item_path {
+                            to_remove.push(utils::node_and_delimiter_range(
+                                child_use_tree.syntax(),
+                                SyntaxKind::COMMA,
+                            ));
+                        } else {
+                            n_valid += 1;
+                        }
+                    }
+                }
+
+                if !to_remove.is_empty() {
+                    return if n_valid == 0 {
+                        // Remove the parent use tree if all use tree list items are deprecated.
+                        (
+                            vec![utils::node_and_delimiter_range(
+                                use_tree.syntax(),
+                                SyntaxKind::COMMA,
+                            )],
+                            false,
+                        )
+                    } else {
+                        // Remove only the deprecated use tree list items.
+                        (to_remove, true)
+                    };
+                }
+            }
+        } else if let Some(use_tree_list) = use_tree.use_tree_list() {
+            // Handles "one" style imports (e.g. `use {ink_e2e::build_message, ..};`).
+            let mut to_remove = Vec::new();
+            let mut contains_valid_items = false;
+            for use_tree in use_tree_list.use_trees() {
+                let (to_remove_local, contains_valid_items_local) =
+                    deprecated_imports_inner(&use_tree);
+                to_remove.extend(to_remove_local);
+                contains_valid_items |= contains_valid_items_local;
+            }
+
+            if !to_remove.is_empty() {
+                return if contains_valid_items {
+                    // Remove only the deprecated use tree list items.
+                    (to_remove, true)
+                } else {
+                    // Remove the parent use tree if all use tree list items are deprecated.
+                    (
+                        vec![utils::node_and_delimiter_range(
+                            use_tree.syntax(),
+                            SyntaxKind::COMMA,
+                        )],
+                        false,
+                    )
+                };
+            }
+        }
+
+        // No deprecated items to remove.
+        (Vec::new(), true)
     }
 }
 
@@ -1169,6 +1303,170 @@ mod tests {
             let mut results = Vec::new();
             let e2e_test = parse_first_ink_entity_of_type::<InkE2ETest>(&code);
             fn_body(&mut results, &e2e_test);
+
+            assert_eq!(results, text_edits_from_fixtures(&code, expected_results));
+        }
+    }
+
+    #[test]
+    fn deprecated_imports_works() {
+        for (code, expected_results) in [
+            (quote! {}, vec![]),
+            (
+                quote! { use ink_e2e::build_message; },
+                vec![(
+                    "",
+                    Some("<-use ink_e2e::build_message;"),
+                    Some("use ink_e2e::build_message;"),
+                )],
+            ),
+            (
+                quote! { use ink_e2e::MessageBuilder; },
+                vec![(
+                    "",
+                    Some("<-use ink_e2e::MessageBuilder;"),
+                    Some("use ink_e2e::MessageBuilder;"),
+                )],
+            ),
+            (
+                quote! {
+                    use ink_e2e::build_message;
+                    use ink_e2e::MessageBuilder;
+                },
+                vec![
+                    (
+                        "",
+                        Some("<-use ink_e2e::build_message;"),
+                        Some("use ink_e2e::build_message;"),
+                    ),
+                    (
+                        "",
+                        Some("<-use ink_e2e::MessageBuilder;"),
+                        Some("use ink_e2e::MessageBuilder;"),
+                    ),
+                ],
+            ),
+            (
+                quote! { use ink_e2e::{build_message, MessageBuilder}; },
+                vec![(
+                    "",
+                    Some("<-use ink_e2e::{build_message, MessageBuilder};"),
+                    Some("use ink_e2e::{build_message, MessageBuilder};"),
+                )],
+            ),
+            (
+                quote! {
+                    use ink_e2e::build_message;
+                    use ink_e2e::Client;
+                    use ink_e2e::MessageBuilder;
+                },
+                vec![
+                    (
+                        "",
+                        Some("<-use ink_e2e::build_message;"),
+                        Some("use ink_e2e::build_message;"),
+                    ),
+                    (
+                        "",
+                        Some("<-use ink_e2e::MessageBuilder;"),
+                        Some("use ink_e2e::MessageBuilder;"),
+                    ),
+                ],
+            ),
+            (
+                quote! { use ink_e2e::{build_message, Client, MessageBuilder}; },
+                vec![
+                    ("", Some("<-build_message,"), Some("build_message,")),
+                    ("", Some("<-, MessageBuilder"), Some("MessageBuilder")),
+                ],
+            ),
+            (
+                quote! { use ink_e2e::{build_message, Client, Keypair, MessageBuilder}; },
+                vec![
+                    ("", Some("<-build_message,"), Some("build_message,")),
+                    ("", Some("<-, MessageBuilder"), Some("MessageBuilder")),
+                ],
+            ),
+            (
+                quote! {
+                    use {
+                        ink_e2e::build_message,
+                        ink::env::Environment,
+                    };
+                },
+                vec![(
+                    "",
+                    Some("<-ink_e2e::build_message,"),
+                    Some("ink_e2e::build_message,"),
+                )],
+            ),
+            (
+                quote! {
+                    use {
+                        ink_e2e::build_message,
+                        ink_e2e::MessageBuilder,
+                    };
+                },
+                vec![("", Some("<-use {"), Some("};"))],
+            ),
+            (
+                quote! {
+                    use ink_e2e::Client;
+                    use ink_e2e::Keypair;
+                },
+                vec![],
+            ),
+            (
+                quote! {
+                    use ink_e2e::{Client, Keypair};
+                },
+                vec![],
+            ),
+            (
+                quote! {
+                    use ink_e2e::*;
+                },
+                vec![],
+            ),
+        ]
+        .into_iter()
+        .flat_map(|(imports, expected_results)| {
+            [
+                (
+                    quote_as_pretty_string! {
+                        #[cfg(all(test, feature = "e2e-tests"))]
+                        mod e2e_tests {
+                            #imports
+
+                            type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+                            #[ink_e2e::test]
+                            async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) ->
+                                E2EResult<()> {
+                                Ok(())
+                            }
+                        }
+                    },
+                    expected_results.clone(),
+                ),
+                (
+                    quote_as_pretty_string! {
+                        #imports
+
+                        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+                        #[ink_e2e::test]
+                        async fn e2e_transfer(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+                            Ok(())
+                        }
+                    },
+                    expected_results,
+                ),
+            ]
+        }) {
+            let mut results = Vec::new();
+            let e2e_test = parse_first_ink_entity_of_type::<InkE2ETest>(&code);
+            deprecated_imports(&mut results, &e2e_test);
 
             assert_eq!(results, text_edits_from_fixtures(&code, expected_results));
         }
