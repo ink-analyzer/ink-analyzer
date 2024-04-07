@@ -1,6 +1,9 @@
 //! ink! 5.0 migration.
 
+mod common;
 mod e2e_test;
+mod host_fn;
+mod traversal;
 
 use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::syntax::{AstNode, AstToken, SyntaxKind, SyntaxToken, TextRange, TextSize};
@@ -24,6 +27,9 @@ pub fn migrate(file: &InkFile) -> Vec<TextEdit> {
 
     // Migrate built-in `derive`s of SCALE codec traits.
     scale_derive(&mut results, file);
+
+    // Migrate cross-contract host function related APIs
+    host_fn::migrate(&mut results, file);
 
     // Migrate e2e tests.
     e2e_test::migrate(&mut results, file);
