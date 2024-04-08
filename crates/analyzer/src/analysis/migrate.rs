@@ -28,7 +28,7 @@ pub fn migrate(file: &InkFile) -> Vec<TextEdit> {
     // Migrate built-in `derive`s of SCALE codec traits.
     scale_derive(&mut results, file);
 
-    // Migrate cross-contract host function related APIs
+    // Migrate cross-contract host function related APIs.
     host_fn::migrate(&mut results, file);
 
     // Migrate e2e tests.
@@ -38,7 +38,7 @@ pub fn migrate(file: &InkFile) -> Vec<TextEdit> {
     format_edits(results.into_iter(), file).collect()
 }
 
-/// Computes text edits for migrating ink! events to ink! 5.0 standalone events (aka events 2.0).
+/// Computes text edits for migrating ink! events to ink! 5.0 standalone events (a.k.a events 2.0).
 fn events(results: &mut Vec<TextEdit>, file: &InkFile) {
     for contract in file.contracts() {
         let contract_indent = utils::item_indenting(contract.syntax());

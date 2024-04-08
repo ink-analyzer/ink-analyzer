@@ -136,6 +136,10 @@ pub fn walk_block<V: Visitor>(visitor: &mut V, block_expr: &ast::BlockExpr) {
             visitor.visit_expr(&expr);
         }
     }
+    let Some(expr) = stmt_list.tail_expr() else {
+        return;
+    };
+    visitor.visit_expr(&expr);
 }
 
 pub fn walk_call<V: Visitor>(visitor: &mut V, expr: &ast::CallExpr) {
