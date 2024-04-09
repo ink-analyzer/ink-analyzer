@@ -605,22 +605,23 @@ enum MessageBuilderCall {
 impl MessageBuilderCall {
     fn parse(expr: &ast::CallExpr) -> Option<Self> {
         let is_message_builder_from_account_id_call_path = |path: &ast::Path| {
-            let is_from_account_id_call = path
-                .segment()
-                .is_some_and(|segment| segment.to_string() == "from_account_id");
-            if is_from_account_id_call {
-                if let Some(qualifier) = path.qualifier() {
-                    let type_path = message_builder_generic_args(&qualifier)
-                        .and_then(|generic_args| common::simplify_path(&qualifier, &generic_args));
-                    return resolution::is_external_crate_item(
-                        "MessageBuilder",
-                        type_path.as_ref().unwrap_or(&qualifier),
-                        &["ink_e2e"],
-                        expr.syntax(),
-                    );
-                }
-            }
-            false
+            path.qualifier()
+                .zip(path.segment())
+                .is_some_and(|(qualifier, segment)| {
+                    if segment.to_string() == "from_account_id" {
+                        let type_path = common::last_segment_generic_args(&qualifier).and_then(
+                            |generic_args| common::simplify_path(&qualifier, &generic_args),
+                        );
+                        resolution::is_external_crate_item(
+                            "MessageBuilder",
+                            type_path.as_ref().unwrap_or(&qualifier),
+                            &["ink_e2e"],
+                            expr.syntax(),
+                        )
+                    } else {
+                        false
+                    }
+                })
         };
 
         expr.expr()
@@ -642,21 +643,12 @@ impl MessageBuilderCall {
     fn generic_args(&self) -> Option<ast::GenericArgList> {
         match self {
             MessageBuilderCall::BuildMessageFn(path) => common::last_segment_generic_args(path),
-            MessageBuilderCall::MessageBuilderFromAccountId(path) => {
-                message_builder_generic_args(path)
-            }
+            MessageBuilderCall::MessageBuilderFromAccountId(path) => path
+                .qualifier()
+                .as_ref()
+                .and_then(common::last_segment_generic_args),
         }
     }
-}
-
-fn message_builder_generic_args(path: &ast::Path) -> Option<ast::GenericArgList> {
-    path.segments().find_map(|segment| {
-        if segment.to_string().starts_with("MessageBuilder::") {
-            segment.generic_arg_list()
-        } else {
-            None
-        }
-    })
 }
 
 #[cfg(test)]

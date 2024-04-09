@@ -7,7 +7,7 @@ use ink_analyzer_ir::{InkEntity, InkFile};
 
 use super::common;
 use super::traversal::{walk_call, walk_method_call, Visitor};
-use crate::TextEdit;
+use crate::{resolution, TextEdit};
 
 /// Computes text edits for ink! 5.0 host function related migrations.
 pub fn migrate(results: &mut Vec<TextEdit>, file: &InkFile) {
@@ -34,15 +34,7 @@ impl BodyVisitor {
 
 impl Visitor for BodyVisitor {
     fn visit_call(&mut self, expr: &ast::CallExpr) {
-        // Represents a `build_call::<..>(..)`, `build_create::<..>(..)`,
-        // `instantiate_contract::<..>(..)` or `invoke_contract::<..>(..)` call.
-        enum HostFnWrapper {
-            BuildCall(ast::Path),
-            BuildCreate(ast::Path),
-            InstantiateContract(ast::Path),
-            InvokeContract(ast::Path),
-        }
-
+        // Extracts call path.
         let Some(call_path) = expr.expr().and_then(|call_expr| match call_expr {
             ast::Expr::PathExpr(path) => path.path(),
             _ => None,
@@ -70,6 +62,48 @@ impl Visitor for BodyVisitor {
             return;
         }
 
+        // Migrate `Call::<..>::new()` to `CallV1::<..>::new()`.
+        let call_type_new_info =
+            call_path
+                .qualifier()
+                .zip(call_path.segment())
+                .and_then(|(qualifier, segment)| {
+                    if segment.to_string() == "new" {
+                        let type_path = common::last_segment_generic_args(&qualifier).and_then(
+                            |generic_args| common::simplify_path(&qualifier, &generic_args),
+                        );
+                        let is_call_type = resolution::is_external_crate_item(
+                            "Call",
+                            type_path.as_ref().unwrap_or(&qualifier),
+                            &["ink_env::call", "ink::env::call"],
+                            expr.syntax(),
+                        );
+                        is_call_type.then_some(qualifier)
+                    } else {
+                        None
+                    }
+                });
+        if let Some(call_type_path) = call_type_new_info {
+            let generic_args_list = common::last_segment_generic_args(&call_type_path)
+                .as_ref()
+                .map(ToString::to_string);
+            self.results.push(TextEdit::replace(
+                format!(
+                    "ink::env::call::CallV1{}",
+                    generic_args_list.as_deref().unwrap_or_default()
+                ),
+                call_type_path.syntax().text_range(),
+            ));
+        }
+
+        // Represents a `build_call::<..>(..)`, `build_create::<..>(..)`,
+        // `instantiate_contract::<..>(..)` or `invoke_contract::<..>(..)` call.
+        enum HostFnWrapper {
+            BuildCall(ast::Path),
+            BuildCreate(ast::Path),
+            InstantiateContract(ast::Path),
+            InvokeContract(ast::Path),
+        }
         let host_fn_wrapper_path = if common::is_call_path(
             &call_path,
             "build_call",
@@ -402,6 +436,16 @@ mod tests {
                     Some("<-invoke_contract->"),
                     Some("invoke_contract->"),
                 )],
+            ),
+            // Call::<..>::new()
+            (
+                quote! { use ink::env::call::Call; },
+                quote! {
+                    let call = Call::new(AccountId::from([0x42; 32]))
+                        .gas_limit(5000)
+                        .transferred_value(10);
+                },
+                vec![("ink::env::call::CallV1", Some("<-Call->"), Some("Call->"))],
             ),
         ]
         .into_iter()

@@ -35,7 +35,7 @@ pub fn migrate(file: &InkFile) -> Vec<TextEdit> {
     e2e_test::migrate(&mut results, file);
 
     // Format and return edits.
-    format_edits(results.into_iter(), file).collect()
+    format_edits(results.into_iter().unique(), file).collect()
 }
 
 /// Computes text edits for migrating ink! events to ink! 5.0 standalone events (a.k.a events 2.0).
