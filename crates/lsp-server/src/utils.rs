@@ -1,6 +1,7 @@
 //! ink! Language Server utilities.
 
 use std::collections::HashSet;
+use std::path::PathBuf;
 
 use lsp_server::RequestId;
 use lsp_types::{ClientCapabilities, CodeActionKind, PositionEncodingKind};
@@ -131,35 +132,28 @@ pub fn can_create_project_via_workspace_edit(client_capabilities: &ClientCapabil
 }
 
 /// Find the `Cargo.toml` file for a given `*.rs` file (if any).
-pub fn find_cargo_toml(doc_uri: &lsp_types::Url) -> Option<lsp_types::Url> {
-    if let Ok(path) = doc_uri.to_file_path() {
-        if path.extension().is_some_and(|ext| ext == "rs") {
-            // Tries to find `Cargo.toml` in the same directory.
-            // This is the typical setup for ink! projects created with `cargo contract new`.
-            let mut cargo_toml_path = path.clone();
+pub fn find_cargo_toml(path: PathBuf) -> Option<PathBuf> {
+    // Tries to find `Cargo.toml` in the same directory.
+    // This is the typical setup for ink! projects created with `cargo contract new`.
+    let mut cargo_toml_path = path.clone();
+    cargo_toml_path.set_file_name("Cargo.toml");
+
+    if !cargo_toml_path.is_file() {
+        // Tries to find `Cargo.toml` in the parent director(y|ies).
+        // This is the typical setup for most Rust projects created with `cargo new`
+        // and for workspace projects.
+        cargo_toml_path = path.clone();
+        let mut depth = 0u8;
+        while depth < 10 && cargo_toml_path.pop() {
             cargo_toml_path.set_file_name("Cargo.toml");
-
-            if !cargo_toml_path.is_file() {
-                // Tries to find `Cargo.toml` in the parent director(y|ies).
-                // This is the typical setup for most Rust projects created with `cargo new`
-                // and for workspace projects.
-                cargo_toml_path = path.clone();
-                let mut depth = 0u8;
-                while depth < 10 && cargo_toml_path.pop() {
-                    cargo_toml_path.set_file_name("Cargo.toml");
-                    if cargo_toml_path.is_file() {
-                        break;
-                    }
-                    depth += 1;
-                }
-            }
-
             if cargo_toml_path.is_file() {
-                return lsp_types::Url::from_file_path(cargo_toml_path).ok();
+                break;
             }
+            depth += 1;
         }
     }
-    None
+
+    cargo_toml_path.is_file().then_some(cargo_toml_path)
 }
 
 #[cfg(test)]

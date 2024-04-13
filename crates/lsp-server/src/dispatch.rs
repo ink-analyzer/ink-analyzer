@@ -66,6 +66,7 @@ struct Dispatcher<'a> {
     client_capabilities: lsp_types::ClientCapabilities,
     memory: Memory,
     snapshots: Snapshots,
+    version_check_fuel: u8,
 }
 
 pub type Snapshots = HashMap<String, Snapshot>;
@@ -110,6 +111,7 @@ impl<'a> Dispatcher<'a> {
             client_capabilities,
             memory: Memory::new(),
             snapshots: Snapshots::new(),
+            version_check_fuel: 0,
         }
     }
 
@@ -125,6 +127,16 @@ impl<'a> Dispatcher<'a> {
         } else {
             None
         };
+        let is_migration_resolve = req.method
+            == lsp_types::request::CodeActionResolveRequest::METHOD
+            && req
+                .params
+                .as_object()
+                .and_then(|params| params.get("data"))
+                .and_then(serde_json::Value::as_object)
+                .and_then(|params| params.get("command"))
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|cmd| cmd == command::MIGRATE_PROJECT);
         let mut router = RequestRouter::new(req, &self.snapshots, &self.client_capabilities);
         let result = router
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
@@ -144,9 +156,9 @@ impl<'a> Dispatcher<'a> {
 
         // Sends response (if any).
         if let Some(resp) = result {
-            if let Some(cmd) = cmd {
+            if let Some(ref cmd) = cmd {
                 // Handles command responses.
-                self.process_command_response(&cmd, resp)?;
+                self.process_command_response(cmd, resp)?;
             } else {
                 // Otherwise return response.
                 self.send(resp.into())?;
@@ -155,6 +167,15 @@ impl<'a> Dispatcher<'a> {
 
         // Process memory changes made by request handlers (if any).
         self.process_changes()?;
+
+        // Increase the "version check fuel" if we just attempted an ink! version migration.
+        if is_migration_resolve
+            || cmd
+                .as_ref()
+                .is_some_and(|cmd| cmd == command::MIGRATE_PROJECT)
+        {
+            self.version_check_fuel = 2;
+        }
 
         Ok(())
     }
@@ -225,20 +246,26 @@ impl<'a> Dispatcher<'a> {
                 // Update analysis snapshot.
                 if let Some(doc) = self.memory.get(&id) {
                     // Parse the ink! version.
-                    let lang_version = self
-                        .snapshots
-                        .get(&id)
-                        .map(|snapshot| snapshot.lang_version)
-                        .unwrap_or_else(|| {
-                            doc_uri
-                                .as_ref()
-                                .ok()
-                                .and_then(parse_ink_project_version)
-                                .as_ref()
-                                .map(InkProjectVersion::guess_version)
-                                // FIXME: We default to v4 for now because v5 is super new, but this should be changed at some point.
-                                .unwrap_or(Version::V4)
-                        });
+                    let version_check = || {
+                        doc_uri
+                            .as_ref()
+                            .ok()
+                            .and_then(parse_ink_project_version)
+                            .as_ref()
+                            .map(InkProjectVersion::guess_version)
+                            // FIXME: We default to v4 for now because v5 is super new,
+                            // but this should be changed at some point.
+                            .unwrap_or(Version::V4)
+                    };
+                    let lang_version = if self.version_check_fuel > 0 {
+                        self.version_check_fuel -= 1;
+                        version_check()
+                    } else {
+                        self.snapshots
+                            .get(&id)
+                            .map(|snapshot| snapshot.lang_version)
+                            .unwrap_or_else(version_check)
+                    };
 
                     self.snapshots.insert(
                         id,
@@ -398,37 +425,27 @@ impl<'a> Dispatcher<'a> {
 fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<InkProjectVersion> {
     if let Ok(path) = doc_uri.to_file_path() {
         if path.extension().is_some_and(|ext| ext == "rs") {
-            // Tries to find `Cargo.toml` in the same directory.
-            // This is the typical setup for ink! projects created with `cargo contract new`.
-            let mut cargo_toml_path = path.clone();
-            cargo_toml_path.set_file_name("Cargo.toml");
+            // Finds `Cargo.toml` for file (if any).
+            if let Some(cargo_toml_path) = utils::find_cargo_toml(path) {
+                let project_version = parse_ink_project_version_inner(&cargo_toml_path, false);
 
-            let project_version = parse_ink_project_version_inner(&cargo_toml_path, false);
-            if project_version.as_ref().is_some_and(|it| it.workspace) {
-                // Tries to find `Cargo.toml` in the workspace root directory.
-                let mut workspace_cargo_toml_path = path.clone();
-                let mut depth = 0u8;
-                while depth < 10 && workspace_cargo_toml_path.pop() {
-                    workspace_cargo_toml_path.set_file_name("Cargo.toml");
-                    let workspace_project_version =
-                        parse_ink_project_version_inner(&workspace_cargo_toml_path, true);
-                    if workspace_project_version.is_some() {
-                        return workspace_project_version;
+                // Handles workspace dependencies.
+                let is_workspace_dependency =
+                    project_version.as_ref().is_some_and(|it| it.workspace);
+                if is_workspace_dependency {
+                    // Finds `Cargo.toml` in workspace root directory (if any).
+                    let mut parent_dir = cargo_toml_path.clone();
+                    parent_dir.pop();
+                    if let Some(workspace_cargo_toml_path) = utils::find_cargo_toml(parent_dir) {
+                        let workspace_project_version =
+                            parse_ink_project_version_inner(&workspace_cargo_toml_path, true);
+                        if workspace_project_version.is_some() {
+                            return workspace_project_version;
+                        }
                     }
-                    if workspace_cargo_toml_path.is_file() {
-                        break;
-                    }
-                    depth += 1;
                 }
+                return project_version;
             }
-            return project_version.or_else(|| {
-                // Tries to find `Cargo.toml` in the parent directory.
-                // This is the typical setup for most Rust projects created with `cargo new`.
-                let mut cargo_toml_path = path.clone();
-                cargo_toml_path.pop();
-                cargo_toml_path.set_file_name("Cargo.toml");
-                parse_ink_project_version_inner(&cargo_toml_path, false)
-            });
         }
     }
     return None;

@@ -88,14 +88,19 @@ pub fn handle_migrate_project(
         .collect();
 
     // Computes edits for the `Cargo.toml` file.
-    let Some(cargo_uri) = utils::find_cargo_toml(uri) else {
+    let Some(cargo_path) = uri.to_file_path().ok().and_then(utils::find_cargo_toml) else {
         return Err(anyhow::format_err!(
             "Failed to migrate ink! project.\nCouldn't locate `Cargo.toml` file."
         ));
     };
-    let Ok(Ok(cargo_toml)) = cargo_uri.to_file_path().map(fs::read_to_string) else {
+    let Ok(cargo_toml) = fs::read_to_string(&cargo_path) else {
         return Err(anyhow::format_err!(
-            "Failed to migrate ink! project.\nCouldn't locate `Cargo.toml` file."
+            "Failed to migrate ink! project.\nCouldn't read `Cargo.toml` file."
+        ));
+    };
+    let Ok(cargo_uri) = lsp_types::Url::from_file_path(cargo_path) else {
+        return Err(anyhow::format_err!(
+            "Failed to migrate ink! project.\nCouldn't convert `Cargo.toml` path into a URI."
         ));
     };
     let cargo_toml_updates = migrate_cargo_toml(&cargo_toml)?;
