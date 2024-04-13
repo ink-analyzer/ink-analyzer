@@ -157,21 +157,28 @@ fn verify_actions(test_groups: impl Iterator<Item = TestGroup>, quickfixes_only:
                             .kind
                             .as_ref()
                             .is_some_and(|kind| *kind == lsp_types::CodeActionKind::QUICKFIX))
-                    .filter_map(|code_action| code_action
-                        .edit
-                        .as_ref()
-                        .and_then(|it| it.changes.as_ref())
-                        .and_then(|it| it.get(&uri))
-                        .map(|edits| (
+                    .map(|code_action| {
+                        (
                             PartialMatchStr::from(code_action.title.as_str()),
-                            edits
-                                .into_iter()
-                                .map(|edit| (
-                                    PartialMatchStr::from(edit.new_text.as_str()),
-                                    edit.range
-                                ))
-                                .collect::<Vec<(PartialMatchStr, lsp_types::Range)>>()
-                        )))
+                            code_action
+                                .edit
+                                .as_ref()
+                                .and_then(|it| it.changes.as_ref())
+                                .and_then(|it| it.get(&uri))
+                                .map(|edits| {
+                                    edits
+                                        .into_iter()
+                                        .map(|edit| {
+                                            (
+                                                PartialMatchStr::from(edit.new_text.as_str()),
+                                                edit.range,
+                                            )
+                                        })
+                                        .collect()
+                                })
+                                .unwrap_or_else(|| Vec::new()),
+                        )
+                    })
                     .collect::<Vec<(PartialMatchStr, Vec<(PartialMatchStr, lsp_types::Range)>)>>(),
                 expected_results
                     .iter()

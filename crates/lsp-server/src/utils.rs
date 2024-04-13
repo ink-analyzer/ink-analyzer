@@ -1,8 +1,9 @@
 //! ink! Language Server utilities.
 
+use std::collections::HashSet;
+
 use lsp_server::RequestId;
 use lsp_types::{ClientCapabilities, CodeActionKind, PositionEncodingKind};
-use std::collections::HashSet;
 
 const SERVER_CODE_ACTION_KINDS: [CodeActionKind; 4] = [
     CodeActionKind::EMPTY,
@@ -65,6 +66,17 @@ pub fn snippet_support(client_capabilities: &ClientCapabilities) -> bool {
         .unwrap_or(false)
 }
 
+/// Returns true if the LSP client advertises support for resolving the code action `edit` field, or false otherwise.
+pub fn code_action_edit_resolve_support(client_capabilities: &ClientCapabilities) -> bool {
+    client_capabilities
+        .text_document
+        .as_ref()
+        .and_then(|it| it.code_action.as_ref())
+        .and_then(|it| it.resolve_support.as_ref())
+        .map(|it| it.properties.contains(&String::from("edit")))
+        .unwrap_or(false)
+}
+
 /// Information about supported signature information features.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SignatureSupport {
@@ -116,6 +128,38 @@ pub fn can_create_project_via_workspace_edit(client_capabilities: &ClientCapabil
                     })
             })
     })
+}
+
+/// Find the `Cargo.toml` file for a given `*.rs` file (if any).
+pub fn find_cargo_toml(doc_uri: &lsp_types::Url) -> Option<lsp_types::Url> {
+    if let Ok(path) = doc_uri.to_file_path() {
+        if path.extension().is_some_and(|ext| ext == "rs") {
+            // Tries to find `Cargo.toml` in the same directory.
+            // This is the typical setup for ink! projects created with `cargo contract new`.
+            let mut cargo_toml_path = path.clone();
+            cargo_toml_path.set_file_name("Cargo.toml");
+
+            if !cargo_toml_path.is_file() {
+                // Tries to find `Cargo.toml` in the parent director(y|ies).
+                // This is the typical setup for most Rust projects created with `cargo new`
+                // and for workspace projects.
+                cargo_toml_path = path.clone();
+                let mut depth = 0u8;
+                while depth < 10 && cargo_toml_path.pop() {
+                    cargo_toml_path.set_file_name("Cargo.toml");
+                    if cargo_toml_path.is_file() {
+                        break;
+                    }
+                    depth += 1;
+                }
+            }
+
+            if cargo_toml_path.is_file() {
+                return lsp_types::Url::from_file_path(cargo_toml_path).ok();
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]

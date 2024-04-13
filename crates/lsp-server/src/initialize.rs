@@ -72,7 +72,7 @@ pub fn server_capabilities(
                     lsp_types::CodeActionProviderCapability::Options(lsp_types::CodeActionOptions {
                         code_action_kinds: Some(code_action_kinds),
                         work_done_progress_options: Default::default(),
-                        resolve_provider: None,
+                        resolve_provider: Some(true),
                     })
                 })
                 .unwrap_or_else(|| lsp_types::CodeActionProviderCapability::Simple(true)),
@@ -89,7 +89,7 @@ pub fn server_capabilities(
             work_done_progress_options: Default::default(),
         }),
         execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
-            commands: vec!["createProject".to_owned()],
+            commands: vec!["createProject".to_owned(), "migrateProject".to_owned()],
             work_done_progress_options: Default::default(),
         }),
         ..Default::default()

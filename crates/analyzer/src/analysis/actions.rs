@@ -4,6 +4,8 @@ mod attr;
 pub mod entity;
 mod item;
 
+use std::cmp::Ordering;
+
 use ink_analyzer_ir::syntax::{SyntaxNode, TextRange, TextSize};
 use ink_analyzer_ir::{InkAttribute, InkFile};
 use itertools::Itertools;
@@ -17,20 +19,21 @@ use crate::{TextEdit, Version};
 pub struct Action {
     /// Label which identifies the action.
     pub label: String,
-    /// The kind of the action (e.g quickfix or refactor).
+    /// The kind of the action (e.g. quickfix or refactor).
     pub kind: ActionKind,
     /// Range where the action is activated.
     pub range: TextRange,
-    /// Text edits that will performed by the action.
+    /// Text edits that will be performed by the action.
     pub edits: Vec<TextEdit>,
 }
 
-/// The kind of the action (e.g quickfix or refactor).
+/// The kind of the action (e.g. quickfix or refactor).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ActionKind {
     QuickFix,
     Refactor,
+    Migrate,
 }
 
 /// Computes ink! attribute actions for the text range.
@@ -129,5 +132,28 @@ impl Action {
                 TextEdit::delete(item.text_range()),
             ],
         }
+    }
+}
+
+impl Ord for ActionKind {
+    fn cmp(&self, other: &Self) -> Ordering {
+        Ord::cmp(
+            &action_kind_sort_order(*self),
+            &action_kind_sort_order(*other),
+        )
+    }
+}
+
+impl PartialOrd for ActionKind {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn action_kind_sort_order(kind: ActionKind) -> u8 {
+    match kind {
+        ActionKind::Migrate => 0,
+        ActionKind::QuickFix => 1,
+        ActionKind::Refactor => 2,
     }
 }

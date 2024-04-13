@@ -2535,30 +2535,6 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
         TestCase {
             modifications: None,
             params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                pat: Some("<-#[ink::contract]"),
-            })),
-            results: TestCaseResults::Action(vec![
-                TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "(env = ink::env::DefaultEnvironment)",
-                        start_pat: Some("#[ink::contract"),
-                        end_pat: Some("#[ink::contract"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: r#"(keep_attr = "")"#,
-                        start_pat: Some("#[ink::contract"),
-                        end_pat: Some("#[ink::contract"),
-                    }],
-                },
-            ]),
-        },
-        TestCase {
-            modifications: None,
-            params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                 pat: Some("<-#[ink(storage)]"),
             })),
             results: TestCaseResults::Action(vec![]),
@@ -2891,68 +2867,6 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
         TestCase {
             modifications: None,
             params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                pat: Some("<-#[ink::trait_definition]"),
-            })),
-            results: TestCaseResults::Action(vec![
-                TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: r#"(keep_attr = "")"#,
-                        start_pat: Some("#[ink::trait_definition"),
-                        end_pat: Some("#[ink::trait_definition"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: r#"(namespace = "my_namespace")"#,
-                        start_pat: Some("#[ink::trait_definition"),
-                        end_pat: Some("#[ink::trait_definition"),
-                    }],
-                },
-            ]),
-        },
-        TestCase {
-            modifications: None,
-            params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                pat: Some("<-pub trait BaseErc20 {"),
-            })),
-            results: TestCaseResults::Action(vec![
-                TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: r#"(keep_attr = "")"#,
-                        start_pat: Some("#[ink::trait_definition"),
-                        end_pat: Some("#[ink::trait_definition"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: r#"(namespace = "my_namespace")"#,
-                        start_pat: Some("#[ink::trait_definition"),
-                        end_pat: Some("#[ink::trait_definition"),
-                    }],
-                },
-                TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink(message)]",
-                        start_pat: Some(
-                            "<-\n    }\
-                                \n\n    /// A simple ERC-20 contract.",
-                        ),
-                        end_pat: Some(
-                            "<-\n    }\
-                                \n\n    /// A simple ERC-20 contract.",
-                        ),
-                    }],
-                },
-            ]),
-        },
-        TestCase {
-            modifications: None,
-            params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                 pat: Some("<-impl BaseErc20 for Erc20 {"),
             })),
             results: TestCaseResults::Action(vec![TestResultAction {
@@ -2977,6 +2891,30 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                 .clone()
                 .into_iter()
                 .chain([
+                    TestCase {
+                        modifications: None,
+                        params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                            pat: Some("<-#[ink::contract]"),
+                        })),
+                        results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("#[ink::contract"),
+                                    end_pat: Some("#[ink::contract"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink::contract"),
+                                    end_pat: Some("#[ink::contract"),
+                                }],
+                            },
+                        ]),
+                    },
                     TestCase {
                         modifications: None,
                         params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
@@ -3323,9 +3261,41 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     TestCase {
                         modifications: None,
                         params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                            pat: Some("<-#[ink::contract]"),
+                        })),
+                        results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Migrate",
+                                edits: vec![],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("#[ink::contract"),
+                                    end_pat: Some("#[ink::contract"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink::contract"),
+                                    end_pat: Some("#[ink::contract"),
+                                }],
+                            },
+                        ]),
+                    },
+                    TestCase {
+                        modifications: None,
+                        params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                             pat: Some("<-mod erc20"),
                         })),
                         results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Migrate",
+                                edits: vec![],
+                            },
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
@@ -3379,6 +3349,10 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                             pat: Some("<-mod erc20"),
                         })),
                         results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Migrate",
+                                edits: vec![],
+                            },
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
@@ -3733,11 +3707,152 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
         // Trait definitions.
         TestGroup {
             source: "v5/trait-erc20",
-            test_cases: trait_erc20.to_vec(),
+            test_cases: trait_erc20
+                .clone()
+                .into_iter()
+                .chain([
+                    TestCase {
+                        modifications: None,
+                        params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                            pat: Some("<-#[ink::trait_definition]"),
+                        })),
+                        results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(namespace = "my_namespace")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                        ]),
+                    },
+                    TestCase {
+                        modifications: None,
+                        params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                            pat: Some("<-pub trait BaseErc20 {"),
+                        })),
+                        results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(namespace = "my_namespace")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some(
+                                        "<-\n    }\
+                                \n\n    /// A simple ERC-20 contract.",
+                                    ),
+                                    end_pat: Some(
+                                        "<-\n    }\
+                                \n\n    /// A simple ERC-20 contract.",
+                                    ),
+                                }],
+                            },
+                        ]),
+                    },
+                ])
+                .collect(),
         },
         TestGroup {
             source: "v4/trait-erc20",
-            test_cases: trait_erc20.to_vec(),
+            test_cases: trait_erc20
+                .into_iter()
+                .chain([
+                    TestCase {
+                        modifications: None,
+                        params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                            pat: Some("<-#[ink::trait_definition]"),
+                        })),
+                        results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Migrate",
+                                edits: vec![],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(namespace = "my_namespace")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                        ]),
+                    },
+                    TestCase {
+                        modifications: None,
+                        params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                            pat: Some("<-pub trait BaseErc20 {"),
+                        })),
+                        results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Migrate",
+                                edits: vec![],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(namespace = "my_namespace")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some(
+                                        "<-\n    }\
+                                \n\n    /// A simple ERC-20 contract.",
+                                    ),
+                                    end_pat: Some(
+                                        "<-\n    }\
+                                \n\n    /// A simple ERC-20 contract.",
+                                    ),
+                                }],
+                            },
+                        ]),
+                    },
+                ])
+                .collect(),
         },
         // Chain extensions.
         TestGroup {
@@ -3878,27 +3993,36 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                         pat: Some("<-#[ink::chain_extension]"),
                     })),
-                    results: TestCaseResults::Action(vec![]),
+                    results: TestCaseResults::Action(vec![TestResultAction {
+                        label: "Migrate",
+                        edits: vec![],
+                    }]),
                 },
                 TestCase {
                     modifications: None,
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                         pat: Some("<-pub trait Psp22Extension {"),
                     })),
-                    results: TestCaseResults::Action(vec![TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "#[ink(extension = 1)]",
-                            start_pat: Some(
-                                "<-\n}\
-                            \n\n#[derive(scale::Encode, scale::Decode)]",
-                            ),
-                            end_pat: Some(
-                                "<-\n}\
-                            \n\n#[derive(scale::Encode, scale::Decode)]",
-                            ),
-                        }],
-                    }]),
+                    results: TestCaseResults::Action(vec![
+                        TestResultAction {
+                            label: "Migrate",
+                            edits: vec![],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "#[ink(extension = 1)]",
+                                start_pat: Some(
+                                    "<-\n}\
+                                    \n\n#[derive(scale::Encode, scale::Decode)]",
+                                ),
+                                end_pat: Some(
+                                    "<-\n}\
+                                    \n\n#[derive(scale::Encode, scale::Decode)]",
+                                ),
+                            }],
+                        },
+                    ]),
                 },
                 TestCase {
                     modifications: Some(vec![TestCaseModification {
@@ -4084,14 +4208,20 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                     params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                         pat: Some("<-#[ink::storage_item]"),
                     })),
-                    results: TestCaseResults::Action(vec![TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "(derive = true)",
-                            start_pat: Some("#[ink::storage_item"),
-                            end_pat: Some("#[ink::storage_item"),
-                        }],
-                    }]),
+                    results: TestCaseResults::Action(vec![
+                        TestResultAction {
+                            label: "Migrate",
+                            edits: vec![],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "(derive = true)",
+                                start_pat: Some("#[ink::storage_item"),
+                                end_pat: Some("#[ink::storage_item"),
+                            }],
+                        },
+                    ]),
                 },
             ],
         },

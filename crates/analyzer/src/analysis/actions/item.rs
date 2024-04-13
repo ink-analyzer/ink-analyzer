@@ -299,12 +299,14 @@ fn item_ink_entity_actions(
     range_option: Option<TextRange>,
     version: Version,
 ) {
-    let mut add_result = |action_option: Option<Action>| {
-        // Add action to accumulator (if any).
-        if let Some(action) = action_option {
-            results.push(action);
-        }
-    };
+    macro_rules! add_result_opt {
+        ($action_opt: expr) => {
+            // Add action to accumulator (if any).
+            if let Some(action) = $action_opt {
+                results.push(action);
+            }
+        };
+    }
     match item {
         ast::Item::Module(module) => {
             match ink_analyzer_ir::ink_attrs(module.syntax())
@@ -312,9 +314,14 @@ fn item_ink_entity_actions(
                 .and_then(ink_analyzer_ir::ink_attr_to_entity::<Contract>)
             {
                 Some(contract) => {
+                    if version == Version::V4 {
+                        // Adds ink! 4.x project to ink! 5.0 action.
+                        add_migrate(results, utils::contract_declaration_range(&contract));
+                    }
+
                     // Adds ink! storage if it doesn't exist.
                     if contract.storage().is_none() {
-                        add_result(entity::add_storage(
+                        add_result_opt!(entity::add_storage(
                             &contract,
                             ActionKind::Refactor,
                             range_option,
@@ -323,18 +330,18 @@ fn item_ink_entity_actions(
 
                     if version == Version::V5 {
                         // Adds ink! event 2.0 event before the contract.
-                        add_result(Some(entity::add_event_v2(
+                        results.push(entity::add_event_v2(
                             TextRange::new(
                                 contract.syntax().text_range().start(),
                                 contract.syntax().text_range().start(),
                             ),
                             ActionKind::Refactor,
                             None,
-                        )));
+                        ));
                     }
 
                     // Adds ink! event.
-                    add_result(entity::add_event(
+                    add_result_opt!(entity::add_event(
                         &contract,
                         ActionKind::Refactor,
                         range_option,
@@ -355,7 +362,7 @@ fn item_ink_entity_actions(
                             && !has_non_trait_impls())
                     {
                         // Adds ink! constructor.
-                        add_result(entity::add_constructor_to_contract(
+                        add_result_opt!(entity::add_constructor_to_contract(
                             &contract,
                             ActionKind::Refactor,
                             range_option,
@@ -372,7 +379,7 @@ fn item_ink_entity_actions(
                         };
                         if version != Version::V5 || !has_message_with_wildcard_selector() {
                             // Adds ink! message.
-                            add_result(entity::add_message_to_contract(
+                            add_result_opt!(entity::add_message_to_contract(
                                 &contract,
                                 ActionKind::Refactor,
                                 range_option,
@@ -384,7 +391,7 @@ fn item_ink_entity_actions(
                     let is_cfg_test = module.attrs().any(|attr| utils::is_cfg_test_attr(&attr));
                     if is_cfg_test {
                         // Adds ink! test.
-                        add_result(entity::add_ink_test(
+                        add_result_opt!(entity::add_ink_test(
                             module,
                             ActionKind::Refactor,
                             range_option,
@@ -396,7 +403,7 @@ fn item_ink_entity_actions(
                         .any(|attr| utils::is_cfg_e2e_tests_attr(&attr));
                     if is_cfg_e2e_tests {
                         // Adds ink! e2e test.
-                        add_result(entity::add_ink_e2e_test(
+                        add_result_opt!(entity::add_ink_e2e_test(
                             module,
                             ActionKind::Refactor,
                             range_option,
@@ -416,7 +423,7 @@ fn item_ink_entity_actions(
                     || ink_analyzer_ir::ink_parent::<Contract>(impl_item.syntax()).is_some())
             {
                 // Adds ink! constructor.
-                add_result(entity::add_constructor_to_impl(
+                add_result_opt!(entity::add_constructor_to_impl(
                     impl_item,
                     ActionKind::Refactor,
                     range_option,
@@ -441,7 +448,7 @@ fn item_ink_entity_actions(
                 };
                 if version != Version::V5 || !has_message_with_wildcard_selector() {
                     // Adds ink! message.
-                    add_result(entity::add_message_to_impl(
+                    add_result_opt!(entity::add_message_to_impl(
                         impl_item,
                         ActionKind::Refactor,
                         range_option,
@@ -459,9 +466,17 @@ fn item_ink_entity_actions(
                             if let Some(chain_extension) =
                                 ink_analyzer_ir::ink_attr_to_entity::<ChainExtension>(attr)
                             {
+                                if version == Version::V4 {
+                                    // Adds ink! 4.x project to ink! 5.0 action.
+                                    add_migrate(
+                                        results,
+                                        utils::ink_trait_declaration_range(&chain_extension),
+                                    );
+                                }
+
                                 // Add `ErrorCode` if it doesn't exist.
                                 if chain_extension.error_code().is_none() {
-                                    add_result(entity::add_error_code(
+                                    add_result_opt!(entity::add_error_code(
                                         &chain_extension,
                                         ActionKind::Refactor,
                                         range_option,
@@ -469,7 +484,7 @@ fn item_ink_entity_actions(
                                 }
 
                                 // Adds ink! extension.
-                                add_result(entity::add_extension(
+                                add_result_opt!(entity::add_extension(
                                     &chain_extension,
                                     ActionKind::Refactor,
                                     range_option,
@@ -481,8 +496,16 @@ fn item_ink_entity_actions(
                             if let Some(trait_definition) =
                                 ink_analyzer_ir::ink_attr_to_entity::<TraitDefinition>(attr)
                             {
+                                if version == Version::V4 {
+                                    // Adds ink! 4.x project to ink! 5.0 action.
+                                    add_migrate(
+                                        results,
+                                        utils::ink_trait_declaration_range(&trait_definition),
+                                    );
+                                }
+
                                 // Adds ink! message declaration.
-                                add_result(entity::add_message_to_trait_definition(
+                                add_result_opt!(entity::add_message_to_trait_definition(
                                     &trait_definition,
                                     ActionKind::Refactor,
                                     range_option,
@@ -508,18 +531,49 @@ fn item_ink_entity_actions(
             };
             if let Some(event) = lazy_event() {
                 // Adds ink! topic.
-                add_result(entity::add_topic(
+                add_result_opt!(entity::add_topic(
                     &event,
                     ActionKind::Refactor,
                     range_option,
                 ));
             } else if let Some(event) = lazy_event_v2() {
                 // Adds ink! topic.
-                add_result(entity::add_topic(
+                add_result_opt!(entity::add_topic(
                     &event,
                     ActionKind::Refactor,
                     range_option,
                 ));
+            } else if version == Version::V4 {
+                let is_storage_item = ink_analyzer_ir::ink_attrs(struct_item.syntax())
+                    .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
+                if is_storage_item {
+                    // Adds ink! 4.x project to ink! 5.0 action.
+                    let range =
+                        utils::ast_item_declaration_range(&ast::Item::Struct(struct_item.clone()))
+                            .unwrap_or_else(|| struct_item.syntax().text_range());
+                    add_migrate(results, range);
+                }
+            }
+        }
+        ast::Item::Enum(enum_item) if version == Version::V4 => {
+            let is_storage_item = ink_analyzer_ir::ink_attrs(enum_item.syntax())
+                .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
+            if is_storage_item {
+                // Adds ink! 4.x project to ink! 5.0 action.
+                let range = utils::ast_item_declaration_range(&ast::Item::Enum(enum_item.clone()))
+                    .unwrap_or_else(|| enum_item.syntax().text_range());
+                add_migrate(results, range);
+            }
+        }
+        ast::Item::Union(union_item) if version == Version::V4 => {
+            let is_storage_item = ink_analyzer_ir::ink_attrs(union_item.syntax())
+                .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
+            if is_storage_item {
+                // Adds ink! 4.x project to ink! 5.0 action.
+                let range =
+                    utils::ast_item_declaration_range(&ast::Item::Union(union_item.clone()))
+                        .unwrap_or_else(|| union_item.syntax().text_range());
+                add_migrate(results, range);
             }
         }
         // Ignores other items.
@@ -534,6 +588,11 @@ fn root_ink_entity_actions(
     range: TextRange,
     version: Version,
 ) {
+    if version == Version::V4 {
+        // Adds ink! 4.x project to ink! 5.0 action.
+        add_migrate(results, range);
+    }
+
     if file.contracts().is_empty() {
         // Adds ink! contract.
         results.push(entity::add_contract(range, ActionKind::Refactor, None));
@@ -644,6 +703,16 @@ fn is_focused_on_item_body(item: &ast::Item, range: TextRange) -> bool {
         })
 }
 
+/// Adds an action for migrating an ink! 4.x project to ink! 5.0.
+fn add_migrate(results: &mut Vec<Action>, range: TextRange) {
+    results.push(Action {
+        label: "Migrate to ink! 5.0".to_owned(),
+        kind: ActionKind::Migrate,
+        range,
+        edits: Vec::new(),
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -651,6 +720,31 @@ mod tests {
     use ink_analyzer_ir::syntax::TextSize;
     use ink_analyzer_ir::InkEntity;
     use test_utils::{parse_offset_at, TestResultAction, TestResultTextRange};
+
+    macro_rules! prepend_migrate {
+        ($version: expr, $list: expr) => {
+            if $version == Version::V4 {
+                vec![TestResultAction {
+                    label: "Migrate",
+                    edits: vec![],
+                }]
+            } else {
+                vec![]
+            }
+            .into_iter()
+            .chain($list)
+            .collect::<Vec<TestResultAction>>()
+        };
+        ($list: expr) => {
+            prepend_migrate!(Version::V4, $list)
+        };
+        () => {
+            vec![TestResultAction {
+                label: "Migrate",
+                edits: vec![],
+            }]
+        };
+    }
 
     macro_rules! list_results {
         ($list: expr, $label: literal, $start: expr, $end: expr) => {
@@ -664,13 +758,13 @@ mod tests {
                         end_pat: $end,
                     }],
                 })
-                .collect()
+                .collect::<Vec<TestResultAction>>()
         };
     }
 
     macro_rules! chain_results {
         ($start: expr $(, $other: expr)+) => {
-            $start.into_iter()$(.chain($other))*.collect()
+            $start.into_iter()$(.chain($other))*.collect::<Vec<TestResultAction>>()
         };
     }
 
@@ -737,12 +831,12 @@ mod tests {
                 vec![
                     (
                         r#"
-                    #[ink::chain_extension]
-                    pub trait MyTrait {
-                    }
-                    "#,
+                        #[ink::chain_extension]
+                        pub trait MyTrait {
+                        }
+                        "#,
                         Some("<-pub"),
-                        vec![
+                        prepend_migrate!([
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
@@ -759,7 +853,7 @@ mod tests {
                                     end_pat: Some("pub trait MyTrait {"),
                                 }],
                             },
-                        ],
+                        ]),
                     ),
                     (
                         r#"
@@ -1121,32 +1215,45 @@ mod tests {
                 // pat = substring used to find the cursor offset
                 //       (see `test_utils::parse_offset_at` doc),
                 // label = the label text (of a substring of it) for the action,
-                // edit = the text (of a substring of it) that will inserted,
+                // edit = the text (of a substring of it) that will be inserted,
                 // start_pat = substring used to find the start of the edit offset
                 //             (see `test_utils::parse_offset_at` doc),
                 // end_pat = substring used to find the end of the edit offset
                 //           (see `test_utils::parse_offset_at` doc).
 
                 // No AST item in focus.
-                ("", None, list_results!(root_entities, "Add", None, None)),
+                (
+                    "",
+                    None,
+                    prepend_migrate!(version, list_results!(root_entities, "Add", None, None)),
+                ),
                 (
                     " ",
                     None,
-                    list_results!(root_entities, "Add", Some(" "), Some(" ")),
+                    prepend_migrate!(
+                        version,
+                        list_results!(root_entities, "Add", Some(" "), Some(" "))
+                    ),
                 ),
                 (
                     "\n\n",
                     Some("\n"),
-                    list_results!(root_entities, "Add", Some("\n"), Some("\n")),
+                    prepend_migrate!(
+                        version,
+                        list_results!(root_entities, "Add", Some("\n"), Some("\n"))
+                    ),
                 ),
                 (
                     "// A comment in focus.",
                     None,
-                    list_results!(
-                        root_entities,
-                        "Add",
-                        Some("// A comment in focus."),
-                        Some("// A comment in focus.")
+                    prepend_migrate!(
+                        version,
+                        list_results!(
+                            root_entities,
+                            "Add",
+                            Some("// A comment in focus."),
+                            Some("// A comment in focus.")
+                        )
                     ),
                 ),
                 // Module focus.
@@ -1299,16 +1406,21 @@ mod tests {
                                     end_pat: Some("#[ink::contract"),
                                 }],
                             },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(storage)]",
-                                    start_pat: Some("mod my_contract {"),
-                                    end_pat: Some("mod my_contract {"),
-                                }],
-                            },
                         ],
-                        event_v2_entity!(version, "<-#[ink::contract]"),
+                        prepend_migrate!(
+                            version,
+                            chain_results!(
+                                [TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink(storage)]",
+                                        start_pat: Some("mod my_contract {"),
+                                        end_pat: Some("mod my_contract {"),
+                                    }],
+                                }],
+                                event_v2_entity!(version, "<-#[ink::contract]")
+                            )
+                        ),
                         [
                             TestResultAction {
                                 label: "Add",
@@ -1345,42 +1457,45 @@ mod tests {
                     }
                     "#,
                     Some("<-\n                    }"),
-                    chain_results!(
-                        [TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "#[ink(storage)]",
-                                start_pat: Some("<-\n                    }"),
-                                end_pat: Some("<-\n                    }"),
+                    prepend_migrate!(
+                        version,
+                        chain_results!(
+                            [TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(storage)]",
+                                    start_pat: Some("<-\n                    }"),
+                                    end_pat: Some("<-\n                    }"),
+                                }],
                             }],
-                        }],
-                        event_v2_entity!(version, "<-#[ink::contract]"),
-                        [
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(event)]",
-                                    start_pat: Some("<-\n                    }"),
-                                    end_pat: Some("<-\n                    }"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(constructor)]",
-                                    start_pat: Some("<-\n                    }"),
-                                    end_pat: Some("<-\n                    }"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(message)]",
-                                    start_pat: Some("<-\n                    }"),
-                                    end_pat: Some("<-\n                    }"),
-                                }],
-                            },
-                        ]
+                            event_v2_entity!(version, "<-#[ink::contract]"),
+                            [
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink(event)]",
+                                        start_pat: Some("<-\n                    }"),
+                                        end_pat: Some("<-\n                    }"),
+                                    }],
+                                },
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink(constructor)]",
+                                        start_pat: Some("<-\n                    }"),
+                                        end_pat: Some("<-\n                    }"),
+                                    }],
+                                },
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink(message)]",
+                                        start_pat: Some("<-\n                    }"),
+                                        end_pat: Some("<-\n                    }"),
+                                    }],
+                                },
+                            ]
+                        )
                     ),
                 ),
                 (
@@ -1393,40 +1508,43 @@ mod tests {
                     "#,
                     Some("<-mod"),
                     chain_results!(
-                        [
-                            TestResultAction {
-                                label: "Flatten",
-                                edits: vec![
-                                    TestResultTextRange {
-                                        text: "#[ink::contract(\
+                        [TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink::contract(\
                                     env = crate::Environment, \
                                     keep_attr = \"foo,bar\"\
                                     )]",
-                                        start_pat: Some("<-#[ink::contract]"),
-                                        end_pat: Some("#[ink::contract]"),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some(r#"<-#[ink(env=crate::Environment)]"#),
-                                        end_pat: Some(r#"#[ink(env=crate::Environment)]"#),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
-                                        end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
-                                    },
-                                ],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(storage)]",
-                                    start_pat: Some("mod my_contract {"),
-                                    end_pat: Some("mod my_contract {"),
+                                    start_pat: Some("<-#[ink::contract]"),
+                                    end_pat: Some("#[ink::contract]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(r#"<-#[ink(env=crate::Environment)]"#),
+                                    end_pat: Some(r#"#[ink(env=crate::Environment)]"#),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(r#"<-#[ink(keep_attr="foo,bar")]"#),
+                                    end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
+                                },
+                            ],
+                        },],
+                        prepend_migrate!(
+                            version,
+                            chain_results!(
+                                [TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink(storage)]",
+                                        start_pat: Some("mod my_contract {"),
+                                        end_pat: Some("mod my_contract {"),
+                                    }],
                                 }],
-                            },
-                        ],
-                        event_v2_entity!(version, "<-#[ink::contract]"),
+                                event_v2_entity!(version, "<-#[ink::contract]")
+                            )
+                        ),
                         [
                             TestResultAction {
                                 label: "Add",
@@ -1488,32 +1606,37 @@ mod tests {
                     }
                     "#,
                     Some("<-pub"),
-                    vec![
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: r#"(keep_attr = "")"#,
-                                start_pat: Some("#[ink::trait_definition"),
-                                end_pat: Some("#[ink::trait_definition"),
-                            }],
-                        },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: r#"(namespace = "my_namespace")"#,
-                                start_pat: Some("#[ink::trait_definition"),
-                                end_pat: Some("#[ink::trait_definition"),
-                            }],
-                        },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "#[ink(message)]",
-                                start_pat: Some("pub trait MyTrait {"),
-                                end_pat: Some("pub trait MyTrait {"),
-                            }],
-                        },
-                    ],
+                    chain_results!(
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(namespace = "my_namespace")"#,
+                                    start_pat: Some("#[ink::trait_definition"),
+                                    end_pat: Some("#[ink::trait_definition"),
+                                }],
+                            },
+                        ],
+                        prepend_migrate!(
+                            version,
+                            [TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("pub trait MyTrait {"),
+                                    end_pat: Some("pub trait MyTrait {"),
+                                }],
+                            }]
+                        )
+                    ),
                 ),
                 (
                     r#"
@@ -1524,8 +1647,8 @@ mod tests {
                     }
                     "#,
                     Some("<-pub"),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Flatten",
                             edits: vec![
                                 TestResultTextRange {
@@ -1547,16 +1670,19 @@ mod tests {
                                     end_pat: Some(r#"#[ink(keep_attr="foo,bar")]"#),
                                 },
                             ],
-                        },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "#[ink(message)]",
-                                start_pat: Some("pub trait MyTrait {"),
-                                end_pat: Some("pub trait MyTrait {"),
-                            }],
-                        },
-                    ],
+                        },],
+                        prepend_migrate!(
+                            version,
+                            [TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("pub trait MyTrait {"),
+                                    end_pat: Some("pub trait MyTrait {"),
+                                }],
+                            }]
+                        )
+                    ),
                 ),
                 // ADT focus.
                 (
@@ -1591,21 +1717,24 @@ mod tests {
                     }
                     "#,
                     Some("<-struct"),
-                    vec![TestResultAction {
-                        label: "Flatten",
-                        edits: vec![
-                            TestResultTextRange {
-                                text: "#[ink::storage_item(derive = true)]",
-                                start_pat: Some("<-#[ink::storage_item]"),
-                                end_pat: Some("#[ink::storage_item]"),
-                            },
-                            TestResultTextRange {
-                                text: "",
-                                start_pat: Some("<-#[ink(derive=true)]"),
-                                end_pat: Some("#[ink(derive=true)]"),
-                            },
-                        ],
-                    }],
+                    chain_results!(
+                        [TestResultAction {
+                            label: "Flatten",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink::storage_item(derive = true)]",
+                                    start_pat: Some("<-#[ink::storage_item]"),
+                                    end_pat: Some("#[ink::storage_item]"),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink(derive=true)]"),
+                                    end_pat: Some("#[ink(derive=true)]"),
+                                },
+                            ],
+                        }],
+                        prepend_migrate!(version, [])
+                    ),
                 ),
                 (
                     r#"

@@ -108,8 +108,10 @@ pub fn hover(
 pub fn code_action(
     action: ink_analyzer::Action,
     uri: lsp_types::Url,
+    edit_resolve_support: bool,
     context: &PositionTranslationContext,
 ) -> Option<lsp_types::CodeAction> {
+    let is_migrate_trigger = action.kind == ink_analyzer::ActionKind::Migrate;
     let edits: Vec<(&str, lsp_types::Range, Option<&str>)> = action
         .edits
         .iter()
@@ -118,47 +120,63 @@ pub fn code_action(
                 .map(|range| (edit.text.as_str(), range, edit.snippet.as_deref()))
         })
         .collect();
-
-    (!edits.is_empty()).then(|| {
-        let snippets: Vec<(String, String)> = edits
-            .iter()
-            .filter_map(|(text, _, snippet)| {
-                snippet.map(|snippet| ((*text).to_owned(), snippet.to_string()))
-            })
-            .collect();
-
+    (is_migrate_trigger || !edits.is_empty()).then(|| {
         lsp_types::CodeAction {
-            title: action.label,
+            title: action.label.clone(),
             kind: Some(match action.kind {
                 ink_analyzer::ActionKind::QuickFix => lsp_types::CodeActionKind::QUICKFIX,
                 ink_analyzer::ActionKind::Refactor => lsp_types::CodeActionKind::REFACTOR_REWRITE,
+                ink_analyzer::ActionKind::Migrate => lsp_types::CodeActionKind::REFACTOR_REWRITE,
                 _ => lsp_types::CodeActionKind::EMPTY,
             }),
-            edit: Some(lsp_types::WorkspaceEdit {
+            edit: (!is_migrate_trigger && !edits.is_empty()).then_some(lsp_types::WorkspaceEdit {
                 changes: Some(HashMap::from([(
-                    uri,
+                    uri.clone(),
                     edits
-                        .into_iter()
+                        .iter()
                         .map(|(text, range, _)| lsp_types::TextEdit {
-                            range,
-                            new_text: text.to_owned(),
+                            range: *range,
+                            new_text: text.to_string(),
                         })
                         .collect(),
                 )])),
                 ..Default::default()
             }),
-            // Add snippet for clients that have the middleware to apply code actions edits as snippets.
-            data: (!snippets.is_empty()).then(|| {
-                let mut snippets_map = serde_json::Map::with_capacity(snippets.len());
-                for (edit, snippet) in snippets {
-                    snippets_map.insert(edit, serde_json::Value::String(snippet));
-                }
-                let mut data = serde_json::Map::with_capacity(1);
-                data.insert(
-                    "snippets".to_owned(),
-                    serde_json::Value::Object(snippets_map),
-                );
-                serde_json::Value::Object(data)
+            data: if is_migrate_trigger {
+                // Add data for `codeAction/resolve`.
+                edit_resolve_support.then_some(serde_json::json!({
+                    "command": "migrateProject".to_owned(),
+                    "uri": uri
+                }))
+            } else {
+                // Add snippet for clients that have the middleware to apply code actions edits as snippets.
+                let snippets: Vec<(String, String)> = edits
+                    .into_iter()
+                    .filter_map(|(text, _, snippet)| {
+                        snippet.map(|snippet| (text.to_owned(), snippet.to_owned()))
+                    })
+                    .collect();
+                (!snippets.is_empty()).then(|| {
+                    let mut snippets_map = serde_json::Map::with_capacity(snippets.len());
+                    for (edit, snippet) in snippets {
+                        snippets_map.insert(edit, serde_json::Value::String(snippet));
+                    }
+                    let mut data = serde_json::Map::with_capacity(1);
+                    data.insert(
+                        "snippets".to_owned(),
+                        serde_json::Value::Object(snippets_map),
+                    );
+                    serde_json::Value::Object(data)
+                })
+            },
+            // Use `migrateProject` command for clients that can't resolve the `edit` property via
+            // `codeAction/resolve`.
+            command: (is_migrate_trigger && !edit_resolve_support).then_some(lsp_types::Command {
+                title: action.label,
+                command: "migrateProject".to_owned(),
+                arguments: Some(vec![serde_json::json!({
+                    "uri": uri
+                })]),
             }),
             ..Default::default()
         }

@@ -14,11 +14,12 @@ use lsp_types::request::Request;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use crate::dispatch::handlers::command;
+use crate::dispatch::handlers::command::{CreateProjectResponse, MigrateProjectResponse};
 use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
 use crate::translator::PositionTranslationContext;
 use crate::utils;
-use handlers::request::CreateProjectResponse;
 
 /// Implements the main loop for dispatching LSP requests, notifications and handling responses.
 pub fn main_loop(
@@ -96,6 +97,7 @@ impl Snapshot {
 
 const INITIALIZE_PROJECT_ID_PREFIX: &str = "initialize-project::";
 const SHOW_DOCUMENT_ID_PREFIX: &str = "show-document::";
+const MIGRATE_PROJECT_ID_PREFIX: &str = "migrate-project::";
 
 impl<'a> Dispatcher<'a> {
     /// Creates a dispatcher for an LSP server connection.
@@ -114,12 +116,23 @@ impl<'a> Dispatcher<'a> {
     /// Handles LSP requests and sends responses (if any) as appropriate.
     fn handle_request(&mut self, req: lsp_server::Request) -> anyhow::Result<()> {
         // Computes request response (if any).
-        let is_execute_command = req.method == lsp_types::request::ExecuteCommand::METHOD;
+        let cmd = if req.method == lsp_types::request::ExecuteCommand::METHOD {
+            req.params
+                .as_object()
+                .and_then(|params| params.get("command"))
+                .and_then(serde_json::Value::as_str)
+                .map(ToString::to_string)
+        } else {
+            None
+        };
         let mut router = RequestRouter::new(req, &self.snapshots, &self.client_capabilities);
         let result = router
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
             .process::<lsp_types::request::HoverRequest>(handlers::request::handle_hover)
             .process::<lsp_types::request::CodeActionRequest>(handlers::request::handle_code_action)
+            .process::<lsp_types::request::CodeActionResolveRequest>(
+                handlers::request::handle_code_action_resolve,
+            )
             .process::<lsp_types::request::InlayHintRequest>(handlers::request::handle_inlay_hint)
             .process::<lsp_types::request::SignatureHelpRequest>(
                 handlers::request::handle_signature_help,
@@ -130,68 +143,17 @@ impl<'a> Dispatcher<'a> {
             .finish();
 
         // Sends response (if any).
-        if let Some(mut resp) = result {
-            // Intercept non-empty `createProject` responses and create the project as a workspace edit
-            // (only if the client supports the resource operations and document changes).
-            if let Some(project) = (is_execute_command
-                && utils::can_create_project_via_workspace_edit(&self.client_capabilities))
-            .then_some(resp.result.as_ref())
-            .flatten()
-            .and_then(|value| serde_json::from_value::<CreateProjectResponse>(value.clone()).ok())
-            {
-                // Return an empty response.
-                resp.result = Some(serde_json::Value::Null);
-                self.send(resp.into())?;
-
-                // Create project files using a workspace edit.
-                let doc_changes = project
-                    .files
-                    .iter()
-                    .flat_map(|(uri, content)| {
-                        vec![
-                            lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Create(
-                                lsp_types::CreateFile {
-                                    uri: uri.clone(),
-                                    options: None,
-                                    annotation_id: None,
-                                },
-                            )),
-                            lsp_types::DocumentChangeOperation::Edit(lsp_types::TextDocumentEdit {
-                                text_document: lsp_types::OptionalVersionedTextDocumentIdentifier {
-                                    uri: uri.clone(),
-                                    version: None,
-                                },
-                                edits: vec![lsp_types::OneOf::Left(lsp_types::TextEdit {
-                                    range: lsp_types::Range::default(),
-                                    new_text: content.to_owned(),
-                                })],
-                            }),
-                        ]
-                    })
-                    .collect();
-                let params = lsp_types::ApplyWorkspaceEditParams {
-                    label: Some("new ink! project".to_owned()),
-                    edit: lsp_types::WorkspaceEdit {
-                        document_changes: Some(lsp_types::DocumentChanges::Operations(doc_changes)),
-                        ..Default::default()
-                    },
-                };
-                let req = lsp_server::Request::new(
-                    lsp_server::RequestId::from(format!(
-                        "{INITIALIZE_PROJECT_ID_PREFIX}{}",
-                        project.uri
-                    )),
-                    lsp_types::request::ApplyWorkspaceEdit::METHOD.to_owned(),
-                    params,
-                );
-                self.send(req.into())?;
+        if let Some(resp) = result {
+            if let Some(cmd) = cmd {
+                // Handles command responses.
+                self.process_command_response(&cmd, resp)?;
             } else {
                 // Otherwise return response.
                 self.send(resp.into())?;
             }
         }
 
-        // Process memory changes (if any) made by request handlers.
+        // Process memory changes made by request handlers (if any).
         self.process_changes()?;
 
         Ok(())
@@ -314,6 +276,116 @@ impl<'a> Dispatcher<'a> {
         Ok(())
     }
 
+    /// Handles command responses.
+    fn process_command_response(
+        &mut self,
+        cmd: &str,
+        resp: lsp_server::Response,
+    ) -> anyhow::Result<()> {
+        let req_data =
+            if cmd == command::CREATE_PROJECT
+                && utils::can_create_project_via_workspace_edit(&self.client_capabilities)
+            {
+                // Convert `createProject` response into a workspace edit
+                // (only if the client supports the resource operations and document changes).
+                resp.result
+                    .as_ref()
+                    .and_then(|value| {
+                        serde_json::from_value::<CreateProjectResponse>(value.clone()).ok()
+                    })
+                    .map(|project| {
+                        let doc_changes =
+                            project
+                                .files
+                                .iter()
+                                .flat_map(|(uri, content)| {
+                                    vec![
+                            lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Create(
+                                lsp_types::CreateFile {
+                                    uri: uri.clone(),
+                                    options: None,
+                                    annotation_id: None,
+                                },
+                            )),
+                            lsp_types::DocumentChangeOperation::Edit(lsp_types::TextDocumentEdit {
+                                text_document: lsp_types::OptionalVersionedTextDocumentIdentifier {
+                                    uri: uri.clone(),
+                                    version: None,
+                                },
+                                edits: vec![lsp_types::OneOf::Left(lsp_types::TextEdit {
+                                    range: lsp_types::Range::default(),
+                                    new_text: content.to_owned(),
+                                })],
+                            }),
+                        ]
+                                })
+                                .collect();
+                        let params = lsp_types::ApplyWorkspaceEditParams {
+                            label: Some("new ink! project".to_owned()),
+                            edit: lsp_types::WorkspaceEdit {
+                                document_changes: Some(lsp_types::DocumentChanges::Operations(
+                                    doc_changes,
+                                )),
+                                ..Default::default()
+                            },
+                        };
+                        (
+                            lsp_server::RequestId::from(format!(
+                                "{INITIALIZE_PROJECT_ID_PREFIX}{}",
+                                project.uri
+                            )),
+                            params,
+                        )
+                    })
+            } else if cmd == command::MIGRATE_PROJECT {
+                // Convert `migrateProject` response into a workspace edit.
+                resp.result
+                    .as_ref()
+                    .and_then(|value| {
+                        serde_json::from_value::<MigrateProjectResponse>(value.clone()).ok()
+                    })
+                    .map(|project| {
+                        let params = lsp_types::ApplyWorkspaceEditParams {
+                            label: Some("Migrate to ink! 5.0".to_owned()),
+                            edit: lsp_types::WorkspaceEdit {
+                                changes: Some(project.edits),
+                                ..Default::default()
+                            },
+                        };
+                        (
+                            lsp_server::RequestId::from(format!(
+                                "{MIGRATE_PROJECT_ID_PREFIX}{}",
+                                project.uri
+                            )),
+                            params,
+                        )
+                    })
+            } else {
+                None
+            };
+
+        if let Some((req_id, params)) = req_data {
+            // Return an empty response for commands that should be executed as workspace edits
+            // (e.g. `createProject` and `migrateProject`).
+            let mut empty_resp = resp.clone();
+            empty_resp.result = Some(serde_json::Value::Null);
+            self.send(empty_resp.into())?;
+
+            // Apply workspace edit.
+            let req = lsp_server::Request::new(
+                req_id,
+                lsp_types::request::ApplyWorkspaceEdit::METHOD.to_owned(),
+                params,
+            );
+            self.send(req.into())?;
+        } else {
+            // Otherwise return response.
+            self.send(resp.into())?;
+        }
+
+        Ok(())
+    }
+
     /// Sends an LSP message to the client.
     fn send(&self, msg: lsp_server::Message) -> anyhow::Result<()> {
         self.sender
@@ -322,10 +394,10 @@ impl<'a> Dispatcher<'a> {
     }
 }
 
-/// Parses the ink! project version from the Cargo.toml file for a given lib.rs file (if possible).
+/// Parses the ink! project version from the `Cargo.toml` file for a given `*.rs` file (if possible).
 fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<InkProjectVersion> {
     if let Ok(path) = doc_uri.to_file_path() {
-        if path.file_name().is_some_and(|name| name == "lib.rs") {
+        if path.extension().is_some_and(|ext| ext == "rs") {
             // Tries to find `Cargo.toml` in the same directory.
             // This is the typical setup for ink! projects created with `cargo contract new`.
             let mut cargo_toml_path = path.clone();

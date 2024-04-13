@@ -1,9 +1,6 @@
 //! LSP request handlers.
 
-use ink_analyzer::Version;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
+use super::command;
 use crate::dispatch::Snapshots;
 use crate::{translator, utils};
 
@@ -88,7 +85,7 @@ pub fn handle_hover(
 pub fn handle_code_action(
     params: lsp_types::CodeActionParams,
     snapshots: &Snapshots,
-    _: &lsp_types::ClientCapabilities,
+    client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<lsp_types::CodeActionResponse>> {
     // Gets document uri and retrieves document from memory.
     let uri = params.text_document.uri;
@@ -106,8 +103,13 @@ pub fn handle_code_action(
                     .actions(text_range)
                     .into_iter()
                     .filter_map(|action| {
-                        translator::to_lsp::code_action(action, uri.clone(), &snapshot.context)
-                            .map(Into::into)
+                        translator::to_lsp::code_action(
+                            action,
+                            uri.clone(),
+                            utils::code_action_edit_resolve_support(client_capabilities),
+                            &snapshot.context,
+                        )
+                        .map(Into::into)
                     })
                     .collect(),
             ))
@@ -115,6 +117,46 @@ pub fn handle_code_action(
         // Empty response for missing documents.
         None => Ok(None),
     }
+}
+
+/// Handles code action resolve request.
+pub fn handle_code_action_resolve(
+    mut code_action: lsp_types::CodeAction,
+    snapshots: &Snapshots,
+    client_capabilities: &lsp_types::ClientCapabilities,
+) -> anyhow::Result<lsp_types::CodeAction> {
+    // Only migration edits are computed lazily.
+    let Some((cmd, data)) = code_action
+        .data
+        .as_ref()
+        .and_then(serde_json::Value::as_object)
+        .and_then(|data| {
+            data.get("command")
+                .and_then(serde_json::Value::as_str)
+                .zip(Some(data))
+        })
+    else {
+        return Err(anyhow::format_err!("Missing command!"));
+    };
+    if cmd != command::MIGRATE_PROJECT {
+        return Err(anyhow::format_err!("Unsupported command: {}!", cmd));
+    }
+    let args = data
+        .get("uri")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|value| lsp_types::Url::parse(value).ok());
+    let Some(uri) = args else {
+        return Err(anyhow::format_err!("The `uri` argument is required!"));
+    };
+
+    // Computes migration edits.
+    let res = command::handle_migrate_project(&uri, snapshots, client_capabilities)?;
+    code_action.command = None;
+    code_action.edit = Some(lsp_types::WorkspaceEdit {
+        changes: Some(res.edits),
+        ..Default::default()
+    });
+    Ok(code_action)
 }
 
 /// Handles inlay hint request.
@@ -183,76 +225,55 @@ pub fn handle_signature_help(
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateProjectResponse {
-    pub name: String,
-    pub uri: lsp_types::Url,
-    pub files: HashMap<lsp_types::Url, String>,
-}
-
 /// Handles execute command request.
 pub fn handle_execute_command(
     params: lsp_types::ExecuteCommandParams,
-    _: &Snapshots,
-    _: &lsp_types::ClientCapabilities,
+    snapshots: &Snapshots,
+    client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<serde_json::Value>> {
     // Handles create project command.
-    if params.command == "createProject" {
-        let args = params
-            .arguments
-            .first()
-            .and_then(serde_json::Value::as_object)
-            .and_then(|arg| {
-                arg.get("name").and_then(|it| it.as_str()).zip(
-                    arg.get("root").and_then(|it| it.as_str()).and_then(|it| {
-                        lsp_types::Url::parse(&format!(
-                            "{it}{}",
-                            if it.ends_with('/') { "" } else { "/" }
-                        ))
-                        .ok()
-                    }),
-                )
-            });
-
-        match args {
-            Some((name, root)) => {
-                let uris = root
-                    .clone()
-                    .join("lib.rs")
-                    .ok()
-                    .zip(root.join("Cargo.toml").ok());
-                match uris {
-                    Some((lib_uri, cargo_uri)) => {
-                        match ink_analyzer::new_project(name.to_owned(), Version::V5) {
-                            Ok(project) => {
-                                // Returns create project edits.
-                                Ok(serde_json::to_value(CreateProjectResponse {
-                                    name: name.to_owned(),
-                                    uri: root,
-                                    files: HashMap::from([
-                                        (lib_uri, project.lib.plain),
-                                        (cargo_uri, project.cargo.plain),
-                                    ]),
-                                })
-                                .ok())
-                            }
-                            Err(_) => Err(anyhow::format_err!(
-                                "Failed to create ink! project: {name}\n\
-                            ink! project names must begin with an alphabetic character, \
-                            and only contain alphanumeric characters, underscores and hyphens"
-                            )),
-                        }
-                    }
-                    None => Err(anyhow::format_err!("Failed to create ink! project: {name}")),
-                }
-            }
-            // Error for missing or invalid args.
-            None => Err(anyhow::format_err!(
-                "The name and root arguments are required!"
-            )),
+    match params.command.as_str() {
+        command::CREATE_PROJECT => {
+            let args = params
+                .arguments
+                .first()
+                .and_then(serde_json::Value::as_object)
+                .and_then(|arg| {
+                    arg.get("name").and_then(|it| it.as_str()).zip(
+                        arg.get("root").and_then(|it| it.as_str()).and_then(|it| {
+                            lsp_types::Url::parse(&format!(
+                                "{it}{}",
+                                if it.ends_with('/') { "" } else { "/" }
+                            ))
+                            .ok()
+                        }),
+                    )
+                });
+            let Some((name, root)) = args else {
+                return Err(anyhow::format_err!(
+                    "The `name` and `root` arguments are required!"
+                ));
+            };
+            command::handle_create_project(name, &root)
+                .map(serde_json::to_value)
+                .map(Result::ok)
         }
-    } else {
-        Err(anyhow::format_err!("Unknown command: {}!", params.command))
+        command::MIGRATE_PROJECT => {
+            let args = params
+                .arguments
+                .first()
+                .and_then(serde_json::Value::as_object)
+                .and_then(|arg| arg.get("uri"))
+                .and_then(serde_json::Value::as_str)
+                .and_then(|value| lsp_types::Url::parse(value).ok());
+            let Some(uri) = args else {
+                return Err(anyhow::format_err!("The `uri` argument is required!"));
+            };
+            command::handle_migrate_project(&uri, snapshots, client_capabilities)
+                .map(serde_json::to_value)
+                .map(Result::ok)
+        }
+        _ => Err(anyhow::format_err!("Unknown command: {}!", params.command)),
     }
 }
 
@@ -260,6 +281,7 @@ pub fn handle_execute_command(
 mod tests {
     use super::*;
     use crate::test_utils::init_snapshots;
+    use ink_analyzer::Version;
     use test_utils::simple_client_config;
 
     #[test]
@@ -497,40 +519,5 @@ mod tests {
             assert_eq!(params, vec![[0, 21], [23, 38]]);
             assert_eq!(signature_help.active_parameter.unwrap(), 0);
         }
-    }
-
-    #[test]
-    fn handle_execute_command_new_project_works() {
-        // Creates test project.
-        let project_name = "hello_ink";
-        let project_uri = lsp_types::Url::parse("file:///tmp/hello_ink/").unwrap();
-
-        // Calls handler and verifies that the expected response is returned.
-        let result = handle_execute_command(
-            lsp_types::ExecuteCommandParams {
-                command: "createProject".to_owned(),
-                arguments: vec![serde_json::json!({
-                    "name": project_name,
-                    "root": project_uri
-                })],
-                work_done_progress_params: Default::default(),
-            },
-            &Snapshots::new(),
-            &simple_client_config(),
-        );
-        assert!(result.is_ok());
-        let resp: CreateProjectResponse = serde_json::from_value(result.unwrap().unwrap()).unwrap();
-        // Verifies project metadata.
-        assert_eq!(resp.name, project_name);
-        assert_eq!(resp.uri, project_uri);
-        // Verifies project files and their contents.
-        let lib_uri = project_uri.clone().join("lib.rs").unwrap();
-        let cargo_uri = project_uri.clone().join("Cargo.toml").unwrap();
-        let lib_content = resp.files.get(&lib_uri).unwrap();
-        let cargo_content = resp.files.get(&cargo_uri).unwrap();
-        assert!(resp.files.contains_key(&lib_uri));
-        assert!(resp.files.contains_key(&cargo_uri));
-        assert!(lib_content.contains("#[ink::contract]\npub mod hello_ink {"));
-        assert!(cargo_content.contains(r#"name = "hello_ink""#));
     }
 }

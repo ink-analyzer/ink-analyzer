@@ -1,7 +1,7 @@
 //! ink! attribute code/intent actions.
 
 use ink_analyzer_ir::syntax::TextRange;
-use ink_analyzer_ir::InkFile;
+use ink_analyzer_ir::{InkAttributeKind, InkFile, InkMacroKind};
 
 use super::Action;
 use crate::analysis::utils;
@@ -22,6 +22,26 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                 .is_some_and(utils::is_trait_definition_impl_message)
             {
                 return;
+            }
+
+            if version == Version::V4
+                && matches!(
+                    ink_attr.kind(),
+                    InkAttributeKind::Macro(
+                        InkMacroKind::Contract
+                            | InkMacroKind::TraitDefinition
+                            | InkMacroKind::ChainExtension
+                            | InkMacroKind::StorageItem
+                    )
+                )
+            {
+                // Adds ink! 4.x project to ink! 5.0 action.
+                results.push(Action {
+                    label: "Migrate to ink! 5.0".to_owned(),
+                    kind: ActionKind::Migrate,
+                    range,
+                    edits: Vec::new(),
+                });
             }
 
             // Suggests ink! attribute arguments based on the context.
@@ -72,8 +92,34 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::verify_actions;
     use ink_analyzer_ir::syntax::TextSize;
-    use test_utils::{parse_offset_at, remove_whitespace};
+    use test_utils::{parse_offset_at, TestResultAction, TestResultTextRange};
+
+    macro_rules! prepend_migrate {
+        ($version: expr, $list: expr) => {
+            if $version == Version::V4 {
+                vec![TestResultAction {
+                    label: "Migrate",
+                    edits: vec![],
+                }]
+            } else {
+                vec![]
+            }
+            .into_iter()
+            .chain($list)
+            .collect::<Vec<TestResultAction>>()
+        };
+        ($list: expr) => {
+            prepend_migrate!(Version::V4, $list)
+        };
+        () => {
+            vec![TestResultAction {
+                label: "Migrate",
+                edits: vec![],
+            }]
+        };
+    }
 
     #[test]
     fn actions_works() {
@@ -88,7 +134,14 @@ mod tests {
                         }
                         "#,
                         Some("<-#["),
-                        vec![(", anonymous", Some("<-)]"), Some("<-)]"))],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", anonymous",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }],
                     ),
                     (
                         r#"
@@ -97,7 +150,14 @@ mod tests {
                         }
                         "#,
                         Some("ink("),
-                        vec![(", anonymous", Some("<-)]"), Some("<-)]"))],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", anonymous",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }],
                     ),
                     (
                         r#"
@@ -106,7 +166,14 @@ mod tests {
                         }
                         "#,
                         Some("event)]"),
-                        vec![(", anonymous", Some("<-)]"), Some("<-)]"))],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", anonymous",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }],
                     ),
                     (
                         r#"
@@ -115,7 +182,14 @@ mod tests {
                         }
                         "#,
                         Some("<-#["),
-                        vec![("anonymous", Some("<-)]"), Some("<-)]"))],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "anonymous",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }],
                     ),
                     (
                         r#"
@@ -124,7 +198,7 @@ mod tests {
                         }
                         "#,
                         Some("<-#["),
-                        vec![],
+                        prepend_migrate!(),
                     ),
                     (
                         r#"
@@ -133,7 +207,14 @@ mod tests {
                         }
                         "#,
                         Some("<-#["),
-                        vec![(", handle_status=true", Some("<-)]"), Some("<-)]"))],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", handle_status = true",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }],
                     ),
                     (
                         r#"
@@ -143,13 +224,30 @@ mod tests {
                         "#,
                         Some("<-#["),
                         vec![
-                            (r#"(additional_contracts="")"#, Some("<-]"), Some("<-]")),
-                            (
-                                "(environment=ink::env::DefaultEnvironment)",
-                                Some("<-]"),
-                                Some("<-]"),
-                            ),
-                            (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(additional_contracts = "")"#,
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(environment = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
                         ],
                     ),
                     (
@@ -164,7 +262,14 @@ mod tests {
                         }
                         "#,
                         Some("<-#[ink(handle_status=true)]"),
-                        vec![("extension=2,", Some("#[ink(->"), Some("#[ink(->"))],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "extension = 2,",
+                                start_pat: Some("#[ink(->"),
+                                end_pat: Some("#[ink(->"),
+                            }],
+                        }],
                     ),
                 ],
             ),
@@ -179,12 +284,22 @@ mod tests {
                         "#,
                         Some("<-#["),
                         vec![
-                            ("(anonymous)", Some("#[ink::event"), Some("#[ink::event")),
-                            (
-                                r#"(signature_topic="")"#,
-                                Some("#[ink::event"),
-                                Some("#[ink::event"),
-                            ),
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(anonymous)",
+                                    start_pat: Some("#[ink::event"),
+                                    end_pat: Some("#[ink::event"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(signature_topic = "")"#,
+                                    start_pat: Some("#[ink::event"),
+                                    end_pat: Some("#[ink::event"),
+                                }],
+                            },
                         ],
                     ),
                     (
@@ -195,8 +310,22 @@ mod tests {
                         "#,
                         Some("<-#["),
                         vec![
-                            (", anonymous", Some("<-)]"), Some("<-)]")),
-                            (r#", signature_topic="""#, Some("<-)]"), Some("<-)]")),
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", anonymous",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", signature_topic = """#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
                         ],
                     ),
                     (
@@ -207,8 +336,22 @@ mod tests {
                         "#,
                         Some("ink("),
                         vec![
-                            (", anonymous", Some("<-)]"), Some("<-)]")),
-                            (r#", signature_topic="""#, Some("<-)]"), Some("<-)]")),
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", anonymous",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", signature_topic = """#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
                         ],
                     ),
                     (
@@ -219,8 +362,22 @@ mod tests {
                         "#,
                         Some("event)]"),
                         vec![
-                            (", anonymous", Some("<-)]"), Some("<-)]")),
-                            (r#", signature_topic="""#, Some("<-)]"), Some("<-)]")),
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", anonymous",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", signature_topic = """#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
                         ],
                     ),
                     (
@@ -231,8 +388,22 @@ mod tests {
                         "#,
                         Some("<-#["),
                         vec![
-                            ("anonymous", Some("<-)]"), Some("<-)]")),
-                            (r#"signature_topic="""#, Some("<-)]"), Some("<-)]")),
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "anonymous",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"signature_topic = """#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
                         ],
                     ),
                     (
@@ -242,11 +413,14 @@ mod tests {
                         }
                         "#,
                         Some("<-#["),
-                        vec![(
-                            "(extension = 1)",
-                            Some("#[ink::chain_extension"),
-                            Some("#[ink::chain_extension"),
-                        )],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "(extension = 1)",
+                                start_pat: Some("#[ink::chain_extension"),
+                                end_pat: Some("#[ink::chain_extension"),
+                            }],
+                        }],
                     ),
                     (
                         r#"
@@ -255,7 +429,14 @@ mod tests {
                         }
                         "#,
                         Some("<-#["),
-                        vec![(", handle_status=true", Some("<-)]"), Some("<-)]"))],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", handle_status = true",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }],
                     ),
                     (
                         r#"
@@ -265,12 +446,22 @@ mod tests {
                         "#,
                         Some("<-#["),
                         vec![
-                            ("(backend(node))", Some("<-]"), Some("<-]")),
-                            (
-                                "(environment=ink::env::DefaultEnvironment)",
-                                Some("<-]"),
-                                Some("<-]"),
-                            ),
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(backend(node))",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(environment = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
                         ],
                     ),
                     (
@@ -285,7 +476,14 @@ mod tests {
                         }
                         "#,
                         Some("<-#[ink(handle_status=true)]"),
-                        vec![("function=2,", Some("#[ink(->"), Some("#[ink(->"))],
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "function = 2,",
+                                start_pat: Some("#[ink(->"),
+                                end_pat: Some("#[ink(->"),
+                            }],
+                        }],
                     ),
                 ],
             ),
@@ -354,14 +552,27 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![
-                        (
-                            "(env=ink::env::DefaultEnvironment)",
-                            Some("<-]"),
-                            Some("<-]"),
-                        ),
-                        (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
-                    ],
+                    prepend_migrate!(
+                        version,
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                        ]
+                    ),
                 ),
                 (
                     r#"
@@ -370,14 +581,27 @@ mod tests {
                     }
                     "#,
                     Some("ink::"),
-                    vec![
-                        (
-                            "(env=ink::env::DefaultEnvironment)",
-                            Some("<-]"),
-                            Some("<-]"),
-                        ),
-                        (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
-                    ],
+                    prepend_migrate!(
+                        version,
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                        ]
+                    ),
                 ),
                 (
                     r#"
@@ -386,14 +610,27 @@ mod tests {
                     }
                     "#,
                     Some("contract]"),
-                    vec![
-                        (
-                            "(env=ink::env::DefaultEnvironment)",
-                            Some("<-]"),
-                            Some("<-]"),
-                        ),
-                        (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
-                    ],
+                    prepend_migrate!(
+                        version,
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                        ]
+                    ),
                 ),
                 (
                     r#"
@@ -402,7 +639,17 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![(r#", keep_attr="""#, Some("<-)]"), Some("<-)]"))],
+                    prepend_migrate!(
+                        version,
+                        [TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#", keep_attr = """#,
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }]
+                    ),
                 ),
                 (
                     r#"
@@ -411,7 +658,17 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![(r#"keep_attr="""#, Some("<-)]"), Some("<-)]"))],
+                    prepend_migrate!(
+                        version,
+                        [TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#"keep_attr = """#,
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }]
+                    ),
                 ),
                 (
                     r#"
@@ -420,10 +677,27 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![
-                        (r#"(keep_attr="")"#, Some("<-]"), Some("<-]")),
-                        (r#"(namespace="my_namespace")"#, Some("<-]"), Some("<-]")),
-                    ],
+                    prepend_migrate!(
+                        version,
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(keep_attr = "")"#,
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(namespace = "my_namespace")"#,
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            },
+                        ]
+                    ),
                 ),
                 (
                     r#"
@@ -432,7 +706,17 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![(r#", keep_attr="""#, Some("<-)]"), Some("<-)]"))],
+                    prepend_migrate!(
+                        version,
+                        [TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: r#", keep_attr = """#,
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        }]
+                    ),
                 ),
                 (
                     r#"
@@ -441,7 +725,17 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![("(derive=true)", Some("<-]"), Some("<-]"))],
+                    prepend_migrate!(
+                        version,
+                        [TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "(derive = true)",
+                                start_pat: Some("<-]"),
+                                end_pat: Some("<-]"),
+                            }],
+                        }]
+                    ),
                 ),
                 (
                     r#"
@@ -450,7 +744,17 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![("(derive=true)", Some("<-]"), Some("<-]"))],
+                    prepend_migrate!(
+                        version,
+                        [TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "(derive = true)",
+                                start_pat: Some("<-]"),
+                                end_pat: Some("<-]"),
+                            }],
+                        }]
+                    ),
                 ),
                 (
                     r#"
@@ -459,7 +763,17 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![("(derive=true)", Some("<-]"), Some("<-]"))],
+                    prepend_migrate!(
+                        version,
+                        [TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "(derive = true)",
+                                start_pat: Some("<-]"),
+                                end_pat: Some("<-]"),
+                            }],
+                        }]
+                    ),
                 ),
                 (
                     r#"
@@ -510,9 +824,30 @@ mod tests {
                     "#,
                     Some("<-#["),
                     vec![
-                        (", default", Some("<-)]"), Some("<-)]")),
-                        (", payable", Some("<-)]"), Some("<-)]")),
-                        (", selector=1", Some("<-)]"), Some("<-)]")),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 1",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
                     ],
                 ),
                 (
@@ -523,8 +858,22 @@ mod tests {
                     "#,
                     Some("<-#["),
                     vec![
-                        (", default", Some("<-)]"), Some("<-)]")),
-                        (", selector=1", Some("<-)]"), Some("<-)]")),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 1",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
                     ],
                 ),
                 (
@@ -536,8 +885,22 @@ mod tests {
                     "#,
                     Some("<-#["),
                     vec![
-                        (", default", Some("<-)]"), Some("<-)]")),
-                        (", selector=1", Some("<-)]"), Some("<-)]")),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 1",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
                     ],
                 ),
                 (
@@ -549,8 +912,22 @@ mod tests {
                     "#,
                     Some("<-#[->"),
                     vec![
-                        (", default", Some("<-)]->"), Some("<-)]->")),
-                        (", selector=1", Some("<-)]->"), Some("<-)]->")),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("<-)]->"),
+                                end_pat: Some("<-)]->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 1",
+                                start_pat: Some("<-)]->"),
+                                end_pat: Some("<-)]->"),
+                            }],
+                        },
                     ],
                 ),
                 (
@@ -561,9 +938,30 @@ mod tests {
                     "#,
                     Some("<-#["),
                     vec![
-                        (", default", Some("<-)]"), Some("<-)]")),
-                        (", payable", Some("<-)]"), Some("<-)]")),
-                        (", selector=1", Some("<-)]"), Some("<-)]")),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 1",
+                                start_pat: Some("<-)]"),
+                                end_pat: Some("<-)]"),
+                            }],
+                        },
                     ],
                 ),
                 // Unique ids.
@@ -582,21 +980,30 @@ mod tests {
                     "#,
                     Some("<-#[ink(constructor)]"),
                     vec![
-                        (
-                            ", default",
-                            Some("#[ink(constructor->"),
-                            Some("#[ink(constructor->"),
-                        ),
-                        (
-                            ", payable",
-                            Some("#[ink(constructor->"),
-                            Some("#[ink(constructor->"),
-                        ),
-                        (
-                            ", selector=2",
-                            Some("#[ink(constructor->"),
-                            Some("#[ink(constructor->"),
-                        ),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("#[ink(constructor->"),
+                                end_pat: Some("#[ink(constructor->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("#[ink(constructor->"),
+                                end_pat: Some("#[ink(constructor->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 2",
+                                start_pat: Some("#[ink(constructor->"),
+                                end_pat: Some("#[ink(constructor->"),
+                            }],
+                        },
                     ],
                 ),
                 (
@@ -614,21 +1021,30 @@ mod tests {
                     "#,
                     Some("<-#[ink(message)]"),
                     vec![
-                        (
-                            ", default",
-                            Some("#[ink(message->"),
-                            Some("#[ink(message->"),
-                        ),
-                        (
-                            ", payable",
-                            Some("#[ink(message->"),
-                            Some("#[ink(message->"),
-                        ),
-                        (
-                            ", selector=2",
-                            Some("#[ink(message->"),
-                            Some("#[ink(message->"),
-                        ),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 2",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
                     ],
                 ),
                 (
@@ -644,21 +1060,30 @@ mod tests {
                     "#,
                     Some("<-#[ink(message)]"),
                     vec![
-                        (
-                            ", default",
-                            Some("#[ink(message->"),
-                            Some("#[ink(message->"),
-                        ),
-                        (
-                            ", payable",
-                            Some("#[ink(message->"),
-                            Some("#[ink(message->"),
-                        ),
-                        (
-                            ", selector=2",
-                            Some("#[ink(message->"),
-                            Some("#[ink(message->"),
-                        ),
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", default",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", payable",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: ", selector = 2",
+                                start_pat: Some("#[ink(message->"),
+                                end_pat: Some("#[ink(message->"),
+                            }],
+                        },
                     ],
                 ),
             ]
@@ -671,26 +1096,8 @@ mod tests {
                 let mut results = Vec::new();
                 actions(&mut results, &InkFile::parse(code), range, version);
 
-                assert_eq!(
-                    results
-                        .into_iter()
-                        .map(|action| (
-                            remove_whitespace(action.edits[0].text.clone()),
-                            action.edits[0].range
-                        ))
-                        .collect::<Vec<(String, TextRange)>>(),
-                    expected_results
-                        .into_iter()
-                        .map(|(edit, pat_start, pat_end)| (
-                            remove_whitespace(edit.to_owned()),
-                            TextRange::new(
-                                TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
-                                TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
-                            )
-                        ))
-                        .collect::<Vec<(String, TextRange)>>(),
-                    "code: {code}"
-                );
+                // Verifies actions.
+                verify_actions(code, &results, &expected_results);
             }
         }
     }

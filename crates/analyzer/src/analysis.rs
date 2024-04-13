@@ -71,6 +71,8 @@ impl Analysis {
             .chain(actions::actions(&self.file, range, self.version))
             // Deduplicate by edits.
             .unique_by(|item| item.edits.clone())
+            // Sorts actions by kind.
+            .sorted_by_key(|item| item.kind)
             .collect()
     }
 

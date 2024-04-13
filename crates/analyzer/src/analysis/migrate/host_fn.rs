@@ -99,7 +99,9 @@ impl Visitor for BodyVisitor {
         // Represents a `build_call::<..>(..)`, `build_create::<..>(..)`,
         // `instantiate_contract::<..>(..)` or `invoke_contract::<..>(..)` call.
         enum HostFnWrapper {
+            #[allow(dead_code)]
             BuildCall(ast::Path),
+            #[allow(dead_code)]
             BuildCreate(ast::Path),
             InstantiateContract(ast::Path),
             InvokeContract(ast::Path),
