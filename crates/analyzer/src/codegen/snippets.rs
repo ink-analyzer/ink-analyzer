@@ -14,9 +14,9 @@ pub struct ${1:Event} {
     $2
 }"#;
 
-pub const EVENT_V2_PLAIN: &str = r#"#[ink::event]
+pub const EVENT_PLAIN_V2: &str = r#"#[ink::event]
 pub struct Event {}"#;
-pub const EVENT_V2_SNIPPET: &str = r#"#[ink::event]
+pub const EVENT_SNIPPET_V2: &str = r#"#[ink::event]
 pub struct ${1:Event} {
     $2
 }"#;
@@ -57,29 +57,42 @@ fn my_extension();"#;
 pub const EXTENSION_FN_SNIPPET: &str = r#"#[ink(extension = ${1:1})]
 fn ${2:my_extension}();"#;
 
-pub const EXTENSION_FN_V5_PLAIN: &str = r#"#[ink(function = 1)]
+pub const EXTENSION_FN_PLAIN_V5: &str = r#"#[ink(function = 1)]
 fn my_function();"#;
-pub const EXTENSION_FN_V5_SNIPPET: &str = r#"#[ink(function = ${1:1})]
+pub const EXTENSION_FN_SNIPPET_V5: &str = r#"#[ink(function = ${1:1})]
 fn ${2:my_function}();"#;
 
 pub const INK_TEST_PLAIN: &str = r#"#[ink::test]
-pub fn it_works() {
+fn it_works() {
     todo!()
 }"#;
 pub const INK_TEST_SNIPPET: &str = r#"#[ink::test]
-pub fn ${1:it_works}() {
+fn ${1:it_works}() {
     ${2:todo!()}
 }"#;
 
 pub const INK_E2E_TEST_PLAIN: &str = r#"#[ink_e2e::test]
-pub fn it_works(mut client: ink_e2e::Client<C, E>) -> std::result::Result<(), Box<dyn std::error::Error>> {
+async fn it_works(mut client: ink_e2e::Client<C, E>) -> std::result::Result<(), Box<dyn std::error::Error>> {
     todo!();
 
     Ok(())
 }"#;
 pub const INK_E2E_TEST_SNIPPET: &str = r#"#[ink_e2e::test]
-pub fn ${1:it_works}(${2:mut client: ink_e2e::Client<C, E>})${3: -> std::result::Result<(), Box<dyn std::error::Error>>} {
+async fn ${1:it_works}(${2:mut client: ink_e2e::Client<C, E>}) -> ${3:std::result::Result<(), Box<dyn std::error::Error>>} {
     ${4:todo!();}
+
+    Ok(())
+}"#;
+
+pub const INK_E2E_TEST_PLAIN_V5: &str = r#"#[ink_e2e::test]
+async fn it_works<Client: E2EBackend>(mut client: Client) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    todo!();
+
+    Ok(())
+}"#;
+pub const INK_E2E_TEST_SNIPPET_V5: &str = r#"#[ink_e2e::test]
+async fn ${1:it_works}<${2:Client: E2EBackend}>(${3:mut client: Client}) -> ${4:std::result::Result<(), Box<dyn std::error::Error>>} {
+    ${5:todo!();}
 
     Ok(())
 }"#;
@@ -108,7 +121,7 @@ pub mod my_contract {
         use super::*;
 
         #[ink::test]
-        pub fn it_works() {
+        fn it_works() {
             todo!()
         }
     }
@@ -120,7 +133,7 @@ pub mod my_contract {
         type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
         #[ink_e2e::test]
-        pub fn it_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+        async fn it_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
             todo!();
 
             Ok(())
@@ -153,7 +166,7 @@ pub mod ${1:my_contract} {
         use super::*;
 
         #[ink::test]
-        pub fn ${10:it_works}() {
+        fn ${10:it_works}() {
             ${11:todo!()}
         }
     }
@@ -165,8 +178,97 @@ pub mod ${1:my_contract} {
         type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
         #[ink_e2e::test]
-        pub fn ${12:it_works}(${13:mut client: ink_e2e::Client<C, E>})${14: -> E2EResult<()>} {
+        async fn ${12:it_works}(${13:mut client: ink_e2e::Client<C, E>}) -> ${14:E2EResult<()>} {
             ${15:todo!();}
+
+            Ok(())
+        }
+    }
+}"#;
+
+pub const CONTRACT_PLAIN_V5: &str = r#"#![cfg_attr(not(feature = "std"), no_std)]
+
+#[ink::contract]
+pub mod my_contract {
+    #[ink(storage)]
+    pub struct MyContract {}
+
+    impl MyContract {
+        #[ink(constructor)]
+        pub fn new() -> Self {
+            todo!()
+        }
+
+        #[ink(message)]
+        pub fn my_message(&self) {
+            todo!()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[ink::test]
+        fn it_works() {
+            todo!()
+        }
+    }
+
+    #[cfg(all(test, feature = "e2e-tests"))]
+    mod e2e_tests {
+        use super::*;
+
+        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+        #[ink_e2e::test]
+        async fn it_works<Client: E2EBackend>(mut client: Client) -> E2EResult<()> {
+            todo!();
+
+            Ok(())
+        }
+    }
+}"#;
+pub const CONTRACT_SNIPPET_V5: &str = r#"#![cfg_attr(not(feature = "std"), no_std)]
+
+#[ink::contract]
+pub mod ${1:my_contract} {
+    #[ink(storage)]
+    pub struct ${2:MyContract} {
+        $3
+    }
+
+    impl ${2:MyContract} {
+        #[ink(constructor)]
+        pub fn ${4:new}() -> ${5:Self} {
+            ${6:todo!()}
+        }
+
+        #[ink(message)]
+        pub fn ${7:my_message}(&${8:self}) {
+            ${9:todo!()}
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[ink::test]
+        fn ${10:it_works}() {
+            ${11:todo!()}
+        }
+    }
+
+    #[cfg(all(test, feature = "e2e-tests"))]
+    mod e2e_tests {
+        use super::*;
+
+        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+        #[ink_e2e::test]
+        async fn ${12:it_works}<${13:Client: E2EBackend}>(${14:mut client: Client}) -> ${15:E2EResult<()>} {
+            ${16:todo!();}
 
             Ok(())
         }
@@ -229,7 +331,7 @@ impl ink::env::chain_extension::FromStatusCode for ${2:CustomErrorCode} {
   }
 }"#;
 
-pub const CHAIN_EXTENSION_V5_PLAIN: &str = r#"#[ink::chain_extension(extension = 1)]
+pub const CHAIN_EXTENSION_PLAIN_V5: &str = r#"#[ink::chain_extension(extension = 1)]
 pub trait ChainExtension {
     type ErrorCode = CustomErrorCode;
 
@@ -251,7 +353,7 @@ impl ink::env::chain_extension::FromStatusCode for CustomErrorCode {
     }
   }
 }"#;
-pub const CHAIN_EXTENSION_V5_SNIPPET: &str = r#"#[ink::chain_extension(extension = ${1:1})]
+pub const CHAIN_EXTENSION_SNIPPET_V5: &str = r#"#[ink::chain_extension(extension = ${1:1})]
 pub trait ${2:ChainExtension} {
     type ErrorCode = ${3:CustomErrorCode};
 
@@ -281,13 +383,69 @@ pub ${1:struct} ${2:StorageItem} {
     $3
 }"#;
 
-pub const ENVIRONMENT_DEF: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+pub const ENVIRONMENT_PLAIN: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum MyEnvironment {}"#;
+pub enum MyEnvironment {}
 
-pub const ENVIRONMENT_DEF_V5: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+impl ink::env::Environment for MyEnvironment {
+    const MAX_EVENT_TOPICS: usize = 4;
+
+    type AccountId = ::ink::primitives::AccountId;
+    type Balance = u128;
+    type Hash = ::ink::primitives::Hash;
+    type Timestamp = u64;
+    type BlockNumber = u32;
+    type ChainExtension = ::ink::env::NoChainExtension;
+}"#;
+
+pub const ENVIRONMENT_SNIPPET: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub ${1:enum} ${2:MyEnvironment} {
+    $3
+}
+
+impl ink::env::Environment for ${4:MyEnvironment} {
+    const MAX_EVENT_TOPICS: usize = ${5:4};
+
+    type AccountId = ${6:::ink::primitives::AccountId};
+    type Balance = ${7:u128};
+    type Hash = ${8:::ink::primitives::Hash};
+    type Timestamp = ${9:u64};
+    type BlockNumber = ${10:u32};
+    type ChainExtension = ${11:::ink::env::NoChainExtension};
+}"#;
+
+pub const ENVIRONMENT_PLAIN_V5: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
 #[ink::scale_derive(TypeInfo)]
-pub enum MyEnvironment {}"#;
+pub enum MyEnvironment {}
+
+impl ink::env::Environment for MyEnvironment {
+    const MAX_EVENT_TOPICS: usize = 4;
+
+    type AccountId = ::ink::primitives::AccountId;
+    type Balance = u128;
+    type Hash = ::ink::primitives::Hash;
+    type Timestamp = u64;
+    type BlockNumber = u32;
+    type ChainExtension = ::ink::env::NoChainExtension;
+}"#;
+
+pub const ENVIRONMENT_SNIPPET_V5: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+#[ink::scale_derive(TypeInfo)]
+pub ${1:enum} ${2:MyEnvironment} {
+    $3
+}
+
+impl ink::env::Environment for ${4:MyEnvironment} {
+    const MAX_EVENT_TOPICS: usize = ${5:4};
+
+    type AccountId = ${6:::ink::primitives::AccountId};
+    type Balance = ${7:u128};
+    type Hash = ${8:::ink::primitives::Hash};
+    type Timestamp = ${9:u64};
+    type BlockNumber = ${10:u32};
+    type ChainExtension = ${11:::ink::env::NoChainExtension};
+}"#;
 
 pub const ENVIRONMENT_IMPL_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironment {
     const MAX_EVENT_TOPICS: usize = 4;
@@ -300,15 +458,15 @@ pub const ENVIRONMENT_IMPL_PLAIN: &str = r#"impl ink::env::Environment for MyEnv
     type ChainExtension = ::ink::env::NoChainExtension;
 }"#;
 
-pub const ENVIRONMENT_IMPL_SNIPPET: &str = r#"impl ink::env::Environment for MyEnvironment {
-    const MAX_EVENT_TOPICS: usize = ${1:4};
+pub const ENVIRONMENT_IMPL_SNIPPET: &str = r#"impl ink::env::Environment for ${1:MyEnvironment} {
+    const MAX_EVENT_TOPICS: usize = ${2:4};
 
-    type AccountId = ${2:::ink::primitives::AccountId};
-    type Balance = ${3:u128};
-    type Hash = ${4:::ink::primitives::Hash};
-    type Timestamp = ${5:u64};
-    type BlockNumber = ${6:u32};
-    type ChainExtension = ${7:::ink::env::NoChainExtension};
+    type AccountId = ${3:::ink::primitives::AccountId};
+    type Balance = ${4:u128};
+    type Hash = ${5:::ink::primitives::Hash};
+    type Timestamp = ${6:u64};
+    type BlockNumber = ${7:u32};
+    type ChainExtension = ${8:::ink::env::NoChainExtension};
 }"#;
 
 pub const FROM_STATUS_CODE_IMPL_PLAIN: &str = r#"impl ink::env::chain_extension::FromStatusCode for MyErrorCode {

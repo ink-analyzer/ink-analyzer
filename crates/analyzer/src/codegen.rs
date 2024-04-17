@@ -2,7 +2,9 @@
 
 pub mod snippets;
 
-use crate::codegen::snippets::{CARGO_TOML_PLAIN_V5, CARGO_TOML_SNIPPET_V5};
+use crate::codegen::snippets::{
+    CARGO_TOML_PLAIN_V5, CARGO_TOML_SNIPPET_V5, CONTRACT_PLAIN_V5, CONTRACT_SNIPPET_V5,
+};
 use crate::{utils, Version};
 use snippets::{CARGO_TOML_PLAIN, CARGO_TOML_SNIPPET, CONTRACT_PLAIN, CONTRACT_SNIPPET};
 
@@ -66,13 +68,21 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
     Ok(Project {
         // Generates `lib.rs`.
         lib: ProjectFile {
-            plain: CONTRACT_PLAIN
+            plain: if version == Version::V5 {
+                CONTRACT_PLAIN_V5
+            } else {
+                CONTRACT_PLAIN
+            }
+            .replace("my_contract", &module_name)
+            .replace("MyContract", &struct_name),
+            snippet: Some(
+                if version == Version::V5 {
+                    CONTRACT_SNIPPET_V5
+                } else {
+                    CONTRACT_SNIPPET
+                }
                 .replace("my_contract", &module_name)
                 .replace("MyContract", &struct_name),
-            snippet: Some(
-                CONTRACT_SNIPPET
-                    .replace("my_contract", &module_name)
-                    .replace("MyContract", &struct_name),
             ),
         },
         // Generates `Cargo.toml`.

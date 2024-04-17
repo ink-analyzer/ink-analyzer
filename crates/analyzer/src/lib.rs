@@ -73,8 +73,8 @@ mod utils;
 
 pub use self::{
     analysis::{
-        Action, ActionKind, Analysis, Completion, Diagnostic, Hover, InlayHint, Severity,
-        SignatureHelp, TextEdit,
+        Action, ActionKind, Analysis, Completion, CompletionKind, Diagnostic, Hover, InlayHint,
+        Severity, SignatureHelp, TextEdit,
     },
     codegen::{new_project, Error, Project, ProjectFile},
 };

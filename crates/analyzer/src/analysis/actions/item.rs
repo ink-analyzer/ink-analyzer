@@ -319,7 +319,7 @@ fn item_ink_entity_actions(
                         add_migrate(results, utils::contract_declaration_range(&contract));
                     }
 
-                    // Adds ink! storage if it doesn't exist.
+                    // Adds ink! storage (if it doesn't exist).
                     if contract.storage().is_none() {
                         add_result_opt!(entity::add_storage(
                             &contract,
@@ -341,7 +341,7 @@ fn item_ink_entity_actions(
                     }
 
                     // Adds ink! event.
-                    add_result_opt!(entity::add_event(
+                    add_result_opt!(entity::add_event_v1(
                         &contract,
                         ActionKind::Refactor,
                         range_option,
@@ -407,6 +407,7 @@ fn item_ink_entity_actions(
                             module,
                             ActionKind::Refactor,
                             range_option,
+                            version
                         ));
                     }
                 }
@@ -474,7 +475,7 @@ fn item_ink_entity_actions(
                                     );
                                 }
 
-                                // Add `ErrorCode` if it doesn't exist.
+                                // Add `ErrorCode` type (if it doesn't exist).
                                 if chain_extension.error_code().is_none() {
                                     add_result_opt!(entity::add_error_code(
                                         &chain_extension,
@@ -505,7 +506,7 @@ fn item_ink_entity_actions(
                                 }
 
                                 // Adds ink! message declaration.
-                                add_result_opt!(entity::add_message_to_trait_definition(
+                                add_result_opt!(entity::add_message_to_trait_def(
                                     &trait_definition,
                                     ActionKind::Refactor,
                                     range_option,
@@ -595,7 +596,12 @@ fn root_ink_entity_actions(
 
     if file.contracts().is_empty() {
         // Adds ink! contract.
-        results.push(entity::add_contract(range, ActionKind::Refactor, None));
+        results.push(entity::add_contract(
+            range,
+            ActionKind::Refactor,
+            None,
+            version,
+        ));
     }
 
     if version == Version::V5 {

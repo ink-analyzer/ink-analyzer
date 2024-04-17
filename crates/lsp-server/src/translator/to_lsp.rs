@@ -71,7 +71,16 @@ pub fn completion(
 ) -> Option<lsp_types::CompletionItem> {
     range(completion.range, context).map(|range| lsp_types::CompletionItem {
         label: completion.label,
-        kind: Some(lsp_types::CompletionItemKind::FUNCTION),
+        kind: Some(match completion.kind {
+            ink_analyzer::CompletionKind::Attr | ink_analyzer::CompletionKind::Field => {
+                lsp_types::CompletionItemKind::FIELD
+            }
+            ink_analyzer::CompletionKind::Enum => lsp_types::CompletionItemKind::ENUM,
+            ink_analyzer::CompletionKind::Fn => lsp_types::CompletionItemKind::FUNCTION,
+            ink_analyzer::CompletionKind::Mod => lsp_types::CompletionItemKind::MODULE,
+            ink_analyzer::CompletionKind::Struct => lsp_types::CompletionItemKind::STRUCT,
+            ink_analyzer::CompletionKind::Trait => lsp_types::CompletionItemKind::CLASS,
+        }),
         detail: completion.detail,
         insert_text_format: snippet_support.then_some(match completion.edit.snippet {
             Some(_) => lsp_types::InsertTextFormat::SNIPPET,

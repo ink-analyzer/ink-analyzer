@@ -1,11 +1,13 @@
 //! A text edit.
 
+mod common;
+
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxToken, TextRange, TextSize};
 use ink_analyzer_ir::{InkEntity, InkFile};
-use once_cell::sync::Lazy;
-use regex::Regex;
 
 use super::utils;
+
+pub use common::*;
 
 /// A text edit (with an optional snippet - i.e tab stops and/or placeholders).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -95,7 +97,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
     let affix_edit_between_whitespace_or_file_boundaries =
         |whitespace_before: Option<&str>, whitespace_after: Option<&str>| {
             let build_affix = |ws_text: &str| {
-                (!starts_with_two_or_more_newlines(ws_text)).then(|| "\n".to_owned())
+                (!utils::starts_with_two_or_more_newlines(ws_text)).then(|| "\n".to_owned())
             };
             match (
                 whitespace_before.map(|ws_before| (ws_before.contains('\n'), ws_before)),
@@ -222,7 +224,8 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                             Some(token_before) => token_before.text().contains('\n').then(|| {
                                 format!(
                                     "\n{}{}",
-                                    if starts_with_two_or_more_newlines(token_before.text()) {
+                                    if utils::starts_with_two_or_more_newlines(token_before.text())
+                                    {
                                         "\n"
                                     } else {
                                         ""
@@ -267,7 +270,7 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
                         // and the edit doesn't end with 2 new lines.
                         token_after_option.as_ref().and_then(|token_after| {
                             ((token_after.kind() != SyntaxKind::WHITESPACE
-                                || !starts_with_two_or_more_newlines(token_after.text()))
+                                || !utils::starts_with_two_or_more_newlines(token_after.text()))
                                 && !edit.text.ends_with("\n\n"))
                             .then(|| {
                                 format!(
@@ -321,13 +324,6 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         add_affixes(&mut edit, prefix, suffix);
     }
     edit
-}
-
-// Checks whether the given text starts with at least 2 new lines
-// (the new lines can be interspersed with other whitespace).
-fn starts_with_two_or_more_newlines(text: &str) -> bool {
-    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^\S\n]*\n[^\S\n]*){2,}").unwrap());
-    RE.is_match(text)
 }
 
 #[cfg(test)]

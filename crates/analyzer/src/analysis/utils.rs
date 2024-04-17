@@ -1941,6 +1941,13 @@ pub fn reduce_indenting(input: &str, indent: &str) -> String {
     }
 }
 
+// Checks whether the given text starts with at least 2 new lines
+// (the new lines can be interspersed with other whitespace).
+pub fn starts_with_two_or_more_newlines(text: &str) -> bool {
+    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^\S\n]*\n[^\S\n]*){2,}").unwrap());
+    RE.is_match(text)
+}
+
 /// Suggests a unique/unused id for an constructor, message or extension function.
 pub fn suggest_unique_id_mut<T>(
     preferred_id: Option<T>,

@@ -188,7 +188,7 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
                 .to_owned(),
             range,
             severity: Severity::Error,
-            quickfixes: entity_actions::add_message_to_trait_definition(
+            quickfixes: entity_actions::add_message_to_trait_def(
                 trait_definition,
                 ActionKind::QuickFix,
                 None,

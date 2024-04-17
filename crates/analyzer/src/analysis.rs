@@ -16,7 +16,7 @@ use ink_analyzer_ir::InkFile;
 use itertools::Itertools;
 
 pub use actions::{Action, ActionKind};
-pub use completions::Completion;
+pub use completions::{Completion, CompletionKind};
 pub use diagnostics::{Diagnostic, Severity};
 pub use hover::Hover;
 pub use inlay_hints::InlayHint;
