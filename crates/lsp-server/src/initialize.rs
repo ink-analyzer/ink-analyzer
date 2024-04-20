@@ -1,6 +1,7 @@
 //! LSP Server [initialization](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initialize) implementation.
 
 use crate::utils;
+use crate::utils::{COMMAND_CREATE_PROJECT, COMMAND_EXTRACT_EVENT, COMMAND_MIGRATE_PROJECT};
 
 /// Implements LSP server initialization.
 ///
@@ -89,7 +90,11 @@ pub fn server_capabilities(
             work_done_progress_options: Default::default(),
         }),
         execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
-            commands: vec!["createProject".to_owned(), "migrateProject".to_owned()],
+            commands: vec![
+                COMMAND_CREATE_PROJECT.to_owned(),
+                COMMAND_MIGRATE_PROJECT.to_owned(),
+                COMMAND_EXTRACT_EVENT.to_owned(),
+            ],
             work_done_progress_options: Default::default(),
         }),
         ..Default::default()
@@ -103,7 +108,7 @@ mod tests {
 
     #[test]
     fn initialize_works() {
-        // Creates pair of in-memory connections to simulate an LSP client and server.
+        // Creates a pair of in-memory connections to simulate an LSP client and server.
         let (server_connection, client_connection) = lsp_server::Connection::memory();
 
         // Starts server initialization on a separate thread (because `initialize` function is blocking).

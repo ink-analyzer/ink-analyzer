@@ -2540,41 +2540,6 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
             results: TestCaseResults::Action(vec![]),
         },
         TestCase {
-            modifications: Some(vec![TestCaseModification {
-                start_pat: Some("<-#[ink(event)]"),
-                end_pat: Some("#[ink(event)]"),
-                replacement: "#[ink(event)]\n    #[ink(anonymous)]",
-            }]),
-            params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
-                pat: Some("<-pub struct Transfer"),
-            })),
-            results: TestCaseResults::Action(vec![
-                TestResultAction {
-                    label: "Flatten",
-                    edits: vec![
-                        TestResultTextRange {
-                            text: "#[ink(event, anonymous)]",
-                            start_pat: Some("<-#[ink(event)]"),
-                            end_pat: Some("#[ink(event)]"),
-                        },
-                        TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(anonymous)]"),
-                            end_pat: Some("<-pub struct Transfer"),
-                        },
-                    ],
-                },
-                TestResultAction {
-                    label: "Add",
-                    edits: vec![TestResultTextRange {
-                        text: "#[ink(topic)]",
-                        start_pat: Some("value: Balance,"),
-                        end_pat: Some("value: Balance,"),
-                    }],
-                },
-            ]),
-        },
-        TestCase {
             modifications: None,
             params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                 pat: Some("<-impl Erc20 {"),
@@ -3200,6 +3165,49 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                                     end_pat: Some("#[ink(event"),
                                 }],
                             },
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                        ]),
+                    },
+                    TestCase {
+                        modifications: Some(vec![TestCaseModification {
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("#[ink(event)]"),
+                            replacement: "#[ink(event)]\n    #[ink(anonymous)]",
+                        }]),
+                        params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                            pat: Some("<-pub struct Transfer"),
+                        })),
+                        results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Flatten",
+                                edits: vec![
+                                    TestResultTextRange {
+                                        text: "#[ink(event, anonymous)]",
+                                        start_pat: Some("<-#[ink(event)]"),
+                                        end_pat: Some("#[ink(event)]"),
+                                    },
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some("<-#[ink(anonymous)]"),
+                                        end_pat: Some("<-pub struct Transfer"),
+                                    },
+                                ],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("value: Balance,"),
+                                    end_pat: Some("value: Balance,"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
                         ]),
                     },
                     TestCase {
@@ -3508,6 +3516,41 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                         }]),
                     },
                     TestCase {
+                        modifications: Some(vec![TestCaseModification {
+                            start_pat: Some("<-#[ink(event)]"),
+                            end_pat: Some("#[ink(event)]"),
+                            replacement: "#[ink(event)]\n    #[ink(anonymous)]",
+                        }]),
+                        params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
+                            pat: Some("<-pub struct Transfer"),
+                        })),
+                        results: TestCaseResults::Action(vec![
+                            TestResultAction {
+                                label: "Flatten",
+                                edits: vec![
+                                    TestResultTextRange {
+                                        text: "#[ink(event, anonymous)]",
+                                        start_pat: Some("<-#[ink(event)]"),
+                                        end_pat: Some("#[ink(event)]"),
+                                    },
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some("<-#[ink(anonymous)]"),
+                                        end_pat: Some("<-pub struct Transfer"),
+                                    },
+                                ],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("value: Balance,"),
+                                    end_pat: Some("value: Balance,"),
+                                }],
+                            },
+                        ]),
+                    },
+                    TestCase {
                         modifications: None,
                         params: Some(TestCaseParams::Action(TestParamsOffsetOnly {
                             pat: Some("<-#[ink_e2e::test]"),
@@ -3668,6 +3711,10 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                                 end_pat: Some("#[ink::event"),
                             }],
                         },
+                        TestResultAction {
+                            label: "Extract",
+                            edits: vec![],
+                        },
                     ]),
                 },
                 TestCase {
@@ -3699,6 +3746,10 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                                 start_pat: Some("pub value: bool,"),
                                 end_pat: Some("pub value: bool,"),
                             }],
+                        },
+                        TestResultAction {
+                            label: "Extract",
+                            edits: vec![],
                         },
                     ]),
                 },

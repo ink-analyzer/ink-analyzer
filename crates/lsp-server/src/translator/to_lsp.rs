@@ -1,10 +1,11 @@
 //! Utilities for translating from ink! analyzer to LSP types.
 
-use line_index::WideEncoding;
 use std::collections::HashMap;
 
+use line_index::WideEncoding;
+
 use super::PositionTranslationContext;
-use crate::utils::SignatureSupport;
+use crate::utils::{SignatureSupport, COMMAND_EXTRACT_EVENT, COMMAND_MIGRATE_PROJECT};
 
 /// Translates ink! analyzer offset to LSP position.
 pub fn position(
@@ -121,6 +122,7 @@ pub fn code_action(
     context: &PositionTranslationContext,
 ) -> Option<lsp_types::CodeAction> {
     let is_migrate_trigger = action.kind == ink_analyzer::ActionKind::Migrate;
+    let is_extract_trigger = action.kind == ink_analyzer::ActionKind::Extract;
     let edits: Vec<(&str, lsp_types::Range, Option<&str>)> = action
         .edits
         .iter()
@@ -129,33 +131,44 @@ pub fn code_action(
                 .map(|range| (edit.text.as_str(), range, edit.snippet.as_deref()))
         })
         .collect();
-    (is_migrate_trigger || !edits.is_empty()).then(|| {
+    (is_migrate_trigger || is_extract_trigger || !edits.is_empty()).then(|| {
         lsp_types::CodeAction {
             title: action.label.clone(),
             kind: Some(match action.kind {
                 ink_analyzer::ActionKind::QuickFix => lsp_types::CodeActionKind::QUICKFIX,
                 ink_analyzer::ActionKind::Refactor => lsp_types::CodeActionKind::REFACTOR_REWRITE,
                 ink_analyzer::ActionKind::Migrate => lsp_types::CodeActionKind::REFACTOR_REWRITE,
+                ink_analyzer::ActionKind::Extract => lsp_types::CodeActionKind::REFACTOR_EXTRACT,
                 _ => lsp_types::CodeActionKind::EMPTY,
             }),
-            edit: (!is_migrate_trigger && !edits.is_empty()).then_some(lsp_types::WorkspaceEdit {
-                changes: Some(HashMap::from([(
-                    uri.clone(),
-                    edits
-                        .iter()
-                        .map(|(text, range, _)| lsp_types::TextEdit {
-                            range: *range,
-                            new_text: text.to_string(),
-                        })
-                        .collect(),
-                )])),
-                ..Default::default()
-            }),
-            data: if is_migrate_trigger {
+            edit: (!is_migrate_trigger && !is_extract_trigger && !edits.is_empty()).then_some(
+                lsp_types::WorkspaceEdit {
+                    changes: Some(HashMap::from([(
+                        uri.clone(),
+                        edits
+                            .iter()
+                            .map(|(text, range, _)| lsp_types::TextEdit {
+                                range: *range,
+                                new_text: text.to_string(),
+                            })
+                            .collect(),
+                    )])),
+                    ..Default::default()
+                },
+            ),
+            data: if is_migrate_trigger || is_extract_trigger {
                 // Add data for `codeAction/resolve`.
                 edit_resolve_support.then_some(serde_json::json!({
-                    "command": "migrateProject".to_owned(),
-                    "uri": uri
+                    "command": if is_migrate_trigger {
+                        COMMAND_MIGRATE_PROJECT
+                    } else {
+                        COMMAND_EXTRACT_EVENT
+                    }.to_owned(),
+                    "uri": uri,
+                    "range": serde_json::json!({
+                        "start": u32::from(action.range.start()),
+                        "end": u32::from(action.range.end()),
+                    }),
                 }))
             } else {
                 // Add snippet for clients that have the middleware to apply code actions edits as snippets.
@@ -178,15 +191,28 @@ pub fn code_action(
                     serde_json::Value::Object(data)
                 })
             },
-            // Use `migrateProject` command for clients that can't resolve the `edit` property via
-            // `codeAction/resolve`.
-            command: (is_migrate_trigger && !edit_resolve_support).then_some(lsp_types::Command {
-                title: action.label,
-                command: "migrateProject".to_owned(),
-                arguments: Some(vec![serde_json::json!({
-                    "uri": uri
-                })]),
-            }),
+            // Use `migrateProject` or `extractEvent` command for clients that can't resolve
+            // the `edit` property via `codeAction/resolve`.
+            command: if is_migrate_trigger || is_extract_trigger {
+                (!edit_resolve_support).then_some(lsp_types::Command {
+                    title: action.label,
+                    command: if is_migrate_trigger {
+                        COMMAND_MIGRATE_PROJECT
+                    } else {
+                        COMMAND_EXTRACT_EVENT
+                    }
+                    .to_owned(),
+                    arguments: Some(vec![serde_json::json!({
+                        "uri": uri,
+                        "range": serde_json::json!({
+                            "start": u32::from(action.range.start()),
+                            "end": u32::from(action.range.end()),
+                        }),
+                    })]),
+                })
+            } else {
+                None
+            },
             ..Default::default()
         }
     })

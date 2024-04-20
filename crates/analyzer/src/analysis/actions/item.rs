@@ -537,6 +537,14 @@ fn item_ink_entity_actions(
                     ActionKind::Refactor,
                     range_option,
                 ));
+
+                if version == Version::V5 {
+                    // Extracts ink! event into a standalone package.
+                    let range =
+                        utils::ast_item_declaration_range(&ast::Item::Struct(struct_item.clone()))
+                            .unwrap_or_else(|| struct_item.syntax().text_range());
+                    add_extract_event(results, range);
+                }
             } else if let Some(event) = lazy_event_v2() {
                 // Adds ink! topic.
                 add_result_opt!(entity::add_topic(
@@ -544,6 +552,12 @@ fn item_ink_entity_actions(
                     ActionKind::Refactor,
                     range_option,
                 ));
+
+                // Extracts ink! event into a standalone package.
+                let range =
+                    utils::ast_item_declaration_range(&ast::Item::Struct(struct_item.clone()))
+                        .unwrap_or_else(|| struct_item.syntax().text_range());
+                add_extract_event(results, range);
             } else if version == Version::V4 {
                 let is_storage_item = ink_analyzer_ir::ink_attrs(struct_item.syntax())
                     .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
@@ -714,6 +728,17 @@ fn add_migrate(results: &mut Vec<Action>, range: TextRange) {
     results.push(Action {
         label: "Migrate to ink! 5.0".to_owned(),
         kind: ActionKind::Migrate,
+        range,
+        edits: Vec::new(),
+    });
+}
+
+/// Adds an action for extracting an ink! event into a standalone package.
+fn add_extract_event(results: &mut Vec<Action>, range: TextRange) {
+    // Extracts ink! event into a standalone package.
+    results.push(Action {
+        label: "Extract ink! event into a standalone package".to_owned(),
+        kind: ActionKind::Extract,
         range,
         edits: Vec::new(),
     });
@@ -1016,6 +1041,10 @@ mod tests {
                                     end_pat: Some("struct MyEvent {"),
                                 }],
                             },
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
                         ],
                     ),
                     (
@@ -1035,6 +1064,10 @@ mod tests {
                                     start_pat: Some("my_field: u8,"),
                                     end_pat: Some("my_field: u8,"),
                                 }],
+                            },
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
                             },
                         ],
                     ),
@@ -1071,6 +1104,10 @@ mod tests {
                                     start_pat: Some("my_field: u8,"),
                                     end_pat: Some("my_field: u8,"),
                                 }],
+                            },
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
                             },
                         ],
                     ),
@@ -1780,7 +1817,15 @@ mod tests {
                                     end_pat: Some("struct MyEvent {"),
                                 }],
                             },
-                        ]
+                        ],
+                        if version == Version::V5 {
+                            vec![TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            }]
+                        } else {
+                            vec![]
+                        }
                     ),
                 ),
                 (
@@ -1807,17 +1852,27 @@ mod tests {
                     }
                     "#,
                     Some("<-struct"),
-                    vec![
-                        // Adds ink! topic `field`.
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "#[ink(topic)]",
-                                start_pat: Some("my_field: u8,"),
-                                end_pat: Some("my_field: u8,"),
-                            }],
-                        },
-                    ],
+                    chain_results!(
+                        [
+                            // Adds ink! topic `field`.
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("my_field: u8,"),
+                                    end_pat: Some("my_field: u8,"),
+                                }],
+                            },
+                        ],
+                        if version == Version::V5 {
+                            vec![TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            }]
+                        } else {
+                            vec![]
+                        }
+                    ),
                 ),
                 (
                     r#"
@@ -1828,32 +1883,42 @@ mod tests {
                     }
                     "#,
                     Some("<-struct"),
-                    vec![
-                        TestResultAction {
-                            label: "Flatten",
-                            edits: vec![
-                                TestResultTextRange {
-                                    text: "#[ink(event, anonymous)]",
-                                    start_pat: Some("<-#[ink(event)]"),
-                                    end_pat: Some("#[ink(event)]"),
-                                },
-                                TestResultTextRange {
-                                    text: "",
-                                    start_pat: Some("<-#[ink(anonymous)]"),
-                                    end_pat: Some("#[ink(anonymous)]"),
-                                },
-                            ],
-                        },
-                        // Adds ink! topic `field`.
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "#[ink(topic)]",
-                                start_pat: Some("my_field: u8,"),
-                                end_pat: Some("my_field: u8,"),
-                            }],
-                        },
-                    ],
+                    chain_results!(
+                        [
+                            TestResultAction {
+                                label: "Flatten",
+                                edits: vec![
+                                    TestResultTextRange {
+                                        text: "#[ink(event, anonymous)]",
+                                        start_pat: Some("<-#[ink(event)]"),
+                                        end_pat: Some("#[ink(event)]"),
+                                    },
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some("<-#[ink(anonymous)]"),
+                                        end_pat: Some("#[ink(anonymous)]"),
+                                    },
+                                ],
+                            },
+                            // Adds ink! topic `field`.
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(topic)]",
+                                    start_pat: Some("my_field: u8,"),
+                                    end_pat: Some("my_field: u8,"),
+                                }],
+                            },
+                        ],
+                        if version == Version::V5 {
+                            vec![TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            }]
+                        } else {
+                            vec![]
+                        }
+                    ),
                 ),
                 // Struct field focus.
                 (

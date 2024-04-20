@@ -3,6 +3,7 @@
 mod actions;
 mod completions;
 mod diagnostics;
+mod extract;
 mod hover;
 mod inlay_hints;
 mod migrate;
@@ -18,6 +19,7 @@ use itertools::Itertools;
 pub use actions::{Action, ActionKind};
 pub use completions::{Completion, CompletionKind};
 pub use diagnostics::{Diagnostic, Severity};
+pub use extract::Extraction;
 pub use hover::Hover;
 pub use inlay_hints::InlayHint;
 pub use signature_help::SignatureHelp;
@@ -91,8 +93,14 @@ impl Analysis {
         signature_help::signature_help(&self.file, position, self.version)
     }
 
-    /// Computes text edits for migrating the ink! file to ink! 5.0.
+    /// Computes text edits for migrating the ink! 4.x file to ink! 5.0.
     pub fn migrate(&self) -> Vec<TextEdit> {
         migrate::migrate(&self.file)
+    }
+
+    /// Computes text edits for extracting an ink! event at the given text range into
+    /// a standalone package (if possible).
+    pub fn extract(&self, range: TextRange) -> Option<Extraction> {
+        extract::extract(&self.file, range)
     }
 }

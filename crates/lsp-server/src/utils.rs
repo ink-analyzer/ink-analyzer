@@ -6,6 +6,10 @@ use std::path::PathBuf;
 use lsp_server::RequestId;
 use lsp_types::{ClientCapabilities, CodeActionKind, PositionEncodingKind};
 
+pub const COMMAND_CREATE_PROJECT: &str = "createProject";
+pub const COMMAND_MIGRATE_PROJECT: &str = "migrateProject";
+pub const COMMAND_EXTRACT_EVENT: &str = "extractEvent";
+
 const SERVER_CODE_ACTION_KINDS: [CodeActionKind; 4] = [
     CodeActionKind::EMPTY,
     CodeActionKind::QUICKFIX,
@@ -115,8 +119,8 @@ pub fn request_id_as_str(id: RequestId) -> Option<String> {
         .map(ToString::to_string)
 }
 
-/// Returns true if the LSP client advertises capabilities needed to create new projects via workspace edit, or false otherwise.
-pub fn can_create_project_via_workspace_edit(client_capabilities: &ClientCapabilities) -> bool {
+/// Returns true if the LSP client advertises capabilities for creating workspace resources.
+pub fn can_create_workspace_resources(client_capabilities: &ClientCapabilities) -> bool {
     client_capabilities.workspace.as_ref().is_some_and(|it| {
         // Checks support for workspace/applyEdit requests.
         it.apply_edit.unwrap_or(false)
@@ -490,7 +494,7 @@ mod tests {
         ] {
             // Verifies the expected result based on client capabilities.
             assert_eq!(
-                can_create_project_via_workspace_edit(&client_capabilities),
+                can_create_workspace_resources(&client_capabilities),
                 expected_result
             );
         }

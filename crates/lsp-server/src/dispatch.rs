@@ -14,12 +14,14 @@ use lsp_types::request::Request;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::dispatch::handlers::command;
-use crate::dispatch::handlers::command::{CreateProjectResponse, MigrateProjectResponse};
+use crate::dispatch::handlers::command::{
+    CreateProjectResponse, ExtractEventResponse, MigrateProjectResponse,
+};
 use crate::dispatch::routers::{NotificationRouter, RequestRouter};
 use crate::memory::Memory;
 use crate::translator::PositionTranslationContext;
 use crate::utils;
+use crate::utils::{COMMAND_CREATE_PROJECT, COMMAND_EXTRACT_EVENT, COMMAND_MIGRATE_PROJECT};
 
 /// Implements the main loop for dispatching LSP requests, notifications and handling responses.
 pub fn main_loop(
@@ -99,6 +101,7 @@ impl Snapshot {
 const INITIALIZE_PROJECT_ID_PREFIX: &str = "initialize-project::";
 const SHOW_DOCUMENT_ID_PREFIX: &str = "show-document::";
 const MIGRATE_PROJECT_ID_PREFIX: &str = "migrate-project::";
+const EXTRACT_EVENT_ID_PREFIX: &str = "extract-event::";
 
 impl<'a> Dispatcher<'a> {
     /// Creates a dispatcher for an LSP server connection.
@@ -136,7 +139,7 @@ impl<'a> Dispatcher<'a> {
                 .and_then(serde_json::Value::as_object)
                 .and_then(|params| params.get("command"))
                 .and_then(serde_json::Value::as_str)
-                .is_some_and(|cmd| cmd == command::MIGRATE_PROJECT);
+                .is_some_and(|cmd| cmd == COMMAND_MIGRATE_PROJECT);
         let mut router = RequestRouter::new(req, &self.snapshots, &self.client_capabilities);
         let result = router
             .process::<lsp_types::request::Completion>(handlers::request::handle_completion)
@@ -172,7 +175,7 @@ impl<'a> Dispatcher<'a> {
         if is_migration_resolve
             || cmd
                 .as_ref()
-                .is_some_and(|cmd| cmd == command::MIGRATE_PROJECT)
+                .is_some_and(|cmd| cmd == COMMAND_MIGRATE_PROJECT)
         {
             self.version_check_fuel = 2;
         }
@@ -309,87 +312,80 @@ impl<'a> Dispatcher<'a> {
         cmd: &str,
         resp: lsp_server::Response,
     ) -> anyhow::Result<()> {
-        let req_data =
-            if cmd == command::CREATE_PROJECT
-                && utils::can_create_project_via_workspace_edit(&self.client_capabilities)
-            {
-                // Convert `createProject` response into a workspace edit
-                // (only if the client supports the resource operations and document changes).
-                resp.result
-                    .as_ref()
-                    .and_then(|value| {
-                        serde_json::from_value::<CreateProjectResponse>(value.clone()).ok()
-                    })
-                    .map(|project| {
-                        let doc_changes =
-                            project
-                                .files
-                                .iter()
-                                .flat_map(|(uri, content)| {
-                                    vec![
-                            lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Create(
-                                lsp_types::CreateFile {
-                                    uri: uri.clone(),
-                                    options: None,
-                                    annotation_id: None,
-                                },
-                            )),
-                            lsp_types::DocumentChangeOperation::Edit(lsp_types::TextDocumentEdit {
-                                text_document: lsp_types::OptionalVersionedTextDocumentIdentifier {
-                                    uri: uri.clone(),
-                                    version: None,
-                                },
-                                edits: vec![lsp_types::OneOf::Left(lsp_types::TextEdit {
-                                    range: lsp_types::Range::default(),
-                                    new_text: content.to_owned(),
-                                })],
-                            }),
-                        ]
-                                })
-                                .collect();
-                        let params = lsp_types::ApplyWorkspaceEditParams {
-                            label: Some("new ink! project".to_owned()),
-                            edit: lsp_types::WorkspaceEdit {
-                                document_changes: Some(lsp_types::DocumentChanges::Operations(
-                                    doc_changes,
-                                )),
-                                ..Default::default()
-                            },
-                        };
-                        (
-                            lsp_server::RequestId::from(format!(
-                                "{INITIALIZE_PROJECT_ID_PREFIX}{}",
-                                project.uri
-                            )),
-                            params,
-                        )
-                    })
-            } else if cmd == command::MIGRATE_PROJECT {
-                // Convert `migrateProject` response into a workspace edit.
-                resp.result
-                    .as_ref()
-                    .and_then(|value| {
-                        serde_json::from_value::<MigrateProjectResponse>(value.clone()).ok()
-                    })
-                    .map(|project| {
-                        let params = lsp_types::ApplyWorkspaceEditParams {
-                            label: Some("Migrate to ink! 5.0".to_owned()),
-                            edit: lsp_types::WorkspaceEdit {
-                                changes: Some(project.edits),
-                                ..Default::default()
-                            },
-                        };
-                        (
-                            lsp_server::RequestId::from(format!(
-                                "{MIGRATE_PROJECT_ID_PREFIX}{}",
-                                project.uri
-                            )),
-                            params,
-                        )
-                    })
-            } else {
-                None
-            };
+        let req_data = if cmd == COMMAND_CREATE_PROJECT
+            && utils::can_create_workspace_resources(&self.client_capabilities)
+        {
+            // Convert `createProject` response into a workspace edit
+            // (only if the client supports the resource operations and document changes).
+            resp.result
+                .as_ref()
+                .and_then(|value| {
+                    serde_json::from_value::<CreateProjectResponse>(value.clone()).ok()
+                })
+                .map(|changes| {
+                    let id = lsp_server::RequestId::from(format!(
+                        "{INITIALIZE_PROJECT_ID_PREFIX}{}",
+                        changes.uri
+                    ));
+                    let params = lsp_types::ApplyWorkspaceEditParams {
+                        label: Some("New ink! project".to_owned()),
+                        edit: lsp_types::WorkspaceEdit {
+                            document_changes: Some(lsp_types::DocumentChanges::from(changes)),
+                            ..Default::default()
+                        },
+                    };
+                    (id, params)
+                })
+        } else if cmd == COMMAND_MIGRATE_PROJECT {
+            // Convert `migrateProject` response into a workspace edit.
+            resp.result
+                .as_ref()
+                .and_then(|value| {
+                    serde_json::from_value::<MigrateProjectResponse>(value.clone()).ok()
+                })
+                .map(|changes| {
+                    let params = lsp_types::ApplyWorkspaceEditParams {
+                        label: Some("Migrate to ink! 5.0".to_owned()),
+                        edit: lsp_types::WorkspaceEdit {
+                            changes: Some(changes.edits),
+                            ..Default::default()
+                        },
+                    };
+                    (
+                        lsp_server::RequestId::from(format!(
+                            "{MIGRATE_PROJECT_ID_PREFIX}{}",
+                            changes.uri
+                        )),
+                        params,
+                    )
+                })
+        } else if cmd == COMMAND_EXTRACT_EVENT
+            && utils::can_create_workspace_resources(&self.client_capabilities)
+        {
+            // Convert `extractEvent` response into a workspace edit
+            // (only if the client supports the resource operations and document changes).
+            resp.result
+                .as_ref()
+                .and_then(|value| {
+                    serde_json::from_value::<ExtractEventResponse>(value.clone()).ok()
+                })
+                .map(|changes| {
+                    let id = lsp_server::RequestId::from(format!(
+                        "{EXTRACT_EVENT_ID_PREFIX}{}{}",
+                        changes.uri, changes.name
+                    ));
+                    let params = lsp_types::ApplyWorkspaceEditParams {
+                        label: Some("Extract ink! event into standalone package".to_owned()),
+                        edit: lsp_types::WorkspaceEdit {
+                            document_changes: Some(lsp_types::DocumentChanges::from(changes)),
+                            ..Default::default()
+                        },
+                    };
+                    (id, params)
+                })
+        } else {
+            None
+        };
 
         if let Some((req_id, params)) = req_data {
             // Return an empty response for commands that should be executed as workspace edits

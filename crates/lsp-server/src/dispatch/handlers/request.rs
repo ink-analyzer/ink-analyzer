@@ -2,6 +2,7 @@
 
 use super::command;
 use crate::dispatch::Snapshots;
+use crate::utils::{COMMAND_CREATE_PROJECT, COMMAND_EXTRACT_EVENT, COMMAND_MIGRATE_PROJECT};
 use crate::{translator, utils};
 
 /// Handles completion request.
@@ -125,7 +126,7 @@ pub fn handle_code_action_resolve(
     snapshots: &Snapshots,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<lsp_types::CodeAction> {
-    // Only migration edits are computed lazily.
+    // Only project migration and event extraction edits are computed lazily.
     let Some((cmd, data)) = code_action
         .data
         .as_ref()
@@ -138,25 +139,44 @@ pub fn handle_code_action_resolve(
     else {
         return Err(anyhow::format_err!("Missing command!"));
     };
-    if cmd != command::MIGRATE_PROJECT {
-        return Err(anyhow::format_err!("Unsupported command: {}!", cmd));
-    }
-    let args = data
-        .get("uri")
-        .and_then(serde_json::Value::as_str)
-        .and_then(|value| lsp_types::Url::parse(value).ok());
-    let Some(uri) = args else {
-        return Err(anyhow::format_err!("The `uri` argument is required!"));
+    let parse_uri = || {
+        data.get("uri")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| lsp_types::Url::parse(value).ok())
     };
+    match cmd {
+        COMMAND_MIGRATE_PROJECT => {
+            let Some(uri) = parse_uri() else {
+                return Err(anyhow::format_err!("The `uri` argument is required!"));
+            };
 
-    // Computes migration edits.
-    let res = command::handle_migrate_project(&uri, snapshots, client_capabilities)?;
-    code_action.command = None;
-    code_action.edit = Some(lsp_types::WorkspaceEdit {
-        changes: Some(res.edits),
-        ..Default::default()
-    });
-    Ok(code_action)
+            // Computes migration edits.
+            let res = command::handle_migrate_project(&uri, snapshots, client_capabilities)?;
+            code_action.command = None;
+            code_action.edit = Some(lsp_types::WorkspaceEdit {
+                changes: Some(res.edits),
+                ..Default::default()
+            });
+            Ok(code_action)
+        }
+        COMMAND_EXTRACT_EVENT => {
+            let Some((uri, range)) = parse_uri().zip(data.get("range").and_then(parse_range))
+            else {
+                return Err(anyhow::format_err!(
+                    "The `uri` and `range` arguments are required!"
+                ));
+            };
+            // Computes event extraction edits.
+            let res = command::handle_extract_event(&uri, range, snapshots, client_capabilities)?;
+            code_action.command = None;
+            code_action.edit = Some(lsp_types::WorkspaceEdit {
+                document_changes: Some(lsp_types::DocumentChanges::from(res)),
+                ..Default::default()
+            });
+            Ok(code_action)
+        }
+        _ => Err(anyhow::format_err!("Unsupported command: {}!", cmd)),
+    }
 }
 
 /// Handles inlay hint request.
@@ -231,9 +251,15 @@ pub fn handle_execute_command(
     snapshots: &Snapshots,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<Option<serde_json::Value>> {
-    // Handles create project command.
+    let parse_uri = |value: &serde_json::Value| {
+        value
+            .as_object()
+            .and_then(|arg| arg.get("uri"))
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| lsp_types::Url::parse(value).ok())
+    };
     match params.command.as_str() {
-        command::CREATE_PROJECT => {
+        COMMAND_CREATE_PROJECT => {
             let args = params
                 .arguments
                 .first()
@@ -258,23 +284,50 @@ pub fn handle_execute_command(
                 .map(serde_json::to_value)
                 .map(Result::ok)
         }
-        command::MIGRATE_PROJECT => {
-            let args = params
-                .arguments
-                .first()
-                .and_then(serde_json::Value::as_object)
-                .and_then(|arg| arg.get("uri"))
-                .and_then(serde_json::Value::as_str)
-                .and_then(|value| lsp_types::Url::parse(value).ok());
-            let Some(uri) = args else {
+        COMMAND_MIGRATE_PROJECT => {
+            let uri = params.arguments.first().and_then(parse_uri);
+            let Some(uri) = uri else {
                 return Err(anyhow::format_err!("The `uri` argument is required!"));
             };
             command::handle_migrate_project(&uri, snapshots, client_capabilities)
                 .map(serde_json::to_value)
                 .map(Result::ok)
         }
+        COMMAND_EXTRACT_EVENT => {
+            let args = params.arguments.first().and_then(|arg| {
+                parse_uri(arg).zip(
+                    arg.as_object()
+                        .and_then(|arg| arg.get("range"))
+                        .and_then(parse_range),
+                )
+            });
+            let Some((uri, range)) = args else {
+                return Err(anyhow::format_err!(
+                    "The `uri` and `range` arguments are required!"
+                ));
+            };
+            command::handle_extract_event(&uri, range, snapshots, client_capabilities)
+                .map(serde_json::to_value)
+                .map(Result::ok)
+        }
         _ => Err(anyhow::format_err!("Unknown command: {}!", params.command)),
     }
+}
+
+fn parse_range(value: &serde_json::Value) -> Option<ink_analyzer::TextRange> {
+    value
+        .as_object()
+        .and_then(|arg| {
+            arg.get("start")
+                .and_then(serde_json::Value::as_u64)
+                .zip(arg.get("end").and_then(serde_json::Value::as_u64))
+        })
+        .map(|(start, end)| {
+            ink_analyzer::TextRange::new(
+                ink_analyzer::TextSize::from(start as u32),
+                ink_analyzer::TextSize::from(end as u32),
+            )
+        })
 }
 
 #[cfg(test)]

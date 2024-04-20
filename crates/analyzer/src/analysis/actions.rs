@@ -34,6 +34,7 @@ pub enum ActionKind {
     QuickFix,
     Refactor,
     Migrate,
+    Extract,
 }
 
 /// Computes ink! attribute actions for the text range.
@@ -155,5 +156,6 @@ fn action_kind_sort_order(kind: ActionKind) -> u8 {
         ActionKind::Migrate => 0,
         ActionKind::QuickFix => 1,
         ActionKind::Refactor => 2,
+        ActionKind::Extract => 3,
     }
 }

@@ -1,7 +1,7 @@
 //! ink! attribute code/intent actions.
 
 use ink_analyzer_ir::syntax::TextRange;
-use ink_analyzer_ir::{InkAttributeKind, InkFile, InkMacroKind};
+use ink_analyzer_ir::{InkArgKind, InkAttributeKind, InkFile, InkMacroKind};
 
 use super::Action;
 use crate::analysis::utils;
@@ -39,7 +39,23 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                 results.push(Action {
                     label: "Migrate to ink! 5.0".to_owned(),
                     kind: ActionKind::Migrate,
-                    range,
+                    range: ink_attr.syntax().text_range(),
+                    edits: Vec::new(),
+                });
+            }
+
+            if version == Version::V5
+                && matches!(
+                    ink_attr.kind(),
+                    InkAttributeKind::Macro(InkMacroKind::Event)
+                        | InkAttributeKind::Arg(InkArgKind::Event)
+                )
+            {
+                // Extracts ink! event into a standalone package.
+                results.push(Action {
+                    label: "Extract ink! event into a standalone package".to_owned(),
+                    kind: ActionKind::Extract,
+                    range: ink_attr.syntax().text_range(),
                     edits: Vec::new(),
                 });
             }
@@ -285,6 +301,10 @@ mod tests {
                         Some("<-#["),
                         vec![
                             TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                            TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
                                     text: "(anonymous)",
@@ -310,6 +330,10 @@ mod tests {
                         "#,
                         Some("<-#["),
                         vec![
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
@@ -337,6 +361,10 @@ mod tests {
                         Some("ink("),
                         vec![
                             TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                            TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
                                     text: ", anonymous",
@@ -363,6 +391,10 @@ mod tests {
                         Some("event)]"),
                         vec![
                             TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                            TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
                                     text: ", anonymous",
@@ -388,6 +420,10 @@ mod tests {
                         "#,
                         Some("<-#["),
                         vec![
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {

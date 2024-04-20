@@ -66,7 +66,7 @@ fn create_project_command_works() {
     // Verifies the expected workspace edit/ document changes.
     let params: lsp_types::ApplyWorkspaceEditParams =
         serde_json::from_value(workspace_edit_req.params).unwrap();
-    assert_eq!(params.label.as_deref(), Some("new ink! project"));
+    assert_eq!(params.label.as_deref(), Some("New ink! project"));
     let document_changes = match params.edit.document_changes.unwrap() {
         lsp_types::DocumentChanges::Edits(_) => None,
         lsp_types::DocumentChanges::Operations(it) => Some(it),
