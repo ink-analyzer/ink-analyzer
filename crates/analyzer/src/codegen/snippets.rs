@@ -376,6 +376,19 @@ impl ink::env::chain_extension::FromStatusCode for ${3:CustomErrorCode} {
   }
 }"#;
 
+pub const COMBINE_EXTENSIONS_PLAIN: &str = r#"ink::combine_extensions! {
+    pub struct CombinedChainExtension {
+        pub ext1: Extension1,
+        pub ext2: Extension2,
+    }
+}"#;
+pub const COMBINE_EXTENSIONS_SNIPPET: &str = r#"ink::combine_extensions! {
+    pub struct ${1:CombinedChainExtension} {
+        pub ${2:ext1}: ${3:Extension1},
+        pub ${4:ext2}: ${5:Extension2},
+    }
+}"#;
+
 pub const STORAGE_ITEM_PLAIN: &str = r#"#[ink::storage_item]
 pub struct StorageItem {}"#;
 pub const STORAGE_ITEM_SNIPPET: &str = r#"#[ink::storage_item]

@@ -728,10 +728,10 @@ pub fn entity_completions(
                     let is_cfg_e2e_tests = module_item
                         .attrs()
                         .any(|attr| utils::is_cfg_e2e_tests_attr(&attr));
-                    if is_cfg_e2e_tests && is_line_affix_of(&["fn", "test", "e2e"]) {
+                    if is_cfg_e2e_tests && is_line_affix_of(&["async", "fn", "test", "e2e"]) {
                         // Adds ink! e2e test.
                         results.push(Completion {
-                            label: "#[ink_e2e::test]..fn test(..) {...}".to_owned(),
+                            label: "#[ink_e2e::test]..async fn test(..) {...}".to_owned(),
                             range,
                             edit: text_edit::add_e2e_test(&module_item, range, version),
                             detail: Some("ink! e2e test".to_owned()),
@@ -881,6 +881,19 @@ pub fn entity_completions(
                 edit: text_edit::add_chain_extension(range, None, version),
                 detail: Some("ink! chain extension".to_owned()),
                 kind: CompletionKind::Trait,
+            });
+        }
+
+        // Adds ink! combine extensions definition.
+        if version == Version::V5
+            && is_line_affix_of(&["ink", "combine", "extensions", "combine_extensions"])
+        {
+            results.push(Completion {
+                label: "ink::combine_extensions! {..}".to_owned(),
+                range,
+                edit: text_edit::add_combine_extensions(range, None, Some(file)),
+                detail: Some("ink! combine extensions".to_owned()),
+                kind: CompletionKind::Struct,
             });
         }
 
@@ -2054,11 +2067,26 @@ pub mod contract1 {
                 (
                     "extension",
                     Some("extension"),
-                    vec![(
-                        "#[ink::chain_extension",
-                        Some("<-extension"),
-                        Some("extension"),
-                    )],
+                    if version == Version::V5 {
+                        vec![
+                            (
+                                "#[ink::chain_extension",
+                                Some("<-extension"),
+                                Some("extension"),
+                            ),
+                            (
+                                "ink::combine_extensions!",
+                                Some("<-extension"),
+                                Some("extension"),
+                            ),
+                        ]
+                    } else {
+                        vec![(
+                            "#[ink::chain_extension",
+                            Some("<-extension"),
+                            Some("extension"),
+                        )]
+                    },
                 ),
                 (
                     r"
@@ -2194,6 +2222,55 @@ trait",
                         ("#[ink::storage_item]", Some("<-enum"), Some("enum")),
                         ("pub enum MyEnvironment {", Some("<-enum"), Some("enum")),
                     ],
+                ),
+                // macro rules.
+                (
+                    "combine_extensions!",
+                    Some("combine_extensions!"),
+                    if version == Version::V5 {
+                        vec![(
+                            "ink::combine_extensions!",
+                            Some("<-combine_extensions!"),
+                            Some("combine_extensions!"),
+                        )]
+                    } else {
+                        vec![]
+                    },
+                ),
+                (
+                    "combine",
+                    Some("combine"),
+                    if version == Version::V5 {
+                        vec![(
+                            "ink::combine_extensions!",
+                            Some("<-combine"),
+                            Some("combine"),
+                        )]
+                    } else {
+                        vec![]
+                    },
+                ),
+                (
+                    "extensions",
+                    Some("extensions"),
+                    if version == Version::V5 {
+                        vec![(
+                            "ink::combine_extensions!",
+                            Some("<-extensions"),
+                            Some("extensions"),
+                        )]
+                    } else {
+                        vec![]
+                    },
+                ),
+                (
+                    "ink",
+                    Some("ink"),
+                    if version == Version::V5 {
+                        vec![("ink::combine_extensions!", Some("<-ink"), Some("ink"))]
+                    } else {
+                        vec![]
+                    },
                 ),
                 // `mod` entities.
                 (

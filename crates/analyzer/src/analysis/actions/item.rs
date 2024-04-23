@@ -638,6 +638,16 @@ fn root_ink_entity_actions(
         version,
     ));
 
+    // Adds ink! combine extensions definition.
+    if version == Version::V5 {
+        results.push(entity::add_combine_extensions(
+            range,
+            ActionKind::Refactor,
+            None,
+            Some(file),
+        ));
+    }
+
     // Adds ink! storage item.
     results.push(entity::add_storage_item(range, ActionKind::Refactor, None));
 
@@ -994,6 +1004,7 @@ mod tests {
                     "#[ink::event]",
                     "#[ink::trait_definition]",
                     "#[ink::chain_extension(extension = 1)]",
+                    "ink::combine_extensions!",
                     "#[ink::storage_item]",
                     "pub enum MyEnvironment {}",
                 ],

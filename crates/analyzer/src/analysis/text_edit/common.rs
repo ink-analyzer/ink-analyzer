@@ -5,22 +5,25 @@ use std::collections::HashSet;
 use ink_analyzer_ir::ast::{HasModuleItem, HasName};
 use ink_analyzer_ir::syntax::{AstNode, TextRange};
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, Extension, InkEntity, IsInkFn, Message, TraitDefinition, Version,
+    ast, ChainExtension, Contract, Extension, InkEntity, InkFile, IsInkFn, IsInkTrait, Message,
+    TraitDefinition, Version,
 };
 
 use super::{utils, TextEdit};
 use crate::codegen::snippets::{
     CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_PLAIN_V5, CHAIN_EXTENSION_SNIPPET,
-    CHAIN_EXTENSION_SNIPPET_V5, CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, CONTRACT_PLAIN,
-    CONTRACT_PLAIN_V5, CONTRACT_SNIPPET, CONTRACT_SNIPPET_V5, ENVIRONMENT_PLAIN,
-    ENVIRONMENT_PLAIN_V5, ENVIRONMENT_SNIPPET, ENVIRONMENT_SNIPPET_V5, ERROR_CODE_PLAIN,
-    ERROR_CODE_SNIPPET, EVENT_PLAIN, EVENT_PLAIN_V2, EVENT_SNIPPET, EVENT_SNIPPET_V2,
-    EXTENSION_FN_PLAIN, EXTENSION_FN_PLAIN_V5, EXTENSION_FN_SNIPPET, EXTENSION_FN_SNIPPET_V5,
-    INK_E2E_TEST_PLAIN, INK_E2E_TEST_PLAIN_V5, INK_E2E_TEST_SNIPPET, INK_E2E_TEST_SNIPPET_V5,
-    INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN,
-    STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN, TOPIC_SNIPPET,
-    TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
+    CHAIN_EXTENSION_SNIPPET_V5, COMBINE_EXTENSIONS_PLAIN, COMBINE_EXTENSIONS_SNIPPET,
+    CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, CONTRACT_PLAIN, CONTRACT_PLAIN_V5, CONTRACT_SNIPPET,
+    CONTRACT_SNIPPET_V5, ENVIRONMENT_PLAIN, ENVIRONMENT_PLAIN_V5, ENVIRONMENT_SNIPPET,
+    ENVIRONMENT_SNIPPET_V5, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, EVENT_PLAIN, EVENT_PLAIN_V2,
+    EVENT_SNIPPET, EVENT_SNIPPET_V2, EXTENSION_FN_PLAIN, EXTENSION_FN_PLAIN_V5,
+    EXTENSION_FN_SNIPPET, EXTENSION_FN_SNIPPET_V5, INK_E2E_TEST_PLAIN, INK_E2E_TEST_PLAIN_V5,
+    INK_E2E_TEST_SNIPPET, INK_E2E_TEST_SNIPPET_V5, INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN,
+    MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN, STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET,
+    TOPIC_PLAIN, TOPIC_SNIPPET, TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET,
+    TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
 };
+use crate::resolution;
 
 pub fn unique_text_and_snippet(
     text: &str,
@@ -341,6 +344,66 @@ pub fn add_extension(
         utils::apply_indenting(&text, &indent),
         range,
         Some(utils::apply_indenting(&snippet, &indent)),
+    )
+}
+
+/// Creates text edit for ink! combine extensions definition.
+pub fn add_combine_extensions(
+    range: TextRange,
+    indent: Option<&str>,
+    file: Option<&InkFile>,
+) -> TextEdit {
+    if let Some(file) = file {
+        // Attempts to create a snippet including existing local chain extensions.
+        let extensions = file.chain_extensions();
+        if !extensions.is_empty() {
+            let mut fields_plain = Vec::new();
+            let mut fields_snippet = Vec::new();
+            let field_indent = "        ";
+            // Save one tab stop for the struct name.
+            let tab_stop_offset = 1;
+
+            let ext_paths = extensions
+                .iter()
+                .filter_map(|ext| ext.trait_item().and_then(resolution::item_path));
+            for (idx, ext_path) in ext_paths.enumerate() {
+                let field_idx = idx + 1;
+                let tab_stop_1 = tab_stop_offset + (idx * 2) + 1;
+                let tab_stop_2 = tab_stop_1 + 1;
+                fields_plain.push(format!("{field_indent}pub ext{field_idx}: {ext_path},"));
+                fields_snippet.push(format!(
+                    "{field_indent}pub ${{{tab_stop_1}:ext{field_idx}}}: ${{{tab_stop_2}:{ext_path}}},"
+                ));
+            }
+
+            if !fields_plain.is_empty() {
+                let text = COMBINE_EXTENSIONS_PLAIN.replace(
+                    if fields_plain.len() > 1 {
+                        "        pub ext1: Extension1,\n        pub ext2: Extension2,"
+                    } else {
+                        "        pub ext1: Extension1,"
+                    },
+                    &fields_plain.join("\n"),
+                );
+                let snippet = COMBINE_EXTENSIONS_SNIPPET.replace(
+                    if fields_snippet.len() > 1 {
+                        "        pub ${2:ext1}: ${3:Extension1},\n        pub ${4:ext2}: ${5:Extension2},"
+                    } else {
+                        "        pub ${2:ext1}: ${3:Extension1},"
+                    },
+                    &fields_snippet.join("\n"),
+                );
+                return text_edit_with_indent(&text, range, Some(&snippet), indent);
+            }
+        }
+    }
+
+    // Defaults to generic snippets.
+    text_edit_with_indent(
+        COMBINE_EXTENSIONS_PLAIN,
+        range,
+        Some(COMBINE_EXTENSIONS_SNIPPET),
+        indent,
     )
 }
 

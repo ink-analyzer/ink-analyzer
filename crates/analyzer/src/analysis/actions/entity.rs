@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use ink_analyzer_ir::{
     ast::{self, HasName},
     syntax::{AstNode, TextRange},
-    ChainExtension, Constructor, Contract, InkEntity, IsInkEvent, IsInkFn, IsInkTrait, Message,
-    TraitDefinition, Version,
+    ChainExtension, Constructor, Contract, InkEntity, InkFile, IsInkEvent, IsInkFn, IsInkTrait,
+    Message, TraitDefinition, Version,
 };
 
 use super::{Action, ActionKind};
@@ -505,6 +505,25 @@ pub fn add_chain_extension(
             range,
             indent_option,
             version,
+        )],
+    }
+}
+
+/// Add an ink! combine extensions definition.
+pub fn add_combine_extensions(
+    range: TextRange,
+    kind: ActionKind,
+    indent_option: Option<&str>,
+    file: Option<&InkFile>,
+) -> Action {
+    Action {
+        label: "Add ink! combine extensions definition.".to_owned(),
+        kind,
+        range,
+        edits: vec![text_edit::add_combine_extensions(
+            range,
+            indent_option,
+            file,
         )],
     }
 }
