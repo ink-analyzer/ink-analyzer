@@ -109,6 +109,7 @@ where
 {
     // Only continue if the last segment is valid.
     let target = path.segment()?;
+    let target_name = target.name_ref()?;
 
     match path.qualifier() {
         // Determines the root node/module for target item resolution based on qualifier.
@@ -118,9 +119,8 @@ where
     }
     .as_ref()
     .map(resolve_item_list_root)
-    .zip(target.name_ref())
-    .and_then(|(root_node, target_name)| {
-        let resolve_child = || {
+    .and_then(|root_node| {
+        let resolve_as_module_child = || {
             root_node
                 .children()
                 .filter(|node| T::can_cast(node.kind()))
@@ -131,7 +131,7 @@ where
                     })
                 })
         };
-        let resolve_from_use_scope = || {
+        let resolve_from_module_use_scope = || {
             let item_name = target_name.to_string();
             resolve_item_path_from_use_scope_and_aliases!(item_name, &root_node).find_map(
                 |resolved_path| {
@@ -145,8 +145,29 @@ where
                 },
             )
         };
+        let resolve_from_ref_item_use_scope = || {
+            let is_module_child = ref_node.parent().is_some_and(|parent| parent == root_node);
+            if is_module_child {
+                let item_name = target_name.to_string();
+                resolve_item_path_from_use_scope_and_aliases!(item_name, ref_node).find_map(
+                    |resolved_path| {
+                        // Only recurse if the path resolved from use scope and aliases
+                        // is different from the current path argument.
+                        if path_to_string(&resolved_path) != path_to_string(path) {
+                            resolve_item(&resolved_path, ref_node)
+                        } else {
+                            None
+                        }
+                    },
+                )
+            } else {
+                None
+            }
+        };
 
-        resolve_child().or(resolve_from_use_scope())
+        resolve_as_module_child()
+            .or_else(resolve_from_module_use_scope)
+            .or_else(resolve_from_ref_item_use_scope)
     })
 }
 
@@ -154,16 +175,17 @@ where
 pub fn resolve_current_module(node: &SyntaxNode) -> Option<SyntaxNode> {
     ast::Module::can_cast(node.kind())
         .then(|| node.clone())
-        .or(node
-            .ancestors()
-            .find(|it| ast::Module::can_cast(it.kind()))
-            .or(node.ancestors().last()))
+        .or_else(|| {
+            node.ancestors()
+                .find(|it| ast::Module::can_cast(it.kind()))
+                .or_else(|| node.ancestors().last())
+        })
 }
 
 /// Resolves qualifier root/module (if it exists).
 pub fn resolve_qualifier(path: &ast::Path, ref_node: &SyntaxNode) -> Option<SyntaxNode> {
     // Resolves next child module.
-    let resolve_next_child_module = |root: &SyntaxNode, name: &ast::NameRef| {
+    let resolve_next_child_module = |name: &ast::NameRef, root: &SyntaxNode| {
         let resolve_child = || {
             root.children().find(|it| {
                 ast::Module::can_cast(it.kind())
@@ -186,15 +208,15 @@ pub fn resolve_qualifier(path: &ast::Path, ref_node: &SyntaxNode) -> Option<Synt
                 },
             )
         };
-        resolve_child().or(resolve_from_use_scope())
+        resolve_child().or_else(resolve_from_use_scope)
     };
 
     let mut path_segments = path.segments();
 
     // Resolves first path segment including respecting valid path qualifiers
     // (i.e. `::`, `crate`, `self`, `super`).
-    // NOTE: $crate and Self aren't valid path qualifiers for our context
-    // so they're are treated as module/item names.
+    // NOTE: $crate and Self aren't valid path qualifiers for our context,
+    // so they're treated as module/item names.
     // Ref: <https://doc.rust-lang.org/reference/paths.html#paths-in-expressions>.
     let mut resolution_root_option = path_segments.next().and_then(|root_segment| {
         if root_segment.coloncolon_token().is_some() || root_segment.crate_token().is_some() {
@@ -204,7 +226,7 @@ pub fn resolve_qualifier(path: &ast::Path, ref_node: &SyntaxNode) -> Option<Synt
                     // Resolves next segment if path has `::` qualifier.
                     Some(_) => root_segment
                         .name_ref()
-                        .and_then(|name| resolve_next_child_module(&crate_root, &name)),
+                        .and_then(|name| resolve_next_child_module(&name, &crate_root)),
                     // Otherwise returns the crate root.
                     None => Some(crate_root),
                 }
@@ -223,7 +245,7 @@ pub fn resolve_qualifier(path: &ast::Path, ref_node: &SyntaxNode) -> Option<Synt
             resolve_current_module(ref_node)
                 .zip(root_segment.name_ref())
                 .and_then(|(current_module, name)| {
-                    resolve_next_child_module(&current_module, &name)
+                    resolve_next_child_module(&name, &current_module)
                 })
         }
     });
@@ -232,7 +254,7 @@ pub fn resolve_qualifier(path: &ast::Path, ref_node: &SyntaxNode) -> Option<Synt
     while let Some((node, segment)) = resolution_root_option.as_ref().zip(path_segments.next()) {
         resolution_root_option = segment
             .name_ref()
-            .and_then(|name| resolve_next_child_module(node, &name));
+            .and_then(|name| resolve_next_child_module(&name, node));
     }
 
     resolution_root_option
@@ -306,7 +328,7 @@ pub fn path_to_string(path: &ast::Path) -> String {
 }
 
 // Returns the item list syntax node for the given syntax node.
-// NOTE: defaults to return the syntax node itself (item lists that can contain use statements - for now).
+// NOTE: defaults to returning the syntax node itself.
 fn resolve_item_list_root(node: &SyntaxNode) -> SyntaxNode {
     ast::Item::cast(node.clone())
         .and_then(|item| match item {
@@ -427,7 +449,7 @@ mod tests {
     #[test]
     fn resolve_item_works() {
         let item = quote! { struct MyItem; };
-        let ref_name = quote! { ref_node };
+        let ref_name = quote! { ref_item };
         for (code, path_str) in [
             // Simple paths.
             (quote_as_str! { #item }, quote_as_str! { MyItem }),
@@ -509,7 +531,102 @@ mod tests {
                 },
                 quote_as_str! { ::my_items::MyItem },
             ),
-            // Scoped paths.
+            (
+                quote_as_str! {
+                    #item
+
+                    fn #ref_name {
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    fn #ref_name {
+                    }
+                },
+                quote_as_str! { self::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    fn #ref_name {
+                    }
+                },
+                quote_as_str! { crate::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    fn #ref_name {
+                    }
+                },
+                quote_as_str! { ::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod my_mod {
+                        fn #ref_name {
+                        }
+                    }
+                },
+                quote_as_str! { crate::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod my_mod {
+                        fn #ref_name {
+                        }
+                    }
+                },
+                quote_as_str! { super::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    fn #ref_name {
+                    }
+                },
+                quote_as_str! { my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod my_mod {
+                        fn #ref_name {
+                        }
+                    }
+                },
+                quote_as_str! { crate::my_items::MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod my_mod {
+                        fn #ref_name {
+                        }
+                    }
+                },
+                quote_as_str! { super::my_items::MyItem },
+            ),
+            // Use declarations.
             (
                 quote_as_str! {
                     #item
@@ -680,6 +797,95 @@ mod tests {
                 },
                 quote_as_str! { my_items::MyItem },
             ),
+            (
+                quote_as_str! {
+                    #item
+
+                    fn #ref_name {
+                        use crate::MyItem;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod my_mod {
+                        use crate::MyItem;
+
+                        fn #ref_name {
+                        }
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod my_mod {
+                        fn #ref_name {
+                            use crate::MyItem;
+                        }
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    use my_items::MyItem;
+
+                    fn #ref_name {
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    fn #ref_name {
+                        use my_items::MyItem;
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod my_mod {
+                        use super::my_items::MyItem;
+
+                        fn #ref_name {
+                        }
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod my_mod {
+                        fn #ref_name {
+                            use super::my_items::MyItem;
+                        }
+                    }
+                },
+                quote_as_str! { MyItem },
+            ),
             // Use aliases.
             (
                 quote_as_str! {
@@ -811,6 +1017,54 @@ mod tests {
                 },
                 quote_as_str! { CustomItem },
             ),
+            (
+                quote_as_str! {
+                    #item
+
+                    fn #ref_name {
+                        use crate::MyItem as CustomItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod my_mod {
+                        fn #ref_name {
+                            use crate::MyItem as CustomItem;
+                        }
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    fn #ref_name {
+                        use my_items::MyItem as CustomItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod my_mod {
+                        fn #ref_name {
+                            use super::my_items::MyItem as CustomItem;
+                        }
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
             // Type aliases.
             (
                 quote_as_str! {
@@ -930,29 +1184,84 @@ mod tests {
                 },
                 quote_as_str! { RenamedItem },
             ),
+            (
+                quote_as_str! {
+                    #item
+
+                    fn #ref_name {
+                        type CustomItem = crate::MyItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    #item
+
+                    mod my_mod {
+                        fn #ref_name {
+                            type CustomItem = crate::MyItem;
+                        }
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    fn #ref_name {
+                        type CustomItem = my_items::MyItem;
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
+            (
+                quote_as_str! {
+                    mod my_items {
+                        #item
+                    }
+
+                    mod my_mod {
+                        fn #ref_name {
+                            type CustomItem = super::my_items::MyItem;
+                        }
+                    }
+                },
+                quote_as_str! { CustomItem },
+            ),
         ] {
             let file = InkFile::parse(code);
             let path: ast::Path = parse_first_ast_node_of_type(path_str);
-            let ref_module_option = SourceFile::parse(code)
+            let ref_item_opt = SourceFile::parse(code)
                 .tree()
                 .syntax()
                 .descendants()
                 .find_map(|node| {
-                    ast::Module::cast(node).filter(|item| {
-                        item.name()
-                            .is_some_and(|name| name.to_string() == ref_name.to_string())
-                    })
+                    if ast::Module::can_cast(node.kind()) {
+                        // Find ref `mod` (if any).
+                        ast::Module::cast(node.clone())
+                            .filter(|item| {
+                                item.name()
+                                    .is_some_and(|name| name.to_string() == ref_name.to_string())
+                            })
+                            .map(|mod_item| mod_item.syntax().clone())
+                    } else {
+                        // Otherwise find ref `fn` (if any).
+                        ast::Fn::cast(node)
+                            .filter(|item| {
+                                item.name()
+                                    .is_some_and(|name| name.to_string() == ref_name.to_string())
+                            })
+                            .map(|fn_item| fn_item.syntax().clone())
+                    }
                 });
 
             assert!(
-                resolve_item::<ast::Adt>(
-                    &path,
-                    ref_module_option
-                        .as_ref()
-                        .map(AstNode::syntax)
-                        .unwrap_or(file.syntax())
-                )
-                .is_some(),
+                resolve_item::<ast::Adt>(&path, ref_item_opt.as_ref().unwrap_or(file.syntax()))
+                    .is_some(),
                 "code: {code} | path: {path_str}"
             );
         }

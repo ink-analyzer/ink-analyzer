@@ -828,10 +828,10 @@ pub fn ink_arg_insert_text(
                 let path = parent_attr_option
                     .and_then(|ink_attr| {
                         resolution::candidate_adt_by_name_or_external_trait_impl(
-                            None,
                             "Environment",
                             &["ink::env", "ink_env"],
                             ink_attr.syntax(),
+                            None,
                         )
                     })
                     .as_ref()

@@ -62,10 +62,10 @@ where
                 range,
                 severity: Severity::Error,
                 quickfixes: resolution::candidate_adt_by_name_or_external_trait_impl(
-                    Some(&env_path),
                     "Environment",
                     &INK_ENV_QUALIFIERS,
                     item.syntax(),
+                    Some(&env_path),
                 )
                 .as_ref()
                 .and_then(resolution::item_path)

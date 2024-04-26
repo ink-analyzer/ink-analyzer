@@ -29,19 +29,18 @@ where
     })
 }
 
-/// Finds first external trait implementation (optionally given an implementation name).
-pub fn external_trait_impl(
-    trait_name: &str,
-    crate_qualifiers: &[&str],
-    ref_node: &SyntaxNode,
-    impl_name_option: Option<&str>,
-) -> Option<ast::Impl> {
+/// Finds first external trait implementations (if any).
+pub fn external_trait_impls<'a>(
+    trait_name: &'a str,
+    crate_qualifiers: &'a [&'a str],
+    ref_node: &'a SyntaxNode,
+) -> impl Iterator<Item = ast::Impl> + 'a {
     ref_node
         .descendants()
         .filter(|it| ast::Impl::can_cast(it.kind()))
-        .find_map(|node| {
+        .filter_map(move |node| {
             ast::Impl::cast(node).filter(|impl_item| {
-                let is_trait_impl = impl_item
+                impl_item
                     .trait_()
                     .as_ref()
                     .and_then(ink_analyzer_ir::path_from_type)
@@ -52,19 +51,25 @@ pub fn external_trait_impl(
                             crate_qualifiers,
                             impl_item.syntax(),
                         )
-                    });
-                let is_target_name = impl_name_option
-                    .zip(
-                        impl_item
-                            .self_ty()
-                            .as_ref()
-                            .and_then(ink_analyzer_ir::path_from_type),
-                    )
-                    .is_some_and(|(impl_name, path)| is_path_target(impl_name, &path));
-
-                is_trait_impl && (impl_name_option.is_none() || is_target_name)
+                    })
             })
         })
+}
+
+/// Finds first external trait implementation given an implementation name.
+pub fn external_trait_impl_by_name(
+    impl_name: &str,
+    trait_name: &str,
+    crate_qualifiers: &[&str],
+    ref_node: &SyntaxNode,
+) -> Option<ast::Impl> {
+    external_trait_impls(trait_name, crate_qualifiers, ref_node).find(|impl_item| {
+        impl_item
+            .self_ty()
+            .as_ref()
+            .and_then(ink_analyzer_ir::path_from_type)
+            .is_some_and(|path| is_path_target(impl_name, &path))
+    })
 }
 
 /// Checks that the `path` resolves to the item `name` with one of the crate `qualifiers` (or any of their aliases).
@@ -223,16 +228,36 @@ pub fn is_external_crate_item(
         })
 }
 
-/// Finds an ADT by either resolving the path or searching for the first ADT that implements and external trait.
+/// Finds an ADT by either resolving the path or searching for the first ADT that implements an external trait.
 pub fn candidate_adt_by_name_or_external_trait_impl(
-    path_option: Option<&ast::Path>,
     trait_name: &str,
     crate_qualifiers: &[&str],
     ref_node: &SyntaxNode,
+    path_option: Option<&ast::Path>,
 ) -> Option<ast::Adt> {
-    // Finds a struct, enum or union with the target name.
-    let find_adt_by_name = |target_name: &ast::NameRef| {
-        ref_node.ancestors().last().and_then(|root_node| {
+    path_option
+        // Finds a struct, enum or union with the target name.
+        .and_then(|path| find_adt_by_name(path, ref_node))
+        .or_else(|| {
+            // Otherwise finds a struct that implements the external trait (if any).
+            let root_node_opt = ref_node.ancestors().last();
+            let root_node = root_node_opt.as_ref().unwrap_or(ref_node);
+            let adt = external_trait_impls(trait_name, crate_qualifiers, root_node)
+                .next()
+                .and_then(|impl_item| find_adt_for_impl(&impl_item, ref_node));
+            // Explicit binding due to temporaries.
+            adt
+        })
+}
+
+/// Finds a struct, enum or union with the target name.
+pub fn find_adt_by_name(path: &ast::Path, ref_node: &SyntaxNode) -> Option<ast::Adt> {
+    path.segment()
+        .as_ref()
+        .and_then(ast::PathSegment::name_ref)
+        .and_then(|target_name| {
+            let root_node_opt = ref_node.ancestors().last();
+            let root_node = root_node_opt.as_ref().unwrap_or(ref_node);
             root_node
                 .descendants()
                 .filter(|it| ast::Adt::can_cast(it.kind()))
@@ -243,37 +268,16 @@ pub fn candidate_adt_by_name_or_external_trait_impl(
                     })
                 })
         })
-    };
+}
 
-    path_option
-        .and_then(ast::Path::segment)
+/// Finds a struct, enum or union for the `impl` item.
+pub fn find_adt_for_impl(impl_item: &ast::Impl, ref_node: &SyntaxNode) -> Option<ast::Adt> {
+    impl_item
+        .self_ty()
         .as_ref()
-        .and_then(ast::PathSegment::name_ref)
-        .as_ref()
-        // Finds a struct, enum or union with the target name.
-        .and_then(find_adt_by_name)
-        // Otherwise finds an implementation of the external trait (if any).
-        .or(
-            // Finds an external trait implementation.
-            ref_node
-                .ancestors()
-                .last()
-                .and_then(|root_node| {
-                    external_trait_impl(trait_name, crate_qualifiers, &root_node, None)
-                })
-                // Returns the custom type name for external trait implementation.
-                .as_ref()
-                .and_then(ast::Impl::self_ty)
-                .as_ref()
-                .and_then(ink_analyzer_ir::path_from_type)
-                .as_ref()
-                .and_then(ast::Path::segment)
-                .as_ref()
-                .and_then(ast::PathSegment::name_ref)
-                .as_ref()
-                // Finds a struct, enum or union with the custom type name.
-                .and_then(find_adt_by_name),
-        )
+        .and_then(ink_analyzer_ir::path_from_type)
+        // Finds a struct, enum or union with the custom type name.
+        .and_then(|path| find_adt_by_name(&path, ref_node))
 }
 
 // Checks if an item named `name` is the target of the `path`.
@@ -332,8 +336,11 @@ fn external_crate_uses_and_aliases_in_scope(
             .and_then(ast::Path::segment)
         {
             let result = match_path_to_external_crate_in_scope(&item_path_str, crates, ref_node);
-            if let Some(resolved_item_path) =
-                result.0.iter().next().or(result.1.get(&target.to_string()))
+            if let Some(resolved_item_path) = result
+                .0
+                .iter()
+                .next()
+                .or_else(|| result.1.get(&target.to_string()))
             {
                 item_aliases.insert(alias, resolved_item_path.to_owned());
             }
@@ -343,7 +350,7 @@ fn external_crate_uses_and_aliases_in_scope(
     (use_paths, item_aliases)
 }
 
-// Matches a path to an external crate item (if possible) using use declarations and aliases in the current scope.
+// Matches a path to an external crate item (if possible) using `use` declarations and aliases in the current scope.
 fn match_path_to_external_crate_in_scope(
     path: &str,
     crates: &[&str],
@@ -359,9 +366,11 @@ fn match_path_to_external_crate_in_scope(
                 .and_then(ast::PathSegment::name_ref)
                 .as_ref()
                 .map(ToString::to_string)
-                .or((ink_analyzer_ir::path_to_string(&path)
-                    == format!("{}::*", ink_analyzer_ir::path_to_string(&qualifier)))
-                .then(|| String::from("*")));
+                .or_else(|| {
+                    (ink_analyzer_ir::path_to_string(&path)
+                        == format!("{}::*", ink_analyzer_ir::path_to_string(&qualifier)))
+                    .then(|| String::from("*"))
+                });
 
             target_name_option.zip(ink_analyzer_ir::resolve_qualifier(&qualifier, ref_node))
         })

@@ -1909,7 +1909,9 @@ pub fn ensure_external_trait_impl(
 
     // Finds external trait implementation (if any).
     let (trait_name, crate_qualifiers, ref_node) = trait_info;
-    match resolution::external_trait_impl(trait_name, crate_qualifiers, ref_node, Some(&name)) {
+    let trait_impl =
+        resolution::external_trait_impl_by_name(&name, trait_name, crate_qualifiers, ref_node);
+    match trait_impl {
         // Handles no external trait implementation.
         None => {
             let range = utils::ast_item_declaration_range(&match adt.clone() {
@@ -2079,11 +2081,11 @@ pub fn ensure_impl_scale_codec_traits(
                     .map(ToString::to_string)
                     .zip(adt.syntax().ancestors().last())
                     .and_then(|(error_code_name, ref_node)| {
-                        resolution::external_trait_impl(
+                        resolution::external_trait_impl_by_name(
+                            &error_code_name,
                             trait_name,
                             qualifiers,
                             &ref_node,
-                            Some(&error_code_name),
                         )
                     })
                     .is_some()

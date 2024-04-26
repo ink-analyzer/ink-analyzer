@@ -60,10 +60,10 @@ fn ensure_resolvable(chain_extension: &ChainExtension) -> Option<Diagnostic> {
                 range,
                 severity: Severity::Error,
                 quickfixes: resolution::candidate_adt_by_name_or_external_trait_impl(
-                    ink_analyzer_ir::path_from_type(&error_code_type).as_ref(),
                     "FromStatusCode",
                     &INK_ENV_CHAIN_EXTENSION_QUALIFIERS,
                     chain_extension.syntax(),
+                    ink_analyzer_ir::path_from_type(&error_code_type).as_ref(),
                 )
                 .as_ref()
                 .and_then(resolution::item_path)
