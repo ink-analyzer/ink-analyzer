@@ -126,9 +126,10 @@ fn ensure_no_unknown_ink_attributes(results: &mut Vec<Diagnostic>, attrs: &[InkA
                 range: attr
                     .ink_macro()
                     .map(|ink_path| ink_path.syntax().text_range())
-                    .or(attr
-                        .ink_arg_name()
-                        .map(|ink_arg| ink_arg.syntax().text_range()))
+                    .or_else(|| {
+                        attr.ink_arg_name()
+                            .map(|ink_arg| ink_arg.syntax().text_range())
+                    })
                     .unwrap_or(attr.syntax().text_range()),
                 // warning because it's possible ink! analyzer is just outdated.
                 severity: Severity::Warning,
@@ -743,7 +744,7 @@ fn validate_entity_attributes(
                 .map(ast::Item::syntax)
                 .map(utils::first_ink_attribute_insert_offset)
                 // Defaults to inserting before the first ink! attribute if the passed list of attributes.
-                .or(attrs.first().map(|it| it.syntax().text_range().start()))
+                .or_else(|| attrs.first().map(|it| it.syntax().text_range().start()))
         };
 
         // If the primary ink! attribute candidate is complete and unambiguous,
@@ -1214,9 +1215,11 @@ where
                 quickfixes: visibility
                     .as_ref()
                     .map(|vis| vis.syntax().text_range())
-                    .or(struct_item
-                        .struct_token()
-                        .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
+                    .or_else(|| {
+                        struct_item.struct_token().map(|it| {
+                            TextRange::new(it.text_range().start(), it.text_range().start())
+                        })
+                    })
                     .map(|range| {
                         vec![Action {
                             label: "Change visibility to `pub`.".to_owned(),
@@ -1476,14 +1479,16 @@ pub fn ensure_callable_invariants(
             quickfixes: visibility
                 .as_ref()
                 .map(|vis| vis.syntax().text_range())
-                .or(fn_item
-                    .default_token()
-                    .or(fn_item.const_token())
-                    .or(fn_item.async_token())
-                    .or(fn_item.unsafe_token())
-                    .or(fn_item.abi().and_then(|abi| abi.syntax().first_token()))
-                    .or(fn_item.fn_token())
-                    .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
+                .or_else(|| {
+                    fn_item
+                        .default_token()
+                        .or_else(|| fn_item.const_token())
+                        .or_else(|| fn_item.async_token())
+                        .or_else(|| fn_item.unsafe_token())
+                        .or_else(|| fn_item.abi().and_then(|abi| abi.syntax().first_token()))
+                        .or_else(|| fn_item.fn_token())
+                        .map(|it| TextRange::new(it.text_range().start(), it.text_range().start()))
+                })
                 .map(|range| {
                     let remove_range = visibility
                         .as_ref()
@@ -1581,11 +1586,13 @@ pub fn ensure_trait_invariants(
             quickfixes: visibility
                 .as_ref()
                 .map(|vis| vis.syntax().text_range())
-                .or(trait_item
-                    .unsafe_token()
-                    .or(trait_item.auto_token())
-                    .or(trait_item.trait_token())
-                    .map(|it| TextRange::new(it.text_range().start(), it.text_range().start())))
+                .or_else(|| {
+                    trait_item
+                        .unsafe_token()
+                        .or_else(|| trait_item.auto_token())
+                        .or_else(|| trait_item.trait_token())
+                        .map(|it| TextRange::new(it.text_range().start(), it.text_range().start()))
+                })
                 .map(|range| {
                     vec![Action {
                         label: "Change visibility to `pub`.".to_owned(),
@@ -1727,14 +1734,16 @@ where
         quickfixes: ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxNode, ast::Impl>(
             item.syntax(),
         )
-        .or(item
-            .syntax()
-            .siblings(ink_analyzer_ir::syntax::Direction::Prev)
-            .find_map(ast::Impl::cast)
-            .or(item
-                .syntax()
-                .siblings(ink_analyzer_ir::syntax::Direction::Next)
-                .find_map(ast::Impl::cast)))
+        .or_else(|| {
+            item.syntax()
+                .siblings(ink_analyzer_ir::syntax::Direction::Prev)
+                .find_map(ast::Impl::cast)
+                .or_else(|| {
+                    item.syntax()
+                        .siblings(ink_analyzer_ir::syntax::Direction::Next)
+                        .find_map(ast::Impl::cast)
+                })
+        })
         .as_ref()
         .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
         .map(|(impl_item, assoc_item_list)| {
@@ -1746,23 +1755,25 @@ where
                 Some(utils::item_children_indenting(impl_item.syntax()).as_str()),
             )]
         })
-        .or(ink_analyzer_ir::ink_ancestors::<Contract>(item.syntax())
-            .next()
-            .and_then(|contract| {
-                // Moves the item to the first non-trait `impl` block or creates a new `impl` block if necessary for the parent ink! contract (if any).
-                utils::callable_insert_offset_indent_and_affixes(&contract).map(
-                    |(insert_offset, indent, prefix, suffix)| {
-                        vec![Action::move_item_with_affixes(
-                            item.syntax(),
-                            insert_offset,
-                            "Move item to the root of the closest `impl` block.".to_owned(),
-                            Some(indent.as_str()),
-                            prefix.as_deref().or(Some("")),
-                            suffix.as_deref().or(Some("")),
-                        )]
-                    },
-                )
-            })),
+        .or_else(|| {
+            ink_analyzer_ir::ink_ancestors::<Contract>(item.syntax())
+                .next()
+                .and_then(|contract| {
+                    // Moves the item to the first non-trait `impl` block or creates a new `impl` block if necessary for the parent ink! contract (if any).
+                    utils::callable_insert_offset_indent_and_affixes(&contract).map(
+                        |(insert_offset, indent, prefix, suffix)| {
+                            vec![Action::move_item_with_affixes(
+                                item.syntax(),
+                                insert_offset,
+                                "Move item to the root of the closest `impl` block.".to_owned(),
+                                Some(indent.as_str()),
+                                prefix.as_deref(),
+                                suffix.as_deref(),
+                            )]
+                        },
+                    )
+                })
+        }),
     })
 }
 

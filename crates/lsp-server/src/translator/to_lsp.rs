@@ -282,7 +282,7 @@ pub fn signature_help(
                 .enumerate()
                 .find(|(_, signature)| signature.label == prev_active_signature.label)
         })
-        .or(signatures.first().map(|signature| (0, signature)));
+        .or_else(|| signatures.first().map(|signature| (0, signature)));
 
     // Returns LSP signature help (if any).
     (!signatures.is_empty()).then(|| lsp_types::SignatureHelp {

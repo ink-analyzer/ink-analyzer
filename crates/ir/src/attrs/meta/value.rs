@@ -86,11 +86,13 @@ impl MetaValue {
         self.token
             .as_ref()
             .map(SyntaxToken::kind)
-            .or(self.expr.as_ref().map(|expr| match expr {
-                ast::Expr::Literal(lit) => lit.token().kind(),
-                ast::Expr::PathExpr(_) => SyntaxKind::PATH,
-                _ => expr.syntax().kind(),
-            }))
+            .or_else(|| {
+                self.expr.as_ref().map(|expr| match expr {
+                    ast::Expr::Literal(lit) => lit.token().kind(),
+                    ast::Expr::PathExpr(_) => SyntaxKind::PATH,
+                    _ => expr.syntax().kind(),
+                })
+            })
             .expect("Either `MetaValue::token` or `MetaValue::expr` should be `Some`")
     }
 

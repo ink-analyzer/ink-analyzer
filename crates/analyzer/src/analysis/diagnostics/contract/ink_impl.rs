@@ -237,13 +237,13 @@ pub fn ensure_impl_invariants(results: &mut Vec<Diagnostic>, ink_impl: &InkImpl)
                             quickfixes: visibility
                                 .as_ref()
                                 .map(|vis| vis.syntax().text_range())
-                                .or(fn_item
+                                .or_else(|| fn_item
                                     .default_token()
-                                    .or(fn_item.const_token())
-                                    .or(fn_item.async_token())
-                                    .or(fn_item.unsafe_token())
-                                    .or(fn_item.abi().and_then(|abi| abi.syntax().first_token()))
-                                    .or(fn_item.fn_token())
+                                    .or_else(|| fn_item.const_token())
+                                    .or_else(|| fn_item.async_token())
+                                    .or_else(|| fn_item.unsafe_token())
+                                    .or_else(|| fn_item.abi().and_then(|abi| abi.syntax().first_token()))
+                                    .or_else(|| fn_item.fn_token())
                                     .map(|it| {
                                         TextRange::new(
                                             it.text_range().start(),

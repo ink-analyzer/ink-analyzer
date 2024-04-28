@@ -67,11 +67,13 @@ fn fn_sig(results: &mut Vec<TextEdit>, e2e_test: &InkE2ETest) {
         let range = fn_item
             .param_list()
             .map(|param_list| param_list.syntax().text_range())
-            .or(fn_item.name().map(|name| {
-                // Default to inserting at end of function name (if any).
-                let name_end = name.syntax().text_range().end();
-                TextRange::new(name_end, name_end)
-            }));
+            .or_else(|| {
+                fn_item.name().map(|name| {
+                    // Default to inserting at end of function name (if any).
+                    let name_end = name.syntax().text_range().end();
+                    TextRange::new(name_end, name_end)
+                })
+            });
         if let Some(range) = range {
             results.push(TextEdit::replace(
                 "<Client: E2EBackend>(mut client: Client)".to_owned(),

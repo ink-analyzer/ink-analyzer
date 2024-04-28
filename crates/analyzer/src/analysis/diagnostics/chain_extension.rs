@@ -204,9 +204,11 @@ fn ensure_trait_item_invariants(
             let insert_offset = type_alias
                 .eq_token()
                 .map(|it| it.text_range().end())
-                .or(type_alias
-                    .semicolon_token()
-                    .map(|it| it.text_range().start()))
+                .or_else(|| {
+                    type_alias
+                        .semicolon_token()
+                        .map(|it| it.text_range().start())
+                })
                 .unwrap_or(type_alias.syntax().text_range().start());
             let insert_prefix = if type_alias.eq_token().is_none() {
                 " = "
@@ -436,9 +438,11 @@ fn ensure_no_overlapping_ids(
                             }
                         ),
                         range: value_range_option
-                            .or(extension_fn
-                                .ink_attr()
-                                .map(|attr| attr.syntax().text_range()))
+                            .or_else(|| {
+                                extension_fn
+                                    .ink_attr()
+                                    .map(|attr| attr.syntax().text_range())
+                            })
                             .unwrap_or(extension_fn.syntax().text_range()),
                         severity: Severity::Error,
                         quickfixes: value_range_option

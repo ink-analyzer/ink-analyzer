@@ -163,27 +163,28 @@ fn extract_resolvable_custom_types(
     ink_analyzer_ir::resolve_item::<ast::Adt>(path, ref_node)
         .map(|path| vec![path])
         // Otherwise resolves custom types from generic parameters.
-        .or(path
-            .segment()
-            .as_ref()
-            .and_then(ast::PathSegment::generic_arg_list)
-            .map(|arg_list| {
-                arg_list
-                    .generic_args()
-                    .filter_map(|arg| match arg {
-                        ast::GenericArg::TypeArg(it) => {
-                            it.ty().as_ref().and_then(extract_custom_types)
-                        }
-                        _ => None,
-                    })
-                    .flatten()
-                    // Deduplicate paths.
-                    .unique_by(|path| path.to_string())
-                    // Returns highest-level resolvable/local custom types
-                    .flat_map(|path| extract_resolvable_custom_types(&path, ref_node))
-                    .flatten()
-                    .collect::<Vec<_>>()
-            }))
+        .or_else(|| {
+            path.segment()
+                .as_ref()
+                .and_then(ast::PathSegment::generic_arg_list)
+                .map(|arg_list| {
+                    arg_list
+                        .generic_args()
+                        .filter_map(|arg| match arg {
+                            ast::GenericArg::TypeArg(it) => {
+                                it.ty().as_ref().and_then(extract_custom_types)
+                            }
+                            _ => None,
+                        })
+                        .flatten()
+                        // Deduplicate paths.
+                        .unique_by(|path| path.to_string())
+                        // Returns highest-level resolvable/local custom types
+                        .flat_map(|path| extract_resolvable_custom_types(&path, ref_node))
+                        .flatten()
+                        .collect::<Vec<_>>()
+                })
+        })
 }
 
 fn versioned_scope_name(version: Version) -> &'static str {

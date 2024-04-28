@@ -63,10 +63,9 @@ pub fn extract(file: &InkFile, range: TextRange) -> Option<Extraction> {
         .filter(|attr| !InkAttribute::can_cast(attr))
         .join("\n");
     let event_arg = ink_analyzer_ir::ink_arg_by_kind(struct_item.syntax(), InkArgKind::Anonymous)
-        .or(ink_analyzer_ir::ink_arg_by_kind(
-            struct_item.syntax(),
-            InkArgKind::SignatureTopic,
-        ))
+        .or_else(|| {
+            ink_analyzer_ir::ink_arg_by_kind(struct_item.syntax(), InkArgKind::SignatureTopic)
+        })
         .map(|arg| format!("({arg})"));
     let event_attr = format!("#[ink::event{}]", event_arg.as_deref().unwrap_or_default());
     let struct_indent = utils::item_indenting(struct_item.syntax());

@@ -970,23 +970,25 @@ pub fn ink_arg_insert_text(
 /// Returns the insert offset for an ink! attribute.
 pub fn ink_attribute_insert_offset(node: &SyntaxNode) -> TextSize {
     ink_analyzer_ir::ink_attrs(node)
-        // Finds the last ink! attribute.
+        // Finds last token of last ink! attribute.
         .last()
         .as_ref()
         .map(InkAttribute::syntax)
-        // Finds the last attribute.
-        .or(node
-            .children()
-            .filter_map(ast::Attr::cast)
-            .last()
-            .as_ref()
-            .map(ast::Attr::syntax))
-        // Finds the last token for last ink! attribute or generic attribute (if any).
         .and_then(SyntaxNode::last_token)
+        // Finds  last token of last attribute.
+        .or_else(|| {
+            node.children()
+                .filter_map(ast::Attr::cast)
+                .last()
+                .as_ref()
+                .map(ast::Attr::syntax)
+                .and_then(SyntaxNode::last_token)
+        })
         // Otherwise finds the first trivia/rustdoc token for item (if any).
-        .or(node
-            .first_token()
-            .filter(|first_token| first_token.kind().is_trivia()))
+        .or_else(|| {
+            node.first_token()
+                .filter(|first_token| first_token.kind().is_trivia())
+        })
         // Finds the first non-(attribute/rustdoc/trivia) token for the item.
         .and_then(|it| ink_analyzer_ir::closest_non_trivia_token(&it, SyntaxToken::next_token))
         .as_ref()
@@ -1056,18 +1058,20 @@ pub fn ink_arg_insert_offset_and_affixes(
                                             }
                                         })
                                     })
-                                    .or(token_tree.syntax().last_token().and_then(|last_token| {
-                                        match last_token.kind() {
-                                            SyntaxKind::COMMA
-                                            | SyntaxKind::L_PAREN
-                                            | SyntaxKind::R_PAREN => None,
-                                            // Adds a comma if there is no right parenthesis and the last token is
-                                            // neither a comma nor the left parenthesis
-                                            // (the right parenthesis in the pattern above will likely never match anything,
-                                            // but parsers are weird :-) so we leave it for robustness? and clarity).
-                                            _ => Some(", "),
-                                        }
-                                    }))
+                                    .or_else(|| {
+                                        token_tree.syntax().last_token().and_then(|last_token| {
+                                            match last_token.kind() {
+                                                SyntaxKind::COMMA
+                                                | SyntaxKind::L_PAREN
+                                                | SyntaxKind::R_PAREN => None,
+                                                // Adds a comma if there is no right parenthesis and the last token is
+                                                // neither a comma nor the left parenthesis
+                                                // (the right parenthesis in the pattern above will likely never match anything,
+                                                // but parsers are weird :-) so we leave it for robustness? and clarity).
+                                                _ => Some(", "),
+                                            }
+                                        })
+                                    })
                             }
                         }
                         // Adds a left parenthesis if none already exists.
@@ -1090,18 +1094,20 @@ pub fn ink_arg_insert_offset_and_affixes(
                                             }
                                         })
                                     })
-                                    .or(token_tree.syntax().first_token().and_then(|first_token| {
-                                        match first_token.kind() {
-                                            SyntaxKind::COMMA
-                                            | SyntaxKind::L_PAREN
-                                            | SyntaxKind::R_PAREN => None,
-                                            // Adds a comma if there is no left parenthesis and the first token is
-                                            // neither a comma nor the right parenthesis
-                                            // (the left parenthesis in the pattern above will likely never match anything,
-                                            // but parsers are weird :-) so we leave it for robustness? and clarity).
-                                            _ => Some(", "),
-                                        }
-                                    }))
+                                    .or_else(|| {
+                                        token_tree.syntax().first_token().and_then(|first_token| {
+                                            match first_token.kind() {
+                                                SyntaxKind::COMMA
+                                                | SyntaxKind::L_PAREN
+                                                | SyntaxKind::R_PAREN => None,
+                                                // Adds a comma if there is no left parenthesis and the first token is
+                                                // neither a comma nor the right parenthesis
+                                                // (the left parenthesis in the pattern above will likely never match anything,
+                                                // but parsers are weird :-) so we leave it for robustness? and clarity).
+                                                _ => Some(", "),
+                                            }
+                                        })
+                                    })
                             } else {
                                 // No suffix for "non-primary" attribute arguments that already have a right parenthesis after them.
                                 None
@@ -1136,42 +1142,48 @@ pub fn first_ink_arg_insert_offset_and_affixes(
             // Insert before the first argument (if present).
             (arg.text_range().start(), None, Some(", "))
         })
-        .or(ink_attr
-            .ast()
-            .token_tree()
-            .as_ref()
-            .and_then(|token_tree| Some(token_tree).zip(token_tree.l_paren_token()))
-            .map(|(token_tree, l_paren)| {
-                // Otherwise, insert after left parenthesis (if present).
-                (
-                    l_paren.text_range().end(),
-                    None,
-                    match token_tree.r_paren_token() {
-                        Some(_) => None,
-                        None => Some(")"),
-                    },
-                )
-            }))
-        .or(ink_attr
-            .ast()
-            .token_tree()
-            .as_ref()
-            .and_then(|token_tree| Some(token_tree).zip(token_tree.r_paren_token()))
-            .map(|(token_tree, r_paren)| {
-                // Otherwise, insert before right parenthesis (if present).
-                (
-                    r_paren.text_range().start(),
-                    match token_tree.l_paren_token() {
-                        Some(_) => None,
-                        None => Some("("),
-                    },
-                    None,
-                )
-            }))
-        .or(ink_attr.ast().r_brack_token().map(|r_bracket| {
-            // Otherwise, insert before right bracket (if present).
-            (r_bracket.text_range().start(), Some("("), Some(")"))
-        }))
+        .or_else(|| {
+            ink_attr
+                .ast()
+                .token_tree()
+                .as_ref()
+                .and_then(|token_tree| Some(token_tree).zip(token_tree.l_paren_token()))
+                .map(|(token_tree, l_paren)| {
+                    // Otherwise, insert after left parenthesis (if present).
+                    (
+                        l_paren.text_range().end(),
+                        None,
+                        match token_tree.r_paren_token() {
+                            Some(_) => None,
+                            None => Some(")"),
+                        },
+                    )
+                })
+        })
+        .or_else(|| {
+            ink_attr
+                .ast()
+                .token_tree()
+                .as_ref()
+                .and_then(|token_tree| Some(token_tree).zip(token_tree.r_paren_token()))
+                .map(|(token_tree, r_paren)| {
+                    // Otherwise, insert before right parenthesis (if present).
+                    (
+                        r_paren.text_range().start(),
+                        match token_tree.l_paren_token() {
+                            Some(_) => None,
+                            None => Some("("),
+                        },
+                        None,
+                    )
+                })
+        })
+        .or_else(|| {
+            ink_attr.ast().r_brack_token().map(|r_bracket| {
+                // Otherwise, insert before right bracket (if present).
+                (r_bracket.text_range().start(), Some("("), Some(")"))
+            })
+        })
 }
 
 /// Returns the indenting (preceding whitespace) of the syntax node.
@@ -1280,10 +1292,12 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
                     .map(SyntaxToken::text_range)
                     .unwrap_or_else(|| it.syntax().text_range())
             })
-            .or(module
-                .semicolon_token()
-                .as_ref()
-                .map(SyntaxToken::text_range)),
+            .or_else(|| {
+                module
+                    .semicolon_token()
+                    .as_ref()
+                    .map(SyntaxToken::text_range)
+            }),
         ast::Item::Trait(trait_item) => trait_item.assoc_item_list().map(|it| {
             it.l_curly_token()
                 .as_ref()
@@ -1308,10 +1322,12 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
                     })
                     .unwrap_or_else(|| it.syntax().text_range())
             })
-            .or(fn_item
-                .semicolon_token()
-                .as_ref()
-                .map(SyntaxToken::text_range)),
+            .or_else(|| {
+                fn_item
+                    .semicolon_token()
+                    .as_ref()
+                    .map(SyntaxToken::text_range)
+            }),
         ast::Item::Enum(enum_item) => enum_item.variant_list().map(|it| {
             it.l_curly_token()
                 .as_ref()
@@ -1331,17 +1347,19 @@ pub fn ast_item_declaration_range(item: &ast::Item) -> Option<TextRange> {
                             .as_ref()
                             .map(SyntaxToken::text_range)
                             // should be end.
-                            .or(it.r_paren_token().as_ref().map(SyntaxToken::text_range))
+                            .or_else(|| it.r_paren_token().as_ref().map(SyntaxToken::text_range))
                             // should be end.
-                            .or(Some(it.syntax().text_range()))
+                            .or_else(|| Some(it.syntax().text_range()))
                     }
                 }
                 .unwrap_or(it.syntax().text_range())
             })
-            .or(struct_item
-                .semicolon_token()
-                .as_ref()
-                .map(SyntaxToken::text_range)),
+            .or_else(|| {
+                struct_item
+                    .semicolon_token()
+                    .as_ref()
+                    .map(SyntaxToken::text_range)
+            }),
         ast::Item::Union(union_item) => union_item.record_field_list().map(|it| {
             it.l_curly_token()
                 .as_ref()
@@ -1389,7 +1407,7 @@ pub fn ast_item_terminal_token(item: &ast::Item) -> Option<SyntaxToken> {
         ast::Item::Module(module) => module
             .item_list()
             .and_then(|it| it.r_curly_token())
-            .or(module.semicolon_token()),
+            .or_else(|| module.semicolon_token()),
         ast::Item::Trait(trait_item) => trait_item
             .assoc_item_list()
             .and_then(|it| it.r_curly_token()),
@@ -1399,7 +1417,7 @@ pub fn ast_item_terminal_token(item: &ast::Item) -> Option<SyntaxToken> {
         ast::Item::Fn(fn_item) => fn_item
             .body()
             .and_then(|it| it.stmt_list().and_then(|it| it.r_curly_token()))
-            .or(fn_item.semicolon_token()),
+            .or_else(|| fn_item.semicolon_token()),
         ast::Item::Enum(enum_item) => enum_item.variant_list().and_then(|it| it.r_curly_token()),
         ast::Item::Struct(struct_item) => struct_item
             .field_list()
@@ -1410,11 +1428,11 @@ pub fn ast_item_terminal_token(item: &ast::Item) -> Option<SyntaxToken> {
                         struct_item
                             .semicolon_token()
                             // should be end.
-                            .or(it.r_paren_token())
+                            .or_else(|| it.r_paren_token())
                     }
                 }
             })
-            .or(struct_item.semicolon_token()),
+            .or_else(|| struct_item.semicolon_token()),
         ast::Item::Union(union_item) => union_item
             .record_field_list()
             .and_then(|it| it.r_curly_token()),
@@ -1534,27 +1552,30 @@ pub fn ink_arg_and_delimiter_removal_range(
             SyntaxElement::Token(token) => Some(token.clone()),
         })
         // Equal token ("=") if no value is present.
-        .or(arg.meta().eq().map(|eq| eq.syntax().clone()))
+        .or_else(|| arg.meta().eq().map(|eq| eq.syntax().clone()))
         // Last token of argument name if no value nor equal symbol is present.
-        .or(arg.meta().name().option().and_then(|result| match result {
-            Ok(name) => Some(name.syntax().clone()),
-            Err(elements) => elements.last().and_then(|elem| match elem {
-                SyntaxElement::Node(node) => node.last_token(),
-                SyntaxElement::Token(token) => Some(token.clone()),
-            }),
-        }));
+        .or_else(|| {
+            arg.meta().name().option().and_then(|result| match result {
+                Ok(name) => Some(name.syntax().clone()),
+                Err(elements) => elements.last().and_then(|elem| match elem {
+                    SyntaxElement::Node(node) => node.last_token(),
+                    SyntaxElement::Token(token) => Some(token.clone()),
+                }),
+            })
+        });
 
     // Determines the parent attribute for the argument.
-    if let Some(attr) = parent_attr_option.cloned().or(last_token_option
-        .as_ref()
-        .and_then(|token| {
-            ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxToken, ast::Attr>(token)
-        })
-        .and_then(InkAttribute::cast))
-    {
+    if let Some(attr) = parent_attr_option.cloned().or_else(|| {
+        last_token_option
+            .as_ref()
+            .and_then(|token| {
+                ink_analyzer_ir::closest_ancestor_ast_type::<SyntaxToken, ast::Attr>(token)
+            })
+            .and_then(InkAttribute::cast)
+    }) {
         if attr.args().len() == 1 {
             match attr.kind() {
-                // Returns the text range for the attribute meta (if possible) if the attribute has only a single argument.
+                // Returns the text range for the attribute meta, if the attribute has only a single argument.
                 InkAttributeKind::Macro(_) => {
                     if let Some(token_tree) =
                         attr.ast().meta().as_ref().and_then(ast::Meta::token_tree)
@@ -1593,23 +1614,24 @@ pub fn ink_arg_and_delimiter_removal_range(
                     }),
                 })
                 // Equal token ("=") if no name is present.
-                .or(arg.meta().eq().map(|eq| eq.syntax().clone()))
+                .or_else(|| arg.meta().eq().map(|eq| eq.syntax().clone()))
                 // First token argument value if no name nor equal symbol is present.
-                .or(arg
-                    .meta()
-                    .value()
-                    .option()
-                    .and_then(|result| {
-                        match result {
-                            Ok(value) => value.elements(),
-                            Err(elements) => elements,
-                        }
-                        .first()
-                    })
-                    .and_then(|elem| match elem {
-                        SyntaxElement::Node(node) => node.first_token(),
-                        SyntaxElement::Token(token) => Some(token.clone()),
-                    }))
+                .or_else(|| {
+                    arg.meta()
+                        .value()
+                        .option()
+                        .and_then(|result| {
+                            match result {
+                                Ok(value) => value.elements(),
+                                Err(elements) => elements,
+                            }
+                            .first()
+                        })
+                        .and_then(|elem| match elem {
+                            SyntaxElement::Node(node) => node.first_token(),
+                            SyntaxElement::Token(token) => Some(token.clone()),
+                        })
+                })
         } else {
             None
         }
@@ -1634,12 +1656,14 @@ pub fn item_insert_offset_start(item_list: &ast::ItemList) -> TextSize {
         .last()
         .map(|it| it.syntax().text_range().end())
         // Determines position after the left curly bracket.
-        .or(item_list.l_curly_token().map(|it| it.text_range().end()))
+        .or_else(|| item_list.l_curly_token().map(|it| it.text_range().end()))
         // Defaults to inserts before the first item in the item list.
-        .or(item_list
-            .items()
-            .next()
-            .map(|it| it.syntax().text_range().start()))
+        .or_else(|| {
+            item_list
+                .items()
+                .next()
+                .map(|it| it.syntax().text_range().start())
+        })
         .unwrap_or(item_list.syntax().text_range().start())
 }
 
@@ -1675,16 +1699,20 @@ pub fn item_insert_offset_impl(item_list: &ast::ItemList) -> TextSize {
         .filter(|it| matches!(it, ast::Item::Impl(_)))
         .last()
         // Or after last `struct` item.
-        .or(item_list
-            .items()
-            .filter(|it| matches!(it, ast::Item::Struct(_)))
-            .last())
+        .or_else(|| {
+            item_list
+                .items()
+                .filter(|it| matches!(it, ast::Item::Struct(_)))
+                .last()
+        })
         .map(|it| it.syntax().text_range().end())
         // Or before the first `mod` item.
-        .or(item_list
-            .items()
-            .find(|it| matches!(it, ast::Item::Module(_)))
-            .map(|it| it.syntax().text_range().start()))
+        .or_else(|| {
+            item_list
+                .items()
+                .find(|it| matches!(it, ast::Item::Module(_)))
+                .map(|it| it.syntax().text_range().start())
+        })
         // Defaults to the end of the item list.
         .unwrap_or(item_insert_offset_end(item_list))
 }
@@ -1712,10 +1740,12 @@ pub fn assoc_item_insert_offset_start(assoc_item_list: &ast::AssocItemList) -> T
     assoc_item_list
         .l_curly_token()
         .map(|it| it.text_range().end())
-        .or(assoc_item_list
-            .assoc_items()
-            .next()
-            .map(|it| it.syntax().text_range().start()))
+        .or_else(|| {
+            assoc_item_list
+                .assoc_items()
+                .next()
+                .map(|it| it.syntax().text_range().start())
+        })
         .unwrap_or(assoc_item_list.syntax().text_range().start())
 }
 
@@ -1738,27 +1768,31 @@ pub fn field_insert_offset_start_and_affixes(
         ast::FieldList::RecordFieldList(record_field_list) => record_field_list
             .l_curly_token()
             .map(|it| (it.text_range().end(), None, None))
-            .or(record_field_list.fields().next().map(|it| {
-                (
-                    it.syntax().text_range().start(),
-                    None,
-                    Some(format!(
-                        "\n{}",
-                        item_children_indenting(field_list.syntax())
-                    )),
-                )
-            }))
+            .or_else(|| {
+                record_field_list.fields().next().map(|it| {
+                    (
+                        it.syntax().text_range().start(),
+                        None,
+                        Some(format!(
+                            "\n{}",
+                            item_children_indenting(field_list.syntax())
+                        )),
+                    )
+                })
+            })
             .unwrap_or((record_field_list.syntax().text_range().start(), None, None)),
         ast::FieldList::TupleFieldList(tuple_field_list) => tuple_field_list
             .l_paren_token()
             .map(|it| (it.text_range().end(), None, None))
-            .or(tuple_field_list.fields().next().map(|it| {
-                (
-                    it.syntax().text_range().start(),
-                    None,
-                    Some(", ".to_owned()),
-                )
-            }))
+            .or_else(|| {
+                tuple_field_list.fields().next().map(|it| {
+                    (
+                        it.syntax().text_range().start(),
+                        None,
+                        Some(", ".to_owned()),
+                    )
+                })
+            })
             .unwrap_or((tuple_field_list.syntax().text_range().start(), None, None)),
     }
 }
@@ -1834,11 +1868,13 @@ pub fn callable_insert_offset_indent_and_affixes(
         })
         .as_ref()
         // Gets the first non-trait ink! `impl` block (if any).
-        .or(contract
-            .impls()
-            .iter()
-            .find(|it| it.trait_type().is_none())
-            .and_then(InkImpl::impl_item))
+        .or_else(|| {
+            contract
+                .impls()
+                .iter()
+                .find(|it| it.trait_type().is_none())
+                .and_then(InkImpl::impl_item)
+        })
         .and_then(|impl_item| Some(impl_item).zip(impl_item.assoc_item_list()))
         .map(|(impl_item, assoc_item_list)| {
             // Sets insert offset at the end of the associated items list, insert indent based on `impl` block with no affixes.
@@ -1850,21 +1886,23 @@ pub fn callable_insert_offset_indent_and_affixes(
             )
         })
         // Otherwise inserts a new `impl` block (returned as affixes).
-        .or(contract
-            .module()
-            .and_then(ast::Module::item_list)
-            .and_then(|item_list| {
-                callable_impl_indent_and_affixes(contract).map(|(indent, prefix, suffix)| {
-                    // Sets insert offset at the end of the associated items list, insert indent based on contract `mod` block
-                    // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
-                    (
-                        item_insert_offset_impl(&item_list),
-                        indent,
-                        Some(prefix),
-                        Some(suffix),
-                    )
+        .or_else(|| {
+            contract
+                .module()
+                .and_then(ast::Module::item_list)
+                .and_then(|item_list| {
+                    callable_impl_indent_and_affixes(contract).map(|(indent, prefix, suffix)| {
+                        // Sets insert offset at the end of the associated items list, insert indent based on contract `mod` block
+                        // and affixes (prefix and suffix) for wrapping callable in an `impl` block.
+                        (
+                            item_insert_offset_impl(&item_list),
+                            indent,
+                            Some(prefix),
+                            Some(suffix),
+                        )
+                    })
                 })
-            }))
+        })
 }
 
 /// Returns indenting and `impl` affixes (prefix and suffix)
@@ -1894,13 +1932,15 @@ pub fn resolve_contract_name(contract: &Contract) -> Option<String> {
         .and_then(HasName::name)
         .as_ref()
         .map(ToString::to_string)
-        .or(contract
-            .module()
-            .and_then(HasName::name)
-            .as_ref()
-            .map(ToString::to_string)
-            .as_deref()
-            .map(utils::pascal_case))
+        .or_else(|| {
+            contract
+                .module()
+                .and_then(HasName::name)
+                .as_ref()
+                .map(ToString::to_string)
+                .as_deref()
+                .map(utils::pascal_case)
+        })
 }
 
 /// Applies indenting to a snippet.

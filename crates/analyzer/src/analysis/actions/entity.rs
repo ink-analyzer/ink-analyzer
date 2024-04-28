@@ -28,11 +28,13 @@ pub fn add_storage(
         // Sets insert offset or defaults to inserting at the beginning of the
         // associated items list (if possible).
         range_option
-            .or(module
-                .item_list()
-                .as_ref()
-                .map(utils::item_insert_offset_start)
-                .map(|offset| TextRange::new(offset, offset)))
+            .or_else(|| {
+                module
+                    .item_list()
+                    .as_ref()
+                    .map(utils::item_insert_offset_start)
+                    .map(|offset| TextRange::new(offset, offset))
+            })
             .map(|range| Action {
                 label: "Add ink! storage `struct`.".to_owned(),
                 kind,
@@ -52,11 +54,13 @@ pub fn add_event_v1(
         // Sets insert offset or defaults to inserting after either the last struct or
         // the beginning of the associated items list (if possible).
         range_option
-            .or(module
-                .item_list()
-                .as_ref()
-                .map(utils::item_insert_offset_after_last_struct_or_start)
-                .map(|offset| TextRange::new(offset, offset)))
+            .or_else(|| {
+                module
+                    .item_list()
+                    .as_ref()
+                    .map(utils::item_insert_offset_after_last_struct_or_start)
+                    .map(|offset| TextRange::new(offset, offset))
+            })
             .map(|range| Action {
                 label: "Add ink! event `struct`.".to_owned(),
                 kind,
@@ -85,11 +89,15 @@ where
         // Sets insert offset or defaults to inserting at the end of the field list (if possible).
         range_option
             .map(|offset| (offset, None, None))
-            .or(struct_item
-                .field_list()
-                .as_ref()
-                .map(utils::field_insert_offset_end_and_affixes)
-                .map(|(offset, prefix, suffix)| (TextRange::new(offset, offset), prefix, suffix)))
+            .or_else(|| {
+                struct_item
+                    .field_list()
+                    .as_ref()
+                    .map(utils::field_insert_offset_end_and_affixes)
+                    .map(|(offset, prefix, suffix)| {
+                        (TextRange::new(offset, offset), prefix, suffix)
+                    })
+            })
             .map(|(range, prefix, suffix)| Action {
                 label: "Add ink! topic `field`.".to_owned(),
                 kind,
@@ -141,40 +149,42 @@ fn add_callable_to_contract(
             )
         })
         // Otherwise inserts in contract root and creates `impl` block as needed.
-        .or(range_option
-            .zip(utils::callable_impl_indent_and_affixes(contract))
-            .map(|(insert_offset, (indent, prefix, suffix))| {
-                (insert_offset, indent, Some(prefix), Some(suffix))
-            })
-            // Defaults to inserting in the first non-trait `impl` block or
-            // creating a new `impl` block if necessary
-            .or(
-                utils::callable_insert_offset_indent_and_affixes(contract).map(
-                    |(offset, ident, prefix, suffix)| {
-                        (TextRange::new(offset, offset), ident, prefix, suffix)
-                    },
-                ),
-            )
-            .map(|(range, indent, prefix, suffix)| Action {
-                label,
-                kind,
-                range: utils::contract_declaration_range(contract),
-                edits: vec![TextEdit::replace_with_snippet(
-                    format!(
-                        "{}{}{}",
-                        prefix.as_deref().unwrap_or_default(),
-                        utils::apply_indenting(plain, &indent),
-                        suffix.as_deref().unwrap_or_default()
-                    ),
-                    range,
-                    Some(format!(
-                        "{}{}{}",
-                        prefix.as_deref().unwrap_or_default(),
-                        utils::apply_indenting(snippet, &indent),
-                        suffix.as_deref().unwrap_or_default()
-                    )),
-                )],
-            }))
+        .or_else(|| {
+            range_option
+                .zip(utils::callable_impl_indent_and_affixes(contract))
+                .map(|(insert_offset, (indent, prefix, suffix))| {
+                    (insert_offset, indent, Some(prefix), Some(suffix))
+                })
+                // Defaults to inserting in the first non-trait `impl` block or
+                // creating a new `impl` block if necessary
+                .or_else(|| {
+                    utils::callable_insert_offset_indent_and_affixes(contract).map(
+                        |(offset, ident, prefix, suffix)| {
+                            (TextRange::new(offset, offset), ident, prefix, suffix)
+                        },
+                    )
+                })
+                .map(|(range, indent, prefix, suffix)| Action {
+                    label,
+                    kind,
+                    range: utils::contract_declaration_range(contract),
+                    edits: vec![TextEdit::replace_with_snippet(
+                        format!(
+                            "{}{}{}",
+                            prefix.as_deref().unwrap_or_default(),
+                            utils::apply_indenting(plain, &indent),
+                            suffix.as_deref().unwrap_or_default()
+                        ),
+                        range,
+                        Some(format!(
+                            "{}{}{}",
+                            prefix.as_deref().unwrap_or_default(),
+                            utils::apply_indenting(snippet, &indent),
+                            suffix.as_deref().unwrap_or_default()
+                        )),
+                    )],
+                })
+        })
 }
 
 fn contract_fn_names(contract: &Contract) -> HashSet<String> {
@@ -266,11 +276,13 @@ fn add_callable_to_impl(
     // Sets insert offset or defaults to inserting at the end of the
     // associated items list (if possible).
     range_option
-        .or(impl_item
-            .assoc_item_list()
-            .as_ref()
-            .map(utils::assoc_item_insert_offset_end)
-            .map(|offset| TextRange::new(offset, offset)))
+        .or_else(|| {
+            impl_item
+                .assoc_item_list()
+                .as_ref()
+                .map(utils::assoc_item_insert_offset_end)
+                .map(|offset| TextRange::new(offset, offset))
+        })
         .map(|range| {
             // Sets insert indent.
             let indent = utils::item_children_indenting(impl_item.syntax());
@@ -296,11 +308,13 @@ pub fn add_constructor_to_impl(
     range_option: Option<TextRange>,
 ) -> Option<Action> {
     range_option
-        .or(impl_item
-            .assoc_item_list()
-            .as_ref()
-            .map(utils::assoc_item_insert_offset_end)
-            .map(|offset| TextRange::new(offset, offset)))
+        .or_else(|| {
+            impl_item
+                .assoc_item_list()
+                .as_ref()
+                .map(utils::assoc_item_insert_offset_end)
+                .map(|offset| TextRange::new(offset, offset))
+        })
         .map(|range| Action {
             label: "Add ink! constructor `fn`.".to_owned(),
             kind,
@@ -317,11 +331,13 @@ pub fn add_message_to_impl(
     range_option: Option<TextRange>,
 ) -> Option<Action> {
     range_option
-        .or(impl_item
-            .assoc_item_list()
-            .as_ref()
-            .map(utils::assoc_item_insert_offset_end)
-            .map(|offset| TextRange::new(offset, offset)))
+        .or_else(|| {
+            impl_item
+                .assoc_item_list()
+                .as_ref()
+                .map(utils::assoc_item_insert_offset_end)
+                .map(|offset| TextRange::new(offset, offset))
+        })
         .map(|range| Action {
             label: "Add ink! message `fn`.".to_owned(),
             kind,
@@ -341,11 +357,13 @@ pub fn add_message_to_trait_def(
         // Sets insert offset or defaults to inserting at the end of the
         // associated items list (if possible).
         range_option
-            .or(trait_item
-                .assoc_item_list()
-                .as_ref()
-                .map(utils::assoc_item_insert_offset_end)
-                .map(|offset| TextRange::new(offset, offset)))
+            .or_else(|| {
+                trait_item
+                    .assoc_item_list()
+                    .as_ref()
+                    .map(utils::assoc_item_insert_offset_end)
+                    .map(|offset| TextRange::new(offset, offset))
+            })
             .map(|range| Action {
                 label: "Add ink! message `fn`.".to_owned(),
                 kind,
@@ -365,11 +383,13 @@ pub fn add_error_code(
         // Sets insert offset or defaults to inserting at the beginning of the
         // associated items list (if possible).
         range_option
-            .or(trait_item
-                .assoc_item_list()
-                .as_ref()
-                .map(utils::assoc_item_insert_offset_start)
-                .map(|offset| TextRange::new(offset, offset)))
+            .or_else(|| {
+                trait_item
+                    .assoc_item_list()
+                    .as_ref()
+                    .map(utils::assoc_item_insert_offset_start)
+                    .map(|offset| TextRange::new(offset, offset))
+            })
             .map(|range| Action {
                 label: "Add `ErrorCode` type for ink! chain extension.".to_owned(),
                 kind,
@@ -390,11 +410,13 @@ pub fn add_extension(
         // Sets insert offset or defaults to inserting at the end of the
         // associated items list (if possible).
         range_option
-            .or(trait_item
-                .assoc_item_list()
-                .as_ref()
-                .map(utils::assoc_item_insert_offset_end)
-                .map(|offset| TextRange::new(offset, offset)))
+            .or_else(|| {
+                trait_item
+                    .assoc_item_list()
+                    .as_ref()
+                    .map(utils::assoc_item_insert_offset_end)
+                    .map(|offset| TextRange::new(offset, offset))
+            })
             .map(|range| {
                 // Sets insert indent and suggested name.
                 Action {
@@ -423,11 +445,13 @@ pub fn add_ink_test(
     // Sets insert offset or defaults to inserting at the end of the
     // associated items list (if possible).
     range_option
-        .or(module
-            .item_list()
-            .as_ref()
-            .map(utils::item_insert_offset_end)
-            .map(|offset| TextRange::new(offset, offset)))
+        .or_else(|| {
+            module
+                .item_list()
+                .as_ref()
+                .map(utils::item_insert_offset_end)
+                .map(|offset| TextRange::new(offset, offset))
+        })
         .map(|range| Action {
             label: "Add ink! test `fn`.".to_owned(),
             kind,
@@ -447,11 +471,13 @@ pub fn add_ink_e2e_test(
     // Sets insert offset or defaults to inserting at the end of the
     // associated items list (if possible).
     range_option
-        .or(module
-            .item_list()
-            .as_ref()
-            .map(utils::item_insert_offset_end)
-            .map(|offset| TextRange::new(offset, offset)))
+        .or_else(|| {
+            module
+                .item_list()
+                .as_ref()
+                .map(utils::item_insert_offset_end)
+                .map(|offset| TextRange::new(offset, offset))
+        })
         .map(|range| Action {
             label: "Add ink! e2e test `fn`.".to_owned(),
             kind,

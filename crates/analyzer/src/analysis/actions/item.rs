@@ -4,7 +4,7 @@ use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
     ast, ChainExtension, Contract, Event, EventV2, InkArgKind, InkAttributeKind, InkEntity,
-    InkFile, InkImpl, InkMacroKind, IsInkCallable, TraitDefinition,
+    InkFile, InkImpl, InkMacroKind, IsInkCallable, Message, TraitDefinition,
 };
 use itertools::Itertools;
 
@@ -64,7 +64,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                             let item_declaration_text_range = record_field
                                 .as_ref()
                                 .map(|it| it.syntax().text_range())
-                                .or(utils::ast_item_declaration_range(&ast_item))
+                                .or_else(|| utils::ast_item_declaration_range(&ast_item))
                                 .unwrap_or(ast_item.syntax().text_range());
 
                             // Suggests ink! attribute macros based on the context.
@@ -222,8 +222,8 @@ fn ink_arg_actions(
     if !ink_arg_suggestions.is_empty() {
         // Add ink! attribute argument actions to accumulator.
         for arg_kind in ink_arg_suggestions {
-            // Determines the insertion offset and affixes for the action and whether or
-            // not an existing attribute can be extended.
+            // Determines the insertion offset and affixes for the action and whether
+            // an existing attribute can be extended.
             let ((insert_offset, insert_prefix, insert_suffix), is_extending) =
                 primary_ink_attr_candidate
                     .as_ref()
@@ -433,19 +433,21 @@ fn item_ink_entity_actions(
                 // For v5 messages, we only suggest adding messages,
                 // if there isn't a message with a wildcard selector.
                 let has_message_with_wildcard_selector = || {
+                    let contains_wildcard = |messages: &[Message]| {
+                        messages.iter().any(|message| {
+                            message
+                                .selector_arg()
+                                .is_some_and(|selector| selector.is_wildcard())
+                        })
+                    };
                     ink_analyzer_ir::ink_parent::<Contract>(impl_item.syntax())
                         .as_ref()
                         .map(Contract::messages)
-                        .or(InkImpl::cast(impl_item.syntax().clone())
+                        .is_some_and(contains_wildcard)
+                        || InkImpl::cast(impl_item.syntax().clone())
                             .as_ref()
-                            .map(InkImpl::messages))
-                        .is_some_and(|messages| {
-                            messages.iter().any(|message| {
-                                message
-                                    .selector_arg()
-                                    .is_some_and(|selector| selector.is_wildcard())
-                            })
-                        })
+                            .map(InkImpl::messages)
+                            .is_some_and(contains_wildcard)
                 };
                 if version != Version::V5 || !has_message_with_wildcard_selector() {
                     // Adds ink! message.

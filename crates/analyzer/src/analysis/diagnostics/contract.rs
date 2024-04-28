@@ -162,13 +162,13 @@ fn ensure_inline_module(contract: &Contract) -> Option<Diagnostic> {
                             Action::remove_item(contract.syntax()),
                         ]
                     })
-                    .or(Some(vec![Action::remove_item(contract.syntax())]))
+                    .or_else(|| Some(vec![Action::remove_item(contract.syntax())]))
             },
         }),
     }
 }
 
-/// Ensures that ink! storage is not missing and there are not multiple ink! storage definitions.
+/// Ensures that ink! storage is not missing and there aren't multiple ink! storage definitions.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L328>.
 ///
@@ -319,8 +319,8 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                         }
                     ),
                     range: value_range_option
-                        .or(fn_name_option().map(|name| name.syntax().text_range()))
-                        .or(fn_declaration_range())
+                        .or_else(|| fn_name_option().map(|name| name.syntax().text_range()))
+                        .or_else(fn_declaration_range)
                         .unwrap_or(node.text_range()),
                     severity: Severity::Error,
                     quickfixes: value_range_option
@@ -338,18 +338,20 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
                                 )],
                             }]
                         })
-                        .or(fn_name_option().map(|name| {
-                            vec![Action {
-                                label: "Replace with a unique name.".to_owned(),
-                                kind: ActionKind::QuickFix,
-                                range: name.syntax().text_range(),
-                                edits: vec![TextEdit::replace_with_snippet(
-                                    format!("{name}2"),
-                                    name.syntax().text_range(),
-                                    Some(format!("${{1:{name}2}}")),
-                                )],
-                            }]
-                        })),
+                        .or_else(|| {
+                            fn_name_option().map(|name| {
+                                vec![Action {
+                                    label: "Replace with a unique name.".to_owned(),
+                                    kind: ActionKind::QuickFix,
+                                    range: name.syntax().text_range(),
+                                    edits: vec![TextEdit::replace_with_snippet(
+                                        format!("{name}2"),
+                                        name.syntax().text_range(),
+                                        Some(format!("${{1:{name}2}}")),
+                                    )],
+                                }]
+                            })
+                        }),
                 });
             }
 

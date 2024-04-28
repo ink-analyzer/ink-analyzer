@@ -355,7 +355,7 @@ fn flatten_use_tree(use_tree: &ast::UseTree) -> Vec<(String, Option<String>)> {
             .name()
             .as_ref()
             .map(ToString::to_string)
-            .or(rename.underscore_token().as_ref().map(ToString::to_string))
+            .or_else(|| rename.underscore_token().as_ref().map(ToString::to_string))
     });
     fn add_prefix(
         tree: &ast::UseTree,
