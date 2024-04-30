@@ -1,9 +1,10 @@
 //! AST traversal utilities.
 
-use ra_ap_syntax::ast::{HasAttrs, HasName};
-use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
 use std::collections::{HashMap, HashSet};
 use std::iter::once;
+
+use ra_ap_syntax::ast::{HasAttrs, HasName};
+use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
 
 use crate::traits::IsSyntax;
 

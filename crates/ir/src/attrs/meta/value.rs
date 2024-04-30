@@ -15,7 +15,7 @@ use crate::IsIntId;
 pub struct MetaValue {
     /// The syntax elements from which the meta value is derived.
     elements: Vec<SyntaxElement>,
-    /// An syntax token that's equivalent to the meta value with trivia ignore (i.e. no whitespace and comments).
+    /// A syntax token that's equivalent to the meta value with trivia ignore (i.e. no whitespace and comments).
     /// NOTE: Only used for `_` and `@` symbols which are used as literal symbols in selectors.
     token: Option<SyntaxToken>,
     /// An expression that's equivalent to the meta value but with wrong text ranges and offsets.

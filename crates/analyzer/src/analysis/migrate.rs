@@ -71,9 +71,7 @@ fn events(results: &mut Vec<TextEdit>, file: &InkFile) {
                         .text_range()
                         .contains_range(arg.text_range())
                     {
-                        if let Some(anonymous_attr) =
-                            event.item_at_offset(arg.text_range().start()).parent_attr()
-                        {
+                        if let Some(anonymous_attr) = arg.parent_attr() {
                             code = code.replace(&anonymous_attr.syntax().to_string(), "");
                         }
                     }

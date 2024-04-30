@@ -88,14 +88,15 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
                 if n_nested_tts == 1 {
                     if let Some(nested_token_tree) = nested_token_tree {
                         let nested_meta_items = parse_meta_items(&nested_token_tree);
-                        // At the moment, ink! syntax (specifically v5) only nests a single meta item
+                        // At the moment, ink! syntax (specifically v5) only nests a single meta item.
                         if nested_meta_items.len() == 1 {
                             nested_meta = Some(Box::new(nested_meta_items[0].to_owned()));
                         } else if matches!(nested_token_tree.to_string().as_str(), "(" | "()") {
                             // Handles incomplete nested args.
                             nested_meta = Some(Box::new(MetaNameValue::empty(
                                 nested_token_tree.syntax().text_range().start(),
-                                nested_token_tree.syntax().text_range().end(),
+                                Some(nested_token_tree.syntax().text_range().end()),
+                                token_tree.clone(),
                             )));
                         }
                         if nested_meta.is_some() {
@@ -105,13 +106,25 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
                     }
                 }
 
-                Some(MetaNameValue::new(
-                    parse_meta_name(&name),
-                    eq,
-                    parse_meta_value(&value),
-                    nested_meta,
-                    last_separator_offset,
-                ))
+                let meta_name = parse_meta_name(&name);
+                let meta_value = parse_meta_value(&value);
+                Some(
+                    if meta_name.is_some()
+                        || eq.is_some()
+                        || meta_value.is_some()
+                        || nested_meta.is_some()
+                    {
+                        MetaNameValue::new(
+                            meta_name,
+                            eq,
+                            meta_value,
+                            nested_meta,
+                            last_separator_offset,
+                        )
+                    } else {
+                        MetaNameValue::empty(last_separator_offset, None, token_tree.clone())
+                    },
+                )
             }
         })
         .collect()

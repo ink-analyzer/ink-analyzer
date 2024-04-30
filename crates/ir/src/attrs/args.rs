@@ -1,11 +1,12 @@
 //! ink! attribute argument IR.
 
-use crate::Version;
-use ra_ap_syntax::{AstToken, TextRange};
 use std::cmp::Ordering;
 use std::fmt;
 
+use ra_ap_syntax::{ast, AstToken, TextRange};
+
 use super::meta::{MetaName, MetaNameValue, MetaOption, MetaValue};
+use crate::Version;
 
 /// An ink! attribute argument.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +65,11 @@ impl InkArg {
     /// Convenience method for cases when we only care about nested ink! args.
     pub fn nested(&self) -> Option<InkArg> {
         self.meta.nested().map(|meta| InkArg::from(meta.to_owned()))
+    }
+
+    /// Returns parent attribute (if any).
+    pub fn parent_attr(&self) -> Option<ast::Attr> {
+        self.meta.parent_attr()
     }
 }
 

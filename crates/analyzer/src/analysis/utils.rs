@@ -1535,34 +1535,10 @@ pub fn ink_arg_and_delimiter_removal_range(
     parent_attr_option: Option<&InkAttribute>,
 ) -> TextRange {
     // Gets the last token of the ink! attribute argument (if any).
-    let last_token_option = arg
-        .meta()
-        // Argument value.
-        .value()
-        .option()
-        .and_then(|result| {
-            match result {
-                Ok(value) => value.elements(),
-                Err(elements) => elements,
-            }
-            .last()
-        })
-        .and_then(|elem| match elem {
-            SyntaxElement::Node(node) => node.last_token(),
-            SyntaxElement::Token(token) => Some(token.clone()),
-        })
-        // Equal token ("=") if no value is present.
-        .or_else(|| arg.meta().eq().map(|eq| eq.syntax().clone()))
-        // Last token of argument name if no value nor equal symbol is present.
-        .or_else(|| {
-            arg.meta().name().option().and_then(|result| match result {
-                Ok(name) => Some(name.syntax().clone()),
-                Err(elements) => elements.last().and_then(|elem| match elem {
-                    SyntaxElement::Node(node) => node.last_token(),
-                    SyntaxElement::Token(token) => Some(token.clone()),
-                }),
-            })
-        });
+    let last_token_option = arg.meta().elements().last().and_then(|elem| match elem {
+        SyntaxElement::Node(node) => node.last_token(),
+        SyntaxElement::Token(token) => Some(token.clone()),
+    });
 
     // Determines the parent attribute for the argument.
     if let Some(attr) = parent_attr_option.cloned().or_else(|| {

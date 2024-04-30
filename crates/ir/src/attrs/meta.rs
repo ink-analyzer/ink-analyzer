@@ -5,8 +5,12 @@ mod option;
 mod separator;
 mod value;
 
-use ra_ap_syntax::{AstToken, SyntaxElement, TextRange, TextSize};
 use std::fmt;
+
+use itertools::Itertools;
+use ra_ap_syntax::{ast, AstNode, AstToken, SyntaxElement, TextRange, TextSize};
+
+use crate::closest_ancestor_ast_type;
 
 pub use name::MetaName;
 pub use option::MetaOption;
@@ -37,10 +41,19 @@ pub struct MetaNameValue {
     /// Useful in cases where the meta item is "semantically" empty,
     /// but still covers a non-zero range (e.g. representing incomplete meta items like `(`).
     end: Option<TextSize>,
+    /// Parent token tree of meta item.
+    ///
+    /// Only set when the meta item is "semantically" empty, to allow traversal back to parent items.
+    parent_tt: Option<ast::TokenTree>,
 }
 
 impl MetaNameValue {
     /// Creates a meta item.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the name, eq, value and nested arguments are all empty,
+    /// Use the [`Self::empty`] method instead in these cases.
     pub fn new(
         name: MetaOption<MetaName>,
         eq: Option<MetaSeparator>,
@@ -48,6 +61,7 @@ impl MetaNameValue {
         nested: Option<Box<MetaNameValue>>,
         start: TextSize,
     ) -> Self {
+        assert!(name.is_some() || eq.is_some() || value.is_some() || nested.is_some());
         Self {
             name,
             eq,
@@ -55,18 +69,28 @@ impl MetaNameValue {
             nested,
             start,
             end: None,
+            parent_tt: None,
         }
     }
 
     /// Create an empty meta item.
-    pub fn empty(start: TextSize, end: TextSize) -> Self {
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the `start` offset (and `end` offset, if set) is not contained in `parent_tt`.
+    pub fn empty(start: TextSize, end: Option<TextSize>, parent_tt: ast::TokenTree) -> Self {
+        assert!(parent_tt.syntax().text_range().contains_inclusive(start));
+        if let Some(ref end) = end {
+            assert!(parent_tt.syntax().text_range().contains_inclusive(*end));
+        }
         Self {
             name: MetaOption::None,
             eq: None,
             value: MetaOption::None,
             nested: None,
             start,
-            end: Some(end),
+            end,
+            parent_tt: Some(parent_tt),
         }
     }
 
@@ -155,6 +179,48 @@ impl MetaNameValue {
             start.unwrap_or(self.start),
             end.or(self.end).unwrap_or(self.start),
         )
+    }
+
+    /// Returns parent attribute (if any).
+    pub fn parent_attr(&self) -> Option<ast::Attr> {
+        self.elements()
+            .next()
+            .as_ref()
+            .and_then(closest_ancestor_ast_type)
+            .or_else(|| {
+                self.parent_tt
+                    .as_ref()
+                    .map(ast::TokenTree::syntax)
+                    .and_then(closest_ancestor_ast_type)
+            })
+    }
+
+    /// Returns all the elements of the meta item.
+    pub fn elements(&self) -> impl Iterator<Item = SyntaxElement> {
+        let mut elems = Vec::new();
+        match &self.name {
+            MetaOption::Ok(name) => elems.push(SyntaxElement::from(name.syntax().clone())),
+            MetaOption::Err(name_elems) => elems.extend(name_elems.iter().cloned()),
+            MetaOption::None => (),
+        };
+
+        if let Some(eq) = &self.eq {
+            elems.push(SyntaxElement::from(eq.syntax().clone()));
+        }
+
+        match &self.value {
+            MetaOption::Ok(name) => elems.extend(name.elements().iter().cloned()),
+            MetaOption::Err(value_elems) => elems.extend(value_elems.iter().cloned()),
+            MetaOption::None => (),
+        }
+
+        if let Some(nested) = &self.nested {
+            elems.extend(nested.elements());
+        }
+
+        elems
+            .into_iter()
+            .sorted_by_key(|elem| elem.text_range().start())
     }
 }
 
