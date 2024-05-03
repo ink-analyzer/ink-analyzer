@@ -130,4 +130,4 @@ dual licensed as above, without any additional terms or conditions.
 
 ## Acknowledgements
 
-🌱 Funded by: the [Web3 Foundation](https://web3.foundation/).
+🌱 Funded by: the [Web3 Foundation](https://web3.foundation/) and [Polkadot Treasury](https://polkadot.network/ecosystem/treasury/).
