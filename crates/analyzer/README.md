@@ -8,9 +8,13 @@ It therefore implements the core functionality of ink! analyzer at a high level.
 It currently implements an [Analysis](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis.rs) entry point that accepts a string representation (`&str`) of ink! smart contract code as input and defines associated methods that compute:
 
 - [diagnostics](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/diagnostics.rs) - errors and warnings based on ink! semantic rules.
-- [quickfixes](/crates/analyzer/src/analysis/diagnostics.rs) - suggested edits/code actions for diagnostic errors and warnings.
-- [completions](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros and arguments.
-- [code/intent actions](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros, arguments and entities.
+- [quickfixes](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/diagnostics.rs) - suggested edits/code actions for diagnostic errors and warnings.
+- [completions](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros, arguments and entities/items.
+- [code/intent actions](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/actions.rs) - contextual assists for:
+  - adding relevant ink! attribute macros, arguments and entities/items
+  - migrating ink! projects to newer versions of ink! (e.g. ink! 4.x to 5.0)
+  - extracting ink! entities (e.g. ink! 5.0 events) into standalone packages
+  - and more!
 - [hover content](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/hover.rs) - descriptive/informational text for ink! attribute macros and arguments.
 - [inlay hints](https://github.com/ink-analyzer/ink-analyzer/blob/master/crates/analyzer/src/analysis/inlay_hints.rs) - inline type and format information for ink! attribute arguments values
   (e.g. `u32 | _ | @` for ink! message selectors).

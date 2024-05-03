@@ -19,8 +19,12 @@ It currently implements an [Analysis](/crates/analyzer/src/analysis.rs) entry po
 
 - [diagnostics](/crates/analyzer/src/analysis/diagnostics.rs) - errors and warnings based on ink! semantic rules.
 - [quickfixes](/crates/analyzer/src/analysis/diagnostics.rs) - suggested edits/code actions for diagnostic errors and warnings.
-- [completions](/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros and arguments.
-- [code/intent actions](/crates/analyzer/src/analysis/actions.rs) - contextual assists for adding relevant ink! attribute macros, arguments and entities.
+- [completions](/crates/analyzer/src/analysis/completions.rs) - completion suggestions for ink! attribute macros, arguments and entities/items.
+- [code/intent actions](/crates/analyzer/src/analysis/actions.rs) - contextual assists for:
+  - adding relevant ink! attribute macros, arguments and entities/items
+  - migrating ink! projects to newer versions of ink! (e.g. ink! 4.x to 5.0)
+  - extracting ink! entities (e.g. ink! 5.0 events) into standalone packages
+  - and more!
 - [hover content](/crates/analyzer/src/analysis/hover.rs) - descriptive/informational text for ink! attribute macros and arguments.
 - [inlay hints](/crates/analyzer/src/analysis/inlay_hints.rs) - inline type and format information for ink! attribute arguments values
   (e.g. `u32 | _ | @` for ink! message selectors).
