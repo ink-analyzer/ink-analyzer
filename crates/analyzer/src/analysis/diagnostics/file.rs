@@ -251,7 +251,7 @@ mod tests {
                 4
             );
             // Verifies quickfixes.
-            let expected_quickfixes = vec![
+            let expected_quickfixes = [
                 vec![
                     TestResultAction {
                         label: "Remove `#[ink(storage)]`",

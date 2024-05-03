@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn no_impl_from_status_code_fails() {
-        for (type_def, type_alias, expected_quickfixes) in [(
+        let (type_def, type_alias, expected_quickfixes) = (
             quote! {
                 #[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]
                 pub struct MyErrorCode;
@@ -572,38 +572,37 @@ mod tests {
                     end_pat: Some("pub struct MyErrorCode;"),
                 }],
             }],
-        )] {
-            let code = quote_as_pretty_string! {
-                #[ink::chain_extension]
-                pub trait my_chain_extension {
-                    #type_alias
+        );
+        let code = quote_as_pretty_string! {
+            #[ink::chain_extension]
+            pub trait my_chain_extension {
+                #type_alias
 
-                    // --snip--
-                }
+                // --snip--
+            }
 
-                #type_def
-            };
-            let chain_extension = parse_first_ink_entity_of_type(&code);
+            #type_def
+        };
+        let chain_extension = parse_first_ink_entity_of_type(&code);
 
-            let result = ensure_impl_from_status_code(&chain_extension);
+        let result = ensure_impl_from_status_code(&chain_extension);
 
-            // Verifies diagnostics.
-            assert!(result.is_some(), "code: {code}");
-            assert_eq!(
-                result.as_ref().unwrap().severity,
-                Severity::Error,
-                "code: {code}"
-            );
-            // Verifies quickfixes.
-            let empty = Vec::new();
-            let quickfixes = result
-                .as_ref()
-                .unwrap()
-                .quickfixes
-                .as_ref()
-                .unwrap_or(&empty);
-            verify_actions(&code, quickfixes, &expected_quickfixes);
-        }
+        // Verifies diagnostics.
+        assert!(result.is_some(), "code: {code}");
+        assert_eq!(
+            result.as_ref().unwrap().severity,
+            Severity::Error,
+            "code: {code}"
+        );
+        // Verifies quickfixes.
+        let empty = Vec::new();
+        let quickfixes = result
+            .as_ref()
+            .unwrap()
+            .quickfixes
+            .as_ref()
+            .unwrap_or(&empty);
+        verify_actions(&code, quickfixes, &expected_quickfixes);
     }
 
     #[test]

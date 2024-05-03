@@ -178,7 +178,7 @@ mod tests {
 
         impl NestedArg {
             fn new(args: &[(InkArgKind, Option<SyntaxKind>)]) -> Self {
-                let mut args_rev_iter = args.into_iter().cloned().rev();
+                let mut args_rev_iter = args.iter().cloned().rev();
                 let (arg_kind, syntax_kind) = args_rev_iter.next().unwrap();
                 let mut nested_arg = Self(arg_kind, syntax_kind, None);
                 for (arg_kind, syntax_kind) in args_rev_iter {

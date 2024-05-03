@@ -288,7 +288,7 @@ fn ensure_no_overlapping_selectors(results: &mut Vec<Diagnostic>, contract: &Con
         for (selector, node, selector_arg) in selectors {
             let selector_value = selector.into_be_u32();
 
-            if seen_selectors.get(&selector_value).is_some() {
+            if seen_selectors.contains(&selector_value) {
                 // Determines text range for the argument value.
                 let value_range_option = selector_arg
                     .as_ref()
@@ -1642,7 +1642,7 @@ mod tests {
             2
         );
         // Verifies quickfixes.
-        let expected_quickfixes = vec![
+        let expected_quickfixes = [
             vec![TestResultAction {
                 label: "Remove wildcard",
                 edits: vec![TestResultTextRange {
@@ -2022,7 +2022,7 @@ mod tests {
             4
         );
         // Verifies quickfixes.
-        let expected_quickfixes = vec![
+        let expected_quickfixes = [
             vec![TestResultAction {
                 label: "Move item",
                 edits: vec![
@@ -2136,7 +2136,7 @@ mod tests {
                 2
             );
             // Verifies quickfixes.
-            let expected_quickfixes = vec![
+            let expected_quickfixes = [
                 vec![TestResultAction {
                     label: "Remove `#[ink(topic)]`",
                     edits: vec![TestResultTextRange {

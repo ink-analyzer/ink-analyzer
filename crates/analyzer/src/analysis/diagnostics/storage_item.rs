@@ -182,7 +182,7 @@ mod tests {
             2
         );
         // Verifies quickfixes.
-        let expected_quickfixes = vec![
+        let expected_quickfixes = [
             vec![TestResultAction {
                 label: "Remove `#[ink(event)]`",
                 edits: vec![TestResultTextRange {

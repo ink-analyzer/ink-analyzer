@@ -2009,7 +2009,7 @@ pub fn suggest_unique_name(preferred_name: &str, unavailable_names: &HashSet<Str
     while unavailable_names.contains(&suggested_name) {
         if suffix == u8::MAX {
             // Bail if we can't find a unique name after all these tries and use the preferred name.
-            suggested_name = preferred_name.to_owned();
+            preferred_name.clone_into(&mut suggested_name);
             break;
         }
         suggested_name = format!("{preferred_name}{suffix}");

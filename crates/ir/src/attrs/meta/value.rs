@@ -187,16 +187,10 @@ impl MetaValue {
             let mut value = self.to_string();
             // Strip leading and trailing escaped quotes.
             if value.starts_with('\"') {
-                value = value
-                    .strip_prefix('\"')
-                    .expect("Should be able to strip prefix")
-                    .to_owned();
+                value = value.trim_start_matches('\"').to_owned();
             }
             if value.ends_with('\"') {
-                value = value
-                    .strip_suffix('\"')
-                    .expect("Should be able to strip suffix")
-                    .to_owned();
+                value = value.trim_end_matches('\"').to_owned();
             }
             Some(value)
         } else {

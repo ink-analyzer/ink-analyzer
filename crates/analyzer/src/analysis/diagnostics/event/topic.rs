@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn non_struct_field_fails() {
-        for item in vec![
+        for item in [
             quote! { mod my_topic; },
             quote! {
                 pub struct MyTopic {

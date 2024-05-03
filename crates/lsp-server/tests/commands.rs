@@ -25,7 +25,7 @@ fn create_project_command_works() {
     let req = lsp_server::Request {
         id: req_id.clone(),
         method: lsp_types::request::ExecuteCommand::METHOD.to_owned(),
-        params: serde_json::to_value(&lsp_types::ExecuteCommandParams {
+        params: serde_json::to_value(lsp_types::ExecuteCommandParams {
             command: "createProject".to_owned(),
             arguments: vec![serde_json::json!({
                 "name": project_name,

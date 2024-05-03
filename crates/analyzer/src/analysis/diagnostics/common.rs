@@ -458,7 +458,7 @@ fn ensure_no_duplicate_attributes_and_arguments(
     for attr in attrs {
         if let InkAttributeKind::Macro(macro_kind) = attr.kind() {
             // Unknown ink! attribute macros are ignored.
-            if *macro_kind != InkMacroKind::Unknown && seen_macros.get(macro_kind).is_some() {
+            if *macro_kind != InkMacroKind::Unknown && seen_macros.contains(macro_kind) {
                 results.push(Diagnostic {
                     message: format!("Duplicate ink! attribute macro: `{}`", attr.syntax()),
                     range: attr.syntax().text_range(),
@@ -472,7 +472,7 @@ fn ensure_no_duplicate_attributes_and_arguments(
         for arg in attr.args() {
             let arg_kind = arg.kind();
             // Unknown ink! attribute arguments are ignored.
-            if *arg_kind != InkArgKind::Unknown && seen_args.get(arg_kind).is_some() {
+            if *arg_kind != InkArgKind::Unknown && seen_args.contains(arg_kind) {
                 // Edit range for quickfix.
                 let range = utils::ink_arg_and_delimiter_removal_range(arg, Some(attr));
                 results.push(Diagnostic {
@@ -2570,7 +2570,7 @@ mod tests {
             6
         );
         // Verifies quickfixes.
-        let expected_quickfixes = vec![
+        let expected_quickfixes = [
             vec![TestResultAction {
                 label: "Rename identifier",
                 edits: vec![TestResultTextRange {
@@ -2666,7 +2666,7 @@ mod tests {
                     end_pat,
                 }],
             }];
-            verify_actions(&code, quickfixes, &expected_quickfixes);
+            verify_actions(code, quickfixes, &expected_quickfixes);
         }
     }
 

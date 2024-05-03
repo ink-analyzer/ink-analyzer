@@ -146,7 +146,7 @@ pub fn find_cargo_toml(path: PathBuf) -> Option<PathBuf> {
         // Tries to find `Cargo.toml` in the parent director(y|ies).
         // This is the typical setup for most Rust projects created with `cargo new`
         // and for workspace projects.
-        cargo_toml_path = path.clone();
+        cargo_toml_path.clone_from(&path);
         let mut depth = 0u8;
         while depth < 10 && cargo_toml_path.pop() {
             cargo_toml_path.set_file_name("Cargo.toml");

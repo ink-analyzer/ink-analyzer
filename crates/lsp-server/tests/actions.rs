@@ -167,7 +167,7 @@ fn verify_actions(test_groups: impl Iterator<Item = TestGroup>, quickfixes_only:
                                 .and_then(|it| it.get(&uri))
                                 .map(|edits| {
                                     edits
-                                        .into_iter()
+                                        .iter()
                                         .map(|edit| {
                                             (
                                                 PartialMatchStr::from(edit.new_text.as_str()),
@@ -176,7 +176,7 @@ fn verify_actions(test_groups: impl Iterator<Item = TestGroup>, quickfixes_only:
                                         })
                                         .collect()
                                 })
-                                .unwrap_or_else(|| Vec::new()),
+                                .unwrap_or_default(),
                         )
                     })
                     .collect::<Vec<(PartialMatchStr, Vec<(PartialMatchStr, lsp_types::Range)>)>>(),

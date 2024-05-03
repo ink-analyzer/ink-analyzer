@@ -28,7 +28,7 @@ pub fn init_snapshots(
         uri.to_string(),
         Snapshot::new(
             content,
-            utils::position_encoding(&client_capabilities),
+            utils::position_encoding(client_capabilities),
             Some(0),
             version,
         ),

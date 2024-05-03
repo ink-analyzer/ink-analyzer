@@ -94,8 +94,8 @@ pub fn text_edits_from_fixtures(
             TextEdit::new(
                 text.to_owned(),
                 TextRange::new(
-                    TextSize::from(parse_offset_at(&code, start).unwrap() as u32),
-                    TextSize::from(parse_offset_at(&code, end).unwrap() as u32),
+                    TextSize::from(parse_offset_at(code, start).unwrap() as u32),
+                    TextSize::from(parse_offset_at(code, end).unwrap() as u32),
                 ),
                 None,
             )

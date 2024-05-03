@@ -420,7 +420,7 @@ fn ensure_no_overlapping_ids(
         let mut seen_ids: HashSet<I> = HashSet::new();
         for extension_fn in extension_fns {
             if let Some(id) = extension_fn.id() {
-                if seen_ids.get(&id).is_some() {
+                if seen_ids.contains(&id) {
                     // Determines text range for the argument value.
                     let value_range_option = extension_fn
                         .id_arg()
@@ -1495,7 +1495,7 @@ mod tests {
                 version
             );
             // Verifies quickfixes.
-            let expected_quickfixes = vec![
+            let expected_quickfixes = [
                 vec![
                     TestResultAction {
                         label: "Remove `#[ink(constructor)]`",
