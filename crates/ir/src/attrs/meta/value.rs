@@ -183,19 +183,14 @@ impl MetaValue {
 
     /// Converts the value if it's a string literal into a `String`.
     pub fn as_string(&self) -> Option<String> {
-        if self.kind() == SyntaxKind::STRING {
-            let mut value = self.to_string();
-            // Strip leading and trailing escaped quotes.
-            if value.starts_with('\"') {
-                value = value.trim_start_matches('\"').to_owned();
-            }
-            if value.ends_with('\"') {
-                value = value.trim_end_matches('\"').to_owned();
-            }
-            Some(value)
-        } else {
-            None
-        }
+        (self.kind() == SyntaxKind::STRING).then_some(
+            // Parses string value (removes escaped leading and trailing quotes).
+            self.to_string()
+                .chars()
+                .skip_while(|char| *char == '\"')
+                .take_while(|char| *char != '\"')
+                .join(""),
+        )
     }
 
     /// Converts the value if it's a path expression into a `Path` with an inaccurate text range.
