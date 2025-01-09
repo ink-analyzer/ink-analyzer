@@ -355,7 +355,7 @@ pub fn remove_whitespace(mut text: String) -> String {
 #[derive(Debug, Clone, Eq)]
 pub struct PartialMatchStr<'a>(&'a str);
 
-impl<'a> PartialEq for PartialMatchStr<'a> {
+impl PartialEq for PartialMatchStr<'_> {
     fn eq(&self, other: &Self) -> bool {
         if self.0.is_empty() {
             other.0.is_empty()
