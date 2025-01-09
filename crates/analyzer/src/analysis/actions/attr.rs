@@ -44,7 +44,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                 });
             }
 
-            if version == Version::V5
+            if version.is_v5()
                 && matches!(
                     ink_attr.kind(),
                     InkAttributeKind::Macro(InkMacroKind::Event)
@@ -77,8 +77,12 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                     utils::ink_arg_insert_offset_and_affixes(&ink_attr, Some(arg_kind))
                 {
                     // Adds ink! attribute argument action to accumulator.
-                    let (edit, snippet) =
-                        utils::ink_arg_insert_text(arg_kind, Some(insert_offset), Some(&ink_attr));
+                    let (edit, snippet) = utils::ink_arg_insert_text(
+                        arg_kind,
+                        version,
+                        Some(insert_offset),
+                        Some(&ink_attr),
+                    );
                     results.push(Action {
                         label: format!("Add ink! {arg_kind} attribute argument."),
                         kind: ActionKind::Refactor,
@@ -109,7 +113,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
 mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
-    use ink_analyzer_ir::syntax::TextSize;
+    use ink_analyzer_ir::{syntax::TextSize, MinorVersion};
     use test_utils::{parse_offset_at, TestResultAction, TestResultTextRange};
 
     macro_rules! prepend_migrate {
@@ -290,7 +294,7 @@ mod tests {
                 ],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 vec![
                     (
                         r#"

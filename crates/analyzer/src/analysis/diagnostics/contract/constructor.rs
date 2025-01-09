@@ -97,6 +97,7 @@ fn ensure_return_type(fn_item: &ast::Fn) -> Option<Diagnostic> {
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use ink_analyzer_ir::MinorVersion;
     use quote::quote;
     use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
@@ -605,7 +606,7 @@ mod tests {
                 #code
             });
 
-            for version in [Version::V4, Version::V5] {
+            for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
                 let mut results = Vec::new();
                 common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                     &mut results,
@@ -633,7 +634,7 @@ mod tests {
         };
         let constructor = parse_first_constructor(&code);
 
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,

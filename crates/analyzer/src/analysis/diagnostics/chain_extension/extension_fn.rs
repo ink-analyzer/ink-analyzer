@@ -188,7 +188,7 @@ fn extract_resolvable_custom_types(
 }
 
 fn versioned_scope_name(version: Version) -> &'static str {
-    if version == Version::V5 {
+    if version.is_v5() {
         SCOPE_NAME_FUNCTION
     } else {
         SCOPE_NAME_EXTENSION
@@ -196,7 +196,7 @@ fn versioned_scope_name(version: Version) -> &'static str {
 }
 
 fn versioned_attr_kind(version: Version) -> InkAttributeKind {
-    if version == Version::V5 {
+    if version.is_v5() {
         ATTR_KIND_FUNCTION
     } else {
         ATTR_KIND_EXTENSION
@@ -208,7 +208,7 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use crate::Severity;
-    use ink_analyzer_ir::{Extension, Function, IsInkFn};
+    use ink_analyzer_ir::{Extension, Function, IsInkFn, MinorVersion};
     use quote::quote;
     use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
@@ -279,7 +279,7 @@ mod tests {
         for (version, extensions) in versioned_fixtures!(valid_extensions) {
             for code in extensions {
                 let mut results = Vec::new();
-                if version == Version::V5 {
+                if version.is_v5() {
                     let extension: Function = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
@@ -311,7 +311,7 @@ mod tests {
     fn invalid_fn_fails() {
         for (version, id_arg_kind) in [
             (Version::V4, quote! { extension }),
-            (Version::V5, quote! { function }),
+            (Version::V5(MinorVersion::V5_0), quote! { function }),
         ] {
             for (code, expected_quickfixes) in [
                 // Generic params fails.
@@ -411,7 +411,7 @@ mod tests {
                 };
 
                 let mut results = Vec::new();
-                if version == Version::V5 {
+                if version.is_v5() {
                     let extension: Function = parse_first_ink_entity_of_type(&code);
                     common::ensure_fn_invariants(
                         &mut results,
@@ -454,7 +454,7 @@ mod tests {
     fn no_self_receiver_works() {
         for (version, extensions) in versioned_fixtures!(valid_extensions) {
             for code in extensions {
-                let result = if version == Version::V5 {
+                let result = if version.is_v5() {
                     let extension: Function = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
@@ -486,7 +486,7 @@ mod tests {
     fn self_receiver_fails() {
         for (version, id_arg_kind) in [
             (Version::V4, quote! { extension }),
-            (Version::V5, quote! { function }),
+            (Version::V5(MinorVersion::V5_0), quote! { function }),
         ] {
             for (code, start_pat, end_pat) in [
                 (
@@ -523,7 +523,7 @@ mod tests {
                     #code
                 };
 
-                let result = if version == Version::V5 {
+                let result = if version.is_v5() {
                     let extension: Function = parse_first_ink_entity_of_type(&code);
                     common::ensure_no_self_receiver(
                         extension.fn_item().unwrap(),
@@ -572,7 +572,7 @@ mod tests {
         for (version, extensions) in versioned_fixtures!(valid_extensions) {
             for code in extensions {
                 let mut results = Vec::new();
-                if version == Version::V5 {
+                if version.is_v5() {
                     let extension: Function = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
@@ -608,7 +608,7 @@ mod tests {
                 }],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 quote! { function },
                 vec![TestResultAction {
                     label: "Derive `scale::Encode`, `scale::Decode`, `scale_info::TypeInfo`",
@@ -730,7 +730,7 @@ mod tests {
                 };
                 let mut results = Vec::new();
 
-                if version == Version::V5 {
+                if version.is_v5() {
                     let extension: Function = parse_first_ink_entity_of_type(&code);
                     ensure_custom_types_impl_scale_codec_traits(&mut results, &extension, version);
                 } else {
@@ -766,7 +766,7 @@ mod tests {
         for (version, extensions) in versioned_fixtures!(valid_extensions) {
             for code in extensions {
                 let mut results = Vec::new();
-                if version == Version::V5 {
+                if version.is_v5() {
                     let extension: Function = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });
@@ -802,7 +802,7 @@ mod tests {
     fn ink_descendants_fails() {
         for (version, id_arg_kind) in [
             (Version::V4, quote! { extension }),
-            (Version::V5, quote! { function }),
+            (Version::V5(MinorVersion::V5_0), quote! { function }),
         ] {
             let code = quote_as_pretty_string! {
                 #[ink(#id_arg_kind=1)]
@@ -816,7 +816,7 @@ mod tests {
             };
             let mut results = Vec::new();
 
-            if version == Version::V5 {
+            if version.is_v5() {
                 let extension: Function = parse_first_ink_entity_of_type(&code);
                 common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                     &mut results,
@@ -894,7 +894,7 @@ mod tests {
         for (version, extensions) in versioned_fixtures!(valid_extensions) {
             for code in extensions {
                 let mut results = Vec::new();
-                if version == Version::V5 {
+                if version.is_v5() {
                     let extension: Function = parse_first_ink_entity_of_type(quote_as_str! {
                         #code
                     });

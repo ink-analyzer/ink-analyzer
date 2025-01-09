@@ -143,7 +143,7 @@ mod my_contract {
 "#;
 
 /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/e2e/macro/src/config.rs#L94-L96>.
-pub const BACKEND_DOC: &str = r#"
+pub const BACKEND_DOC_V5_0: &str = r#"
 # Attribute
 
 `#[ink_e2e::test(backend(node|runtime_only))]` or `#[ink_e2e::test(backend(node(url = U: string))]` or `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl drink::Sandbox))]`
@@ -200,6 +200,74 @@ OR
 
 ```
 #[ink_e2e::test(backend(runtime_only(sandbox = ink_e2e::MinimalSandbox))]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+"#;
+
+/// Ref: <https://github.com/use-ink/ink/releases/tag/v5.1.0>.
+///
+/// Ref: <https://github.com/use-ink/ink/blob/v5.1.0/crates/e2e/macro/src/config.rs#L95-L97>.
+///
+/// Ref: <https://github.com/use-ink/ink/pull/2158>.
+pub const BACKEND_DOC: &str = r#"
+# Attribute
+
+`#[ink_e2e::test(backend(node|runtime_only))]` or `#[ink_e2e::test(backend(node(url = U: string))]` or `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl ink_sandbox::Sandbox))]`
+
+# Description
+
+Tells the ink! e2e test runner which type of architecture to use to execute the test.
+
+- node: Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.
+- runtime_only: Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` in the same process as the test.
+
+In the case of `#[ink_e2e::test(backend(node))]`, a fresh node instance will be spawned for the lifetime of the test.
+
+In the case of `#[ink_e2e::test(backend(node(url = U: string))]`, the test will run against an already running node at the supplied URL.
+
+In the case of `#[ink_e2e::test(backend(runtime_only))]`, the `ink_e2e::DefaultSandbox` runtime is used.
+
+In the case of `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl ink_sandbox::Sandbox))]`, the runtime must implement the `ink_sandbox::Sandbox` trait.
+
+# Usage
+
+Additional argument for ink! e2e test attribute macro.
+
+**Default value:** `node`.
+
+# Example
+
+```
+#[ink_e2e::test(backend(node)]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+
+OR
+
+```
+#[ink_e2e::test(backend(node(url = "ws://127.0.0.1:8000")]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+
+OR
+
+```
+#[ink_e2e::test(backend(runtime_only)]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+
+OR
+
+```
+#[ink_e2e::test(backend(runtime_only(sandbox = ink_e2e::DefaultSandbox))]
 async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
     // --snip--
 }

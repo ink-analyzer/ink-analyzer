@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::fs;
 
-use ink_analyzer::Version;
+use ink_analyzer::{MinorVersion, Version};
 use serde::{Deserialize, Serialize};
 
 use crate::dispatch::Snapshots;
@@ -45,7 +45,8 @@ pub fn handle_create_project(
         return Err(anyhow::format_err!("Failed to create ink! project: {name}"));
     };
 
-    let Ok(project) = ink_analyzer::new_project(name.to_owned(), Version::V5) else {
+    let Ok(project) = ink_analyzer::new_project(name.to_owned(), Version::V5(MinorVersion::Latest))
+    else {
         return Err(anyhow::format_err!(
             "Failed to create ink! project: {name}\n\
             ink! project names must begin with an alphabetic character, \
@@ -287,6 +288,8 @@ pub fn handle_extract_event(
     })
 }
 
+const LATEST_INK_VERSION: &str = "5.1.1";
+
 /// Migrates the contents of a `Cargo.toml` file from ink! 4.x to ink! 5.0.
 fn migrate_cargo_toml(input: &str) -> anyhow::Result<String> {
     let Ok(mut doc) = input.parse::<toml_edit::DocumentMut>() else {
@@ -308,7 +311,7 @@ fn migrate_cargo_toml(input: &str) -> anyhow::Result<String> {
             let mut new_ink_dep_value = ink_dep_value.clone();
             new_ink_dep_value.insert(
                 "version",
-                toml_edit::Item::Value(toml_edit::Value::from("5.0.0")),
+                toml_edit::Item::Value(toml_edit::Value::from(LATEST_INK_VERSION)),
             );
             if !new_ink_dep_value.contains_key("default-features") {
                 new_ink_dep_value.insert(
@@ -320,7 +323,7 @@ fn migrate_cargo_toml(input: &str) -> anyhow::Result<String> {
         }
         toml_edit::Item::Value(toml_edit::Value::InlineTable(ink_dep_value)) => {
             let mut new_ink_dep_value = ink_dep_value.clone();
-            new_ink_dep_value.insert("version", toml_edit::Value::from("5.0.0"));
+            new_ink_dep_value.insert("version", toml_edit::Value::from(LATEST_INK_VERSION));
             if !new_ink_dep_value.contains_key("default-features") {
                 new_ink_dep_value.insert("default-features", toml_edit::Value::from(false));
             }
@@ -328,7 +331,7 @@ fn migrate_cargo_toml(input: &str) -> anyhow::Result<String> {
         }
         _ => {
             let mut new_ink_dep_value = toml_edit::InlineTable::new();
-            new_ink_dep_value.insert("version", toml_edit::Value::from("5.0.0"));
+            new_ink_dep_value.insert("version", toml_edit::Value::from(LATEST_INK_VERSION));
             new_ink_dep_value.insert("default-features", toml_edit::Value::from(false));
             new_ink_dep_value
         }
@@ -349,7 +352,7 @@ fn migrate_cargo_toml(input: &str) -> anyhow::Result<String> {
         .and_then(toml_edit::Item::as_table_mut)
     {
         if let Some(ink_e2e_dep) = dev_deps.get_mut("ink_e2e") {
-            *ink_e2e_dep = toml_edit::Item::Value(toml_edit::Value::from("5.0.0"));
+            *ink_e2e_dep = toml_edit::Item::Value(toml_edit::Value::from(LATEST_INK_VERSION));
         }
     }
 
@@ -527,7 +530,7 @@ authors = ["[your_name] <[your_email]>"]
 edition = "2021"
 
 [dependencies]
-ink = { version = "5.0.0", default-features = false }
+ink = { version = "5.1.1", default-features = false }
 
 [features]
 default = ["std"]
@@ -607,10 +610,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
-ink = { version = "5.0.0", default-features = false }
+ink = { version = "5.1.1", default-features = false }
 
 [dev-dependencies]
-ink_e2e = "5.0.0"
+ink_e2e = "5.1.1"
 
 [lib]
 path = "lib.rs"
@@ -640,10 +643,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
-ink = { version = "5.0.0", default-features = false }
+ink = { version = "5.1.1", default-features = false }
 
 [dev-dependencies]
-ink_e2e = "5.0.0"
+ink_e2e = "5.1.1"
 
 [lib]
 path = "lib.rs"
@@ -666,11 +669,11 @@ edition = "2021"
 publish = false
 
 [dependencies]
-ink = { version = "5.0.0", default-features = false }
+ink = { version = "5.1.1", default-features = false }
 event = { path = "event", default-features = false }
 
 [dev-dependencies]
-ink_e2e = "5.0.0"
+ink_e2e = "5.1.1"
 
 [lib]
 path = "lib.rs"

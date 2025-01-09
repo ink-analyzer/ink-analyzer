@@ -556,10 +556,10 @@ authors = ["[your_name] <[your_email]>"]
 edition = "2021"
 
 [dependencies]
-ink = { version = "5.0.0", default-features = false }
+ink = { version = "5.1.1", default-features = false }
 
 [dev-dependencies]
-ink_e2e = { version = "5.0.0" }
+ink_e2e = { version = "5.1.1" }
 
 [lib]
 path = "lib.rs"
@@ -578,10 +578,10 @@ authors = ["${2:[your_name]} <${3:[your_email]}>"]
 edition = "2021"
 
 [dependencies]
-ink = { version = "5.0.0", default-features = false }
+ink = { version = "5.1.1", default-features = false }
 
 [dev-dependencies]
-ink_e2e = { version = "5.0.0" }
+ink_e2e = { version = "5.1.1" }
 
 [lib]
 path = "lib.rs"

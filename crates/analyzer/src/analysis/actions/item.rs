@@ -244,6 +244,7 @@ fn ink_arg_actions(
             // Adds ink! attribute argument action to accumulator.
             let (edit, snippet) = utils::ink_arg_insert_text(
                 arg_kind,
+                version,
                 Some(insert_offset),
                 if is_extending {
                     primary_ink_attr_candidate.as_ref()
@@ -328,7 +329,7 @@ fn item_ink_entity_actions(
                         ));
                     }
 
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         // Adds ink! event 2.0 event before the contract.
                         results.push(entity::add_event_v2(
                             TextRange::new(
@@ -377,7 +378,7 @@ fn item_ink_entity_actions(
                                     .is_some_and(|selector| selector.is_wildcard())
                             })
                         };
-                        if version != Version::V5 || !has_message_with_wildcard_selector() {
+                        if !version.is_v5() || !has_message_with_wildcard_selector() {
                             // Adds ink! message.
                             add_result_opt!(entity::add_message_to_contract(
                                 &contract,
@@ -449,7 +450,7 @@ fn item_ink_entity_actions(
                             .map(InkImpl::messages)
                             .is_some_and(contains_wildcard)
                 };
-                if version != Version::V5 || !has_message_with_wildcard_selector() {
+                if !version.is_v5() || !has_message_with_wildcard_selector() {
                     // Adds ink! message.
                     add_result_opt!(entity::add_message_to_impl(
                         impl_item,
@@ -540,7 +541,7 @@ fn item_ink_entity_actions(
                     range_option,
                 ));
 
-                if version == Version::V5 {
+                if version.is_v5() {
                     // Extracts ink! event into a standalone package.
                     let range =
                         utils::ast_item_declaration_range(&ast::Item::Struct(struct_item.clone()))
@@ -620,7 +621,7 @@ fn root_ink_entity_actions(
         ));
     }
 
-    if version == Version::V5 {
+    if version.is_v5() {
         // Adds ink! event 2.0.
         results.push(entity::add_event_v2(range, ActionKind::Refactor, None));
     }
@@ -641,7 +642,7 @@ fn root_ink_entity_actions(
     ));
 
     // Adds ink! combine extensions definition.
-    if version == Version::V5 {
+    if version.is_v5() {
         results.push(entity::add_combine_extensions(
             range,
             ActionKind::Refactor,
@@ -761,7 +762,7 @@ mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
     use ink_analyzer_ir::syntax::TextSize;
-    use ink_analyzer_ir::InkEntity;
+    use ink_analyzer_ir::{InkEntity, MinorVersion};
     use test_utils::{parse_offset_at, TestResultAction, TestResultTextRange};
 
     macro_rules! prepend_migrate {
@@ -813,7 +814,7 @@ mod tests {
 
     macro_rules! event_v2_entity {
         ($version: expr, $offset: literal) => {
-            if $version == Version::V5 {
+            if $version.is_v5() {
                 vec![TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
@@ -830,7 +831,7 @@ mod tests {
 
     macro_rules! versioned_extension_fn {
         ($version: expr, $offset: literal) => {
-            if $version == Version::V5 {
+            if $version.is_v5() {
                 [TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
@@ -1000,7 +1001,7 @@ mod tests {
                 ],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 vec![
                     "#[ink::contract]",
                     "#[ink::event]",
@@ -1808,7 +1809,7 @@ mod tests {
                                 end_pat: Some("#[ink(event"),
                             }],
                         }],
-                        if version == Version::V5 {
+                        if version.is_v5() {
                             vec![TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
@@ -1831,7 +1832,7 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version == Version::V5 {
+                        if version.is_v5() {
                             vec![TestResultAction {
                                 label: "Extract",
                                 edits: vec![],
@@ -1877,7 +1878,7 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version == Version::V5 {
+                        if version.is_v5() {
                             vec![TestResultAction {
                                 label: "Extract",
                                 edits: vec![],
@@ -1923,7 +1924,7 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version == Version::V5 {
+                        if version.is_v5() {
                             vec![TestResultAction {
                                 label: "Extract",
                                 edits: vec![],

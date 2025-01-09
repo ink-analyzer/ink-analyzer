@@ -189,7 +189,7 @@ fn validate_arg(
             });
         }
         arg_kind => {
-            let arg_value_kind = if version == Version::V5 {
+            let arg_value_kind = if version.is_v5() {
                 InkArgValueKind::from_v5(
                     *arg_kind,
                     attr.map(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Constructor)),
@@ -198,7 +198,7 @@ fn validate_arg(
                 InkArgValueKind::from(*arg_kind)
             };
             let mut add_diagnostic = |message: String| {
-                let (text, snippet) = utils::ink_arg_insert_text(*arg_kind, None, attr);
+                let (text, snippet) = utils::ink_arg_insert_text(*arg_kind, version, None, attr);
                 results.push(Diagnostic {
                     message,
                     range: arg.text_range(),
@@ -547,7 +547,7 @@ fn validate_entity_attributes(
         // v5 only pedantic validation (i.e. validation that cannot be properly expressed/declared
         // using the existing generic utilities).
         // NOTE: It's intentionally performed based on the primary attribute to keep diagnostics less noisy.
-        if version == Version::V5 {
+        if version.is_v5() {
             let find_arg = |arg_kind: InkArgKind| {
                 attrs
                     .iter()
@@ -614,7 +614,7 @@ fn validate_entity_attributes(
                     )
                     .map(|(insert_offset, prefix, suffix)| {
                         let (edit, snippet) =
-                            utils::ink_arg_insert_text(InkArgKind::Extension, None, None);
+                            utils::ink_arg_insert_text(InkArgKind::Extension, version, None, None);
                         vec![Action {
                             label: "Add ink! `extension` argument.".to_owned(),
                             kind: ActionKind::QuickFix,
@@ -727,7 +727,7 @@ fn validate_entity_attributes(
         let is_already_reported_as_deprecated = |arg: &InkArg| {
             // deprecated `extension` on chain extension functions is typically the "primary" attribute,
             // so it early returns and doesn't need to be checked here.
-            version == Version::V5
+            version.is_v5()
                 && *primary_ink_attr_candidate.kind()
                     == InkAttributeKind::Macro(InkMacroKind::E2ETest)
                 && matches!(
@@ -860,7 +860,8 @@ fn validate_entity_attributes(
                 primary_attr_insert_offset_option().map(|insert_offset| {
                     let (insert_text, attr_desc, snippet) = match attr_kind {
                         InkAttributeKind::Arg(arg_kind) => {
-                            let (edit, snippet) = utils::ink_arg_insert_text(*arg_kind, None, None);
+                            let (edit, snippet) =
+                                utils::ink_arg_insert_text(*arg_kind, version, None, None);
                             (
                                 format!("#[ink({edit})]"),
                                 format!("ink! `{arg_kind}`"),
@@ -896,7 +897,7 @@ fn validate_entity_attributes(
                         match attr_kind {
                             InkAttributeKind::Arg(arg_kind) => {
                                 let (edit, snippet) =
-                                    utils::ink_arg_insert_text(*arg_kind, None, None);
+                                    utils::ink_arg_insert_text(*arg_kind, version, None, None);
                                 match utils::first_ink_arg_insert_offset_and_affixes(
                                     &primary_ink_attr_candidate,
                                 ) {
@@ -991,7 +992,7 @@ fn validate_entity_attributes(
             let is_valid_sibling_attr = || match primary_ink_attr_candidate.kind() {
                 // Generally, ink! attribute macros are never mixed with other ink! attributes,
                 // except for `scale_derive` and `storage_item` but only in ink! v5.
-                InkAttributeKind::Macro(primary_macro_kind) if version == Version::V5 => {
+                InkAttributeKind::Macro(primary_macro_kind) if version.is_v5() => {
                     // Duplicates are handled by `ensure_no_duplicate_attributes_and_arguments`, so we don't need that logic here.
                     matches!(
                         primary_macro_kind,
@@ -1811,7 +1812,7 @@ pub fn ensure_valid_quasi_direct_ink_descendants_by_kind<T>(
                 // Suppress scope warnings for deprecated `extension` args on `chain extension`
                 // associated functions to reduce noise, because there will be a deprecation warning
                 // (and quickfix) added by `validate_entity_attributes`.
-                || (version == Version::V5
+                || (version.is_v5()
                     && attr_kind == InkAttributeKind::Macro(InkMacroKind::ChainExtension)
                     && *attr.kind() == InkAttributeKind::Arg(InkArgKind::Extension))
         };
@@ -1971,7 +1972,7 @@ pub fn ensure_impl_scale_codec_traits(
     version: Version,
 ) -> Option<Diagnostic> {
     // `scale_derive` attribute for v5 (if any).
-    let scale_derive_attr = if version == Version::V5 {
+    let scale_derive_attr = if version.is_v5() {
         ink_analyzer_ir::ink_attrs(adt.syntax())
             .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::ScaleDerive))
     } else {
@@ -2069,7 +2070,7 @@ pub fn ensure_impl_scale_codec_traits(
         .into_iter()
         .filter_map(|(trait_name, qualifiers, trait_path, arg_kind)| {
             // Finds derived trait implementation for the custom type (if any).
-            let is_v5_derived = version == Version::V5
+            let is_v5_derived = version.is_v5()
                 && scale_derive_attr
                     .as_ref()
                     .is_some_and(|attr| attr.args().iter().any(|arg| *arg.kind() == arg_kind));
@@ -2112,7 +2113,7 @@ pub fn ensure_impl_scale_codec_traits(
         let trait_paths_plain = unimplemented_traits
             .iter()
             .map(|(path, arg_kind)| {
-                if version == Version::V5 {
+                if version.is_v5() {
                     arg_kind.to_string()
                 } else {
                     path.to_string()
@@ -2126,7 +2127,7 @@ pub fn ensure_impl_scale_codec_traits(
                 format!(
                     "${{{}:{}}}",
                     idx + 1,
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         arg_kind.to_string()
                     } else {
                         path.to_string()
@@ -2141,7 +2142,7 @@ pub fn ensure_impl_scale_codec_traits(
 
         // Either updates an existing `scale_derive` attribute (for v5) or
         // standalone `derive` attribute (for v4), or creates a new one.
-        let (target_attr, attr_path) = if version == Version::V5 {
+        let (target_attr, attr_path) = if version.is_v5() {
             (
                 scale_derive_attr.as_ref().map(|attr| attr.ast()),
                 "ink::scale_derive",
@@ -2251,8 +2252,7 @@ pub fn ensure_impl_scale_codec_traits(
 mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
-    use ink_analyzer_ir::syntax::Direction;
-    use ink_analyzer_ir::InkFile;
+    use ink_analyzer_ir::{syntax::Direction, InkFile, MinorVersion};
     use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
     fn parse_first_ink_attr(code: &str) -> InkAttribute {
@@ -2724,7 +2724,7 @@ mod tests {
                 ],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 vec![
                     (
                         "#[ink(constructor, selector=@)]", // wildcard complement selector is invalid for constructors.
@@ -3474,7 +3474,7 @@ mod tests {
                 ],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 vec![
                     (
                         "#[ink(anonymous)]", // missing `event`.

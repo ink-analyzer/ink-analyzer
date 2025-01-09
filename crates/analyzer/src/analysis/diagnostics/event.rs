@@ -141,7 +141,7 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use crate::Severity;
-    use ink_analyzer_ir::{Event, EventV2};
+    use ink_analyzer_ir::{Event, EventV2, MinorVersion};
     use quote::quote;
     use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
@@ -227,7 +227,7 @@ mod tests {
     macro_rules! is_event_v2 {
         ($version: ident, $code: ident) => {
             // We check with `(event` because, unlike `::event`, it doesn't need prettyfing to remove extra spaces.
-            $version == Version::V5 && !$code.to_string().contains("(event")
+            $version.is_v5() && !$code.to_string().contains("(event")
         };
     }
 
@@ -256,7 +256,7 @@ mod tests {
     fn non_pub_struct_fails() {
         for (version, attr) in [
             (Version::V4, quote! { #[ink(event)] }),
-            (Version::V5, quote! { #[ink::event] }),
+            (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
         ] {
             for (vis, expected_quickfixes) in vec![
                 (
@@ -461,7 +461,7 @@ mod tests {
     fn struct_with_generics_fails() {
         for (version, attr) in [
             (Version::V4, quote! { #[ink(event)] }),
-            (Version::V5, quote! { #[ink::event] }),
+            (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {
                 #attr
@@ -527,7 +527,7 @@ mod tests {
     fn non_topic_ink_field_fails() {
         for (version, attr) in [
             (Version::V4, quote! { #[ink(event)] }),
-            (Version::V5, quote! { #[ink::event] }),
+            (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {
                 #attr
@@ -594,7 +594,7 @@ mod tests {
     fn cfg_field_fails() {
         for (version, attr) in [
             (Version::V4, quote! { #[ink(event)] }),
-            (Version::V5, quote! { #[ink::event] }),
+            (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {
                 #attr

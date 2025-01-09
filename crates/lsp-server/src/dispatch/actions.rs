@@ -43,7 +43,7 @@ mod tests {
     use crate::dispatch::Snapshot;
     use crate::test_utils::document_uri;
     use crate::utils;
-    use ink_analyzer::Version;
+    use ink_analyzer::{MinorVersion, Version};
     use std::collections::HashMap;
     use test_utils::simple_client_config;
 
@@ -52,7 +52,7 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             // Creates test document snapshot.
             let uri = document_uri();
             let mut snapshots = HashMap::new();

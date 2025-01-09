@@ -9,10 +9,10 @@
 //!
 //! ## Methodology for extracting ink! semantic rules
 //! 1. Start by reviewing each ink! attribute macro's definition in the
-//! [ink_macro crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs).
+//!    [ink_macro crate](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs).
 //! 2. Then for each ink! attribute macro, extract its semantic rules from its corresponding
-//! [ink_ir](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/lib.rs) type,
-//! the types, utilities and modules it uses, as well as related unit tests.
+//!    [ink_ir](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/lib.rs) type,
+//!    the types, utilities and modules it uses, as well as related unit tests.
 //!
 //! Using the [`#[ink::contract]` attribute macro](https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L517-L520)
 //! as an example, from its

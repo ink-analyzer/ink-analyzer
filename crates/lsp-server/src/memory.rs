@@ -42,10 +42,11 @@ impl Memory {
 
     /// Removes document.
     pub fn remove(&mut self, id: &str) -> Option<Document> {
-        self.docs.remove(id).map(|doc| {
+        let doc = self.docs.remove(id);
+        if doc.is_some() {
             self.changes.insert(id.to_owned());
-            doc
-        })
+        }
+        doc
     }
 
     /// Retrieves the document identifiers for documents with unprocessed changes and clears the change tracker.

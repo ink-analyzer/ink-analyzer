@@ -75,13 +75,13 @@ macro_rules! mod_item_names {
 /// Creates text edit for ink! contract.
 pub fn add_contract(range: TextRange, indent: Option<&str>, version: Version) -> TextEdit {
     text_edit_with_indent(
-        if version == Version::V5 {
+        if version.is_v5() {
             CONTRACT_PLAIN_V5
         } else {
             CONTRACT_PLAIN
         },
         range,
-        Some(if version == Version::V5 {
+        Some(if version.is_v5() {
             CONTRACT_SNIPPET_V5
         } else {
             CONTRACT_SNIPPET
@@ -273,13 +273,13 @@ pub fn add_message_to_trait_def(trait_def: &TraitDefinition, range: TextRange) -
 /// Creates text edit for ink! chain extension.
 pub fn add_chain_extension(range: TextRange, indent: Option<&str>, version: Version) -> TextEdit {
     text_edit_with_indent(
-        if version == Version::V5 {
+        if version.is_v5() {
             CHAIN_EXTENSION_PLAIN_V5
         } else {
             CHAIN_EXTENSION_PLAIN
         },
         range,
-        Some(if version == Version::V5 {
+        Some(if version.is_v5() {
             CHAIN_EXTENSION_SNIPPET_V5
         } else {
             CHAIN_EXTENSION_SNIPPET
@@ -314,7 +314,7 @@ pub fn add_extension(
         .filter_map(Extension::fn_item)
         .filter_map(|fn_item| fn_item.name().as_ref().map(ToString::to_string))
         .collect();
-    let (mut text, mut snippet) = if version == Version::V5 {
+    let (mut text, mut snippet) = if version.is_v5() {
         let preferred_name = "my_function";
         let suggested_name = utils::suggest_unique_name(preferred_name, &names);
         (
@@ -420,13 +420,13 @@ pub fn add_storage_item(range: TextRange, indent: Option<&str>) -> TextEdit {
 /// Creates text edit custom ink! environment.
 pub fn add_environment(range: TextRange, indent: Option<&str>, version: Version) -> TextEdit {
     text_edit_with_indent(
-        if version == Version::V5 {
+        if version.is_v5() {
             ENVIRONMENT_PLAIN_V5
         } else {
             ENVIRONMENT_PLAIN
         },
         range,
-        Some(if version == Version::V5 {
+        Some(if version.is_v5() {
             ENVIRONMENT_SNIPPET_V5
         } else {
             ENVIRONMENT_SNIPPET
@@ -456,12 +456,12 @@ pub fn add_e2e_test(module: &ast::Module, range: TextRange, version: Version) ->
     let indent = utils::item_children_indenting(module.syntax());
     let names = mod_item_names!(module, Fn);
     let (text, snippet) = unique_text_and_snippet(
-        if version == Version::V5 {
+        if version.is_v5() {
             INK_E2E_TEST_PLAIN_V5
         } else {
             INK_E2E_TEST_PLAIN
         },
-        if version == Version::V5 {
+        if version.is_v5() {
             INK_E2E_TEST_SNIPPET_V5
         } else {
             INK_E2E_TEST_SNIPPET

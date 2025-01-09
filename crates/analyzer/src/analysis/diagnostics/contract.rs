@@ -78,7 +78,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract, version: 
     // see `ensure_at_most_one_wildcard_selector` doc.
     ensure_at_most_one_wildcard_selector(results, contract);
 
-    if version == Version::V5 {
+    if version.is_v5() {
         // Ensures that an ink! v5 contract contains either exactly one wildcard complement selector
         // if it has a wildcard selector, or none otherwise,
         // see `validate_wildcard_complement_selector` doc.
@@ -694,6 +694,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use ink_analyzer_ir::MinorVersion;
     use quote::{format_ident, quote};
     use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
@@ -2121,7 +2122,7 @@ mod tests {
         };
         let contract = parse_first_contract(&code);
 
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &contract, version);
 

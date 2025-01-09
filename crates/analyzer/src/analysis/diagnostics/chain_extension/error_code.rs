@@ -175,6 +175,7 @@ fn error_code_adt(chain_extension: &ChainExtension) -> Option<ast::Adt> {
 mod tests {
     use super::*;
     use crate::test_utils::{parse_first_ink_entity_of_type, verify_actions};
+    use ink_analyzer_ir::MinorVersion;
     use quote::quote;
     use test_utils::{quote_as_pretty_string, TestResultAction, TestResultTextRange};
 
@@ -678,7 +679,7 @@ mod tests {
                 ],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 vec![
                     (
                         quote! {},

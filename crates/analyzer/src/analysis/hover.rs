@@ -75,11 +75,11 @@ pub fn content(
 ) -> &'static str {
     match attr_kind {
         InkAttributeKind::Arg(arg_kind) => match arg_kind {
-            InkArgKind::AdditionalContracts if version == Version::V5 => {
+            InkArgKind::AdditionalContracts if version.is_v5() => {
                 args::ADDITIONAL_CONTRACTS_DOC_V5_DEPRECATED
             }
             InkArgKind::AdditionalContracts => args::ADDITIONAL_CONTRACTS_DOC,
-            InkArgKind::Anonymous if version == Version::V5 => args::ANONYMOUS_DOC_V5,
+            InkArgKind::Anonymous if version.is_v5() => args::ANONYMOUS_DOC_V5,
             InkArgKind::Anonymous => args::ANONYMOUS_DOC,
             // We enumerate the nested args for `backend` arg here, but, at the moment,
             // only the "top-level" `backend` arg is ever sent even when focused on a nested arg.
@@ -88,24 +88,33 @@ pub fn content(
             | InkArgKind::Url
             | InkArgKind::RuntimeOnly
             | InkArgKind::Sandbox
-                if version == Version::V5 =>
+                if version.is_v5_0_x() =>
+            {
+                args::BACKEND_DOC_V5_0
+            }
+            InkArgKind::Backend
+            | InkArgKind::Node
+            | InkArgKind::Url
+            | InkArgKind::RuntimeOnly
+            | InkArgKind::Sandbox
+                if version.is_gte_v5_1() =>
             {
                 args::BACKEND_DOC
             }
             InkArgKind::Constructor => args::CONSTRUCTOR_DOC,
-            InkArgKind::Decode if version == Version::V5 => args::DECODE_DOC,
+            InkArgKind::Decode if version.is_v5() => args::DECODE_DOC,
             InkArgKind::Default => args::DEFAULT_DOC,
             InkArgKind::Derive => args::DERIVE_DOC,
-            InkArgKind::Encode if version == Version::V5 => args::ENCODE_DOC,
+            InkArgKind::Encode if version.is_v5() => args::ENCODE_DOC,
             InkArgKind::Env | InkArgKind::Environment => args::ENV_DOC,
             InkArgKind::Event => args::EVENT_DOC,
-            InkArgKind::Extension if version == Version::V5 => args::EXTENSION_DOC_V5,
+            InkArgKind::Extension if version.is_v5() => args::EXTENSION_DOC_V5,
             InkArgKind::Extension => args::EXTENSION_DOC,
-            InkArgKind::Function if version == Version::V5 => args::FUNCTION_DOC,
+            InkArgKind::Function if version.is_v5() => args::FUNCTION_DOC,
             InkArgKind::HandleStatus => args::HANDLE_STATUS_DOC,
             InkArgKind::Impl => args::IMPL_DOC,
             InkArgKind::KeepAttr
-                if version == Version::V5
+                if version.is_v5()
                     && matches!(
                         primary_attr_kind,
                         Some(InkAttributeKind::Macro(InkMacroKind::E2ETest))
@@ -113,28 +122,26 @@ pub fn content(
             {
                 args::KEEP_ATTR_E2E_DOC_V5_DEPRECATED
             }
-            InkArgKind::KeepAttr if version == Version::V5 => args::KEEP_ATTR_DOC_V5,
+            InkArgKind::KeepAttr if version.is_v5() => args::KEEP_ATTR_DOC_V5,
             InkArgKind::KeepAttr => args::KEEP_ATTR_DOC,
             InkArgKind::Message => args::MESSAGE_DOC,
             InkArgKind::Namespace => args::NAMESPACE_DOC,
             InkArgKind::Payable => args::PAYABLE_DOC,
-            InkArgKind::Selector if version == Version::V5 => args::SELECTOR_DOC_V5,
+            InkArgKind::Selector if version.is_v5() => args::SELECTOR_DOC_V5,
             InkArgKind::Selector => args::SELECTOR_DOC,
-            InkArgKind::SignatureTopic if version == Version::V5 => args::SIGNATURE_TOPIC,
+            InkArgKind::SignatureTopic if version.is_v5() => args::SIGNATURE_TOPIC,
             InkArgKind::Storage => args::STORAGE_DOC,
-            InkArgKind::Topic if version == Version::V5 => args::TOPIC_DOC_V5,
+            InkArgKind::Topic if version.is_v5() => args::TOPIC_DOC_V5,
             InkArgKind::Topic => args::TOPIC_DOC,
-            InkArgKind::TypeInfo if version == Version::V5 => args::TYPE_INFO_DOC,
+            InkArgKind::TypeInfo if version.is_v5() => args::TYPE_INFO_DOC,
             _ => "",
         },
         InkAttributeKind::Macro(macro_kind) => match macro_kind {
-            InkMacroKind::ChainExtension if version == Version::V5 => {
-                macros::CHAIN_EXTENSION_DOC_V5
-            }
+            InkMacroKind::ChainExtension if version.is_v5() => macros::CHAIN_EXTENSION_DOC_V5,
             InkMacroKind::ChainExtension => macros::CHAIN_EXTENSION_DOC,
             InkMacroKind::Contract => macros::CONTRACT_DOC,
-            InkMacroKind::Event if version == Version::V5 => macros::EVENT_DOC,
-            InkMacroKind::ScaleDerive if version == Version::V5 => macros::SCALE_DERIVE_DOC,
+            InkMacroKind::Event if version.is_v5() => macros::EVENT_DOC,
+            InkMacroKind::ScaleDerive if version.is_v5() => macros::SCALE_DERIVE_DOC,
             InkMacroKind::StorageItem => macros::STORAGE_ITEM_DOC,
             InkMacroKind::Test => macros::TEST_DOC,
             InkMacroKind::TraitDefinition => macros::TRAIT_DEFINITION_DOC,
@@ -147,14 +154,13 @@ pub fn content(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_analyzer_ir::syntax::TextSize;
-    use ink_analyzer_ir::{InkArgKind, InkMacroKind};
+    use ink_analyzer_ir::{syntax::TextSize, InkArgKind, InkMacroKind, MinorVersion};
     use test_utils::parse_offset_at;
 
     fn content(attr_kind: &InkAttributeKind) -> (&str, &str) {
         (
             super::content(attr_kind, Version::V4, None),
-            super::content(attr_kind, Version::V5, None),
+            super::content(attr_kind, Version::V5(MinorVersion::V5_0), None),
         )
     }
 
@@ -525,7 +531,11 @@ mod tests {
                 );
 
                 let result_v4 = hover(&InkFile::parse(code), range, Version::V4);
-                let result_v5 = hover(&InkFile::parse(code), range, Version::V5);
+                let result_v5 = hover(
+                    &InkFile::parse(code),
+                    range,
+                    Version::V5(MinorVersion::V5_0),
+                );
 
                 assert_eq!(
                     result_v4

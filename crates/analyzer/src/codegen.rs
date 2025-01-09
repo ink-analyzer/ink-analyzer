@@ -68,7 +68,7 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
     Ok(Project {
         // Generates `lib.rs`.
         lib: ProjectFile {
-            plain: if version == Version::V5 {
+            plain: if version.is_v5() {
                 CONTRACT_PLAIN_V5
             } else {
                 CONTRACT_PLAIN
@@ -76,7 +76,7 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
             .replace("my_contract", &module_name)
             .replace("MyContract", &struct_name),
             snippet: Some(
-                if version == Version::V5 {
+                if version.is_v5() {
                     CONTRACT_SNIPPET_V5
                 } else {
                     CONTRACT_SNIPPET
@@ -87,14 +87,14 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
         },
         // Generates `Cargo.toml`.
         cargo: ProjectFile {
-            plain: if version == Version::V5 {
+            plain: if version.is_v5() {
                 CARGO_TOML_PLAIN_V5
             } else {
                 CARGO_TOML_PLAIN
             }
             .replace("my_contract", &name),
             snippet: Some(
-                if version == Version::V5 {
+                if version.is_v5() {
                     CARGO_TOML_SNIPPET_V5
                 } else {
                     CARGO_TOML_SNIPPET
@@ -108,7 +108,7 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Analysis;
+    use crate::{Analysis, MinorVersion};
 
     // Ref: <https://doc.rust-lang.org/cargo/reference/manifest.html#the-name-field>.
     // Ref: <https://github.com/paritytech/cargo-contract/blob/v3.2.0/crates/build/src/new.rs#L34-L52>.
@@ -117,7 +117,7 @@ mod tests {
         for (name, expected_error) in [
             // Empty.
             ("", Error::PackageName),
-            // Disallowed characters (i.e not alphanumeric, `-` or `_`).
+            // Disallowed characters (i.e. not alphanumeric, `-` or `_`).
             ("hello!", Error::PackageName),
             ("hello world", Error::PackageName),
             ("💝", Error::PackageName),
@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn new_project_works() {
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::Latest)] {
             // Generates an ink! contract project.
             let result = new_project("hello_world".to_owned(), version);
             assert!(result.is_ok());
@@ -157,7 +157,7 @@ mod tests {
             // Verifies the generated code stub and `Cargo.toml` file.
             let project = result.unwrap();
             let cargo_toml = project.cargo.plain;
-            assert!(cargo_toml.contains(if version == Version::V5 {
+            assert!(cargo_toml.contains(if version.is_v5() {
                 r#"ink = { version = "5"#
             } else {
                 r#"ink = { version = "4"#

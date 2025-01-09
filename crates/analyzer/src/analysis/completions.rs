@@ -140,7 +140,7 @@ pub fn macro_completions(
                         None => {
                             // Returns all valid ink! attribute macro suggestions if focused token is part of an ink! path segment.
                             if focused_token_is_in_ink_crate_path_segment {
-                                if version == Version::V5 {
+                                if version.is_v5() {
                                     vec![
                                         InkMacroKind::ChainExtension,
                                         InkMacroKind::Contract,
@@ -369,7 +369,7 @@ pub fn argument_completions(
                                 // Returns all attribute arguments that don't require a macro
                                 // if the AST item type is unknown.
                                 None => {
-                                    if version == Version::V5 {
+                                    if version.is_v5() {
                                         vec![
                                             InkArgKind::Anonymous,
                                             InkArgKind::Constructor,
@@ -450,8 +450,12 @@ pub fn argument_completions(
                             focused_token.text_range()
                         },
                     );
-                    let (edit, snippet) =
-                        utils::ink_arg_insert_text(arg_kind, Some(range.end()), Some(&ink_attr));
+                    let (edit, snippet) = utils::ink_arg_insert_text(
+                        arg_kind,
+                        version,
+                        Some(range.end()),
+                        Some(&ink_attr),
+                    );
                     results.push(Completion {
                         label: edit.clone(),
                         range,
@@ -622,7 +626,7 @@ pub fn entity_completions(
 
     macro_rules! add_event_v2 {
         ($indent: expr, $module: expr) => {
-            if version == Version::V5 && is_line_affix_of(&["struct", "event"]) {
+            if version.is_v5() && is_line_affix_of(&["struct", "event"]) {
                 results.push(Completion {
                     label: "#[ink::event]..pub struct Event {...}".to_owned(),
                     range,
@@ -807,7 +811,7 @@ pub fn entity_completions(
                         results.push(Completion {
                             label: format!(
                                 "#[ink({}=..)]..pub fn extension(..);",
-                                if version == Version::V5 {
+                                if version.is_v5() {
                                     "function"
                                 } else {
                                     "extension"
@@ -875,7 +879,7 @@ pub fn entity_completions(
             results.push(Completion {
                 label: format!(
                     "#[ink::chain_extension{}]..pub trait ChainExtension {{...}}",
-                    if version == Version::V5 { "(...)" } else { "" }
+                    if version.is_v5() { "(...)" } else { "" }
                 ),
                 range,
                 edit: text_edit::add_chain_extension(range, None, version),
@@ -885,7 +889,7 @@ pub fn entity_completions(
         }
 
         // Adds ink! combine extensions definition.
-        if version == Version::V5
+        if version.is_v5()
             && is_line_affix_of(&["ink", "combine", "extensions", "combine_extensions"])
         {
             results.push(Completion {
@@ -926,7 +930,7 @@ pub fn entity_completions(
             results.push(Completion {
                 label: format!(
                     "{}..pub enum MyEnvironment {{...}}",
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         "#[ink::scale_derive(TypeInfo)]"
                     } else {
                         "#[derive(scale_info::TypeInfo)]"
@@ -944,6 +948,7 @@ pub fn entity_completions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ink_analyzer_ir::MinorVersion;
     use test_utils::{parse_offset_at, remove_whitespace, PartialMatchStr};
 
     macro_rules! list_results {
@@ -978,7 +983,7 @@ mod tests {
                 vec!["::storage_item"],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 vec![
                     "::chain_extension",
                     "::contract",
@@ -1321,7 +1326,7 @@ mod tests {
                 vec![],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 vec![
                     "anonymous",
                     "constructor",
@@ -1458,7 +1463,7 @@ mod tests {
                 (
                     "#[ink(e",
                     None,
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![("event", Some("<-e"), Some("e"))]
                     } else {
                         vec![
@@ -1534,7 +1539,7 @@ mod tests {
                     ],
                 ),
                 (
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         "#[ink(function = 1,"
                     } else {
                         "#[ink(extension = 1,"
@@ -1864,7 +1869,7 @@ mod tests {
                         Some("#[ink(message, sel->"),
                     )],
                 ),
-                if version == Version::V5 {
+                if version.is_v5() {
                     (
                         r#"
                             #[ink::chain_extension]
@@ -1931,7 +1936,7 @@ mod tests {
 
     #[test]
     fn entity_completions_works() {
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             for (code, pat, expected_results) in [
                 // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
                 // code = source code,
@@ -2067,7 +2072,7 @@ pub mod contract1 {
                 (
                     "extension",
                     Some("extension"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             (
                                 "#[ink::chain_extension",
@@ -2182,7 +2187,7 @@ trait",
                 (
                     "struct",
                     Some("struct"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             ("#[ink::event]", Some("<-struct"), Some("struct")),
                             ("#[ink::storage_item]", Some("<-struct"), Some("struct")),
@@ -2198,7 +2203,7 @@ trait",
                 (
                     "event",
                     Some("event"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![("#[ink::event]", Some("<-event"), Some("event"))]
                     } else {
                         vec![]
@@ -2227,7 +2232,7 @@ trait",
                 (
                     "combine_extensions!",
                     Some("combine_extensions!"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![(
                             "ink::combine_extensions!",
                             Some("<-combine_extensions!"),
@@ -2240,7 +2245,7 @@ trait",
                 (
                     "combine",
                     Some("combine"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![(
                             "ink::combine_extensions!",
                             Some("<-combine"),
@@ -2253,7 +2258,7 @@ trait",
                 (
                     "extensions",
                     Some("extensions"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![(
                             "ink::combine_extensions!",
                             Some("<-extensions"),
@@ -2266,7 +2271,7 @@ trait",
                 (
                     "ink",
                     Some("ink"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![("ink::combine_extensions!", Some("<-ink"), Some("ink"))]
                     } else {
                         vec![]
@@ -2288,7 +2293,7 @@ mod contract {
 
 }",
                     Some("contract {\n"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             (
                                 "#[ink(storage)]",
@@ -2316,7 +2321,7 @@ mod contract {
     struct
 }",
                     Some("struct"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             ("#[ink(storage)]", Some("<-    struct"), Some("struct")),
                             ("#[ink::event]", Some("<-    struct"), Some("struct")),
@@ -2345,7 +2350,7 @@ mod contract {
     event
 }",
                     Some("event"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             ("#[ink::event]", Some("<-    event"), Some("event")),
                             ("#[ink(event)]", Some("<-    event"), Some("event")),
@@ -2367,7 +2372,7 @@ mod contract {
     struct
 }",
                     Some("struct->"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             ("#[ink::event]", Some("<-    struct->"), Some("struct->")),
                             ("#[ink(event)]", Some("<-    struct->"), Some("struct->")),
@@ -2387,7 +2392,7 @@ mod contract {
 }",
                     Some("struct"),
                     // No `storage` suggestion because `event` item is parsed as an error node.
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             ("#[ink::event]", Some("<-    struct"), Some("struct")),
                             ("#[ink(event)]", Some("<-    struct"), Some("struct")),
@@ -2406,7 +2411,7 @@ mod contract {
     pub struct Event {}
 }",
                     Some("struct"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             ("#[ink(storage)]", Some("<-    struct"), Some("Contract")),
                             ("#[ink::event]", Some("<-    struct"), Some("Contract")),
@@ -2441,7 +2446,7 @@ mod contract {
     event
 }",
                     Some("event->"),
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         vec![
                             ("#[ink::event]", Some("<-    event->"), Some("event->")),
                             ("#[ink(event)]", Some("<-    event->"), Some("event->")),
@@ -2659,7 +2664,7 @@ pub trait MyChainExtension {
                             Some("MyChainExtension {\n"),
                         ),
                         (
-                            if version == Version::V5 {
+                            if version.is_v5() {
                                 "#[ink(function = 1)]"
                             } else {
                                 "#[ink(extension = 1)]"
@@ -2686,7 +2691,7 @@ pub trait MyChainExtension {
 }",
                     Some("fn"),
                     vec![(
-                        if version == Version::V5 {
+                        if version.is_v5() {
                             "#[ink(function = 1)]"
                         } else {
                             "#[ink(extension = 1)]"
@@ -2722,7 +2727,7 @@ struct MyStruct {
                     vec![],
                 ),
                 (
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         r"
 #[ink::event]
 struct MyStruct {
@@ -2739,7 +2744,7 @@ struct MyStruct {
                     vec![("#[ink(topic)]", Some("MyStruct {\n"), Some("MyStruct {\n"))],
                 ),
                 (
-                    if version == Version::V5 {
+                    if version.is_v5() {
                         r"
 #[ink::event]
 struct MyStruct {

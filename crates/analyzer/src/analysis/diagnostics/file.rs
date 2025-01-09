@@ -90,7 +90,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
                     | InkMacroKind::E2ETest
             )
         ),
-        Version::V5 => matches!(attr.kind(), InkAttributeKind::Macro(_)),
+        Version::V5(..) => matches!(attr.kind(), InkAttributeKind::Macro(_)),
     });
 }
 
@@ -98,7 +98,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
 mod tests {
     use super::*;
     use crate::test_utils::verify_actions;
-    use ink_analyzer_ir::InkFile;
+    use ink_analyzer_ir::{InkFile, MinorVersion};
     use quote::{format_ident, quote};
     use test_utils::{quote_as_pretty_string, quote_as_str, TestResultAction, TestResultTextRange};
 
@@ -171,7 +171,7 @@ mod tests {
         for (version, items) in [
             (Version::V4, quote! {}),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 quote! {
                     #[ink::event]
                     pub struct MyEvent {
@@ -235,7 +235,7 @@ mod tests {
         };
         let contract = InkFile::parse(&code);
 
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &contract, version);
 

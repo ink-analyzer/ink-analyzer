@@ -9,7 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crossbeam_channel::Sender;
-use ink_analyzer::{Analysis, Version};
+use ink_analyzer::{Analysis, MinorVersion, Version};
 use lsp_types::request::Request;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -522,15 +522,18 @@ impl InkProjectVersion {
         self.version
             .as_ref()
             .map(|version| {
-                if is_v5_version_string(version) || version.trim().starts_with('*') {
-                    Version::V5
+                if is_gte_v5_1_version_string(version) || version.trim().starts_with('*') {
+                    Version::V5(MinorVersion::Latest)
+                } else if is_v5_version_string(version) {
+                    Version::V5(MinorVersion::V5_0)
                 } else {
                     Version::V4
                 }
             })
             .unwrap_or_else(|| {
                 if self.path.is_some() || self.git.is_some() {
-                    Version::V5
+                    // Use latest version for git and path dependencies.
+                    Version::V5(MinorVersion::Latest)
                 } else {
                     Version::V4
                 }
@@ -538,13 +541,20 @@ impl InkProjectVersion {
     }
 }
 
-/// Checks whether the version string should match version 5.
+/// Returns true if the version string matches `version >= 5.x.x`.
 ///
 /// Ref: <https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html>
 ///
 /// NOTE: We intentionally match `>5.x.x` to v5, because no version greater than v5 currently exists.
 fn is_v5_version_string(text: &str) -> bool {
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^|\b)(([\^~>=])|(>=))?(\s)*5\.").unwrap());
+    RE.is_match(text)
+}
+
+/// Returns true if the version string matches `version >= 5.1.x`.
+fn is_gte_v5_1_version_string(text: &str) -> bool {
+    static RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(^|\b)(([\^~>=])|(>=))?(\s)*5\.[123456789]").unwrap());
     RE.is_match(text)
 }
 

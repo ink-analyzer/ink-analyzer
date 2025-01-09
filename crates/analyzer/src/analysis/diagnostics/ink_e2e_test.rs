@@ -41,7 +41,10 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use crate::Severity;
-    use ink_analyzer_ir::syntax::{TextRange, TextSize};
+    use ink_analyzer_ir::{
+        syntax::{TextRange, TextSize},
+        MinorVersion,
+    };
     use quote::quote;
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -126,7 +129,7 @@ mod tests {
             }
         });
 
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,
@@ -155,7 +158,7 @@ mod tests {
         };
         let ink_e2e_test = parse_first_ink_e2e_test(&code);
 
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,

@@ -223,7 +223,10 @@ fn ensure_valid_quasi_direct_ink_descendants(
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use ink_analyzer_ir::syntax::{TextRange, TextSize};
+    use ink_analyzer_ir::{
+        syntax::{TextRange, TextSize},
+        MinorVersion,
+    };
     use quote::{format_ident, quote};
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -986,7 +989,7 @@ mod tests {
                 #code
             });
 
-            for version in [Version::V4, Version::V5] {
+            for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
                 let mut results = Vec::new();
                 ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
                 assert!(results.is_empty());
@@ -1009,7 +1012,7 @@ mod tests {
         };
         let trait_definition = parse_first_trait_definition(&code);
 
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
             // 1 diagnostic each for `constructor` and `event`.

@@ -949,7 +949,7 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use ink_analyzer_ir::syntax::TextSize;
-    use ink_analyzer_ir::InkFile;
+    use ink_analyzer_ir::{InkFile, MinorVersion};
     use quote::quote;
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
@@ -1775,7 +1775,7 @@ mod tests {
             };
             let ink_impl = parse_first_ink_impl(&code);
 
-            for version in [Version::V4, Version::V5] {
+            for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
                 let mut results = Vec::new();
                 ensure_trait_definition_impl_invariants(&mut results, &ink_impl, version);
 
@@ -1828,7 +1828,7 @@ mod tests {
         };
         let ink_impl = parse_first_ink_impl(&code);
 
-        for version in [Version::V4, Version::V5] {
+        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl, version);
 

@@ -242,7 +242,7 @@ fn add_signature(
 
     // Adds arguments to signature.
     for arg_kind in args.iter().sorted() {
-        let arg_value_kind = if version == Version::V5 {
+        let arg_value_kind = if version.is_v5() {
             InkArgValueKind::from_v5(
                 *arg_kind,
                 if args.contains(&InkArgKind::Constructor) {
@@ -380,6 +380,7 @@ fn complementary_signature(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ink_analyzer_ir::MinorVersion;
     use test_utils::parse_offset_at;
 
     #[test]
@@ -631,7 +632,7 @@ mod tests {
                 ],
             ),
             (
-                Version::V5,
+                Version::V5(MinorVersion::V5_0),
                 vec![
                     (
                         "#[ink(message)]",

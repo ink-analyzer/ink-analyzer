@@ -422,7 +422,7 @@ pub fn add_extension(
                 Action {
                     label: format!(
                         "Add ink! {} `fn`.",
-                        if version == Version::V5 {
+                        if version.is_v5() {
                             "function"
                         } else {
                             "extension"

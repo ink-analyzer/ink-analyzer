@@ -112,9 +112,42 @@ pub use ra_ap_syntax as syntax;
 /// Re-export `ra_ap_syntax::ast` as `ast`.
 pub use ra_ap_syntax::ast;
 
-/// The ink! language version.
+/// ink! language version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Version {
+    /// version == 4.x.x
     V4,
-    V5,
+    /// version >= 5.x.x
+    V5(MinorVersion),
+}
+
+/// ink! language minor version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MinorVersion {
+    /// Latest minor version.
+    Latest,
+    /// version == 5.0.x
+    V5_0,
+}
+
+impl Version {
+    /// Returns true if `version == 4.x.x`
+    pub fn is_v4(&self) -> bool {
+        *self == Version::V4
+    }
+
+    /// Returns true if `version >= 5.x.x`
+    pub fn is_v5(&self) -> bool {
+        matches!(self, Version::V5(..))
+    }
+
+    /// Returns true if `version == 5.0.x`
+    pub fn is_v5_0_x(&self) -> bool {
+        *self == Version::V5(MinorVersion::V5_0)
+    }
+
+    /// Returns true if `version >= 5.1.x`
+    pub fn is_gte_v5_1(&self) -> bool {
+        *self == Version::V5(MinorVersion::Latest)
+    }
 }
