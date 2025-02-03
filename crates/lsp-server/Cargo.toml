@@ -1,6 +1,6 @@
 [package]
 name = "ink-lsp-server"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "A Language Server Protocol (LSP) implementation for the ink! smart contract programming language."
 license = "MIT OR Apache-2.0"
@@ -16,7 +16,7 @@ categories = ["development-tools"]
 anyhow = "1.0.79"
 clap = { version = "4.3.24", features = ["derive"] }
 crossbeam-channel = "0.5.11"
-ink-analyzer = { version = "0.9", path = "../analyzer" }
+ink-analyzer = { version = "0.10", path = "../analyzer" }
 line-index = "0.1.1"
 lsp-server = "0.7.6"
 lsp-types = { version = "0.95.0", features = ["proposed"] }

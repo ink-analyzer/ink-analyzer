@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-02-03
+
+- 🎉 Support for [ink! v5.1](https://github.com/paritytech/ink/releases/tag/v5.1.0).
+- Miscellaneous improvements.
+
 ## [0.3.0] - 2024-05-03
 
 - Command and code action for [migrating ink! 4.x projects to ink! 5.0](https://use.ink/faq/migrating-from-ink-4-to-5/).
