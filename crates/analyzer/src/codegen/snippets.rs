@@ -97,7 +97,7 @@ async fn ${1:it_works}<${2:Client: E2EBackend}>(${3:mut client: Client}) -> ${4:
     Ok(())
 }"#;
 
-pub const CONTRACT_PLAIN: &str = r#"#![cfg_attr(not(feature = "std"), no_std)]
+pub const CONTRACT_PLAIN: &str = r#"#![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 #[ink::contract]
 pub mod my_contract {
@@ -140,7 +140,7 @@ pub mod my_contract {
         }
     }
 }"#;
-pub const CONTRACT_SNIPPET: &str = r#"#![cfg_attr(not(feature = "std"), no_std)]
+pub const CONTRACT_SNIPPET: &str = r#"#![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 #[ink::contract]
 pub mod ${1:my_contract} {
