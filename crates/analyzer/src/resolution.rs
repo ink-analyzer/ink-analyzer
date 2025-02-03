@@ -207,8 +207,7 @@ pub fn is_external_crate_item(
                 })
             };
             let path_is_type_alias_for_name = || {
-                ink_analyzer_ir::resolve_item::<ast::TypeAlias>(path, &root_node).map_or(
-                    false,
+                ink_analyzer_ir::resolve_item::<ast::TypeAlias>(path, &root_node).is_some_and(
                     |type_alias| {
                         type_alias
                             .ty()

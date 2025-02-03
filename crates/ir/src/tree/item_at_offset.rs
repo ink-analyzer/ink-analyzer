@@ -281,7 +281,7 @@ impl ItemAtOffset {
                                 parent.kind(),
                                 SyntaxKind::RECORD_FIELD | SyntaxKind::RECORD_FIELD_LIST
                             ) && ast_ext::parent_ast_item(&parent)
-                                .map_or(false, |item| matches!(item, ast::Item::Struct(_))))
+                                .is_some_and(|item| matches!(item, ast::Item::Struct(_))))
                             .then(|| {
                                 if ink_attr.ast().r_brack_token().is_some() {
                                     parent.kind()
