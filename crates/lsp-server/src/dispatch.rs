@@ -223,8 +223,7 @@ impl<'a> Dispatcher<'a> {
                         };
                         let req = lsp_server::Request::new(
                             lsp_server::RequestId::from(format!(
-                                "{SHOW_DOCUMENT_ID_PREFIX}{}",
-                                lib_uri
+                                "{SHOW_DOCUMENT_ID_PREFIX}{lib_uri}"
                             )),
                             lsp_types::request::ShowDocument::METHOD.to_owned(),
                             params,

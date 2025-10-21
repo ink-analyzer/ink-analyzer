@@ -644,9 +644,9 @@ fn verify_signature_part_match(
     match (declared_option, implemented_option) {
         // Handles all cases with a declared option.
         (Some(declared), _) => {
-            if implemented_option.map_or(true, |implemented| {
-                !utils::is_trivia_insensitive_eq(implemented, declared)
-            }) {
+            if implemented_option
+                .is_none_or(|implemented| !utils::is_trivia_insensitive_eq(implemented, declared))
+            {
                 results.push(Diagnostic {
                     message: format!(
                         "The {replace_label} for this method doesn't match \
@@ -797,13 +797,12 @@ fn ensure_trait_definition_impl_message_args(
                 results.push(Diagnostic {
                     message: format!(
                         "The ink! trait definition declaration \
-                        for this method doesn't have a `{}` argument.",
-                        arg
+                        for this method doesn't have a `{arg}` argument."
                     ),
                     range: arg.text_range(),
                     severity: Severity::Error,
                     quickfixes: Some(vec![Action {
-                        label: format!("Remove `{}` argument.", arg),
+                        label: format!("Remove `{arg}` argument."),
                         kind: ActionKind::QuickFix,
                         range,
                         edits: vec![TextEdit::delete(range)],

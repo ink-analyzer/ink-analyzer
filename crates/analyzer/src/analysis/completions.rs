@@ -300,9 +300,9 @@ pub fn argument_completions(
             let prev_non_trivia_token_is_comma = item_at_offset
                 .prev_non_trivia_token()
                 .is_some_and(|prev_token| prev_token.kind() == SyntaxKind::COMMA);
-            let prev_token_is_whitespace = focused_token.prev_token().map_or(true, |prev_token| {
-                prev_token.kind() == SyntaxKind::WHITESPACE
-            });
+            let prev_token_is_whitespace = focused_token
+                .prev_token()
+                .is_none_or(|prev_token| prev_token.kind() == SyntaxKind::WHITESPACE);
 
             // Only computes completions if the focused token is in an argument context.
             if focused_token_is_left_parenthesis

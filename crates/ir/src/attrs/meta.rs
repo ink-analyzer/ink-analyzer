@@ -232,7 +232,7 @@ impl fmt::Display for MetaNameValue {
             self.name,
             match &self.nested {
                 Some(nested_meta) => {
-                    format!("({})", nested_meta)
+                    format!("({nested_meta})")
                 }
                 None => "".to_owned(),
             },

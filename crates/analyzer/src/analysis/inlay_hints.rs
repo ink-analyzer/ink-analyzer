@@ -25,7 +25,7 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>, version: Version) -
     let mut process_inlay_hint = |arg: &InkArg, is_constructor: bool| {
         // Filters out ink! attribute arguments that aren't in the selection range.
         // Note that range of `None` means entire file is in range.
-        if range.map_or(true, |it| it.contains_range(arg.text_range())) {
+        if range.is_none_or(|it| it.contains_range(arg.text_range())) {
             // Creates inlay hint if a non-empty label is defined for the ink! attribute argument.
             let arg_value_kind = if version.is_v5() {
                 InkArgValueKind::from_v5(*arg.kind(), Some(is_constructor))

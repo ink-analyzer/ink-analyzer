@@ -177,10 +177,9 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         // but only when the token right after the whitespace is not a closing curly bracket
         // (because it would otherwise break the indenting of the closing curly bracket).
         if let Some(token_after) = token_after_option {
-            let is_whitespace_or_bof_before =
-                token_before_option.as_ref().map_or(true, |token_before| {
-                    token_before.kind() == SyntaxKind::WHITESPACE
-                });
+            let is_whitespace_or_bof_before = token_before_option
+                .as_ref()
+                .is_none_or(|token_before| token_before.kind() == SyntaxKind::WHITESPACE);
             let is_at_the_end_block = token_after
                 .next_token()
                 .is_some_and(|it| it.kind() == SyntaxKind::R_CURLY);
@@ -196,14 +195,12 @@ pub fn format_edit(mut edit: TextEdit, file: &InkFile) -> TextEdit {
         let affix_edit_after_whitespace_or_bof =
             |token_before_option: Option<&SyntaxToken>,
              token_after_option: Option<&SyntaxToken>| {
-                let is_whitespace_or_bof_before =
-                    token_before_option.as_ref().map_or(true, |token_before| {
-                        token_before.kind() == SyntaxKind::WHITESPACE
-                    });
-                let is_whitespace_or_eof_after =
-                    token_after_option.as_ref().map_or(true, |token_after| {
-                        token_after.kind() == SyntaxKind::WHITESPACE
-                    });
+                let is_whitespace_or_bof_before = token_before_option
+                    .as_ref()
+                    .is_none_or(|token_before| token_before.kind() == SyntaxKind::WHITESPACE);
+                let is_whitespace_or_eof_after = token_after_option
+                    .as_ref()
+                    .is_none_or(|token_after| token_after.kind() == SyntaxKind::WHITESPACE);
                 if is_whitespace_or_bof_before && is_whitespace_or_eof_after {
                     // Handles edits between whitespace and/or file boundaries.
                     affix_edit_between_whitespace_or_file_boundaries(

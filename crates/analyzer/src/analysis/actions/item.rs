@@ -209,9 +209,10 @@ fn ink_arg_actions(
     // Filters out invalid ink! attribute argument actions based on parent ink! scope
     // if there's either no valid ink! attribute macro or only ink! attribute arguments
     // applied to the item.
-    if primary_ink_attr_candidate.as_ref().map_or(true, |attr| {
-        !matches!(attr.kind(), InkAttributeKind::Macro(_))
-    }) {
+    if primary_ink_attr_candidate
+        .as_ref()
+        .is_none_or(|attr| !matches!(attr.kind(), InkAttributeKind::Macro(_)))
+    {
         utils::remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
             &mut ink_arg_suggestions,
             target,

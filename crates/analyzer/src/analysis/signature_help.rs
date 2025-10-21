@@ -48,7 +48,7 @@ pub fn signature_help(file: &InkFile, offset: TextSize, version: Version) -> Vec
             // Closing parenthesis is not required.
             let is_before_right_paren = token_tree
                 .r_paren_token()
-                .map_or(true, |r_paren| offset <= r_paren.text_range().start());
+                .is_none_or(|r_paren| offset <= r_paren.text_range().start());
             let is_focused_on_arguments = token_tree.syntax().text_range().contains(offset)
                 && is_after_left_paren
                 && is_before_right_paren;
@@ -132,8 +132,8 @@ pub fn signature_help(file: &InkFile, offset: TextSize, version: Version) -> Vec
                             for possible_arg_kind in possible_args
                                 .iter()
                                 .filter(|arg_kind| {
-                                    focused_arg.map_or(true, |arg| {
-                                        arg.name().map_or(true, |arg_name| {
+                                    focused_arg.is_none_or(|arg| {
+                                        arg.name().is_none_or(|arg_name| {
                                             let name = arg_name.to_string();
                                             name.is_empty()
                                                 || arg_kind.to_string().starts_with(&name)

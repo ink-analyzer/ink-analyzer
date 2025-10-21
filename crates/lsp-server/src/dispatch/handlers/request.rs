@@ -200,9 +200,7 @@ pub fn handle_inlay_hint(
                     .analysis
                     .inlay_hints(Some(text_range))
                     .into_iter()
-                    .filter_map(|hint| {
-                        translator::to_lsp::inlay_hint(hint, &snapshot.context).map(Into::into)
-                    })
+                    .filter_map(|hint| translator::to_lsp::inlay_hint(hint, &snapshot.context))
                     .collect(),
             ))
         }

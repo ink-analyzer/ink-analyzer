@@ -35,13 +35,13 @@ use proc_macro::TokenStream;
 /// The `entity` macro takes one argument that represents the casting precondition as follows:
 ///
 /// - `ast` - accepts only syntax nodes whose kind matches the type of the `ast` field.
-///           This is the default and be skipped.
+///   This is the default and be skipped.
 /// - `macro_kind = T` - accepts only items annotated with an ink! attribute macro of the kind `T`
-///                      (e.g. `Contract` for `#[ink::contract]`).
+///   (e.g. `Contract` for `#[ink::contract]`).
 /// - `arg_kind = T` - accepts only items annotated with an ink! attribute argument of the kind `T`
-///                    (e.g. `Storage` for `#[ink(storage)]`).
+///   (e.g. `Storage` for `#[ink(storage)]`).
 /// - `call = F` - accepts only syntax nodes for which the function `F` returns true
-///                where `F: Fn(&SyntaxNode) -> bool`.
+///   where `F: Fn(&SyntaxNode) -> bool`.
 ///
 /// # Attributes
 /// Apart from the `ast` field which is required and must be `T: ASTNode`,
@@ -59,19 +59,19 @@ use proc_macro::TokenStream;
 /// as follows:
 ///
 /// - `closest` - collects all descendant ink! entities of the field's type that
-///               don't have any other ink! entity ancestors between them and the this entity.
-///               This is the default and be skipped.
+///   don't have any other ink! entity ancestors between them and the this entity.
+///   This is the default and be skipped.
 /// - `peek_macro = T` - collects all descendant ink! entities of the field's type that,
-///                  either don't have any other ink! entity ancestors
-///                  or only have one ink! attribute macro entity of type T
-///                  (e.g. `Contract` for `#[ink::contract]`), between them and the this entity.
+///   either don't have any other ink! entity ancestors
+///   or only have one ink! attribute macro entity of type T
+///   (e.g. `Contract` for `#[ink::contract]`), between them and the this entity.
 /// - `peek_arg = T` - collects all descendant ink! entities of the field's type that,
-///                  either don't have any other ink! entity ancestors
-///                  or only have one ink! attribute argument entity of type T
-///                  (e.g. `Storage` for `#[ink(storage)]`), between them and the this entity.
+///   either don't have any other ink! entity ancestors
+///   or only have one ink! attribute argument entity of type T
+///   (e.g. `Storage` for `#[ink(storage)]`), between them and the this entity.
 /// - `call = F` - collects all ink! entities returned by the function `F`
-///                where `F: Fn(&SyntaxNode) -> impl Iterator<Item = T>` and `T: InkEntity`
-///                and `T` also matches the ink! entity type for the field.
+///   where `F: Fn(&SyntaxNode) -> impl Iterator<Item = T>` and `T: InkEntity`
+///   and `T` also matches the ink! entity type for the field.
 ///
 /// # Example
 /// ```

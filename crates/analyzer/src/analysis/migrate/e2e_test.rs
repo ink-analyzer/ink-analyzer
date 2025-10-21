@@ -92,7 +92,7 @@ enum E2ETrait {
 }
 impl fmt::Display for E2ETrait {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ink_e2e::{:?}Backend", self)
+        write!(f, "ink_e2e::{self:?}Backend")
     }
 }
 
@@ -343,7 +343,7 @@ impl Visitor for BodyVisitor {
                     .and_then(|generic_args| {
                         generic_args
                             .last()
-                            .map(|last_generic_arg| format!("::<{}>", last_generic_arg))
+                            .map(|last_generic_arg| format!("::<{last_generic_arg}>"))
                     });
                 (path, generic_args_list)
             }
