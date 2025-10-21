@@ -32,7 +32,7 @@ pub trait InkEntity {
     fn ink_attr(&self) -> Option<&InkAttribute>;
 
     /// Returns ink! entity tree.
-    fn tree(&self) -> InkTree {
+    fn tree(&self) -> InkTree<'_> {
         InkTree::new(self.syntax())
     }
 
