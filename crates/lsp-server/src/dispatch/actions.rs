@@ -5,7 +5,7 @@ use crate::translator;
 
 /// Composes `PublishDiagnostics` notification parameters for a set of documents with changes.
 pub fn publish_diagnostics(
-    uri: &lsp_types::Url,
+    uri: &lsp_types::Uri,
     snapshots: &Snapshots,
 ) -> anyhow::Result<lsp_types::PublishDiagnosticsParams> {
     // Computes diagnostics.

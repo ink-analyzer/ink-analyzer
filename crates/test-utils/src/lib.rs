@@ -5,6 +5,7 @@ pub mod fixtures;
 use std::cmp;
 use std::fs;
 use std::path::Path;
+use std::str::FromStr;
 
 /// Quasi-quotation macro that accepts input like the `quote!` macro
 /// but returns a string (`String`) instead of a `TokenStream`.
@@ -45,10 +46,12 @@ pub fn read_source_code(location: &str) -> String {
 /// Creates an LSP URI for a file in the `test-fixtures` directory.
 ///
 /// `location` is the relative path of the source file minus the `.rs` extension.
-pub fn source_uri(location: &str) -> lsp_types::Url {
-    lsp_types::Url::from_file_path(
+pub fn source_uri(location: &str) -> lsp_types::Uri {
+    lsp_types::Uri::from_str(
         Path::new(&format!("../../test-fixtures/{location}/lib.rs"))
             .canonicalize()
+            .unwrap()
+            .to_str()
             .unwrap(),
     )
     .unwrap()
@@ -305,7 +308,7 @@ pub fn apply_test_modifications(source_code: &mut String, modifications: &[TestC
 
 /// Sends an LSP `DidOpenTextDocument` or `DidChangeTextDocument` notification depending on the value of `version`.
 pub fn versioned_document_sync_notification(
-    uri: lsp_types::Url,
+    uri: lsp_types::Uri,
     test_code: String,
     version: i32,
     sender: &crossbeam_channel::Sender<lsp_server::Message>,

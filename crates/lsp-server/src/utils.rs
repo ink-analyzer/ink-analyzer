@@ -139,14 +139,15 @@ pub fn can_create_workspace_resources(client_capabilities: &ClientCapabilities) 
 pub fn find_cargo_toml(path: PathBuf) -> Option<PathBuf> {
     // Tries to find `Cargo.toml` in the same directory.
     // This is the typical setup for ink! projects created with `cargo contract new`.
-    let mut cargo_toml_path = path.clone();
+    let mut cargo_toml_path = path;
     cargo_toml_path.set_file_name("Cargo.toml");
 
     if !cargo_toml_path.is_file() {
         // Tries to find `Cargo.toml` in the parent director(y|ies).
         // This is the typical setup for most Rust projects created with `cargo new`
         // and for workspace projects.
-        cargo_toml_path.clone_from(&path);
+        // NOTE: First pop removes `Cargo.toml` from the first.
+        cargo_toml_path.pop();
         let mut depth = 0u8;
         while depth < 10 && cargo_toml_path.pop() {
             cargo_toml_path.set_file_name("Cargo.toml");

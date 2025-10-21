@@ -117,7 +117,7 @@ pub fn hover(
 /// Translates ink! analyzer action to LSP code action.
 pub fn code_action(
     action: ink_analyzer::Action,
-    uri: lsp_types::Url,
+    uri: lsp_types::Uri,
     edit_resolve_support: bool,
     context: &PositionTranslationContext,
 ) -> Option<lsp_types::CodeAction> {

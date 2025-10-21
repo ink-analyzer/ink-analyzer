@@ -2,13 +2,16 @@
 
 #![cfg(test)]
 
-use crate::dispatch::{Snapshot, Snapshots};
-use crate::utils;
+use std::str::FromStr;
+
 use ink_analyzer::Version;
 
+use crate::dispatch::{Snapshot, Snapshots};
+use crate::utils;
+
 /// Returns uri for a test document.
-pub fn document_uri() -> lsp_types::Url {
-    lsp_types::Url::from_file_path(if cfg!(windows) {
+pub fn document_uri() -> lsp_types::Uri {
+    lsp_types::Uri::from_str(if cfg!(windows) {
         r#"C:\tmp\file.rs"#
     } else {
         "/tmp/file.rs"
@@ -21,7 +24,7 @@ pub fn init_snapshots(
     content: String,
     client_capabilities: &lsp_types::ClientCapabilities,
     version: Version,
-) -> (Snapshots, lsp_types::Url) {
+) -> (Snapshots, lsp_types::Uri) {
     let mut snapshots = Snapshots::new();
     let uri = document_uri();
     snapshots.insert(

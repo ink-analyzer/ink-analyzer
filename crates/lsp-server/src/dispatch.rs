@@ -6,7 +6,8 @@ mod routers;
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use crossbeam_channel::Sender;
 use ink_analyzer::{Analysis, MinorVersion, Version};
@@ -212,9 +213,13 @@ impl<'a> Dispatcher<'a> {
             if resp_id.starts_with(INITIALIZE_PROJECT_ID_PREFIX) {
                 if let Some(project_uri) = resp_id
                     .strip_prefix(INITIALIZE_PROJECT_ID_PREFIX)
-                    .and_then(|suffix| lsp_types::Url::parse(suffix).ok())
+                    .and_then(|suffix| lsp_types::Uri::from_str(suffix).ok())
                 {
-                    if let Ok(lib_uri) = project_uri.join("lib.rs") {
+                    let lib_uri = Path::new(project_uri.as_str())
+                        .join("lib.rs")
+                        .to_str()
+                        .map(lsp_types::Uri::from_str);
+                    if let Some(Ok(lib_uri)) = lib_uri {
                         let params = lsp_types::ShowDocumentParams {
                             uri: lib_uri.clone(),
                             external: None,
@@ -223,7 +228,8 @@ impl<'a> Dispatcher<'a> {
                         };
                         let req = lsp_server::Request::new(
                             lsp_server::RequestId::from(format!(
-                                "{SHOW_DOCUMENT_ID_PREFIX}{lib_uri}"
+                                "{SHOW_DOCUMENT_ID_PREFIX}{}",
+                                lib_uri.as_str()
                             )),
                             lsp_types::request::ShowDocument::METHOD.to_owned(),
                             params,
@@ -243,7 +249,7 @@ impl<'a> Dispatcher<'a> {
         if let Some(changes) = self.memory.take_changes() {
             for id in changes {
                 // Converts doc id to LSP URI.
-                let doc_uri = lsp_types::Url::parse(&id);
+                let doc_uri = lsp_types::Uri::from_str(&id);
 
                 // Update analysis snapshot.
                 if let Some(doc) = self.memory.get(&id) {
@@ -293,7 +299,7 @@ impl<'a> Dispatcher<'a> {
     }
 
     /// Sends diagnostics notifications to the client for changed (including new) documents.
-    fn publish_diagnostics(&mut self, uri: &lsp_types::Url) -> anyhow::Result<()> {
+    fn publish_diagnostics(&mut self, uri: &lsp_types::Uri) -> anyhow::Result<()> {
         // Composes and sends `PublishDiagnostics` notification for document with changes.
         use lsp_types::notification::Notification;
         let notification = lsp_server::Notification::new(
@@ -324,7 +330,7 @@ impl<'a> Dispatcher<'a> {
                 .map(|changes| {
                     let id = lsp_server::RequestId::from(format!(
                         "{INITIALIZE_PROJECT_ID_PREFIX}{}",
-                        changes.uri
+                        changes.uri.as_str()
                     ));
                     let params = lsp_types::ApplyWorkspaceEditParams {
                         label: Some("New ink! project".to_owned()),
@@ -353,7 +359,7 @@ impl<'a> Dispatcher<'a> {
                     (
                         lsp_server::RequestId::from(format!(
                             "{MIGRATE_PROJECT_ID_PREFIX}{}",
-                            changes.uri
+                            changes.uri.as_str()
                         )),
                         params,
                     )
@@ -371,7 +377,8 @@ impl<'a> Dispatcher<'a> {
                 .map(|changes| {
                     let id = lsp_server::RequestId::from(format!(
                         "{EXTRACT_EVENT_ID_PREFIX}{}{}",
-                        changes.uri, changes.name
+                        changes.uri.as_str(),
+                        changes.name
                     ));
                     let params = lsp_types::ApplyWorkspaceEditParams {
                         label: Some("Extract ink! event into standalone package".to_owned()),
@@ -417,30 +424,28 @@ impl<'a> Dispatcher<'a> {
 }
 
 /// Parses the ink! project version from the `Cargo.toml` file for a given `*.rs` file (if possible).
-fn parse_ink_project_version(doc_uri: &lsp_types::Url) -> Option<InkProjectVersion> {
-    if let Ok(path) = doc_uri.to_file_path() {
-        if path.extension().is_some_and(|ext| ext == "rs") {
-            // Finds `Cargo.toml` for file (if any).
-            if let Some(cargo_toml_path) = utils::find_cargo_toml(path) {
-                let project_version = parse_ink_project_version_inner(&cargo_toml_path, false);
+fn parse_ink_project_version(doc_uri: &lsp_types::Uri) -> Option<InkProjectVersion> {
+    let path = PathBuf::from(doc_uri.as_str());
+    if path.extension().is_some_and(|ext| ext == "rs") {
+        // Finds `Cargo.toml` for file (if any).
+        if let Some(cargo_toml_path) = utils::find_cargo_toml(path) {
+            let project_version = parse_ink_project_version_inner(&cargo_toml_path, false);
 
-                // Handles workspace dependencies.
-                let is_workspace_dependency =
-                    project_version.as_ref().is_some_and(|it| it.workspace);
-                if is_workspace_dependency {
-                    // Finds `Cargo.toml` in workspace root directory (if any).
-                    let mut parent_dir = cargo_toml_path.clone();
-                    parent_dir.pop();
-                    if let Some(workspace_cargo_toml_path) = utils::find_cargo_toml(parent_dir) {
-                        let workspace_project_version =
-                            parse_ink_project_version_inner(&workspace_cargo_toml_path, true);
-                        if workspace_project_version.is_some() {
-                            return workspace_project_version;
-                        }
+            // Handles workspace dependencies.
+            let is_workspace_dependency = project_version.as_ref().is_some_and(|it| it.workspace);
+            if is_workspace_dependency {
+                // Finds `Cargo.toml` in workspace root directory (if any).
+                let mut parent_dir = cargo_toml_path.clone();
+                parent_dir.pop();
+                if let Some(workspace_cargo_toml_path) = utils::find_cargo_toml(parent_dir) {
+                    let workspace_project_version =
+                        parse_ink_project_version_inner(&workspace_cargo_toml_path, true);
+                    if workspace_project_version.is_some() {
+                        return workspace_project_version;
                     }
                 }
-                return project_version;
             }
+            return project_version;
         }
     }
     return None;

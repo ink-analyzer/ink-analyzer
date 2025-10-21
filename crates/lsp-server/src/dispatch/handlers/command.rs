@@ -1,7 +1,12 @@
 //! LSP command utilities.
 
+// For `lsp_types::Uri` keys in `HashMap`.
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::HashMap;
 use std::fs;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use ink_analyzer::{MinorVersion, Version};
 use serde::{Deserialize, Serialize};
@@ -13,35 +18,42 @@ use crate::utils;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateProjectResponse {
     pub name: String,
-    pub uri: lsp_types::Url,
-    pub files: HashMap<lsp_types::Url, String>,
+    pub uri: lsp_types::Uri,
+    pub files: HashMap<lsp_types::Uri, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MigrateProjectResponse {
-    pub uri: lsp_types::Url,
-    pub edits: HashMap<lsp_types::Url, Vec<lsp_types::TextEdit>>,
+    pub uri: lsp_types::Uri,
+    pub edits: HashMap<lsp_types::Uri, Vec<lsp_types::TextEdit>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExtractEventResponse {
     pub name: String,
-    pub uri: lsp_types::Url,
-    pub files: HashMap<lsp_types::Url, String>,
-    pub edits: HashMap<lsp_types::Url, Vec<lsp_types::TextEdit>>,
+    pub uri: lsp_types::Uri,
+    pub files: HashMap<lsp_types::Uri, String>,
+    pub edits: HashMap<lsp_types::Uri, Vec<lsp_types::TextEdit>>,
 }
 
 /// Handles create project command request.
 pub fn handle_create_project(
     name: &str,
-    root: &lsp_types::Url,
+    root: &lsp_types::Uri,
 ) -> anyhow::Result<CreateProjectResponse> {
-    let uris = root
-        .clone()
+    let base_path = Path::new(root.as_str());
+    let Some(Ok(lib_uri)) = base_path
         .join("lib.rs")
-        .ok()
-        .zip(root.join("Cargo.toml").ok());
-    let Some((lib_uri, cargo_uri)) = uris else {
+        .to_str()
+        .map(lsp_types::Uri::from_str)
+    else {
+        return Err(anyhow::format_err!("Failed to create ink! project: {name}"));
+    };
+    let Some(Ok(cargo_uri)) = base_path
+        .join("Cargo.toml")
+        .to_str()
+        .map(lsp_types::Uri::from_str)
+    else {
         return Err(anyhow::format_err!("Failed to create ink! project: {name}"));
     };
 
@@ -67,7 +79,7 @@ pub fn handle_create_project(
 
 /// Handles migrate project command.
 pub fn handle_migrate_project(
-    uri: &lsp_types::Url,
+    uri: &lsp_types::Uri,
     snapshots: &Snapshots,
     client_capabilities: &lsp_types::ClientCapabilities,
 ) -> anyhow::Result<MigrateProjectResponse> {
@@ -94,7 +106,7 @@ pub fn handle_migrate_project(
         .collect();
 
     // Computes edits for the `Cargo.toml` file.
-    let Some(cargo_path) = uri.to_file_path().ok().and_then(utils::find_cargo_toml) else {
+    let Some(cargo_path) = utils::find_cargo_toml(PathBuf::from(uri.as_str())) else {
         return Err(anyhow::format_err!(
             "Failed to migrate ink! project.\nCouldn't locate `Cargo.toml` file."
         ));
@@ -104,7 +116,7 @@ pub fn handle_migrate_project(
             "Failed to migrate ink! project.\nCouldn't read `Cargo.toml` file."
         ));
     };
-    let Ok(cargo_uri) = lsp_types::Url::from_file_path(cargo_path) else {
+    let Some(Ok(cargo_uri)) = cargo_path.to_str().map(lsp_types::Uri::from_str) else {
         return Err(anyhow::format_err!(
             "Failed to migrate ink! project.\nCouldn't convert `Cargo.toml` path into a URI."
         ));
@@ -137,7 +149,7 @@ pub fn handle_migrate_project(
 
 /// Handles migrate project command.
 pub fn handle_extract_event(
-    uri: &lsp_types::Url,
+    uri: &lsp_types::Uri,
     range: ink_analyzer::TextRange,
     snapshots: &Snapshots,
     client_capabilities: &lsp_types::ClientCapabilities,
@@ -157,7 +169,7 @@ pub fn handle_extract_event(
     };
 
     // Finds path of contract's `Cargo.toml` file.
-    let Some(cargo_path) = uri.to_file_path().ok().and_then(utils::find_cargo_toml) else {
+    let Some(cargo_path) = utils::find_cargo_toml(PathBuf::from(uri.as_str())) else {
         return Err(anyhow::format_err!(
             "Failed to extract ink! event.\nCouldn't locate `Cargo.toml` file."
         ));
@@ -186,7 +198,7 @@ pub fn handle_extract_event(
     // Creates event `Cargo.toml` uri.
     let mut event_cargo_path = event_package_path.clone();
     event_cargo_path.push("Cargo.toml");
-    let Ok(event_cargo_uri) = lsp_types::Url::from_file_path(event_cargo_path) else {
+    let Some(Ok(event_cargo_uri)) = event_cargo_path.to_str().map(lsp_types::Uri::from_str) else {
         return Err(anyhow::format_err!(
             "Failed to extract ink! event.\n\
             Couldn't convert event package `Cargo.toml` path into a URI."
@@ -196,7 +208,7 @@ pub fn handle_extract_event(
     let mut event_lib_path = event_package_path.clone();
     event_lib_path.push("src");
     event_lib_path.push("lib.rs");
-    let Ok(event_lib_uri) = lsp_types::Url::from_file_path(event_lib_path) else {
+    let Some(Ok(event_lib_uri)) = event_lib_path.to_str().map(lsp_types::Uri::from_str) else {
         return Err(anyhow::format_err!(
             "Failed to extract ink! event.\n\
             Couldn't convert event package `lib.rs` path into a URI."
@@ -236,7 +248,7 @@ pub fn handle_extract_event(
             "Failed to extract ink! event.\nCouldn't read `Cargo.toml` file."
         ));
     };
-    let Ok(cargo_uri) = lsp_types::Url::from_file_path(cargo_path) else {
+    let Some(Ok(cargo_uri)) = cargo_path.to_str().map(lsp_types::Uri::from_str) else {
         return Err(anyhow::format_err!(
             "Failed to extract ink! event.\nCouldn't convert `Cargo.toml` path into a URI."
         ));
@@ -548,7 +560,7 @@ mod tests {
     fn handle_create_project_works() {
         // Creates test project.
         let project_name = "hello_ink";
-        let project_uri = lsp_types::Url::parse("file:///tmp/hello_ink/").unwrap();
+        let project_uri = lsp_types::Uri::from_str("file:///tmp/hello_ink/").unwrap();
 
         // Calls handler and verifies that the expected response is returned.
         let result = handle_create_project(project_name, &project_uri);
@@ -558,8 +570,20 @@ mod tests {
         assert_eq!(resp.name, project_name);
         assert_eq!(resp.uri, project_uri);
         // Verifies project files and their contents.
-        let lib_uri = project_uri.clone().join("lib.rs").unwrap();
-        let cargo_uri = project_uri.clone().join("Cargo.toml").unwrap();
+        let lib_uri = lsp_types::Uri::from_str(
+            Path::new(project_uri.as_str())
+                .join("lib.rs")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
+        let cargo_uri = lsp_types::Uri::from_str(
+            Path::new(project_uri.as_str())
+                .join("Cargo.toml")
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap();
         let lib_content = resp.files.get(&lib_uri).unwrap();
         let cargo_content = resp.files.get(&cargo_uri).unwrap();
         assert!(resp.files.contains_key(&lib_uri));

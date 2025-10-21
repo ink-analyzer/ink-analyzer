@@ -1,5 +1,7 @@
 //! LSP request handlers.
 
+use std::str::FromStr;
+
 use super::command;
 use crate::dispatch::Snapshots;
 use crate::utils::{COMMAND_CREATE_PROJECT, COMMAND_EXTRACT_EVENT, COMMAND_MIGRATE_PROJECT};
@@ -142,7 +144,7 @@ pub fn handle_code_action_resolve(
     let parse_uri = || {
         data.get("uri")
             .and_then(serde_json::Value::as_str)
-            .and_then(|value| lsp_types::Url::parse(value).ok())
+            .and_then(|value| lsp_types::Uri::from_str(value).ok())
     };
     match cmd {
         COMMAND_MIGRATE_PROJECT => {
@@ -254,7 +256,7 @@ pub fn handle_execute_command(
             .as_object()
             .and_then(|arg| arg.get("uri"))
             .and_then(serde_json::Value::as_str)
-            .and_then(|value| lsp_types::Url::parse(value).ok())
+            .and_then(|value| lsp_types::Uri::from_str(value).ok())
     };
     match params.command.as_str() {
         COMMAND_CREATE_PROJECT => {
@@ -265,7 +267,7 @@ pub fn handle_execute_command(
                 .and_then(|arg| {
                     arg.get("name").and_then(|it| it.as_str()).zip(
                         arg.get("root").and_then(|it| it.as_str()).and_then(|it| {
-                            lsp_types::Url::parse(&format!(
+                            lsp_types::Uri::from_str(&format!(
                                 "{it}{}",
                                 if it.ends_with('/') { "" } else { "/" }
                             ))

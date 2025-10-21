@@ -33,7 +33,7 @@ pub fn handle_did_change_text_document(
         // Server is currently configured to receive full document on update events,
         // so no incremental processing is necessary.
         memory.update(
-            params.text_document.uri.as_ref(),
+            params.text_document.uri.as_str(),
             event.text.clone(),
             params.text_document.version,
         );
@@ -48,7 +48,7 @@ pub fn handle_did_close_text_document(
     memory: &mut Memory,
 ) -> anyhow::Result<()> {
     // Removes document from memory.
-    memory.remove(params.text_document.uri.as_ref());
+    memory.remove(params.text_document.uri.as_str());
 
     Ok(())
 }
@@ -87,7 +87,7 @@ mod tests {
         );
         assert!(result.is_ok());
         assert_eq!(
-            memory.get(uri.as_ref()),
+            memory.get(uri.as_str()),
             Some(Document {
                 content: content.clone(),
                 version
@@ -109,7 +109,7 @@ mod tests {
             &mut memory,
         );
         assert!(result.is_ok());
-        assert_eq!(memory.get(uri.as_ref()), None);
+        assert_eq!(memory.get(uri.as_str()), None);
     }
 
     #[test]
@@ -144,7 +144,7 @@ mod tests {
         // Verifies handler result and expected actions.
         assert!(result.is_ok());
         assert_eq!(
-            memory.get(uri.as_ref()),
+            memory.get(uri.as_str()),
             Some(Document {
                 content: updated_content,
                 version: updated_version
@@ -172,6 +172,6 @@ mod tests {
 
         // Verifies handler result and expected actions.
         assert!(result.is_ok());
-        assert_eq!(memory.get(uri.as_ref()), None);
+        assert_eq!(memory.get(uri.as_str()), None);
     }
 }

@@ -2,6 +2,9 @@
 
 mod utils;
 
+use std::path::Path;
+use std::str::FromStr;
+
 // Tests the create new project command.
 // The high-level methodology for the "creatProject" command test is:
 // - Send an LSP execute command request for "createProject" from client to server including a project name and uri.
@@ -17,7 +20,7 @@ fn create_project_command_works() {
 
     // Creates test project.
     let project_name = "hello_ink";
-    let project_uri = lsp_types::Url::parse("file:///tmp/hello_ink/").unwrap();
+    let project_uri = lsp_types::Uri::from_str("file:///tmp/hello_ink/").unwrap();
 
     // Creates LSP execute command request.
     use lsp_types::request::Request;
@@ -73,9 +76,21 @@ fn create_project_command_works() {
     }
     .unwrap();
     // Verifies that `lib.rs` and `Cargo.toml` files are created and contain expected content.
-    let lib_uri = project_uri.clone().join("lib.rs").unwrap();
-    let cargo_uri = project_uri.clone().join("Cargo.toml").unwrap();
-    let contains_file_create = |uri: &lsp_types::Url| {
+    let lib_uri = lsp_types::Uri::from_str(
+        Path::new(project_uri.as_str())
+            .join("lib.rs")
+            .to_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let cargo_uri = lsp_types::Uri::from_str(
+        Path::new(project_uri.as_str())
+            .join("Cargo.toml")
+            .to_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let contains_file_create = |uri: &lsp_types::Uri| {
         document_changes.iter().any(|change| match change {
             lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Create(it)) => {
                 &it.uri == uri
@@ -83,7 +98,7 @@ fn create_project_command_works() {
             _ => false,
         })
     };
-    let contains_file_content = |uri: &lsp_types::Url, pat: &str| {
+    let contains_file_content = |uri: &lsp_types::Uri, pat: &str| {
         document_changes.iter().any(|change| match change {
             lsp_types::DocumentChangeOperation::Edit(it) => {
                 let edit_text = match &it.edits[0] {
