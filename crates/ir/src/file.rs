@@ -1,6 +1,6 @@
 //! ink! source file IR.
 
-use ra_ap_syntax::SourceFile;
+use ra_ap_syntax::{Edition, SourceFile};
 
 use crate::{ChainExtension, Contract, EventV2, InkE2ETest, InkTest, StorageItem, TraitDefinition};
 
@@ -34,7 +34,8 @@ pub struct InkFile {
 impl InkFile {
     /// Parses ink! file from source code.
     pub fn parse(code: &str) -> Self {
-        <Self as From<SourceFile>>::from(SourceFile::parse(code).tree())
+        // FIXME: Take edition as an argument.
+        <Self as From<SourceFile>>::from(SourceFile::parse(code, Edition::Edition2021).tree())
     }
 }
 

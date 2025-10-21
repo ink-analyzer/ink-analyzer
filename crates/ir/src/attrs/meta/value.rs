@@ -5,7 +5,8 @@ use std::fmt;
 use impl_serde::serialize as serde_hex;
 use itertools::Itertools;
 use ra_ap_syntax::{
-    ast, AstNode, AstToken, SourceFile, SyntaxElement, SyntaxKind, SyntaxToken, TextRange, TextSize,
+    ast, AstNode, AstToken, Edition, SourceFile, SyntaxElement, SyntaxKind, SyntaxToken, TextRange,
+    TextSize,
 };
 
 use crate::IsIntId;
@@ -62,7 +63,10 @@ impl MetaValue {
             // NOTE: `_` is already handled as a token above, so underscore expressions are ignored.
             // Ref: <https://doc.rust-lang.org/reference/expressions/underscore-expr.html>.
             let arg_text = elems.iter().map(ToString::to_string).join("");
-            if let Some(expr) = ra_ap_syntax::hacks::parse_expr_from_str(&arg_text) {
+            // TODO: Does the edition matter for the literal and path expressions we care about?
+            if let Some(expr) =
+                ra_ap_syntax::hacks::parse_expr_from_str(&arg_text, Edition::Edition2021)
+            {
                 if matches!(expr, ast::Expr::Literal(_) | ast::Expr::PathExpr(_)) {
                     return Some(Self {
                         elements: elems.to_owned(),
@@ -205,7 +209,8 @@ impl MetaValue {
     pub fn as_ident(&self) -> Option<ast::Ident> {
         self.as_string().and_then(|value| {
             // Parse sanitized value and find the first identifier.
-            let file = SourceFile::parse(&value).tree();
+            // TODO: Does the edition matter for identifiers?
+            let file = SourceFile::parse(&value, Edition::Edition2021).tree();
 
             // Retrieve the first `ident` in the syntax tree.
             let ident = file
@@ -259,7 +264,7 @@ impl fmt::Display for MetaValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ra_ap_syntax::SourceFile;
+    use crate::test_utils::parse_source;
     use test_utils::quote_as_str;
 
     #[test]
@@ -295,8 +300,7 @@ mod tests {
             (quote_as_str! { x, y, z }, false),
             (quote_as_str! { x y z }, false),
         ] {
-            let elements: Vec<_> = SourceFile::parse(code)
-                .tree()
+            let elements: Vec<_> = parse_source(code)
                 .syntax()
                 .children_with_tokens()
                 .map(|elem| {

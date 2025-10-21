@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::iter::once;
 
 use ra_ap_syntax::ast::{HasAttrs, HasName};
-use ra_ap_syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken};
+use ra_ap_syntax::{ast, AstNode, Edition, SyntaxKind, SyntaxNode, SyntaxToken};
 
 use crate::traits::IsSyntax;
 
@@ -307,9 +307,12 @@ pub fn simple_use_paths_and_aliases_in_scope(
 
 /// Converts a string to a path (if possible).
 pub fn path_from_str(path_str: &str) -> Option<ast::Path> {
-    ra_ap_syntax::hacks::parse_expr_from_str(path_str).and_then(|expr| match expr {
-        ast::Expr::PathExpr(path_expr) => path_expr.path(),
-        _ => None,
+    // TODO: Does the edition matter for paths?
+    ra_ap_syntax::hacks::parse_expr_from_str(path_str, Edition::Edition2021).and_then(|expr| {
+        match expr {
+            ast::Expr::PathExpr(path_expr) => path_expr.path(),
+            _ => None,
+        }
     })
 }
 
@@ -407,7 +410,6 @@ mod tests {
     use crate::test_utils::*;
     use crate::{InkEntity, InkFile};
     use quote::quote;
-    use ra_ap_syntax::SourceFile;
     use test_utils::quote_as_str;
 
     #[test]
@@ -1236,29 +1238,25 @@ mod tests {
         ] {
             let file = InkFile::parse(code);
             let path: ast::Path = parse_first_ast_node_of_type(path_str);
-            let ref_item_opt = SourceFile::parse(code)
-                .tree()
-                .syntax()
-                .descendants()
-                .find_map(|node| {
-                    if ast::Module::can_cast(node.kind()) {
-                        // Find ref `mod` (if any).
-                        ast::Module::cast(node.clone())
-                            .filter(|item| {
-                                item.name()
-                                    .is_some_and(|name| name.to_string() == ref_name.to_string())
-                            })
-                            .map(|mod_item| mod_item.syntax().clone())
-                    } else {
-                        // Otherwise find ref `fn` (if any).
-                        ast::Fn::cast(node)
-                            .filter(|item| {
-                                item.name()
-                                    .is_some_and(|name| name.to_string() == ref_name.to_string())
-                            })
-                            .map(|fn_item| fn_item.syntax().clone())
-                    }
-                });
+            let ref_item_opt = parse_source(code).syntax().descendants().find_map(|node| {
+                if ast::Module::can_cast(node.kind()) {
+                    // Find ref `mod` (if any).
+                    ast::Module::cast(node.clone())
+                        .filter(|item| {
+                            item.name()
+                                .is_some_and(|name| name.to_string() == ref_name.to_string())
+                        })
+                        .map(|mod_item| mod_item.syntax().clone())
+                } else {
+                    // Otherwise find ref `fn` (if any).
+                    ast::Fn::cast(node)
+                        .filter(|item| {
+                            item.name()
+                                .is_some_and(|name| name.to_string() == ref_name.to_string())
+                        })
+                        .map(|fn_item| fn_item.syntax().clone())
+                }
+            });
 
             assert!(
                 resolve_item::<ast::Adt>(&path, ref_item_opt.as_ref().unwrap_or(file.syntax()))

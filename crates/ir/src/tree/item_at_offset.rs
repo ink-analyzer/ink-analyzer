@@ -299,12 +299,12 @@ impl ItemAtOffset {
 #[cfg(test)]
 mod tests {
     use super::ItemAtOffset;
-    use crate::{InkArgKind, InkAttributeKind, InkMacroKind};
-    use ra_ap_syntax::{AstNode, SourceFile, SyntaxKind, TextSize};
+    use crate::{test_utils::parse_source, InkArgKind, InkAttributeKind, InkMacroKind};
+    use ra_ap_syntax::{AstNode, SyntaxKind, TextSize};
     use test_utils::parse_offset_at;
 
     fn parse_item_at_offset(code: &str, offset: TextSize) -> ItemAtOffset {
-        ItemAtOffset::new(SourceFile::parse(code).tree().syntax(), offset)
+        ItemAtOffset::new(parse_source(code).syntax(), offset)
     }
 
     #[test]
@@ -871,13 +871,7 @@ mod tests {
                 "hello, world!",
                 vec![
                     // Inside token.
-                    (
-                        Some("el"),
-                        Some("hello"),
-                        None,
-                        None,
-                        Some(SyntaxKind::MACRO_CALL),
-                    ),
+                    (Some("el"), Some("hello"), None, None, None),
                     (
                         Some("or"),
                         Some("world"),
@@ -894,13 +888,7 @@ mod tests {
                         None,
                         Some(SyntaxKind::MACRO_CALL),
                     ),
-                    (
-                        Some("hello"),
-                        Some("hello"),
-                        None,
-                        None,
-                        Some(SyntaxKind::MACRO_CALL),
-                    ),
+                    (Some("hello"), Some("hello"), None, None, None),
                     (
                         Some("world"),
                         Some("world"),
@@ -916,13 +904,7 @@ mod tests {
                         Some(SyntaxKind::MACRO_CALL),
                     ),
                     // First or last token.
-                    (
-                        Some(""),
-                        Some("hello"),
-                        None,
-                        None,
-                        Some(SyntaxKind::MACRO_CALL),
-                    ),
+                    (Some(""), Some("hello"), None, None, None),
                     (
                         Some("!"),
                         Some("!"),

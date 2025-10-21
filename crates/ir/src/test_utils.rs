@@ -2,15 +2,14 @@
 
 #![cfg(test)]
 
-use ra_ap_syntax::{ast, NodeOrToken, SyntaxKind, SyntaxNode};
+use ra_ap_syntax::{ast, Edition, NodeOrToken, SyntaxKind, SyntaxNode};
 use ra_ap_syntax::{AstNode, SourceFile, SyntaxToken};
 
 use crate::{InkAttribute, InkEntity};
 
 /// Returns the first syntax token in the code snippet.
 pub fn parse_first_syntax_token(code: &str) -> SyntaxToken {
-    SourceFile::parse(code)
-        .tree()
+    parse_source(code)
         .syntax()
         .descendants_with_tokens()
         .find_map(NodeOrToken::into_token)
@@ -19,8 +18,7 @@ pub fn parse_first_syntax_token(code: &str) -> SyntaxToken {
 
 /// Returns the first syntax node in the code snippet.
 pub fn parse_first_syntax_node(code: &str) -> SyntaxNode {
-    SourceFile::parse(code)
-        .tree()
+    parse_source(code)
         .syntax()
         .descendants()
         .find(|node| node.kind() != SyntaxKind::SOURCE_FILE)
@@ -32,8 +30,7 @@ pub fn parse_first_ast_node_of_type<T>(code: &str) -> T
 where
     T: AstNode,
 {
-    SourceFile::parse(code)
-        .tree()
+    parse_source(code)
         .syntax()
         .descendants()
         .find_map(T::cast)
@@ -47,8 +44,7 @@ pub fn parse_first_attribute(code: &str) -> ast::Attr {
 
 /// Returns the first ink! attribute in the code snippet.
 pub fn parse_first_ink_attribute(code: &str) -> InkAttribute {
-    SourceFile::parse(code)
-        .tree()
+    parse_source(code)
         .syntax()
         .descendants()
         .find_map(|node| InkAttribute::cast(ast::Attr::cast(node)?))
@@ -60,10 +56,15 @@ pub fn first_ink_entity_of_type<T>(code: &str) -> T
 where
     T: InkEntity,
 {
-    SourceFile::parse(code)
-        .tree()
+    parse_source(code)
         .syntax()
         .descendants()
         .find_map(T::cast)
         .unwrap()
+}
+
+/// Returns the `SourceFile` for the code snippet.
+pub fn parse_source(code: &str) -> SourceFile {
+    // TODO: Do we need an edition args?
+    SourceFile::parse(code, Edition::Edition2021).tree()
 }
