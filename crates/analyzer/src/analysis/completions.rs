@@ -657,8 +657,9 @@ pub fn entity_completions(
         item_at_offset.parent_ast_item()
     };
     // Bail if focused token is part of an item that spans multiple lines,
-    // except if the next token is an error as that likely just indicates an intermittent join
-    // of the current incomplete item to the next one by the parser.
+    // except if the next token is an error (as that likely just indicates an intermittent join
+    // of the current incomplete item to the next one by the parser)
+    // or the focused token is fully enclosed by a `mod` or `impl` parent.
     let is_multi_line_focused_item = focused_item.as_ref().is_some_and(|focused_item| {
         focused_item.syntax().text_range().end()
             > last_line_sibling
@@ -667,7 +668,21 @@ pub fn entity_completions(
                 .unwrap_or_else(|| focused_token.text_range())
                 .end()
     });
-    if is_multi_line_focused_item && !is_next_node_error() {
+    let is_parent_mod_or_impl = || {
+        focused_item.as_ref().is_some_and(|focused_item| {
+            matches!(
+                focused_item.syntax().kind(),
+                SyntaxKind::MODULE | SyntaxKind::IMPL
+            ) && utils::ast_item_declaration_range(focused_item)
+                .as_ref()
+                .is_some_and(|decl_range| {
+                    let focus_range = focused_token.text_range();
+                    focus_range.start() > decl_range.end()
+                        && focus_range.end() < focused_item.syntax().text_range().end()
+                })
+        })
+    };
+    if is_multi_line_focused_item && (!is_next_node_error() && !is_parent_mod_or_impl()) {
         return;
     }
 
@@ -676,6 +691,8 @@ pub fn entity_completions(
         // Completion context "parent item" for record fields (e.g. `struct` fields) and
         // whitespace-only lines is the direct parent item.
         item_at_offset.parent_ast_item()
+    } else if is_parent_mod_or_impl() {
+        focused_item
     } else {
         // Otherwise, the completion context "parent item" is the parent of the "focused" item.
         focused_item

@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use ink_analyzer_ir::syntax::{AstNode, SourceFile, TextRange, TextSize};
+use ink_analyzer_ir::syntax::{AstNode, Edition, SourceFile, TextRange, TextSize};
 use ink_analyzer_ir::{InkEntity, InkFile};
 use test_utils::{parse_offset_at, PartialMatchStr, TestResultAction};
 
@@ -55,8 +55,7 @@ pub fn parse_first_ast_node_of_type<T>(code: &str) -> T
 where
     T: AstNode,
 {
-    SourceFile::parse(code)
-        .tree()
+    parse_source(code)
         .syntax()
         .descendants()
         .find_map(T::cast)
@@ -104,4 +103,10 @@ pub fn text_edits_from_fixtures(
             )
         })
         .collect()
+}
+
+/// Returns the `SourceFile` for the code snippet.
+pub fn parse_source(code: &str) -> SourceFile {
+    // TODO: Do we need an edition args?
+    SourceFile::parse(code, Edition::Edition2021).tree()
 }

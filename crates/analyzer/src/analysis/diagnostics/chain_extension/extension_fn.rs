@@ -1,7 +1,10 @@
 //! ink! extension/function diagnostics.
 
-use ink_analyzer_ir::syntax::{AstNode, SyntaxNode};
-use ink_analyzer_ir::{ast, InkArgKind, InkAttributeKind, IsChainExtensionFn};
+use ink_analyzer_ir::{
+    ast::{self, HasGenericArgs},
+    syntax::{AstNode, SyntaxNode},
+    InkArgKind, InkAttributeKind, IsChainExtensionFn,
+};
 use itertools::Itertools;
 
 use crate::analysis::diagnostics::common;

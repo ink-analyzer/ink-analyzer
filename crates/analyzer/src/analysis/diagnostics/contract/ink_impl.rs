@@ -3,11 +3,11 @@
 use std::collections::{HashMap, HashSet};
 use std::iter;
 
-use ink_analyzer_ir::ast::{AstNode, HasName, HasVisibility, Trait};
-use ink_analyzer_ir::syntax::{SyntaxNode, TextRange};
 use ink_analyzer_ir::{
-    ast, HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkEntity,
-    InkImpl, IsInkFn, IsInkTrait, Message,
+    ast::{self, AstNode, HasGenericArgs, HasName, HasVisibility, Trait},
+    syntax::{SyntaxNode, TextRange},
+    HasInkImplParent, InkArg, InkArgKind, InkArgValueKind, InkAttributeKind, InkEntity, InkImpl,
+    IsInkFn, IsInkTrait, Message,
 };
 use itertools::Itertools;
 

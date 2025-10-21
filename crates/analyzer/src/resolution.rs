@@ -412,8 +412,8 @@ fn match_path_to_external_crate_in_scope(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::parse_first_ast_node_of_type;
-    use ink_analyzer_ir::ast::{HasName, SourceFile};
+    use crate::test_utils::{parse_first_ast_node_of_type, parse_source};
+    use ink_analyzer_ir::ast::HasName;
     use ink_analyzer_ir::{InkEntity, InkFile};
     use quote::quote;
     use test_utils::quote_as_str;
@@ -602,16 +602,12 @@ mod tests {
         ] {
             let file = InkFile::parse(code);
             let path: ast::Path = parse_first_ast_node_of_type(path_str);
-            let ref_module_option = SourceFile::parse(code)
-                .tree()
-                .syntax()
-                .descendants()
-                .find_map(|node| {
-                    ast::Module::cast(node).filter(|item| {
-                        item.name()
-                            .is_some_and(|name| name.to_string() == ref_name.to_string())
-                    })
-                });
+            let ref_module_option = parse_source(code).syntax().descendants().find_map(|node| {
+                ast::Module::cast(node).filter(|item| {
+                    item.name()
+                        .is_some_and(|name| name.to_string() == ref_name.to_string())
+                })
+            });
 
             assert!(
                 is_external_crate_item(

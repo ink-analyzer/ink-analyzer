@@ -1,6 +1,6 @@
 //! Utilities for ink! 5.0 migration.
 
-use ink_analyzer_ir::ast;
+use ink_analyzer_ir::ast::{self, HasGenericArgs};
 use ink_analyzer_ir::syntax::SyntaxNode;
 
 use crate::resolution;
