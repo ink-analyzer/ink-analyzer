@@ -1,7 +1,9 @@
 //! ink! message diagnostics.
 
 use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{ast, InkArgKind, InkAttributeKind, IsInkFn, Message};
+use ink_analyzer_ir::{
+    ast, InkArgKind, InkAttributeKind, InkEntity, IsInkCallable, IsInkFn, Message,
+};
 
 use super::common;
 use crate::analysis::text_edit::TextEdit;
@@ -40,6 +42,13 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, message: &Message, version: Ve
 
         // Ensures that ink! message `fn` item does not return `Self`, see `ensure_not_return_self` doc.
         if let Some(diagnostic) = ensure_not_return_self(fn_item) {
+            results.push(diagnostic);
+        }
+    }
+
+    if version.is_gte_v6() {
+        // For ink! >= 6.x, payable messages must have a `&mut self` receiver.
+        if let Some(diagnostic) = ensure_immutable_not_payable(message) {
             results.push(diagnostic);
         }
     }
@@ -102,6 +111,62 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
                     },
                 ]
             }),
+    })
+}
+
+/// Ensures that ink! messages with a `payable` attribute argument have a mutable self reference receiver
+/// (i.e `&mut self`).
+///
+/// Ref: <https://github.com/use-ink/ink/pull/2535>.
+fn ensure_immutable_not_payable(message: &Message) -> Option<Diagnostic> {
+    // Bails if message isn't payable or it doesn't have a self reference receiver.
+    let payable_arg = message.payable_arg()?;
+    let fn_item = message.fn_item()?;
+    let self_receiver = fn_item
+        .param_list()
+        .as_ref()
+        .and_then(ast::ParamList::self_param)?;
+
+    (self_receiver.mut_token().is_none()).then(|| {
+        // Gets the declaration range for the item.
+        let range = utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
+            .unwrap_or(fn_item.syntax().text_range());
+
+        // Gets ranges for quick fixes.
+        let receiver_range = self_receiver.syntax().text_range();
+        let payable_arg_range = payable_arg.text_range();
+        let payable_arg_delete_range = utils::ink_arg_and_delimiter_removal_range(
+            &payable_arg,
+            message.ink_attr().filter(|attr| {
+                attr.syntax()
+                    .text_range()
+                    .contains(payable_arg_range.start())
+            }),
+        );
+
+        Diagnostic {
+        message:
+            "ink! messages with a `payable` attribute argument must have a `&mut self` receiver."
+                .to_owned(),
+        range,
+        severity: Severity::Error,
+        quickfixes: Some(vec![
+                    Action {
+                        label: "Add mutable self reference receiver".to_owned(),
+                        kind: ActionKind::QuickFix,
+                        range: receiver_range,
+                        edits: vec![TextEdit::replace("&mut self".to_owned(), receiver_range)],
+                    },
+                    Action {
+                        label: "Remove `payable` attribute argument".to_owned(),
+                        kind: ActionKind::QuickFix,
+                        range: payable_arg_range,
+                        edits: vec![TextEdit::delete(
+                            payable_arg_delete_range,
+                        )],
+                    },
+                ]),
+    }
     })
 }
 
@@ -895,13 +960,60 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L341-L364>.
     fn compound_diagnostic_works() {
         for code in valid_messages!() {
-            let message = parse_first_message(quote_as_str! {
+            let code = quote_as_pretty_string! {
                 #code
-            });
+            };
+            let message = parse_first_message(&code);
 
-            let mut results = Vec::new();
-            diagnostics(&mut results, &message, Version::Legacy);
-            assert!(results.is_empty(), "message: {code}");
+            for version in [
+                Version::Legacy,
+                Version::V5(MinorVersion::V5_0),
+                Version::V6,
+            ] {
+                let mut results = Vec::new();
+                diagnostics(&mut results, &message, version);
+
+                if version == Version::V6 && code.contains("payable") && code.contains("&self") {
+                    // For ink! >= 6.x, immutable messages can't be payable.
+                    // Verifies diagnostics.
+                    assert_eq!(results.len(), 1, "message: {code}");
+                    assert_eq!(results[0].severity, Severity::Error, "message: {code}");
+                    // Verifies quickfixes.
+                    let (start_pat, end_pat) = if code.contains("payable,") {
+                        ("<-payable", "payable,")
+                    } else if code.contains(", payable") {
+                        ("<-, payable", "payable")
+                    } else {
+                        ("<-#[ink(payable)]", "#[ink(payable)]")
+                    };
+                    let expected_quickfixes = vec![
+                        TestResultAction {
+                            label: "mutable self reference receiver",
+                            edits: vec![TestResultTextRange {
+                                text: "&mut self",
+                                start_pat: Some("<-&self"),
+                                end_pat: Some("&self"),
+                            }],
+                        },
+                        TestResultAction {
+                            label: "Remove `payable`",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some(start_pat),
+                                end_pat: Some(end_pat),
+                            }],
+                        },
+                    ];
+                    verify_actions(
+                        &code,
+                        results[0].quickfixes.as_ref().unwrap(),
+                        &expected_quickfixes,
+                    );
+                } else {
+                    // All messages should be valid for other ink! versions.
+                    assert!(results.is_empty(), "message: {code}");
+                }
+            }
         }
     }
 }
