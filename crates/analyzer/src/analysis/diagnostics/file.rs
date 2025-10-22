@@ -79,6 +79,9 @@ fn ensure_valid_quasi_direct_ink_descendants(
     version: Version,
 ) {
     common::ensure_valid_quasi_direct_ink_descendants(results, file, |attr| match version {
+        // Essentially excludes attributes introduced in later versions
+        // i.e. from v5 - `#[ink::event]` and `#[ink::scale_derive(..)]`,
+        // and from v6 - `#[ink::contract_ref]` and `#[ink::error]`.
         Version::V4 => matches!(
             attr.kind(),
             InkAttributeKind::Macro(
@@ -90,7 +93,37 @@ fn ensure_valid_quasi_direct_ink_descendants(
                     | InkMacroKind::E2ETest
             )
         ),
-        Version::V5(..) => matches!(attr.kind(), InkAttributeKind::Macro(_)),
+        // Essentially excludes attributes introduced in later versions
+        // i.e. from v6 - `#[ink::contract_ref]` and `#[ink::error]`.
+        Version::V5(_) => matches!(
+            attr.kind(),
+            InkAttributeKind::Macro(
+                InkMacroKind::ChainExtension
+                    | InkMacroKind::Contract
+                    | InkMacroKind::Event
+                    | InkMacroKind::ScaleDerive
+                    | InkMacroKind::StorageItem
+                    | InkMacroKind::TraitDefinition
+                    | InkMacroKind::Test
+                    | InkMacroKind::E2ETest
+            )
+        ),
+        // Only applies to v6 at the moment, essentially removes deprecated attributes
+        // i.e. `#[ink::chain_extension]` was deprecated in v6.
+        _ => matches!(
+            attr.kind(),
+            InkAttributeKind::Macro(
+                InkMacroKind::Contract
+                    | InkMacroKind::ContractRef
+                    | InkMacroKind::Error
+                    | InkMacroKind::Event
+                    | InkMacroKind::ScaleDerive
+                    | InkMacroKind::StorageItem
+                    | InkMacroKind::TraitDefinition
+                    | InkMacroKind::Test
+                    | InkMacroKind::E2ETest
+            )
+        ),
     });
 }
 

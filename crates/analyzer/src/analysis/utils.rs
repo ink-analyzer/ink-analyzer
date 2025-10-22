@@ -896,13 +896,15 @@ pub fn ink_arg_insert_text(
             ),
             InkArgKind::Sandbox => match version {
                 Version::V4 => (String::new(), String::new()),
-                Version::V5(minor) => {
-                    let sandbox_name = match minor {
-                        MinorVersion::Latest => "ink_e2e::DefaultSandbox",
-                        MinorVersion::V5_0 => "ink_e2e::MinimalSandbox",
-                    };
-                    (sandbox_name.to_owned(), format!("${{1:{sandbox_name}}}"))
-                }
+                Version::V5(MinorVersion::V5_0) => (
+                    "ink_e2e::MinimalSandbox".to_owned(),
+                    "${{1:ink_e2e::MinimalSandbox}}".to_owned(),
+                ),
+                // For versions >= 5.1.x
+                _ => (
+                    "ink_e2e::DefaultSandbox".to_owned(),
+                    "${{1:ink_e2e::DefaultSandbox}}".to_owned(),
+                ),
             },
             InkArgKind::Selector => {
                 let mut unavailable_ids = HashSet::new();
