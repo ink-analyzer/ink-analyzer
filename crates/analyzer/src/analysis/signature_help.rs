@@ -242,7 +242,9 @@ fn add_signature(
 
     // Adds arguments to signature.
     for arg_kind in args.iter().sorted() {
-        let arg_value_kind = if version.is_v5() {
+        let arg_value_kind = if version.is_legacy() {
+            InkArgValueKind::from(*arg_kind)
+        } else {
             InkArgValueKind::from_v5(
                 *arg_kind,
                 if args.contains(&InkArgKind::Constructor) {
@@ -251,8 +253,6 @@ fn add_signature(
                     None
                 },
             )
-        } else {
-            InkArgValueKind::from(*arg_kind)
         };
         let param = format!(
             "{arg_kind}{}{arg_value_kind}",
@@ -387,7 +387,7 @@ mod tests {
     fn signature_help_works() {
         for (version, fixtures) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     (
                         "#[ink(message)]",

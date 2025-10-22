@@ -140,12 +140,10 @@ pub fn macro_completions(
                         None => {
                             // Returns all valid ink! attribute macro suggestions if focused token is part of an ink! path segment.
                             if focused_token_is_in_ink_crate_path_segment {
-                                if version.is_v5() {
+                                if version.is_legacy() {
                                     vec![
                                         InkMacroKind::ChainExtension,
                                         InkMacroKind::Contract,
-                                        InkMacroKind::Event,
-                                        InkMacroKind::ScaleDerive,
                                         InkMacroKind::StorageItem,
                                         InkMacroKind::Test,
                                         InkMacroKind::TraitDefinition,
@@ -155,6 +153,8 @@ pub fn macro_completions(
                                     vec![
                                         InkMacroKind::ChainExtension,
                                         InkMacroKind::Contract,
+                                        InkMacroKind::Event,
+                                        InkMacroKind::ScaleDerive,
                                         InkMacroKind::StorageItem,
                                         InkMacroKind::Test,
                                         InkMacroKind::TraitDefinition,
@@ -369,7 +369,23 @@ pub fn argument_completions(
                                 // Returns all attribute arguments that don't require a macro
                                 // if the AST item type is unknown.
                                 None => {
-                                    if version.is_v5() {
+                                    if version.is_legacy() {
+                                        vec![
+                                            InkArgKind::Anonymous,
+                                            InkArgKind::Constructor,
+                                            InkArgKind::Default,
+                                            InkArgKind::Event,
+                                            InkArgKind::Extension,
+                                            InkArgKind::HandleStatus,
+                                            InkArgKind::Impl,
+                                            InkArgKind::Message,
+                                            InkArgKind::Namespace,
+                                            InkArgKind::Payable,
+                                            InkArgKind::Selector,
+                                            InkArgKind::Storage,
+                                            InkArgKind::Topic,
+                                        ]
+                                    } else {
                                         vec![
                                             InkArgKind::Anonymous,
                                             InkArgKind::Constructor,
@@ -383,22 +399,6 @@ pub fn argument_completions(
                                             InkArgKind::Payable,
                                             InkArgKind::Selector,
                                             InkArgKind::SignatureTopic,
-                                            InkArgKind::Storage,
-                                            InkArgKind::Topic,
-                                        ]
-                                    } else {
-                                        vec![
-                                            InkArgKind::Anonymous,
-                                            InkArgKind::Constructor,
-                                            InkArgKind::Default,
-                                            InkArgKind::Event,
-                                            InkArgKind::Extension,
-                                            InkArgKind::HandleStatus,
-                                            InkArgKind::Impl,
-                                            InkArgKind::Message,
-                                            InkArgKind::Namespace,
-                                            InkArgKind::Payable,
-                                            InkArgKind::Selector,
                                             InkArgKind::Storage,
                                             InkArgKind::Topic,
                                         ]
@@ -626,7 +626,7 @@ pub fn entity_completions(
 
     macro_rules! add_event_v2 {
         ($indent: expr, $module: expr) => {
-            if version.is_v5() && is_line_affix_of(&["struct", "event"]) {
+            if version.is_gte_v5() && is_line_affix_of(&["struct", "event"]) {
                 results.push(Completion {
                     label: "#[ink::event]..pub struct Event {...}".to_owned(),
                     range,
@@ -828,10 +828,10 @@ pub fn entity_completions(
                         results.push(Completion {
                             label: format!(
                                 "#[ink({}=..)]..pub fn extension(..);",
-                                if version.is_v5() {
-                                    "function"
-                                } else {
+                                if version.is_legacy() {
                                     "extension"
+                                } else {
+                                    "function"
                                 }
                             ),
                             range,
@@ -896,7 +896,7 @@ pub fn entity_completions(
             results.push(Completion {
                 label: format!(
                     "#[ink::chain_extension{}]..pub trait ChainExtension {{...}}",
-                    if version.is_v5() { "(...)" } else { "" }
+                    if version.is_legacy() { "" } else { "(...)" }
                 ),
                 range,
                 edit: text_edit::add_chain_extension(range, None, version),
@@ -947,10 +947,10 @@ pub fn entity_completions(
             results.push(Completion {
                 label: format!(
                     "{}..pub enum MyEnvironment {{...}}",
-                    if version.is_v5() {
-                        "#[ink::scale_derive(TypeInfo)]"
-                    } else {
+                    if version.is_legacy() {
                         "#[derive(scale_info::TypeInfo)]"
+                    } else {
+                        "#[ink::scale_derive(TypeInfo)]"
                     }
                 ),
                 range,
@@ -988,7 +988,7 @@ mod tests {
     fn macro_completions_works() {
         for (version, all_macros, adt_macros, adt_macros_sub_paths) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     "::chain_extension",
                     "::contract",
@@ -1295,7 +1295,7 @@ mod tests {
             fixtures,
         ) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     "anonymous",
                     "constructor",
@@ -1480,13 +1480,13 @@ mod tests {
                 (
                     "#[ink(e",
                     None,
-                    if version.is_v5() {
-                        vec![("event", Some("<-e"), Some("e"))]
-                    } else {
+                    if version.is_legacy() {
                         vec![
                             ("event", Some("<-e"), Some("e")),
                             ("extension=1", Some("<-e"), Some("e")),
                         ]
+                    } else {
+                        vec![("event", Some("<-e"), Some("e"))]
                     },
                 ),
                 (
@@ -1556,10 +1556,10 @@ mod tests {
                     ],
                 ),
                 (
-                    if version.is_v5() {
-                        "#[ink(function = 1,"
-                    } else {
+                    if version.is_legacy() {
                         "#[ink(extension = 1,"
+                    } else {
+                        "#[ink(function = 1,"
                     },
                     None,
                     vec![("handle_status=true", Some(","), Some(","))],
@@ -1886,22 +1886,7 @@ mod tests {
                         Some("#[ink(message, sel->"),
                     )],
                 ),
-                if version.is_v5() {
-                    (
-                        r#"
-                            #[ink::chain_extension]
-                            pub trait MyChainExtension {
-                                #[ink(function=1)]
-                                fn function_1(&self);
-
-                                #[ink(fun)]
-                                fn function_2(&self);
-                            }
-                        "#,
-                        Some("#[ink(fun->"),
-                        vec![("function=2", Some("#[ink(->"), Some("#[ink(fun->"))],
-                    )
-                } else {
+                if version.is_legacy() {
                     (
                         r#"
                             #[ink::chain_extension]
@@ -1915,6 +1900,21 @@ mod tests {
                         "#,
                         Some("#[ink(ext->"),
                         vec![("extension=2", Some("#[ink(->"), Some("#[ink(ext->"))],
+                    )
+                } else {
+                    (
+                        r#"
+                            #[ink::chain_extension]
+                            pub trait MyChainExtension {
+                                #[ink(function=1)]
+                                fn function_1(&self);
+
+                                #[ink(fun)]
+                                fn function_2(&self);
+                            }
+                        "#,
+                        Some("#[ink(fun->"),
+                        vec![("function=2", Some("#[ink(->"), Some("#[ink(fun->"))],
                     )
                 },
             ]
@@ -1953,7 +1953,7 @@ mod tests {
 
     #[test]
     fn entity_completions_works() {
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             for (code, pat, expected_results) in [
                 // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
                 // code = source code,
@@ -2089,7 +2089,13 @@ pub mod contract1 {
                 (
                     "extension",
                     Some("extension"),
-                    if version.is_v5() {
+                    if version.is_legacy() {
+                        vec![(
+                            "#[ink::chain_extension",
+                            Some("<-extension"),
+                            Some("extension"),
+                        )]
+                    } else {
                         vec![
                             (
                                 "#[ink::chain_extension",
@@ -2102,12 +2108,6 @@ pub mod contract1 {
                                 Some("extension"),
                             ),
                         ]
-                    } else {
-                        vec![(
-                            "#[ink::chain_extension",
-                            Some("<-extension"),
-                            Some("extension"),
-                        )]
                     },
                 ),
                 (
@@ -2204,14 +2204,14 @@ trait",
                 (
                     "struct",
                     Some("struct"),
-                    if version.is_v5() {
+                    if version.is_legacy() {
                         vec![
-                            ("#[ink::event]", Some("<-struct"), Some("struct")),
                             ("#[ink::storage_item]", Some("<-struct"), Some("struct")),
                             ("pub enum MyEnvironment {", Some("<-struct"), Some("struct")),
                         ]
                     } else {
                         vec![
+                            ("#[ink::event]", Some("<-struct"), Some("struct")),
                             ("#[ink::storage_item]", Some("<-struct"), Some("struct")),
                             ("pub enum MyEnvironment {", Some("<-struct"), Some("struct")),
                         ]
@@ -2220,10 +2220,10 @@ trait",
                 (
                     "event",
                     Some("event"),
-                    if version.is_v5() {
-                        vec![("#[ink::event]", Some("<-event"), Some("event"))]
-                    } else {
+                    if version.is_legacy() {
                         vec![]
+                    } else {
+                        vec![("#[ink::event]", Some("<-event"), Some("event"))]
                     },
                 ),
                 (
@@ -2310,14 +2310,13 @@ mod contract {
 
 }",
                     Some("contract {\n"),
-                    if version.is_v5() {
+                    if version.is_legacy() {
                         vec![
                             (
                                 "#[ink(storage)]",
                                 Some("contract {\n"),
                                 Some("contract {\n"),
                             ),
-                            ("#[ink::event]", Some("contract {\n"), Some("contract {\n")),
                             ("#[ink(event)]", Some("contract {\n"), Some("contract {\n")),
                         ]
                     } else {
@@ -2327,6 +2326,7 @@ mod contract {
                                 Some("contract {\n"),
                                 Some("contract {\n"),
                             ),
+                            ("#[ink::event]", Some("contract {\n"), Some("contract {\n")),
                             ("#[ink(event)]", Some("contract {\n"), Some("contract {\n")),
                         ]
                     },
@@ -2338,15 +2338,15 @@ mod contract {
     struct
 }",
                     Some("struct"),
-                    if version.is_v5() {
+                    if version.is_legacy() {
                         vec![
                             ("#[ink(storage)]", Some("<-    struct"), Some("struct")),
-                            ("#[ink::event]", Some("<-    struct"), Some("struct")),
                             ("#[ink(event)]", Some("<-    struct"), Some("struct")),
                         ]
                     } else {
                         vec![
                             ("#[ink(storage)]", Some("<-    struct"), Some("struct")),
+                            ("#[ink::event]", Some("<-    struct"), Some("struct")),
                             ("#[ink(event)]", Some("<-    struct"), Some("struct")),
                         ]
                     },
@@ -2367,13 +2367,13 @@ mod contract {
     event
 }",
                     Some("event"),
-                    if version.is_v5() {
+                    if version.is_legacy() {
+                        vec![("#[ink(event)]", Some("<-    event"), Some("event"))]
+                    } else {
                         vec![
                             ("#[ink::event]", Some("<-    event"), Some("event")),
                             ("#[ink(event)]", Some("<-    event"), Some("event")),
                         ]
-                    } else {
-                        vec![("#[ink(event)]", Some("<-    event"), Some("event"))]
                     },
                 ),
                 (
@@ -2389,13 +2389,13 @@ mod contract {
     struct
 }",
                     Some("struct->"),
-                    if version.is_v5() {
+                    if version.is_legacy() {
+                        vec![("#[ink(event)]", Some("<-    struct->"), Some("struct->"))]
+                    } else {
                         vec![
                             ("#[ink::event]", Some("<-    struct->"), Some("struct->")),
                             ("#[ink(event)]", Some("<-    struct->"), Some("struct->")),
                         ]
-                    } else {
-                        vec![("#[ink(event)]", Some("<-    struct->"), Some("struct->"))]
                     },
                 ),
                 (
@@ -2409,13 +2409,13 @@ mod contract {
 }",
                     Some("struct"),
                     // No `storage` suggestion because `event` item is parsed as an error node.
-                    if version.is_v5() {
+                    if version.is_legacy() {
+                        vec![("#[ink(event)]", Some("<-    struct"), Some("struct"))]
+                    } else {
                         vec![
                             ("#[ink::event]", Some("<-    struct"), Some("struct")),
                             ("#[ink(event)]", Some("<-    struct"), Some("struct")),
                         ]
-                    } else {
-                        vec![("#[ink(event)]", Some("<-    struct"), Some("struct"))]
                     },
                 ),
                 (
@@ -2428,15 +2428,15 @@ mod contract {
     pub struct Event {}
 }",
                     Some("struct"),
-                    if version.is_v5() {
+                    if version.is_legacy() {
                         vec![
                             ("#[ink(storage)]", Some("<-    struct"), Some("Contract")),
-                            ("#[ink::event]", Some("<-    struct"), Some("Contract")),
                             ("#[ink(event)]", Some("<-    struct"), Some("Contract")),
                         ]
                     } else {
                         vec![
                             ("#[ink(storage)]", Some("<-    struct"), Some("Contract")),
+                            ("#[ink::event]", Some("<-    struct"), Some("Contract")),
                             ("#[ink(event)]", Some("<-    struct"), Some("Contract")),
                         ]
                     },
@@ -2463,13 +2463,13 @@ mod contract {
     event
 }",
                     Some("event->"),
-                    if version.is_v5() {
+                    if version.is_legacy() {
+                        vec![("#[ink(event)]", Some("<-    event->"), Some("event->"))]
+                    } else {
                         vec![
                             ("#[ink::event]", Some("<-    event->"), Some("event->")),
                             ("#[ink(event)]", Some("<-    event->"), Some("event->")),
                         ]
-                    } else {
-                        vec![("#[ink(event)]", Some("<-    event->"), Some("event->"))]
                     },
                 ),
                 (
@@ -2681,10 +2681,10 @@ pub trait MyChainExtension {
                             Some("MyChainExtension {\n"),
                         ),
                         (
-                            if version.is_v5() {
-                                "#[ink(function = 1)]"
-                            } else {
+                            if version.is_legacy() {
                                 "#[ink(extension = 1)]"
+                            } else {
+                                "#[ink(function = 1)]"
                             },
                             Some("MyChainExtension {\n"),
                             Some("MyChainExtension {\n"),
@@ -2708,10 +2708,10 @@ pub trait MyChainExtension {
 }",
                     Some("fn"),
                     vec![(
-                        if version.is_v5() {
-                            "#[ink(function = 1)]"
-                        } else {
+                        if version.is_legacy() {
                             "#[ink(extension = 1)]"
+                        } else {
+                            "#[ink(function = 1)]"
                         },
                         Some("<-    fn"),
                         Some("fn"),
@@ -2744,15 +2744,15 @@ struct MyStruct {
                     vec![],
                 ),
                 (
-                    if version.is_v5() {
+                    if version.is_legacy() {
                         r"
-#[ink::event]
+#[ink(event)]
 struct MyStruct {
 
 }"
                     } else {
                         r"
-#[ink(event)]
+#[ink::event]
 struct MyStruct {
 
 }"
@@ -2761,15 +2761,15 @@ struct MyStruct {
                     vec![("#[ink(topic)]", Some("MyStruct {\n"), Some("MyStruct {\n"))],
                 ),
                 (
-                    if version.is_v5() {
+                    if version.is_legacy() {
                         r"
-#[ink::event]
+#[ink(event)]
 struct MyStruct {
     field
 }"
                     } else {
                         r"
-#[ink(event)]
+#[ink::event]
 struct MyStruct {
     field
 }"

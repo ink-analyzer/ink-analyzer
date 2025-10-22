@@ -316,7 +316,7 @@ fn item_ink_entity_actions(
                 .and_then(ink_analyzer_ir::ink_attr_to_entity::<Contract>)
             {
                 Some(contract) => {
-                    if version == Version::V4 {
+                    if version == Version::Legacy {
                         // Adds ink! 4.x project to ink! 5.0 action.
                         add_migrate(results, utils::contract_declaration_range(&contract));
                     }
@@ -330,7 +330,7 @@ fn item_ink_entity_actions(
                         ));
                     }
 
-                    if version.is_v5() {
+                    if version.is_gte_v5() {
                         // Adds ink! event 2.0 event before the contract.
                         results.push(entity::add_event_v2(
                             TextRange::new(
@@ -379,7 +379,7 @@ fn item_ink_entity_actions(
                                     .is_some_and(|selector| selector.is_wildcard())
                             })
                         };
-                        if !version.is_v5() || !has_message_with_wildcard_selector() {
+                        if version.is_legacy() || !has_message_with_wildcard_selector() {
                             // Adds ink! message.
                             add_result_opt!(entity::add_message_to_contract(
                                 &contract,
@@ -451,7 +451,7 @@ fn item_ink_entity_actions(
                             .map(InkImpl::messages)
                             .is_some_and(contains_wildcard)
                 };
-                if !version.is_v5() || !has_message_with_wildcard_selector() {
+                if version.is_legacy() || !has_message_with_wildcard_selector() {
                     // Adds ink! message.
                     add_result_opt!(entity::add_message_to_impl(
                         impl_item,
@@ -471,7 +471,7 @@ fn item_ink_entity_actions(
                             if let Some(chain_extension) =
                                 ink_analyzer_ir::ink_attr_to_entity::<ChainExtension>(attr)
                             {
-                                if version == Version::V4 {
+                                if version == Version::Legacy {
                                     // Adds ink! 4.x project to ink! 5.0 action.
                                     add_migrate(
                                         results,
@@ -501,7 +501,7 @@ fn item_ink_entity_actions(
                             if let Some(trait_definition) =
                                 ink_analyzer_ir::ink_attr_to_entity::<TraitDefinition>(attr)
                             {
-                                if version == Version::V4 {
+                                if version == Version::Legacy {
                                     // Adds ink! 4.x project to ink! 5.0 action.
                                     add_migrate(
                                         results,
@@ -542,7 +542,7 @@ fn item_ink_entity_actions(
                     range_option,
                 ));
 
-                if version.is_v5() {
+                if version.is_gte_v5() {
                     // Extracts ink! event into a standalone package.
                     let range =
                         utils::ast_item_declaration_range(&ast::Item::Struct(struct_item.clone()))
@@ -562,7 +562,7 @@ fn item_ink_entity_actions(
                     utils::ast_item_declaration_range(&ast::Item::Struct(struct_item.clone()))
                         .unwrap_or_else(|| struct_item.syntax().text_range());
                 add_extract_event(results, range);
-            } else if version == Version::V4 {
+            } else if version == Version::Legacy {
                 let is_storage_item = ink_analyzer_ir::ink_attrs(struct_item.syntax())
                     .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
                 if is_storage_item {
@@ -574,7 +574,7 @@ fn item_ink_entity_actions(
                 }
             }
         }
-        ast::Item::Enum(enum_item) if version == Version::V4 => {
+        ast::Item::Enum(enum_item) if version == Version::Legacy => {
             let is_storage_item = ink_analyzer_ir::ink_attrs(enum_item.syntax())
                 .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
             if is_storage_item {
@@ -584,7 +584,7 @@ fn item_ink_entity_actions(
                 add_migrate(results, range);
             }
         }
-        ast::Item::Union(union_item) if version == Version::V4 => {
+        ast::Item::Union(union_item) if version == Version::Legacy => {
             let is_storage_item = ink_analyzer_ir::ink_attrs(union_item.syntax())
                 .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
             if is_storage_item {
@@ -607,7 +607,7 @@ fn root_ink_entity_actions(
     range: TextRange,
     version: Version,
 ) {
-    if version == Version::V4 {
+    if version == Version::Legacy {
         // Adds ink! 4.x project to ink! 5.0 action.
         add_migrate(results, range);
     }
@@ -622,7 +622,7 @@ fn root_ink_entity_actions(
         ));
     }
 
-    if version.is_v5() {
+    if version.is_gte_v5() {
         // Adds ink! event 2.0.
         results.push(entity::add_event_v2(range, ActionKind::Refactor, None));
     }
@@ -768,7 +768,7 @@ mod tests {
 
     macro_rules! prepend_migrate {
         ($version: expr, $list: expr) => {
-            if $version == Version::V4 {
+            if $version == Version::Legacy {
                 vec![TestResultAction {
                     label: "Migrate",
                     edits: vec![],
@@ -781,7 +781,7 @@ mod tests {
             .collect::<Vec<TestResultAction>>()
         };
         ($list: expr) => {
-            prepend_migrate!(Version::V4, $list)
+            prepend_migrate!(Version::Legacy, $list)
         };
         () => {
             vec![TestResultAction {
@@ -815,7 +815,9 @@ mod tests {
 
     macro_rules! event_v2_entity {
         ($version: expr, $offset: literal) => {
-            if $version.is_v5() {
+            if $version.is_legacy() {
+                vec![]
+            } else {
                 vec![TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
@@ -824,19 +826,17 @@ mod tests {
                         end_pat: Some($offset),
                     }],
                 }]
-            } else {
-                vec![]
             }
         };
     }
 
     macro_rules! versioned_extension_fn {
         ($version: expr, $offset: literal) => {
-            if $version.is_v5() {
+            if $version.is_legacy() {
                 [TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
-                        text: "#[ink(function = 1)]",
+                        text: "#[ink(extension = 1)]",
                         start_pat: Some($offset),
                         end_pat: Some($offset),
                     }],
@@ -845,7 +845,7 @@ mod tests {
                 [TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
-                        text: "#[ink(extension = 1)]",
+                        text: "#[ink(function = 1)]",
                         start_pat: Some($offset),
                         end_pat: Some($offset),
                     }],
@@ -858,7 +858,7 @@ mod tests {
     fn actions_works() {
         for (version, root_entities, adt_attrs, struct_attrs, fixtures) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     "#[ink::contract]",
                     "#[ink::trait_definition]",
@@ -1810,7 +1810,9 @@ mod tests {
                                 end_pat: Some("#[ink(event"),
                             }],
                         }],
-                        if version.is_v5() {
+                        if version.is_legacy() {
+                            vec![]
+                        } else {
                             vec![TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
@@ -1819,8 +1821,6 @@ mod tests {
                                     end_pat: Some("#[ink(event"),
                                 }],
                             }]
-                        } else {
-                            vec![]
                         },
                         [
                             // Adds ink! topic `field`.
@@ -1833,13 +1833,13 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version.is_v5() {
+                        if version.is_legacy() {
+                            vec![]
+                        } else {
                             vec![TestResultAction {
                                 label: "Extract",
                                 edits: vec![],
                             }]
-                        } else {
-                            vec![]
                         }
                     ),
                 ),
@@ -1879,13 +1879,13 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version.is_v5() {
+                        if version.is_legacy() {
+                            vec![]
+                        } else {
                             vec![TestResultAction {
                                 label: "Extract",
                                 edits: vec![],
                             }]
-                        } else {
-                            vec![]
                         }
                     ),
                 ),
@@ -1925,13 +1925,13 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version.is_v5() {
+                        if version.is_legacy() {
+                            vec![]
+                        } else {
                             vec![TestResultAction {
                                 label: "Extract",
                                 edits: vec![],
                             }]
-                        } else {
-                            vec![]
                         }
                     ),
                 ),

@@ -69,7 +69,7 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
     Ok(Project {
         // Generates `lib.rs`.
         lib: ProjectFile {
-            plain: if version.is_v4() {
+            plain: if version.is_legacy() {
                 CONTRACT_PLAIN_V4
             } else if version.is_v5() {
                 CONTRACT_PLAIN_V5
@@ -79,7 +79,7 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
             .replace("my_contract", &module_name)
             .replace("MyContract", &struct_name),
             snippet: Some(
-                if version.is_v4() {
+                if version.is_legacy() {
                     CONTRACT_SNIPPET_V4
                 } else if version.is_v5() {
                     CONTRACT_SNIPPET_V5
@@ -92,7 +92,7 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
         },
         // Generates `Cargo.toml`.
         cargo: ProjectFile {
-            plain: if version.is_v4() {
+            plain: if version.is_legacy() {
                 CARGO_TOML_PLAIN_V4
             } else if version.is_v5() {
                 CARGO_TOML_PLAIN_V5
@@ -101,7 +101,7 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
             }
             .replace("my_contract", &name),
             snippet: Some(
-                if version.is_v4() {
+                if version.is_legacy() {
                     CARGO_TOML_SNIPPET_V4
                 } else if version.is_v5() {
                     CARGO_TOML_SNIPPET_V5
@@ -136,7 +136,7 @@ mod tests {
             ("_hello", Error::ContractName),
         ] {
             assert_eq!(
-                new_project(name.to_owned(), Version::V4),
+                new_project(name.to_owned(), Version::Legacy),
                 Err(expected_error)
             );
         }
@@ -146,19 +146,23 @@ mod tests {
     fn valid_project_name_works() {
         for name in ["hello", "hello_world", "hello-world"] {
             // Generates an ink! contract project.
-            let result = new_project(name.to_owned(), Version::V4);
+            let result = new_project(name.to_owned(), Version::Legacy);
             assert!(result.is_ok());
 
             // Verifies that the generated code stub is a valid contract.
             let contract_code = result.unwrap().lib.plain;
-            let analysis = Analysis::new(&contract_code, Version::V4);
+            let analysis = Analysis::new(&contract_code, Version::Legacy);
             assert_eq!(analysis.diagnostics().len(), 0);
         }
     }
 
     #[test]
     fn new_project_works() {
-        for version in [Version::V4, Version::V5(MinorVersion::Latest), Version::V6] {
+        for version in [
+            Version::Legacy,
+            Version::V5(MinorVersion::Latest),
+            Version::V6,
+        ] {
             // Generates an ink! contract project.
             let result = new_project("hello_world".to_owned(), version);
             assert!(result.is_ok());
@@ -166,7 +170,7 @@ mod tests {
             // Verifies the generated code stub and `Cargo.toml` file.
             let project = result.unwrap();
             let cargo_toml = project.cargo.plain;
-            assert!(cargo_toml.contains(if version.is_v4() {
+            assert!(cargo_toml.contains(if version.is_legacy() {
                 r#"ink = { version = "4"#
             } else if version.is_v5() {
                 r#"ink = { version = "5"#

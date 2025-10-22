@@ -82,7 +82,7 @@ fn ensure_valid_quasi_direct_ink_descendants(
         // Essentially excludes attributes introduced in later versions
         // i.e. from v5 - `#[ink::event]` and `#[ink::scale_derive(..)]`,
         // and from v6 - `#[ink::contract_ref]` and `#[ink::error]`.
-        Version::V4 => matches!(
+        Version::Legacy => matches!(
             attr.kind(),
             InkAttributeKind::Macro(
                 InkMacroKind::Contract
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn valid_quasi_direct_descendant_works() {
         for (version, items) in [
-            (Version::V4, quote! {}),
+            (Version::Legacy, quote! {}),
             (
                 Version::V5(MinorVersion::V5_0),
                 quote! {
@@ -268,7 +268,7 @@ mod tests {
         };
         let contract = InkFile::parse(&code);
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &contract, version);
 

@@ -33,17 +33,17 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html>
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L188-L197>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L848-L1280>.
-                InkMacroKind::ChainExtension if version.is_v5() => {
+                InkMacroKind::ChainExtension if version.is_legacy() => Vec::new(),
+                InkMacroKind::ChainExtension => {
                     vec![InkArgKind::Extension]
                 }
-                InkMacroKind::ChainExtension => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
                 InkMacroKind::Contract => vec![InkArgKind::Env, InkArgKind::KeepAttr],
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/event/mod.rs#L129-L141>
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>
                 // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
-                InkMacroKind::Event if version.is_v5() => {
+                InkMacroKind::Event if version.is_gte_v5() => {
                     vec![InkArgKind::Anonymous, InkArgKind::SignatureTopic]
                 }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
@@ -59,17 +59,17 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/e2e/macro/src/lib.rs#L41-L45>
                 // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L85>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
-                InkMacroKind::E2ETest if version.is_v5() => {
-                    vec![InkArgKind::Backend, InkArgKind::Environment]
-                }
-                InkMacroKind::E2ETest => vec![
+                InkMacroKind::E2ETest if version.is_legacy() => vec![
                     InkArgKind::AdditionalContracts,
                     InkArgKind::Environment,
                     InkArgKind::KeepAttr,
                 ],
+                InkMacroKind::E2ETest => {
+                    vec![InkArgKind::Backend, InkArgKind::Environment]
+                }
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L1598-L1625>
                 // Ref: <https://paritytech.github.io/ink/ink/attr.scale_derive.html>
-                InkMacroKind::ScaleDerive if version.is_v5() => {
+                InkMacroKind::ScaleDerive if version.is_gte_v5() => {
                     vec![InkArgKind::Encode, InkArgKind::Decode, InkArgKind::TypeInfo]
                 }
                 _ => Vec::new(),
@@ -84,13 +84,13 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 InkArgKind::Storage => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/event/mod.rs#L129-L141>
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L88-L98>.
-                InkArgKind::Event if version.is_v5() => {
+                InkArgKind::Event if version.is_legacy() => vec![InkArgKind::Anonymous],
+                InkArgKind::Event => {
                     vec![InkArgKind::Anonymous, InkArgKind::SignatureTopic]
                 }
-                InkArgKind::SignatureTopic if version.is_v5() => {
+                InkArgKind::SignatureTopic if version.is_gte_v5() => {
                     vec![InkArgKind::Event]
                 }
-                InkArgKind::Event => vec![InkArgKind::Anonymous],
                 InkArgKind::Anonymous => vec![InkArgKind::Event],
                 InkArgKind::Topic => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L301-L315>.
@@ -120,9 +120,9 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // In ink! v5, `extension` is a sole/required attribute argument for the `chain_extension` macro attribute,
                 // see `chain_extension` macro pattern for details.
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/chain_extension.rs#L601-L613>
-                InkArgKind::Extension if version.is_v5() => Vec::new(),
-                InkArgKind::Extension => vec![InkArgKind::HandleStatus],
-                InkArgKind::Function if version.is_v5() => {
+                InkArgKind::Extension if version.is_legacy() => vec![InkArgKind::HandleStatus],
+                InkArgKind::Extension => Vec::new(),
+                InkArgKind::Function if version.is_gte_v5() => {
                     vec![InkArgKind::HandleStatus]
                 }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
@@ -138,10 +138,10 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L316-L321>.
                 // See `trait_definition` and `impl` patterns above for more references.
                 InkArgKind::Namespace => vec![InkArgKind::KeepAttr, InkArgKind::Impl],
-                // See `function` pattern above for references.
-                InkArgKind::HandleStatus if version.is_v5() => vec![InkArgKind::Function],
                 // See `extension` pattern above for references.
-                InkArgKind::HandleStatus => vec![InkArgKind::Extension],
+                InkArgKind::HandleStatus if version.is_legacy() => vec![InkArgKind::Extension],
+                // See `function` pattern above for references.
+                InkArgKind::HandleStatus => vec![InkArgKind::Function],
                 // See `constructor` and `message` patterns above for references.
                 InkArgKind::Payable => vec![
                     InkArgKind::Constructor,
@@ -185,15 +185,15 @@ pub fn valid_quasi_direct_descendant_ink_args(
                 // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html>
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L476-L487>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L848-L1280>.
-                InkMacroKind::ChainExtension if version.is_v5() => {
-                    vec![InkArgKind::Function, InkArgKind::HandleStatus]
+                InkMacroKind::ChainExtension if version.is_legacy() => {
+                    vec![InkArgKind::Extension, InkArgKind::HandleStatus]
                 }
                 InkMacroKind::ChainExtension => {
-                    vec![InkArgKind::Extension, InkArgKind::HandleStatus]
+                    vec![InkArgKind::Function, InkArgKind::HandleStatus]
                 }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L58-L116>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
-                InkMacroKind::Contract if version.is_v5() => vec![
+                InkMacroKind::Contract if version.is_legacy() => vec![
                     InkArgKind::Anonymous,
                     InkArgKind::Constructor,
                     InkArgKind::Default,
@@ -203,7 +203,6 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::Namespace,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
-                    InkArgKind::SignatureTopic,
                     InkArgKind::Storage,
                 ],
                 InkMacroKind::Contract => vec![
@@ -216,11 +215,12 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::Namespace,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
+                    InkArgKind::SignatureTopic,
                     InkArgKind::Storage,
                 ],
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>
                 // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
-                InkMacroKind::Event if version.is_v5() => {
+                InkMacroKind::Event if version.is_gte_v5() => {
                     vec![InkArgKind::Topic]
                 }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L85-L99>.
@@ -245,12 +245,10 @@ pub fn valid_quasi_direct_descendant_ink_args(
         InkAttributeKind::Arg(arg_kind) => {
             match arg_kind {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L132-L139>.
-                InkArgKind::Event | InkArgKind::Anonymous | InkArgKind::SignatureTopic
-                    if version.is_v5() =>
-                {
+                InkArgKind::Event | InkArgKind::Anonymous => vec![InkArgKind::Topic],
+                InkArgKind::SignatureTopic if version.is_gte_v5() => {
                     vec![InkArgKind::Topic]
                 }
-                InkArgKind::Event | InkArgKind::Anonymous => vec![InkArgKind::Topic],
                 InkArgKind::Topic => Vec::new(),
                 // `env` is used with the `contract` macro while `keep_attr` is ambiguous because
                 // it can be used with both `contract` and `trait_definition` macro.
@@ -302,11 +300,9 @@ pub fn valid_quasi_direct_descendant_ink_macros(
             match macro_kind {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
                 InkMacroKind::Contract => {
-                    if version.is_v5() {
+                    if version.is_legacy() {
                         vec![
                             InkMacroKind::ChainExtension,
-                            InkMacroKind::Event,
-                            InkMacroKind::ScaleDerive,
                             InkMacroKind::StorageItem,
                             InkMacroKind::Test,
                             InkMacroKind::TraitDefinition,
@@ -315,6 +311,8 @@ pub fn valid_quasi_direct_descendant_ink_macros(
                     } else {
                         vec![
                             InkMacroKind::ChainExtension,
+                            InkMacroKind::Event,
+                            InkMacroKind::ScaleDerive,
                             InkMacroKind::StorageItem,
                             InkMacroKind::Test,
                             InkMacroKind::TraitDefinition,
@@ -328,7 +326,7 @@ pub fn valid_quasi_direct_descendant_ink_macros(
                 | InkMacroKind::TraitDefinition
                 | InkMacroKind::Test
                 | InkMacroKind::E2ETest
-                    if version.is_v5() =>
+                    if version.is_gte_v5() =>
                 {
                     vec![InkMacroKind::ScaleDerive]
                 }
@@ -350,11 +348,11 @@ pub fn valid_quasi_direct_descendant_ink_macros(
                 | InkArgKind::Event
                 | InkArgKind::Anonymous
                 | InkArgKind::SignatureTopic
-                    if version.is_v5() =>
+                    if version.is_gte_v5() =>
                 {
                     Vec::new()
                 }
-                _ if version.is_v5() => {
+                _ if version.is_gte_v5() => {
                     vec![InkMacroKind::ScaleDerive]
                 }
                 // v4 ink! attribute arguments can't have ink! macro descendants.
@@ -376,25 +374,25 @@ pub fn valid_ink_args_by_syntax_kind(syntax_kind: SyntaxKind, version: Version) 
         // `keep_attr` and `namespace` can only be applied to a `trait` as siblings of an `ink::trait_definition` macro.
         SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => Vec::new(),
         // `derive` can only be applied to an ADT (`enum`, `struct` or `union`) as a sibling of an `ink::storage_item` macro.
-        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW if version.is_v5() => vec![
+        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW if version.is_legacy() => vec![
             InkArgKind::Anonymous,
             InkArgKind::Event,
-            InkArgKind::SignatureTopic,
             InkArgKind::Storage,
         ],
         SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW => vec![
             InkArgKind::Anonymous,
             InkArgKind::Event,
+            InkArgKind::SignatureTopic,
             InkArgKind::Storage,
         ],
         SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW => {
             Vec::new()
         }
         SyntaxKind::RECORD_FIELD => vec![InkArgKind::Topic],
-        SyntaxKind::FN | SyntaxKind::FN_KW if version.is_v5() => vec![
+        SyntaxKind::FN | SyntaxKind::FN_KW if version.is_legacy() => vec![
             InkArgKind::Constructor,
             InkArgKind::Default,
-            InkArgKind::Function,
+            InkArgKind::Extension,
             InkArgKind::HandleStatus,
             InkArgKind::Message,
             InkArgKind::Payable,
@@ -403,7 +401,7 @@ pub fn valid_ink_args_by_syntax_kind(syntax_kind: SyntaxKind, version: Version) 
         SyntaxKind::FN | SyntaxKind::FN_KW => vec![
             InkArgKind::Constructor,
             InkArgKind::Default,
-            InkArgKind::Extension,
+            InkArgKind::Function,
             InkArgKind::HandleStatus,
             InkArgKind::Message,
             InkArgKind::Payable,
@@ -427,22 +425,24 @@ pub fn valid_ink_macros_by_syntax_kind(
         SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => {
             vec![InkMacroKind::ChainExtension, InkMacroKind::TraitDefinition]
         }
-        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW if version.is_v5() => vec![
-            InkMacroKind::Event,
-            InkMacroKind::ScaleDerive,
-            InkMacroKind::StorageItem,
-        ],
-        SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW
-            if version.is_v5() =>
-        {
-            vec![InkMacroKind::ScaleDerive, InkMacroKind::StorageItem]
-        }
         SyntaxKind::ENUM
         | SyntaxKind::ENUM_KW
         | SyntaxKind::STRUCT
         | SyntaxKind::STRUCT_KW
         | SyntaxKind::UNION
-        | SyntaxKind::UNION_KW => vec![InkMacroKind::StorageItem],
+        | SyntaxKind::UNION_KW
+            if version.is_legacy() =>
+        {
+            vec![InkMacroKind::StorageItem]
+        }
+        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW => vec![
+            InkMacroKind::Event,
+            InkMacroKind::ScaleDerive,
+            InkMacroKind::StorageItem,
+        ],
+        SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW => {
+            vec![InkMacroKind::ScaleDerive, InkMacroKind::StorageItem]
+        }
         SyntaxKind::FN | SyntaxKind::FN_KW => vec![InkMacroKind::Test, InkMacroKind::E2ETest],
         _ => Vec::new(),
     }
@@ -494,25 +494,30 @@ pub fn primary_ink_attribute_kind_suggestions(
             // the potential to be either incomplete or ambiguous.
             // See respective match pattern in the [`utils::valid_sibling_ink_args`] function for the rationale and references.
             match arg_kind {
-                InkArgKind::AdditionalContracts if version.is_v5() => Vec::new(),
-                InkArgKind::Backend | InkArgKind::Environment if version.is_v5() => {
+                InkArgKind::AdditionalContracts if version.is_legacy() => {
                     vec![InkAttributeKind::Macro(InkMacroKind::E2ETest)]
                 }
-                InkArgKind::AdditionalContracts | InkArgKind::Environment => {
-                    vec![InkAttributeKind::Macro(InkMacroKind::E2ETest)]
+                InkArgKind::AdditionalContracts => Vec::new(),
+                InkArgKind::Anonymous if version.is_legacy() => {
+                    vec![InkAttributeKind::Arg(InkArgKind::Event)]
                 }
-                InkArgKind::Anonymous | InkArgKind::SignatureTopic if version.is_v5() => {
+                InkArgKind::Anonymous => {
                     vec![
                         InkAttributeKind::Macro(InkMacroKind::Event),
-                        // TODO: Maybe only suggest the event macro for v5?
+                        // TODO: Maybe only suggest `#[ink::event] for >= 5.x?
                         InkAttributeKind::Arg(InkArgKind::Event),
                     ]
                 }
-                InkArgKind::Anonymous => vec![InkAttributeKind::Arg(InkArgKind::Event)],
+                InkArgKind::Backend if version.is_gte_v5() => {
+                    vec![InkAttributeKind::Macro(InkMacroKind::E2ETest)]
+                }
                 InkArgKind::Decode | InkArgKind::Encode | InkArgKind::TypeInfo
-                    if version.is_v5() =>
+                    if version.is_gte_v5() =>
                 {
                     vec![InkAttributeKind::Macro(InkMacroKind::ScaleDerive)]
+                }
+                InkArgKind::Environment => {
+                    vec![InkAttributeKind::Macro(InkMacroKind::E2ETest)]
                 }
                 InkArgKind::KeepAttr => vec![
                     InkAttributeKind::Macro(InkMacroKind::Contract),
@@ -528,6 +533,13 @@ pub fn primary_ink_attribute_kind_suggestions(
                     InkAttributeKind::Arg(InkArgKind::Constructor),
                     InkAttributeKind::Arg(InkArgKind::Message),
                 ],
+                InkArgKind::SignatureTopic if version.is_gte_v5() => {
+                    vec![
+                        InkAttributeKind::Macro(InkMacroKind::Event),
+                        // TODO: Maybe only suggest `#[ink::event] for >= 5.x?
+                        InkAttributeKind::Arg(InkArgKind::Event),
+                    ]
+                }
                 // Default
                 _ => Vec::new(),
             }
@@ -583,9 +595,9 @@ pub fn remove_conflicting_ink_arg_suggestions(
         // Filters out invalid siblings.
         suggestions.retain(|arg_kind| valid_siblings.contains(arg_kind));
 
-        // For v5, `anonymous` and `signature_topic` conflict.
+        // For ink! >= 5.x, `anonymous` and `signature_topic` conflict.
         // We need a special check since neither is a "primary" attribute argument.
-        if version.is_v5()
+        if version.is_gte_v5()
             && matches!(
                 attr_kind,
                 InkAttributeKind::Macro(InkMacroKind::Event)
@@ -895,7 +907,7 @@ pub fn ink_arg_insert_text(
                 r#""${1:my_namespace}""#.to_owned(),
             ),
             InkArgKind::Sandbox => match version {
-                Version::V4 => (String::new(), String::new()),
+                Version::Legacy => (String::new(), String::new()),
                 Version::V5(MinorVersion::V5_0) => (
                     "ink_e2e::MinimalSandbox".to_owned(),
                     "${{1:ink_e2e::MinimalSandbox}}".to_owned(),

@@ -118,7 +118,7 @@ mod tests {
             }
         });
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,
@@ -145,7 +145,7 @@ mod tests {
         };
         let ink_test = parse_first_ink_test(&code);
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,
@@ -224,7 +224,7 @@ mod tests {
             let ink_test = parse_first_ink_test(code);
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &ink_test, Version::V4);
+            diagnostics(&mut results, &ink_test, Version::Legacy);
             assert!(results.is_empty(), "ink test: {code}");
         }
     }

@@ -10,6 +10,6 @@ pub fn ink_version_from_path(path: &str) -> Version {
     if path.contains("v5") {
         Version::V5(MinorVersion::V5_0)
     } else {
-        Version::V4
+        Version::Legacy
     }
 }

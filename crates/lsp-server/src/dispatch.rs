@@ -527,8 +527,8 @@ impl InkProjectVersion {
             .as_ref()
             .map(|version| {
                 if is_legacy_version_string(version) {
-                    // We only support v4 and upwards.
-                    Version::V4
+                    // We only actually support v4 and upwards.
+                    Version::Legacy
                 } else if is_gte_v5_1_version_string(version) {
                     // v5.1 introduced some IDE relevant differences.
                     Version::V5(MinorVersion::Latest)

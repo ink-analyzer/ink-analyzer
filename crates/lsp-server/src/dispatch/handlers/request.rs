@@ -342,7 +342,7 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             // Initializes snapshots with test document.
             let (snapshots, uri) =
                 init_snapshots(String::from("#[ink::co]"), &client_capabilities, version);
@@ -380,7 +380,7 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             // Initializes snapshots with test document.
             let (snapshots, uri) = init_snapshots(
                 String::from("#[ink::contract]"),
@@ -418,7 +418,7 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             // Initializes snapshots with test document.
             let (snapshots, uri) = init_snapshots(
                 String::from("mod my_contract {}"),
@@ -464,7 +464,7 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             // Initializes snapshots with test document.
             let (snapshots, uri) = init_snapshots(
                 String::from(r#"#[ink::contract(env=my::env::Types, keep_attr="foo,bar")]"#),
@@ -523,7 +523,7 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             // Initializes snapshots with test document.
             let (snapshots, uri) = init_snapshots(
                 String::from("#[ink::contract()]"),

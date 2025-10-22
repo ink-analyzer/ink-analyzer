@@ -302,7 +302,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &storage, Version::V4);
+            diagnostics(&mut results, &storage, Version::Legacy);
             assert!(results.is_empty(), "storage: {code}");
         }
     }

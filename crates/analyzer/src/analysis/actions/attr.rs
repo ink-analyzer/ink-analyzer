@@ -24,7 +24,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                 return;
             }
 
-            if version == Version::V4
+            if version == Version::Legacy
                 && matches!(
                     ink_attr.kind(),
                     InkAttributeKind::Macro(
@@ -44,7 +44,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                 });
             }
 
-            if version.is_v5()
+            if version.is_gte_v5()
                 && matches!(
                     ink_attr.kind(),
                     InkAttributeKind::Macro(InkMacroKind::Event)
@@ -118,7 +118,7 @@ mod tests {
 
     macro_rules! prepend_migrate {
         ($version: expr, $list: expr) => {
-            if $version == Version::V4 {
+            if $version == Version::Legacy {
                 vec![TestResultAction {
                     label: "Migrate",
                     edits: vec![],
@@ -131,7 +131,7 @@ mod tests {
             .collect::<Vec<TestResultAction>>()
         };
         ($list: expr) => {
-            prepend_migrate!(Version::V4, $list)
+            prepend_migrate!(Version::Legacy, $list)
         };
         () => {
             vec![TestResultAction {
@@ -145,7 +145,7 @@ mod tests {
     fn actions_works() {
         for (version, fixtures) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     (
                         r#"

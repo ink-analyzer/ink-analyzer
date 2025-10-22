@@ -30,7 +30,7 @@ where
         results.push(diagnostic);
     }
 
-    if version == Version::V4
+    if version == Version::Legacy
         || event
             .ink_attr()
             .is_some_and(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
@@ -226,8 +226,9 @@ mod tests {
 
     macro_rules! is_event_v2 {
         ($version: ident, $code: ident) => {
-            // We check with `(event` because, unlike `::event`, it doesn't need prettyfing to remove extra spaces.
-            $version.is_v5() && !$code.to_string().contains("(event")
+            // We check with `(event` because, unlike `::event`, it doesn't need prettyfying
+            // to remove extra spaces.
+            $version.is_gte_v5() && !$code.to_string().contains("(event")
         };
     }
 
@@ -255,7 +256,7 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L346-L359>.
     fn non_pub_struct_fails() {
         for (version, attr) in [
-            (Version::V4, quote! { #[ink(event)] }),
+            (Version::Legacy, quote! { #[ink(event)] }),
             (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
         ] {
             for (vis, expected_quickfixes) in vec![
@@ -460,7 +461,7 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L331-L344>.
     fn struct_with_generics_fails() {
         for (version, attr) in [
-            (Version::V4, quote! { #[ink(event)] }),
+            (Version::Legacy, quote! { #[ink(event)] }),
             (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {
@@ -526,7 +527,7 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L377-L390>.
     fn non_topic_ink_field_fails() {
         for (version, attr) in [
-            (Version::V4, quote! { #[ink(event)] }),
+            (Version::Legacy, quote! { #[ink(event)] }),
             (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {
@@ -593,7 +594,7 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L377-L390>.
     fn cfg_field_fails() {
         for (version, attr) in [
-            (Version::V4, quote! { #[ink(event)] }),
+            (Version::Legacy, quote! { #[ink(event)] }),
             (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {

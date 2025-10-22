@@ -5,7 +5,16 @@
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
-pub const ADDITIONAL_CONTRACTS_DOC: &str = r#"
+pub const ADDITIONAL_CONTRACTS_DOC_DEPRECATED: &str = r#"
+ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.
+"#;
+
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L29-L30>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
+pub const ADDITIONAL_CONTRACTS_DOC_V4: &str = r#"
 # Attribute
 
 `#[ink_e2e::test(additional_contracts = S: string)]`
@@ -28,68 +37,12 @@ async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
 ```
 "#;
 
-/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L29-L30>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
-pub const ADDITIONAL_CONTRACTS_DOC_V5_DEPRECATED: &str = r#"
-ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.
-"#;
-
-/// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
-pub const ANONYMOUS_DOC: &str = r#"
-# Attribute
-
-`#[ink(anonymous)]`
-
-# Description
-
-Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.
-
-Very similar to anonymous events in Solidity.
-
-# Usage
-
-Applicable to ink! events.
-
-# Example
-```
-#[ink::contract]
-mod my_contract {
-    #[ink(event, anonymous)]
-    pub struct MyEvent {
-        value: bool,
-    }
-
-    // --snip--
-}
-```
-
-OR
-
-```
-#[ink::contract]
-mod my_contract {
-    #[ink(event)]
-    #[ink(anonymous)]
-    pub struct MyEvent {
-        value: bool,
-    }
-
-    // --snip--
-}
-```
-"#;
-
 /// Ref: <https://github.com/paritytech/ink/tree/v5.0.0-rc.1#ink-macros--attributes-overview>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.event.html>.
-pub const ANONYMOUS_DOC_V5: &str = r#"
+pub const ANONYMOUS_DOC: &str = r#"
 # Attribute
 
 `#[ink::event(anonymous)]` or `#[ink(anonymous)]`
@@ -142,38 +95,33 @@ mod my_contract {
 ```
 "#;
 
-/// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/e2e/macro/src/config.rs#L94-L96>.
-pub const BACKEND_DOC_V5_0: &str = r#"
+/// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
+pub const ANONYMOUS_DOC_V4: &str = r#"
 # Attribute
 
-`#[ink_e2e::test(backend(node|runtime_only))]` or `#[ink_e2e::test(backend(node(url = U: string))]` or `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl drink::Sandbox))]`
+`#[ink(anonymous)]`
 
 # Description
 
-Tells the ink! e2e test runner which type of architecture to use to execute the test.
+Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.
 
-- node: Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.
-- runtime_only: Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.
-
-In the case of `#[ink_e2e::test(backend(node))]`, a fresh node instance will be spawned for the lifetime of the test.
-
-In the case of `#[ink_e2e::test(backend(node(url = U: string))]`, the test will run against an already running node at the supplied URL.
-
-In the case of `#[ink_e2e::test(backend(runtime_only))]`, the `ink_e2e::MinimalSandbox` runtime (which is a re-export of `drink::MinimalRuntime`) is used.
-
-In the case of `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl drink::Sandbox))]`, the runtime must implement the `drink::Sandbox` trait.
+Very similar to anonymous events in Solidity.
 
 # Usage
 
-Additional argument for ink! e2e test attribute macro.
-
-**Default value:** `node`.
+Applicable to ink! events.
 
 # Example
-
 ```
-#[ink_e2e::test(backend(node)]
-async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+#[ink::contract]
+mod my_contract {
+    #[ink(event, anonymous)]
+    pub struct MyEvent {
+        value: bool,
+    }
+
     // --snip--
 }
 ```
@@ -181,26 +129,14 @@ async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
 OR
 
 ```
-#[ink_e2e::test(backend(node(url = "ws://127.0.0.1:8000")]
-async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
-    // --snip--
-}
-```
+#[ink::contract]
+mod my_contract {
+    #[ink(event)]
+    #[ink(anonymous)]
+    pub struct MyEvent {
+        value: bool,
+    }
 
-OR
-
-```
-#[ink_e2e::test(backend(runtime_only)]
-async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
-    // --snip--
-}
-```
-
-OR
-
-```
-#[ink_e2e::test(backend(runtime_only(sandbox = ink_e2e::MinimalSandbox))]
-async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
     // --snip--
 }
 ```
@@ -268,6 +204,70 @@ OR
 
 ```
 #[ink_e2e::test(backend(runtime_only(sandbox = ink_e2e::DefaultSandbox))]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+"#;
+
+/// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/e2e/macro/src/config.rs#L94-L96>.
+pub const BACKEND_DOC_V5_0: &str = r#"
+# Attribute
+
+`#[ink_e2e::test(backend(node|runtime_only))]` or `#[ink_e2e::test(backend(node(url = U: string))]` or `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl drink::Sandbox))]`
+
+# Description
+
+Tells the ink! e2e test runner which type of architecture to use to execute the test.
+
+- node: Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.
+- runtime_only: Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.
+
+In the case of `#[ink_e2e::test(backend(node))]`, a fresh node instance will be spawned for the lifetime of the test.
+
+In the case of `#[ink_e2e::test(backend(node(url = U: string))]`, the test will run against an already running node at the supplied URL.
+
+In the case of `#[ink_e2e::test(backend(runtime_only))]`, the `ink_e2e::MinimalSandbox` runtime (which is a re-export of `drink::MinimalRuntime`) is used.
+
+In the case of `#[ink_e2e::test(backend(runtime_only(sandbox = S: impl drink::Sandbox))]`, the runtime must implement the `drink::Sandbox` trait.
+
+# Usage
+
+Additional argument for ink! e2e test attribute macro.
+
+**Default value:** `node`.
+
+# Example
+
+```
+#[ink_e2e::test(backend(node)]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+
+OR
+
+```
+#[ink_e2e::test(backend(node(url = "ws://127.0.0.1:8000")]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+
+OR
+
+```
+#[ink_e2e::test(backend(runtime_only)]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+
+OR
+
+```
+#[ink_e2e::test(backend(runtime_only(sandbox = ink_e2e::MinimalSandbox))]
 async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
     // --snip--
 }
@@ -580,7 +580,7 @@ mod erc20 {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L877-L904>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html>.
-pub const EXTENSION_DOC: &str = r#"
+pub const EXTENSION_DOC_V4: &str = r#"
 # Attribute
 
 `#[ink(extension = N: u32)]`
@@ -611,7 +611,7 @@ pub trait MyChainExtension {
 /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L921-L929>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html#macro-attributes>.
-pub const EXTENSION_DOC_V5: &str = r#"
+pub const EXTENSION_DOC: &str = r#"
 # Attribute
 
 `#[ink::chain_extension(extension = N: u16)]`
@@ -756,68 +756,6 @@ impl MyContract {
 pub const KEEP_ATTR_DOC: &str = r#"
 # Attribute
 
-`#[ink::contract(keep_attr = N: string)]` or `#[ink::trait_definition(keep_attr = N: string)]` or `#[ink_e2e::test(keep_attr = N: string)]`
-
-# Description
-
-Tells the ink! code generator which attributes should be passed to call builders.
-
-Call builders are used to doing cross-contract calls and are automatically generated for contracts.
-
-# Usage
-
-Additional argument for ink! contract, ink! trait definition and ink! e2e test attribute macros.
-
-**Allowed attributes by default:** `cfg`, `cfg_attr`, `allow`, `warn`, `deny`, `forbid`, `deprecated`, `must_use`, `doc`, `rustfmt`.
-
-# Example
-
-```
-#[ink::contract(keep_attr = "foo, bar")]
-mod my_contract {
-    #[ink(storage)]
-    pub struct MyContract;
-
-    impl MyContract {
-        #[ink(constructor)]
-        #[bar]
-        pub fn new() -> Self { MyContract {} }
-
-        #[ink(message)]
-        #[foo]
-        pub fn message(&self) {}
-    }
-
-    // --snip--
-}
-```
-
-OR
-
-```
-#[ink::trait_definition(keep_attr = "foo, bar")]
-pub trait MyTrait {
-    #[ink(message)]
-    #[foo]
-    fn message1(&self);
-
-    #[ink(message)]
-    #[bar]
-    fn message2(&self);
-}
-```
-"#;
-
-/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L116-L138>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L622-L640>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.trait_definition.html>.
-pub const KEEP_ATTR_DOC_V5: &str = r#"
-# Attribute
-
 `#[ink::contract(keep_attr = N: string)]` or `#[ink::trait_definition(keep_attr = N: string)]`
 
 # Description
@@ -877,8 +815,70 @@ pub trait MyTrait {
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
-pub const KEEP_ATTR_E2E_DOC_V5_DEPRECATED: &str = r#"
+pub const KEEP_ATTR_E2E_DOC_DEPRECATED: &str = r#"
 ink! argument `keep_attr` for `ink_e2e::test` attribute macro is deprecated. See https://github.com/paritytech/ink/pull/1830 for details.
+"#;
+
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L116-L138>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L622-L640>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink/attr.trait_definition.html>.
+pub const KEEP_ATTR_DOC_V4: &str = r#"
+# Attribute
+
+`#[ink::contract(keep_attr = N: string)]` or `#[ink::trait_definition(keep_attr = N: string)]` or `#[ink_e2e::test(keep_attr = N: string)]`
+
+# Description
+
+Tells the ink! code generator which attributes should be passed to call builders.
+
+Call builders are used to doing cross-contract calls and are automatically generated for contracts.
+
+# Usage
+
+Additional argument for ink! contract, ink! trait definition and ink! e2e test attribute macros.
+
+**Allowed attributes by default:** `cfg`, `cfg_attr`, `allow`, `warn`, `deny`, `forbid`, `deprecated`, `must_use`, `doc`, `rustfmt`.
+
+# Example
+
+```
+#[ink::contract(keep_attr = "foo, bar")]
+mod my_contract {
+    #[ink(storage)]
+    pub struct MyContract;
+
+    impl MyContract {
+        #[ink(constructor)]
+        #[bar]
+        pub fn new() -> Self { MyContract {} }
+
+        #[ink(message)]
+        #[foo]
+        pub fn message(&self) {}
+    }
+
+    // --snip--
+}
+```
+
+OR
+
+```
+#[ink::trait_definition(keep_attr = "foo, bar")]
+pub trait MyTrait {
+    #[ink(message)]
+    #[foo]
+    fn message1(&self);
+
+    #[ink(message)]
+    #[bar]
+    fn message2(&self);
+}
+```
 "#;
 
 /// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
@@ -1008,58 +1008,6 @@ mod my_contract {
 ```
 "#;
 
-/// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L347-L384>.
-///
-/// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
-pub const SELECTOR_DOC: &str = r#"
-# Attribute
-
-`#[ink(selector = S: u32 | _)]`
-
-# Description
-
-The `#[ink(selector = S:u32)]` variant specifies a concrete dispatch selector for the flagged entity.
-This allows a contract author to precisely control the selectors of their APIs making it possible to rename their API without breakage.
-
-While the `#[ink(selector = _)]` variant specifies a fallback message that is invoked if no other ink! message matches a selector.
-
-# Usage
-
-Applicable to ink! messages and ink! constructors.
-
-# Example
-
-```
-#[ink::contract]
-mod my_contract {
-    // --snip--
-
-    impl MyContract {
-        #[ink(constructor)]
-        #[ink(selector = 0xDEADBEEF)] // Works on constructors as well.
-        pub fn new(initial_value: bool) -> Self {
-            MyContract { value: false }
-        }
-
-        /// Updates the current value.
-        #[ink(message)]
-        #[ink(selector = 0xCAFEBABE)] // You can either specify selector out-of-line.
-        pub fn set(&mut self) {
-            self.value = !self.value;
-        }
-
-        /// Returns the current value.
-        #[ink(message, selector = 0xFEEDBEEF)] // ...or specify selector inline.
-        pub fn get(&self) -> bool {
-            self.value
-        }
-    }
-}
-```
-"#;
-
 /// Ref: <https://github.com/paritytech/ink/tree/v5.0.0-rc.1#ink-macros--attributes-overview>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L354-L391>.
@@ -1067,7 +1015,7 @@ mod my_contract {
 /// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html#analysis>.
 ///
 /// Ref: <https://github.com/paritytech/ink/pull/1708>.
-pub const SELECTOR_DOC_V5: &str = r#"
+pub const SELECTOR_DOC: &str = r#"
 # Attribute
 
 `#[ink(selector = S: u32 | _ | @)]`
@@ -1153,6 +1101,58 @@ mod my_contract {
 ```
 "#;
 
+/// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L347-L384>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
+pub const SELECTOR_DOC_V4: &str = r#"
+# Attribute
+
+`#[ink(selector = S: u32 | _)]`
+
+# Description
+
+The `#[ink(selector = S:u32)]` variant specifies a concrete dispatch selector for the flagged entity.
+This allows a contract author to precisely control the selectors of their APIs making it possible to rename their API without breakage.
+
+While the `#[ink(selector = _)]` variant specifies a fallback message that is invoked if no other ink! message matches a selector.
+
+# Usage
+
+Applicable to ink! messages and ink! constructors.
+
+# Example
+
+```
+#[ink::contract]
+mod my_contract {
+    // --snip--
+
+    impl MyContract {
+        #[ink(constructor)]
+        #[ink(selector = 0xDEADBEEF)] // Works on constructors as well.
+        pub fn new(initial_value: bool) -> Self {
+            MyContract { value: false }
+        }
+
+        /// Updates the current value.
+        #[ink(message)]
+        #[ink(selector = 0xCAFEBABE)] // You can either specify selector out-of-line.
+        pub fn set(&mut self) {
+            self.value = !self.value;
+        }
+
+        /// Returns the current value.
+        #[ink(message, selector = 0xFEEDBEEF)] // ...or specify selector inline.
+        pub fn get(&self) -> bool {
+            self.value
+        }
+    }
+}
+```
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/tree/v5.0.0-rc.1#ink-macros--attributes-overview>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>.
@@ -1225,41 +1225,8 @@ mod my_contract {
 ```
 "#;
 
-/// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
-pub const TOPIC_DOC: &str = r#"
-# Attribute
-
-`#[ink(topic)]`
-
-# Description
-
-Tells the ink! codegen to provide a topic hash for the given field.
-
-Every ink! event can only have a limited number of such topic fields.
-Similar semantics as to indexed event arguments in Solidity.
-
-# Usage
-
-Applicable on ink! event field.
-
-# Example
-
-```
-#[ink::contract]
-mod my_contract {
-    #[ink(event)]
-    pub struct MyEvent {
-        #[ink(topic)]
-        value: bool,
-    }
-
-    // --snip--
-}
-```
-"#;
-
 /// Ref: <https://github.com/paritytech/ink/tree/v5.0.0-rc.1#ink-macros--attributes-overview>.
-pub const TOPIC_DOC_V5: &str = r#"
+pub const TOPIC_DOC: &str = r#"
 # Attribute
 
 `#[ink(topic)]`
@@ -1286,6 +1253,39 @@ pub struct MyEvent {
 ```
 
 OR
+
+```
+#[ink::contract]
+mod my_contract {
+    #[ink(event)]
+    pub struct MyEvent {
+        #[ink(topic)]
+        value: bool,
+    }
+
+    // --snip--
+}
+```
+"#;
+
+/// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
+pub const TOPIC_DOC_V4: &str = r#"
+# Attribute
+
+`#[ink(topic)]`
+
+# Description
+
+Tells the ink! codegen to provide a topic hash for the given field.
+
+Every ink! event can only have a limited number of such topic fields.
+Similar semantics as to indexed event arguments in Solidity.
+
+# Usage
+
+Applicable on ink! event field.
+
+# Example
 
 ```
 #[ink::contract]

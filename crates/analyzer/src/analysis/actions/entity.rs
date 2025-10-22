@@ -422,10 +422,10 @@ pub fn add_extension(
                 Action {
                     label: format!(
                         "Add ink! {} `fn`.",
-                        if version.is_v5() {
-                            "function"
-                        } else {
+                        if version.is_legacy() {
                             "extension"
+                        } else {
+                            "function"
                         }
                     ),
                     kind,

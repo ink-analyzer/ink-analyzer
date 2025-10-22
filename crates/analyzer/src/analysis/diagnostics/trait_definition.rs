@@ -513,7 +513,7 @@ mod tests {
             ensure_trait_item_invariants(
                 &mut results,
                 trait_definition.trait_item().unwrap(),
-                Version::V4,
+                Version::Legacy,
             );
             assert!(results.is_empty(), "trait definition: {code}");
         }
@@ -895,7 +895,7 @@ mod tests {
             ensure_trait_item_invariants(
                 &mut results,
                 trait_definition.trait_item().unwrap(),
-                Version::V4,
+                Version::Legacy,
             );
 
             // Verifies diagnostics.
@@ -989,7 +989,7 @@ mod tests {
                 #code
             });
 
-            for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+            for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
                 let mut results = Vec::new();
                 ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
                 assert!(results.is_empty());
@@ -1012,7 +1012,7 @@ mod tests {
         };
         let trait_definition = parse_first_trait_definition(&code);
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
             // 1 diagnostic each for `constructor` and `event`.
@@ -1079,7 +1079,7 @@ mod tests {
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &trait_definition, Version::V4);
+            diagnostics(&mut results, &trait_definition, Version::Legacy);
             assert!(results.is_empty(), "trait definition: {code}");
         }
     }

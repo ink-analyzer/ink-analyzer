@@ -27,10 +27,10 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>, version: Version) -
         // Note that range of `None` means entire file is in range.
         if range.is_none_or(|it| it.contains_range(arg.text_range())) {
             // Creates inlay hint if a non-empty label is defined for the ink! attribute argument.
-            let arg_value_kind = if version.is_v5() {
-                InkArgValueKind::from_v5(*arg.kind(), Some(is_constructor))
-            } else {
+            let arg_value_kind = if version.is_legacy() {
                 InkArgValueKind::from(*arg.kind())
+            } else {
+                InkArgValueKind::from_v5(*arg.kind(), Some(is_constructor))
             };
 
             let label = arg_value_kind.to_string();
@@ -80,7 +80,7 @@ mod tests {
     fn inlay_hints_works() {
         for (version, fixtures) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     (
                         "#[ink(message, default, payable, selector=1)]",

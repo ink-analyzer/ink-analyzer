@@ -52,7 +52,7 @@ fn do_analysis() {
     "#;
 
     // Creates analysis snapshot.
-    let analysis = Analysis::new(code, Version::V4);
+    let analysis = Analysis::new(code, Version::V5);
 
     // Computes diagnostics.
     let diagnostics = analysis.diagnostics();

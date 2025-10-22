@@ -78,8 +78,8 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract, version: 
     // see `ensure_at_most_one_wildcard_selector` doc.
     ensure_at_most_one_wildcard_selector(results, contract);
 
-    if version.is_v5() {
-        // Ensures that an ink! v5 contract contains either exactly one wildcard complement selector
+    if version.is_gte_v5() {
+        // Ensures that an ink! > 5.x contract contains either exactly one wildcard complement selector
         // if it has a wildcard selector, or none otherwise,
         // see `validate_wildcard_complement_selector` doc.
         validate_wildcard_complement_selector(results, contract);
@@ -2122,7 +2122,7 @@ mod tests {
         };
         let contract = parse_first_contract(&code);
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &contract, version);
 

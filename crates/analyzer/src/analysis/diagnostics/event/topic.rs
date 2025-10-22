@@ -115,7 +115,7 @@ mod tests {
         });
 
         let mut results = Vec::new();
-        diagnostics(&mut results, &topic, Version::V4);
+        diagnostics(&mut results, &topic, Version::Legacy);
         assert!(results.is_empty());
     }
 }

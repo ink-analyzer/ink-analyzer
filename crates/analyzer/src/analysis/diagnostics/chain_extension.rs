@@ -266,10 +266,10 @@ fn ensure_trait_item_invariants(
     }
 
     if let Some(trait_item) = chain_extension.trait_item() {
-        if version.is_v5() {
-            trait_item_validator!(trait_item, Function, Function, u16);
-        } else {
+        if version.is_legacy() {
             trait_item_validator!(trait_item, Extension, Extension, u32);
+        } else {
+            trait_item_validator!(trait_item, Function, Function, u16);
         }
     }
 
@@ -390,19 +390,19 @@ fn ensure_no_overlapping_ids(
     chain_extension: &ChainExtension,
     version: Version,
 ) {
-    if version.is_v5() {
+    if version.is_legacy() {
         let mut unavailable_ids = init_unavailable_ids(chain_extension, version);
-        ensure_no_overlapping_ids_inner::<_, u16>(
+        ensure_no_overlapping_ids_inner::<_, u32>(
             results,
-            chain_extension.functions(),
+            chain_extension.extensions(),
             &mut unavailable_ids,
             version,
         );
     } else {
         let mut unavailable_ids = init_unavailable_ids(chain_extension, version);
-        ensure_no_overlapping_ids_inner::<_, u32>(
+        ensure_no_overlapping_ids_inner::<_, u16>(
             results,
-            chain_extension.extensions(),
+            chain_extension.functions(),
             &mut unavailable_ids,
             version,
         );
@@ -431,10 +431,10 @@ fn ensure_no_overlapping_ids(
                         message: format!(
                             "{} ids must be unique across all associated functions \
                             in an ink! chain extension.",
-                            if version.is_v5() {
-                                "Function"
-                            } else {
+                            if version.is_legacy() {
                                 "Extension"
+                            } else {
+                                "Function"
                             }
                         ),
                         range: value_range_option
@@ -451,10 +451,10 @@ fn ensure_no_overlapping_ids(
                                 vec![Action {
                                     label: format!(
                                         "Replace with a unique {} id.",
-                                        if version.is_v5() {
-                                            "function"
-                                        } else {
+                                        if version.is_legacy() {
                                             "extension"
+                                        } else {
+                                            "function"
                                         }
                                     ),
                                     kind: ActionKind::QuickFix,
@@ -509,10 +509,10 @@ where
             .collect()
     }
 
-    if version.is_v5() {
-        init_unavailable_ids_inner(chain_extension.functions())
-    } else {
+    if version.is_legacy() {
         init_unavailable_ids_inner(chain_extension.extensions())
+    } else {
+        init_unavailable_ids_inner(chain_extension.functions())
     }
 }
 
@@ -881,7 +881,12 @@ mod tests {
     #[test]
     fn invalid_trait_items_fails() {
         for (version, id_arg_name, id_arg_kind, macro_args) in [
-            (Version::V4, "extension", quote! { extension }, quote! {}),
+            (
+                Version::Legacy,
+                "extension",
+                quote! { extension },
+                quote! {},
+            ),
             (
                 Version::V5(MinorVersion::V5_0),
                 "function",
@@ -1379,7 +1384,7 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L859-L870>.
     fn overlapping_ids_fails() {
         for (version, id_arg_kind, macro_args) in [
-            (Version::V4, quote! { extension }, quote! {}),
+            (Version::Legacy, quote! { extension }, quote! {}),
             (
                 Version::V5(MinorVersion::V5_0),
                 quote! { function },
@@ -1480,7 +1485,7 @@ mod tests {
         };
         let chain_extension = parse_first_chain_extension(&code);
 
-        for version in [Version::V4, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension, version);
 

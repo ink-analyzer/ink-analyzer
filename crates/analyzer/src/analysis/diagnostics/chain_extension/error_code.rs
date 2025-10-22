@@ -622,7 +622,7 @@ mod tests {
     fn missing_impl_scale_codec_traits_fails() {
         for (version, fixtures) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     (
                         quote! {},

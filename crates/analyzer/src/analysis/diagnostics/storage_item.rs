@@ -273,7 +273,7 @@ mod tests {
             let storage_item = parse_first_storage_item(code);
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &storage_item, Version::V4);
+            diagnostics(&mut results, &storage_item, Version::Legacy);
             assert!(results.is_empty(), "storage_item: {code}");
         }
     }

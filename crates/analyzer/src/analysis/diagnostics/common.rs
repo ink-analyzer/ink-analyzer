@@ -189,13 +189,13 @@ fn validate_arg(
             });
         }
         arg_kind => {
-            let arg_value_kind = if version.is_v5() {
+            let arg_value_kind = if version.is_legacy() {
+                InkArgValueKind::from(*arg_kind)
+            } else {
                 InkArgValueKind::from_v5(
                     *arg_kind,
                     attr.map(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Constructor)),
                 )
-            } else {
-                InkArgValueKind::from(*arg_kind)
             };
             let mut add_diagnostic = |message: String| {
                 let (text, snippet) = utils::ink_arg_insert_text(*arg_kind, version, None, attr);
@@ -544,10 +544,10 @@ fn validate_entity_attributes(
             version,
         );
 
-        // v5 only pedantic validation (i.e. validation that cannot be properly expressed/declared
+        // ink! >= 5.x only pedantic validation (i.e. validation that cannot be properly expressed/declared
         // using the existing generic utilities).
         // NOTE: It's intentionally performed based on the primary attribute to keep diagnostics less noisy.
-        if version.is_v5() {
+        if version.is_gte_v5() {
             let find_arg = |arg_kind: InkArgKind| {
                 attrs
                     .iter()
@@ -727,7 +727,7 @@ fn validate_entity_attributes(
         let is_already_reported_as_deprecated = |arg: &InkArg| {
             // deprecated `extension` on chain extension functions is typically the "primary" attribute,
             // so it early returns and doesn't need to be checked here.
-            version.is_v5()
+            version.is_gte_v5()
                 && *primary_ink_attr_candidate.kind()
                     == InkAttributeKind::Macro(InkMacroKind::E2ETest)
                 && matches!(
@@ -990,9 +990,12 @@ fn validate_entity_attributes(
         for (idx, attr) in attrs.iter().enumerate() {
             // Check for attribute kind level conflict.
             let is_valid_sibling_attr = || match primary_ink_attr_candidate.kind() {
+                // For v4, any additional ink! attributes mixed with a "primary" ink! attribute macro
+                // is always a conflict.
+                InkAttributeKind::Macro(_) if version.is_legacy() => false,
                 // Generally, ink! attribute macros are never mixed with other ink! attributes,
-                // except for `scale_derive` and `storage_item` but only in ink! v5.
-                InkAttributeKind::Macro(primary_macro_kind) if version.is_v5() => {
+                // except for `scale_derive` and `storage_item` but only in ink! >= 5.x.
+                InkAttributeKind::Macro(primary_macro_kind) => {
                     // Duplicates are handled by `ensure_no_duplicate_attributes_and_arguments`, so we don't need that logic here.
                     matches!(
                         primary_macro_kind,
@@ -1004,8 +1007,6 @@ fn validate_entity_attributes(
                         )
                     )
                 }
-                // For v4, any additional ink! attributes mixed with a "primary" ink! attribute macro is always a conflict.
-                InkAttributeKind::Macro(_) => false,
                 // ink! attribute arguments can be mixed with other ink! attributes.
                 InkAttributeKind::Arg(_) => {
                     match attr.kind() {
@@ -1971,12 +1972,12 @@ pub fn ensure_impl_scale_codec_traits(
     message_prefix: &str,
     version: Version,
 ) -> Option<Diagnostic> {
-    // `scale_derive` attribute for v5 (if any).
-    let scale_derive_attr = if version.is_v5() {
+    // `scale_derive` attribute for ink! >= 5.x (if any).
+    let scale_derive_attr = if version.is_legacy() {
+        None
+    } else {
         ink_analyzer_ir::ink_attrs(adt.syntax())
             .find(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::ScaleDerive))
-    } else {
-        None
     };
     // Standalone derive attribute (if any).
     let standalone_derive_attr = adt.attrs().find(|attr| {
@@ -2070,7 +2071,7 @@ pub fn ensure_impl_scale_codec_traits(
         .into_iter()
         .filter_map(|(trait_name, qualifiers, trait_path, arg_kind)| {
             // Finds derived trait implementation for the custom type (if any).
-            let is_v5_derived = version.is_v5()
+            let is_gte_v5_derived = version.is_gte_v5()
                 && scale_derive_attr
                     .as_ref()
                     .is_some_and(|attr| attr.args().iter().any(|arg| *arg.kind() == arg_kind));
@@ -2103,7 +2104,8 @@ pub fn ensure_impl_scale_codec_traits(
                     .is_some()
             };
 
-            (!is_v5_derived && !is_derived() && !is_implemented()).then_some((trait_path, arg_kind))
+            (!is_gte_v5_derived && !is_derived() && !is_implemented())
+                .then_some((trait_path, arg_kind))
         })
         .collect();
 
@@ -2113,10 +2115,10 @@ pub fn ensure_impl_scale_codec_traits(
         let trait_paths_plain = unimplemented_traits
             .iter()
             .map(|(path, arg_kind)| {
-                if version.is_v5() {
-                    arg_kind.to_string()
-                } else {
+                if version.is_legacy() {
                     path.to_string()
+                } else {
+                    arg_kind.to_string()
                 }
             })
             .join(", ");
@@ -2127,10 +2129,10 @@ pub fn ensure_impl_scale_codec_traits(
                 format!(
                     "${{{}:{}}}",
                     idx + 1,
-                    if version.is_v5() {
-                        arg_kind.to_string()
-                    } else {
+                    if version.is_legacy() {
                         path.to_string()
+                    } else {
+                        arg_kind.to_string()
                     }
                 )
             })
@@ -2140,21 +2142,21 @@ pub fn ensure_impl_scale_codec_traits(
             .map(|(path, _)| format!("`{path}`"))
             .join(", ");
 
-        // Either updates an existing `scale_derive` attribute (for v5) or
-        // standalone `derive` attribute (for v4), or creates a new one.
-        let (target_attr, attr_path) = if version.is_v5() {
+        // Either updates an existing `scale_derive` attribute (for ink! >= 5.x) or
+        // standalone `derive` attribute (for ink! <= 4.x), or creates a new one.
+        let (target_attr, attr_path) = if version.is_legacy() {
+            (standalone_derive_attr.as_ref(), "derive")
+        } else {
             (
                 scale_derive_attr.as_ref().map(|attr| attr.ast()),
                 "ink::scale_derive",
             )
-        } else {
-            (standalone_derive_attr.as_ref(), "derive")
         };
 
         let (insert_text, insert_range, insert_snippet) = target_attr
             .as_ref()
             .map(|attr| {
-                let meta_prefix = if version == Version::V4 {
+                let meta_prefix = if version == Version::Legacy {
                     standalone_derive_meta.as_ref().map(|meta| {
                         format!(
                             "{meta}{}",
@@ -2697,7 +2699,7 @@ mod tests {
         // See `validate_arg` doc.
         for (version, fixtures) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     (
                         "#[ink(extension, handle_status=true)]", // bad extension.
@@ -3408,7 +3410,7 @@ mod tests {
         // See `ensure_no_duplicate_attributes_and_arguments` doc.
         for (version, fixtures) in [
             (
-                Version::V4,
+                Version::Legacy,
                 vec![
                     (
                         "#[ink(handle_status=true, extension=1)]", // `extension` should come first.

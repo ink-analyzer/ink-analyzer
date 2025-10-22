@@ -11,14 +11,14 @@ use ink_analyzer_ir::{
 
 use super::{utils, TextEdit};
 use crate::codegen::snippets::{
-    CHAIN_EXTENSION_PLAIN, CHAIN_EXTENSION_PLAIN_V5, CHAIN_EXTENSION_SNIPPET,
+    CHAIN_EXTENSION_PLAIN_V4, CHAIN_EXTENSION_PLAIN_V5, CHAIN_EXTENSION_SNIPPET_V4,
     CHAIN_EXTENSION_SNIPPET_V5, COMBINE_EXTENSIONS_PLAIN, COMBINE_EXTENSIONS_SNIPPET,
     CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, CONTRACT_PLAIN, CONTRACT_PLAIN_V4, CONTRACT_PLAIN_V5,
     CONTRACT_SNIPPET, CONTRACT_SNIPPET_V4, CONTRACT_SNIPPET_V5, ENVIRONMENT_PLAIN,
-    ENVIRONMENT_PLAIN_V5, ENVIRONMENT_SNIPPET, ENVIRONMENT_SNIPPET_V5, ERROR_CODE_PLAIN,
+    ENVIRONMENT_PLAIN_V4, ENVIRONMENT_SNIPPET, ENVIRONMENT_SNIPPET_V4, ERROR_CODE_PLAIN,
     ERROR_CODE_SNIPPET, EVENT_PLAIN, EVENT_PLAIN_V2, EVENT_SNIPPET, EVENT_SNIPPET_V2,
-    EXTENSION_FN_PLAIN, EXTENSION_FN_PLAIN_V5, EXTENSION_FN_SNIPPET, EXTENSION_FN_SNIPPET_V5,
-    INK_E2E_TEST_PLAIN, INK_E2E_TEST_PLAIN_V5, INK_E2E_TEST_SNIPPET, INK_E2E_TEST_SNIPPET_V5,
+    EXTENSION_FN_PLAIN, EXTENSION_FN_PLAIN_V4, EXTENSION_FN_SNIPPET, EXTENSION_FN_SNIPPET_V4,
+    INK_E2E_TEST_PLAIN, INK_E2E_TEST_PLAIN_V4, INK_E2E_TEST_SNIPPET, INK_E2E_TEST_SNIPPET_V4,
     INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN,
     STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET, TOPIC_PLAIN, TOPIC_SNIPPET,
     TRAIT_DEFINITION_PLAIN, TRAIT_DEFINITION_SNIPPET, TRAIT_MESSAGE_PLAIN, TRAIT_MESSAGE_SNIPPET,
@@ -75,7 +75,7 @@ macro_rules! mod_item_names {
 /// Creates text edit for ink! contract.
 pub fn add_contract(range: TextRange, indent: Option<&str>, version: Version) -> TextEdit {
     text_edit_with_indent(
-        if version.is_v4() {
+        if version.is_legacy() {
             CONTRACT_PLAIN_V4
         } else if version.is_v5() {
             CONTRACT_PLAIN_V5
@@ -83,7 +83,7 @@ pub fn add_contract(range: TextRange, indent: Option<&str>, version: Version) ->
             CONTRACT_PLAIN
         },
         range,
-        Some(if version.is_v4() {
+        Some(if version.is_legacy() {
             CONTRACT_SNIPPET_V4
         } else if version.is_v5() {
             CONTRACT_SNIPPET_V5
@@ -277,16 +277,16 @@ pub fn add_message_to_trait_def(trait_def: &TraitDefinition, range: TextRange) -
 /// Creates text edit for ink! chain extension.
 pub fn add_chain_extension(range: TextRange, indent: Option<&str>, version: Version) -> TextEdit {
     text_edit_with_indent(
-        if version.is_v5() {
-            CHAIN_EXTENSION_PLAIN_V5
+        if version.is_legacy() {
+            CHAIN_EXTENSION_PLAIN_V4
         } else {
-            CHAIN_EXTENSION_PLAIN
+            CHAIN_EXTENSION_PLAIN_V5
         },
         range,
-        Some(if version.is_v5() {
-            CHAIN_EXTENSION_SNIPPET_V5
+        Some(if version.is_legacy() {
+            CHAIN_EXTENSION_SNIPPET_V4
         } else {
-            CHAIN_EXTENSION_SNIPPET
+            CHAIN_EXTENSION_SNIPPET_V5
         }),
         indent,
     )
@@ -318,15 +318,15 @@ pub fn add_extension(
         .filter_map(Extension::fn_item)
         .filter_map(|fn_item| fn_item.name().as_ref().map(ToString::to_string))
         .collect();
-    let (mut text, mut snippet) = if version.is_v5() {
-        let preferred_name = "my_function";
+    let (mut text, mut snippet) = if version.is_legacy() {
+        let preferred_name = "my_extension";
         let suggested_name = utils::suggest_unique_name(preferred_name, &names);
         (
-            EXTENSION_FN_PLAIN_V5.replace(preferred_name, &suggested_name),
-            EXTENSION_FN_SNIPPET_V5.replace(preferred_name, &suggested_name),
+            EXTENSION_FN_PLAIN_V4.replace(preferred_name, &suggested_name),
+            EXTENSION_FN_SNIPPET_V4.replace(preferred_name, &suggested_name),
         )
     } else {
-        let preferred_name = "my_extension";
+        let preferred_name = "my_function";
         let suggested_name = utils::suggest_unique_name(preferred_name, &names);
         (
             EXTENSION_FN_PLAIN.replace(preferred_name, &suggested_name),
@@ -424,14 +424,14 @@ pub fn add_storage_item(range: TextRange, indent: Option<&str>) -> TextEdit {
 /// Creates text edit custom ink! environment.
 pub fn add_environment(range: TextRange, indent: Option<&str>, version: Version) -> TextEdit {
     text_edit_with_indent(
-        if version.is_v5() {
-            ENVIRONMENT_PLAIN_V5
+        if version.is_legacy() {
+            ENVIRONMENT_PLAIN_V4
         } else {
             ENVIRONMENT_PLAIN
         },
         range,
-        Some(if version.is_v5() {
-            ENVIRONMENT_SNIPPET_V5
+        Some(if version.is_legacy() {
+            ENVIRONMENT_SNIPPET_V4
         } else {
             ENVIRONMENT_SNIPPET
         }),
@@ -460,13 +460,13 @@ pub fn add_e2e_test(module: &ast::Module, range: TextRange, version: Version) ->
     let indent = utils::item_children_indenting(module.syntax());
     let names = mod_item_names!(module, Fn);
     let (text, snippet) = unique_text_and_snippet(
-        if version.is_v5() {
-            INK_E2E_TEST_PLAIN_V5
+        if version.is_legacy() {
+            INK_E2E_TEST_PLAIN_V4
         } else {
             INK_E2E_TEST_PLAIN
         },
-        if version.is_v5() {
-            INK_E2E_TEST_SNIPPET_V5
+        if version.is_legacy() {
+            INK_E2E_TEST_SNIPPET_V4
         } else {
             INK_E2E_TEST_SNIPPET
         },

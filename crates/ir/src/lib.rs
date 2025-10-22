@@ -116,9 +116,10 @@ pub use ra_ap_syntax::ast;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Version {
-    /// version == 4.x.x
-    V4,
-    /// version >= 5.x.x
+    /// version <= 4.x.x
+    /// NOTE: We only actually support v4
+    Legacy,
+    /// version == 5.x.x
     V5(MinorVersion),
     /// version == 6.x.x
     V6,
@@ -134,12 +135,12 @@ pub enum MinorVersion {
 }
 
 impl Version {
-    /// Returns true if `version == 4.x.x`
-    pub fn is_v4(&self) -> bool {
-        *self == Version::V4
+    /// Returns true if `version <= 4.x.x`
+    pub fn is_legacy(&self) -> bool {
+        *self == Version::Legacy
     }
 
-    /// Returns true if `version >= 5.x.x`
+    /// Returns true if `version == 5.x.x`
     pub fn is_v5(&self) -> bool {
         matches!(self, Version::V5(..))
     }
@@ -147,6 +148,11 @@ impl Version {
     /// Returns true if `version >= 6.x.x`
     pub fn is_v6(&self) -> bool {
         *self == Version::V6
+    }
+
+    /// Returns true if `version >= 5.1.x`
+    pub fn is_gte_v5(&self) -> bool {
+        matches!(self, Version::V5(..) | Version::V6)
     }
 
     /// Returns true if `version == 5.0.x`
@@ -157,5 +163,10 @@ impl Version {
     /// Returns true if `version >= 5.1.x`
     pub fn is_gte_v5_1(&self) -> bool {
         matches!(self, Version::V5(MinorVersion::Latest) | Version::V6)
+    }
+
+    /// Returns true if `version >= 5.1.x`
+    pub fn is_gte_v6(&self) -> bool {
+        self.is_v6()
     }
 }

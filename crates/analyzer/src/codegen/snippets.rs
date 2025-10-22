@@ -52,14 +52,14 @@ fn ${1:my_message}(&${2:self});"#;
 pub const ERROR_CODE_PLAIN: &str = r#"type ErrorCode = ();"#;
 pub const ERROR_CODE_SNIPPET: &str = r#"type ErrorCode = ${1:()};"#;
 
-pub const EXTENSION_FN_PLAIN: &str = r#"#[ink(extension = 1)]
+pub const EXTENSION_FN_PLAIN_V4: &str = r#"#[ink(extension = 1)]
 fn my_extension();"#;
-pub const EXTENSION_FN_SNIPPET: &str = r#"#[ink(extension = ${1:1})]
+pub const EXTENSION_FN_SNIPPET_V4: &str = r#"#[ink(extension = ${1:1})]
 fn ${2:my_extension}();"#;
 
-pub const EXTENSION_FN_PLAIN_V5: &str = r#"#[ink(function = 1)]
+pub const EXTENSION_FN_PLAIN: &str = r#"#[ink(function = 1)]
 fn my_function();"#;
-pub const EXTENSION_FN_SNIPPET_V5: &str = r#"#[ink(function = ${1:1})]
+pub const EXTENSION_FN_SNIPPET: &str = r#"#[ink(function = ${1:1})]
 fn ${2:my_function}();"#;
 
 pub const INK_TEST_PLAIN: &str = r#"#[ink::test]
@@ -72,27 +72,27 @@ fn ${1:it_works}() {
 }"#;
 
 pub const INK_E2E_TEST_PLAIN: &str = r#"#[ink_e2e::test]
-async fn it_works(mut client: ink_e2e::Client<C, E>) -> std::result::Result<(), Box<dyn std::error::Error>> {
-    todo!();
-
-    Ok(())
-}"#;
-pub const INK_E2E_TEST_SNIPPET: &str = r#"#[ink_e2e::test]
-async fn ${1:it_works}(${2:mut client: ink_e2e::Client<C, E>}) -> ${3:std::result::Result<(), Box<dyn std::error::Error>>} {
-    ${4:todo!();}
-
-    Ok(())
-}"#;
-
-pub const INK_E2E_TEST_PLAIN_V5: &str = r#"#[ink_e2e::test]
 async fn it_works<Client: E2EBackend>(mut client: Client) -> std::result::Result<(), Box<dyn std::error::Error>> {
     todo!();
 
     Ok(())
 }"#;
-pub const INK_E2E_TEST_SNIPPET_V5: &str = r#"#[ink_e2e::test]
+pub const INK_E2E_TEST_SNIPPET: &str = r#"#[ink_e2e::test]
 async fn ${1:it_works}<${2:Client: E2EBackend}>(${3:mut client: Client}) -> ${4:std::result::Result<(), Box<dyn std::error::Error>>} {
     ${5:todo!();}
+
+    Ok(())
+}"#;
+
+pub const INK_E2E_TEST_PLAIN_V4: &str = r#"#[ink_e2e::test]
+async fn it_works(mut client: ink_e2e::Client<C, E>) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    todo!();
+
+    Ok(())
+}"#;
+pub const INK_E2E_TEST_SNIPPET_V4: &str = r#"#[ink_e2e::test]
+async fn ${1:it_works}(${2:mut client: ink_e2e::Client<C, E>}) -> ${3:std::result::Result<(), Box<dyn std::error::Error>>} {
+    ${4:todo!();}
 
     Ok(())
 }"#;
@@ -375,51 +375,6 @@ pub trait ${1:TraitDefinition} {
     fn ${2:my_message}(&${3:self});
 }"#;
 
-pub const CHAIN_EXTENSION_PLAIN: &str = r#"#[ink::chain_extension]
-pub trait ChainExtension {
-    type ErrorCode = CustomErrorCode;
-
-    #[ink(extension = 1)]
-    fn my_extension();
-}
-
-#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]
-pub enum CustomErrorCode {
-  CustomError,
-}
-
-impl ink::env::chain_extension::FromStatusCode for CustomErrorCode {
-  fn from_status_code(status_code: u32) -> Result<(), Self> {
-    match status_code {
-      0 => Ok(()),
-      1 => Err(Self::CustomError),
-      _ => panic!("encountered unknown status code"),
-    }
-  }
-}"#;
-pub const CHAIN_EXTENSION_SNIPPET: &str = r#"#[ink::chain_extension]
-pub trait ${1:ChainExtension} {
-    type ErrorCode = ${2:CustomErrorCode};
-
-    #[ink(extension = ${3:1})]
-    fn ${4:my_extension}();
-}
-
-#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]
-pub enum ${2:CustomErrorCode} {
-  ${5:CustomError},
-}
-
-impl ink::env::chain_extension::FromStatusCode for ${2:CustomErrorCode} {
-  fn from_status_code(${6:status_code}: u32) -> Result<(), Self> {
-    match ${6:status_code} {
-      0 => Ok(()),
-      1 => Err(Self::${5:CustomError}),
-      _ => panic!("encountered unknown status code"),
-    }
-  }
-}"#;
-
 pub const CHAIN_EXTENSION_PLAIN_V5: &str = r#"#[ink::chain_extension(extension = 1)]
 pub trait ChainExtension {
     type ErrorCode = CustomErrorCode;
@@ -465,6 +420,51 @@ impl ink::env::chain_extension::FromStatusCode for ${3:CustomErrorCode} {
   }
 }"#;
 
+pub const CHAIN_EXTENSION_PLAIN_V4: &str = r#"#[ink::chain_extension]
+pub trait ChainExtension {
+    type ErrorCode = CustomErrorCode;
+
+    #[ink(extension = 1)]
+    fn my_extension();
+}
+
+#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]
+pub enum CustomErrorCode {
+  CustomError,
+}
+
+impl ink::env::chain_extension::FromStatusCode for CustomErrorCode {
+  fn from_status_code(status_code: u32) -> Result<(), Self> {
+    match status_code {
+      0 => Ok(()),
+      1 => Err(Self::CustomError),
+      _ => panic!("encountered unknown status code"),
+    }
+  }
+}"#;
+pub const CHAIN_EXTENSION_SNIPPET_V4: &str = r#"#[ink::chain_extension]
+pub trait ${1:ChainExtension} {
+    type ErrorCode = ${2:CustomErrorCode};
+
+    #[ink(extension = ${3:1})]
+    fn ${4:my_extension}();
+}
+
+#[derive(scale::Encode, scale::Decode, scale_info::TypeInfo)]
+pub enum ${2:CustomErrorCode} {
+  ${5:CustomError},
+}
+
+impl ink::env::chain_extension::FromStatusCode for ${2:CustomErrorCode} {
+  fn from_status_code(${6:status_code}: u32) -> Result<(), Self> {
+    match ${6:status_code} {
+      0 => Ok(()),
+      1 => Err(Self::${5:CustomError}),
+      _ => panic!("encountered unknown status code"),
+    }
+  }
+}"#;
+
 pub const COMBINE_EXTENSIONS_PLAIN: &str = r#"ink::combine_extensions! {
     pub struct CombinedChainExtension {
         pub ext1: Extension1,
@@ -486,7 +486,7 @@ pub ${1:struct} ${2:StorageItem} {
 }"#;
 
 pub const ENVIRONMENT_PLAIN: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[ink::scale_derive(TypeInfo)]
 pub enum MyEnvironment {}
 
 impl ink::env::Environment for MyEnvironment {
@@ -501,7 +501,7 @@ impl ink::env::Environment for MyEnvironment {
 }"#;
 
 pub const ENVIRONMENT_SNIPPET: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[ink::scale_derive(TypeInfo)]
 pub ${1:enum} ${2:MyEnvironment} {
     $3
 }
@@ -517,8 +517,8 @@ impl ink::env::Environment for ${4:MyEnvironment} {
     type ChainExtension = ${11:::ink::env::NoChainExtension};
 }"#;
 
-pub const ENVIRONMENT_PLAIN_V5: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
-#[ink::scale_derive(TypeInfo)]
+pub const ENVIRONMENT_PLAIN_V4: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum MyEnvironment {}
 
 impl ink::env::Environment for MyEnvironment {
@@ -532,8 +532,8 @@ impl ink::env::Environment for MyEnvironment {
     type ChainExtension = ::ink::env::NoChainExtension;
 }"#;
 
-pub const ENVIRONMENT_SNIPPET_V5: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
-#[ink::scale_derive(TypeInfo)]
+pub const ENVIRONMENT_SNIPPET_V4: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub ${1:enum} ${2:MyEnvironment} {
     $3
 }

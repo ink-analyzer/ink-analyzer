@@ -23,7 +23,7 @@
 //!     "#;
 //!
 //!     // Creates analysis snapshot.
-//!     let analysis = Analysis::new(code, Version::V4);
+//!     let analysis = Analysis::new(code, Version::Legacy);
 //!
 //!     // Computes diagnostics.
 //!     let diagnostics = analysis.diagnostics();
