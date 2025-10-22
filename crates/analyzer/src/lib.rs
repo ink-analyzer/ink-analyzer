@@ -5,7 +5,7 @@
 //! Analyzing ink! smart contract code.
 //!
 //! ```
-//! use ink_analyzer::{Analysis, TextSize, TextRange, Version, MinorVersion};
+//! use ink_analyzer::{Analysis, TextSize, TextRange, Version};
 //!
 //! fn do_analysis() {
 //!     // Smart contract code.
@@ -23,7 +23,7 @@
 //!     "#;
 //!
 //!     // Creates analysis snapshot.
-//!     let analysis = Analysis::new(code, Version::Legacy);
+//!     let analysis = Analysis::new(code, Version::V6);
 //!
 //!     // Computes diagnostics.
 //!     let diagnostics = analysis.diagnostics();
@@ -58,7 +58,7 @@
 //!
 //! fn project_code_stubs() {
 //!     // Generates ink! project code stubs/snippets.
-//!     let project = ink_analyzer::new_project(String::from("hello_world"), Version::V5(MinorVersion::Latest));
+//!     let project = ink_analyzer::new_project(String::from("hello_world"), Version::V6);
 //!     dbg!(&project);
 //! }
 //! ```

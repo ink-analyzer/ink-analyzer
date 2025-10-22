@@ -52,7 +52,7 @@ fn do_analysis() {
     "#;
 
     // Creates analysis snapshot.
-    let analysis = Analysis::new(code, Version::V5);
+    let analysis = Analysis::new(code, Version::V6);
 
     // Computes diagnostics.
     let diagnostics = analysis.diagnostics();
@@ -87,7 +87,7 @@ fn do_analysis() {
 
 fn project_code_stubs() {
     // Generates ink! project code stubs/snippets.
-    let project = ink_analyzer::new_project(String::from("hello_world"), Version::V5);
+    let project = ink_analyzer::new_project(String::from("hello_world"), Version::V6);
     dbg!(&project);
 }
 ```
