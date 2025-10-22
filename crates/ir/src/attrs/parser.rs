@@ -49,7 +49,7 @@ fn parse_meta_items(token_tree: &ast::TokenTree) -> Vec<MetaNameValue> {
                 && !is_error_wrapped_closing_bracket(it)
         })
         // Comma (`,`) separated groups.
-        .group_by(|token| token.kind() == T![,])
+        .chunk_by(|token| token.kind() == T![,])
         .into_iter()
         .filter_map(|(is_comma, mut group)| {
             if is_comma {
