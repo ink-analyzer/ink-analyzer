@@ -15,10 +15,10 @@ pub use args::{InkArg, InkArgKind, InkArgValueKind, InkArgValuePathKind, InkArgV
 /// An ink! specific attribute.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InkAttribute {
-    /// The kind of the ink! attribute e.g attribute macro like `#[ink::contract]`
+    /// The kind of the ink! attribute e.g. attribute macro like `#[ink::contract]`
     /// or attribute argument like `#[ink(storage)]`.
     kind: InkAttributeKind,
-    /// ink! attribute arguments e.g message, payable, selector = 1
+    /// ink! attribute arguments e.g. message, payable, selector = 1
     /// for `#[ink(message, payable, selector = 1)]`
     args: Vec<InkArg>,
     /// AST Node for ink! attribute.
@@ -212,6 +212,10 @@ pub enum InkMacroKind {
     ChainExtension,
     /// `#[ink::contract]`
     Contract,
+    /// `#[ink::contract_ref]`
+    ContractRef,
+    /// `#[ink::error]`
+    Error,
     /// `#[ink::event]`
     Event,
     /// `#[ink::scale_derive]`
@@ -237,6 +241,10 @@ impl From<(&str, &str)> for InkMacroKind {
                 "chain_extension" => InkMacroKind::ChainExtension,
                 // `#[ink::contract]`
                 "contract" => InkMacroKind::Contract,
+                // `#[ink::contract_ref]`
+                "contract_ref" => InkMacroKind::ContractRef,
+                // `#[ink::error]`
+                "error" => InkMacroKind::Error,
                 // `#[ink::event]`
                 "event" => InkMacroKind::Event,
                 // `#[ink::scale_derive]`
@@ -268,6 +276,10 @@ impl fmt::Display for InkMacroKind {
                 InkMacroKind::ChainExtension => "chain_extension",
                 // `#[ink::contract]`
                 InkMacroKind::Contract => "contract",
+                // `#[ink::contract_ref]`
+                InkMacroKind::ContractRef => "contract_ref",
+                // `#[ink::error]`
+                InkMacroKind::Error => "error",
                 // `#[ink::event]`
                 InkMacroKind::Event => "event",
                 // `#[ink::scale_derive]`
@@ -297,6 +309,10 @@ impl InkMacroKind {
             InkMacroKind::ChainExtension => "ink::chain_extension",
             // `#[ink::contract]`
             InkMacroKind::Contract => "ink::contract",
+            // `#[ink::contract_ref]`
+            InkMacroKind::ContractRef => "ink::contract_ref",
+            // `#[ink::error]`
+            InkMacroKind::Error => "ink::error",
             // `#[ink::event]`
             InkMacroKind::Event => "ink::event",
             // `#[ink::scale_derive]`
@@ -323,6 +339,10 @@ impl InkMacroKind {
             InkMacroKind::ChainExtension => "chain_extension",
             // `#[ink::contract]`
             InkMacroKind::Contract => "contract",
+            // `#[ink::contract_ref]`
+            InkMacroKind::ContractRef => "contract_ref",
+            // `#[ink::error]`
+            InkMacroKind::Error => "error",
             // `#[ink::event]`
             InkMacroKind::Event => "event",
             // `#[ink::scale_derive]`
@@ -352,6 +372,8 @@ impl InkMacroKind {
             // `#[ink::trait_definition]`
             InkMacroKind::ChainExtension
             | InkMacroKind::Contract
+            | InkMacroKind::ContractRef
+            | InkMacroKind::Error
             | InkMacroKind::Event
             | InkMacroKind::ScaleDerive
             | InkMacroKind::StorageItem
@@ -390,6 +412,18 @@ mod tests {
                     #[ink::contract]
                 },
                 Some((InkAttributeKind::Macro(InkMacroKind::Contract), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract_ref]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::ContractRef), vec![])),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::error]
+                },
+                Some((InkAttributeKind::Macro(InkMacroKind::Error), vec![])),
             ),
             (
                 quote_as_str! {
@@ -440,6 +474,18 @@ mod tests {
                     vec![
                         (InkArgKind::Env, Some(SyntaxKind::PATH)),
                         (InkArgKind::KeepAttr, Some(SyntaxKind::STRING)),
+                    ],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink::contract_ref(abi = "sol", env=my::env::Types)]
+                },
+                Some((
+                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                    vec![
+                        (InkArgKind::Abi, Some(SyntaxKind::STRING)),
+                        (InkArgKind::Env, Some(SyntaxKind::PATH)),
                     ],
                 )),
             ),
@@ -549,6 +595,24 @@ mod tests {
             // Argument with string value.
             (
                 quote_as_str! {
+                    #[ink(abi="sol")]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Abi),
+                    vec![(InkArgKind::Abi, Some(SyntaxKind::STRING))],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(name="myName")]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Name),
+                    vec![(InkArgKind::Name, Some(SyntaxKind::STRING))],
+                )),
+            ),
+            (
+                quote_as_str! {
                     #[ink(namespace="my_namespace")]
                 },
                 Some((
@@ -590,7 +654,7 @@ mod tests {
             // so they become the attribute kind even when they're not the first attribute.
             (
                 quote_as_str! {
-                    #[ink(message, payable, selector=1)]
+                    #[ink(message, payable, selector=1, name="myName")]
                 },
                 Some((
                     InkAttributeKind::Arg(InkArgKind::Message),
@@ -598,6 +662,7 @@ mod tests {
                         (InkArgKind::Message, None),
                         (InkArgKind::Payable, None),
                         (InkArgKind::Selector, Some(SyntaxKind::INT_NUMBER)),
+                        (InkArgKind::Name, Some(SyntaxKind::STRING)),
                     ],
                 )),
             ),

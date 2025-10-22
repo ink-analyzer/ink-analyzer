@@ -114,11 +114,14 @@ pub use ra_ap_syntax::ast;
 
 /// ink! language version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Version {
     /// version == 4.x.x
     V4,
     /// version >= 5.x.x
     V5(MinorVersion),
+    /// version == 6.x.x
+    V6,
 }
 
 /// ink! language minor version.
@@ -141,6 +144,11 @@ impl Version {
         matches!(self, Version::V5(..))
     }
 
+    /// Returns true if `version >= 6.x.x`
+    pub fn is_v6(&self) -> bool {
+        *self == Version::V6
+    }
+
     /// Returns true if `version == 5.0.x`
     pub fn is_v5_0_x(&self) -> bool {
         *self == Version::V5(MinorVersion::V5_0)
@@ -148,6 +156,6 @@ impl Version {
 
     /// Returns true if `version >= 5.1.x`
     pub fn is_gte_v5_1(&self) -> bool {
-        *self == Version::V5(MinorVersion::Latest)
+        matches!(self, Version::V5(MinorVersion::Latest) | Version::V6)
     }
 }

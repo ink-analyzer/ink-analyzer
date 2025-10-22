@@ -95,6 +95,8 @@ impl PartialOrd for InkArg {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum InkArgKind {
+    /// `#[ink(abi)]`
+    Abi,
     /// `#[ink(additional_contracts)]`
     AdditionalContracts,
     /// `#[ink(anonymous)]`
@@ -129,6 +131,8 @@ pub enum InkArgKind {
     KeepAttr,
     /// `#[ink(message)]`
     Message,
+    /// `#[ink(name)]`
+    Name,
     /// `#[ink(namespace)]`
     Namespace,
     /// `#[ink(node)]`
@@ -159,6 +163,8 @@ impl From<&str> for InkArgKind {
     /// Converts a string slice representing a meta item name into an ink! attribute argument kind.
     fn from(arg_name: &str) -> Self {
         match arg_name {
+            // `#[ink(abi)]`
+            "abi" => InkArgKind::Abi,
             // `#[ink(additional_contracts)]`
             "additional_contracts" => InkArgKind::AdditionalContracts,
             // `#[ink(anonymous)]`
@@ -193,6 +199,8 @@ impl From<&str> for InkArgKind {
             "keep_attr" => InkArgKind::KeepAttr,
             // `#[ink(message)]`
             "message" => InkArgKind::Message,
+            // `#[ink(name)]`
+            "name" => InkArgKind::Name,
             // `#[ink(namespace)]`
             "namespace" => InkArgKind::Namespace,
             // `#[ink(node)]`
@@ -227,6 +235,8 @@ impl fmt::Display for InkArgKind {
             f,
             "{}",
             match self {
+                // `#[ink(abi)]`
+                InkArgKind::Abi => "abi",
                 // `#[ink(additional_contracts)]`
                 InkArgKind::AdditionalContracts => "additional_contracts",
                 // `#[ink(anonymous)]`
@@ -261,6 +271,8 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::KeepAttr => "keep_attr",
                 // `#[ink(message)]`
                 InkArgKind::Message => "message",
+                // `#[ink(name)]`
+                InkArgKind::Name => "name",
                 // `#[ink(namespace)]`
                 InkArgKind::Namespace => "namespace",
                 // `#[ink(node)]`
@@ -312,7 +324,8 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         // macro-level arguments (e.g. `env`, `keep_attr`, `derive` e.t.c) and ambiguous arguments (e.g `namespace`).
         // This group is explicitly enumerated to force explicit decisions about
         // the priority level of new `InkArgKind` additions.
-        InkArgKind::AdditionalContracts
+        InkArgKind::Abi
+        | InkArgKind::AdditionalContracts
         | InkArgKind::Anonymous
         | InkArgKind::Backend
         | InkArgKind::Decode
@@ -323,6 +336,7 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         | InkArgKind::Environment
         | InkArgKind::HandleStatus
         | InkArgKind::KeepAttr
+        | InkArgKind::Name
         | InkArgKind::Namespace
         | InkArgKind::Node
         | InkArgKind::Payable
@@ -357,6 +371,7 @@ impl InkArgKind {
     /// Returns extra details/docs about the ink! attribute argument kind.
     pub fn detail(&self, version: Version) -> &str {
         match self {
+            InkArgKind::Abi if version.is_v6() => "Specifies the ABI (Application Binary Interface) of the target.",
             InkArgKind::AdditionalContracts if version.is_v5() => "ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.",
             InkArgKind::AdditionalContracts => "Tells the ink! e2e test runner which additional contracts to build before executing the test.",
             InkArgKind::Anonymous => "Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.",
@@ -376,6 +391,10 @@ impl InkArgKind {
             InkArgKind::Impl => "Tells the ink! codegen that some implementation block shall be granted access to ink! internals even without it containing any ink! messages or ink! constructors.",
             InkArgKind::KeepAttr => "Tells the ink! code generator which attributes should be passed to call builders.",
             InkArgKind::Message => "Flags a method for the ink! storage `struct` as a message making it available to the API for calling the contract.",
+            InkArgKind::Name if version.is_v6() => "Specifies a name/identifier override that is used in place of the item's name/identifier for:\n\
+             - Selector computation for ink! messages and ink! constructors\
+             - Signature topic computation for ink! events\
+             - Contract metadata generation for the ink! messages, ink! constructors or ink! events",
             InkArgKind::Namespace => "Changes the resulting selectors of all the ink! messages and ink! constructors within the trait implementation.",
             InkArgKind::Node if version.is_v5() => "Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.",
             InkArgKind::Payable => "Allows receiving value as part of the call of the ink! message.",
@@ -431,10 +450,14 @@ pub enum InkArgValueKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum InkArgValueStringKind {
+    Abi,
     CommaList,
     Default,
     Hex,
+    /// A valid Rust identifier
     Identifier,
+    /// An "identifier-like" string i.e. must accept both valid Rust and Solidity identifiers.
+    IdentifierLike,
     SpaceList,
     Url,
 }
@@ -460,6 +483,7 @@ pub enum InkArgValuePathKind {
 impl From<InkArgKind> for InkArgValueKind {
     fn from(arg_kind: InkArgKind) -> Self {
         match arg_kind {
+            InkArgKind::Abi => InkArgValueKind::String(InkArgValueStringKind::Abi),
             InkArgKind::AdditionalContracts => {
                 InkArgValueKind::String(InkArgValueStringKind::SpaceList)
             }
@@ -474,6 +498,7 @@ impl From<InkArgKind> for InkArgValueKind {
             InkArgKind::Function => InkArgValueKind::U16,
             InkArgKind::HandleStatus | InkArgKind::Derive => InkArgValueKind::Bool,
             InkArgKind::KeepAttr => InkArgValueKind::String(InkArgValueStringKind::CommaList),
+            InkArgKind::Name => InkArgValueKind::String(InkArgValueStringKind::IdentifierLike),
             InkArgKind::Namespace => InkArgValueKind::String(InkArgValueStringKind::Identifier),
             InkArgKind::Node => InkArgValueKind::Arg(InkArgKind::Url, false),
             InkArgKind::RuntimeOnly => InkArgValueKind::Arg(InkArgKind::Sandbox, false),
@@ -488,6 +513,7 @@ impl From<InkArgKind> for InkArgValueKind {
 }
 
 impl InkArgValueKind {
+    // TODO: This should be default, behaviour, and we should instead have a `from_legacy` method for versions <= 4.x
     pub fn from_v5(arg_kind: InkArgKind, is_constructor: Option<bool>) -> Self {
         match arg_kind {
             InkArgKind::Extension => InkArgValueKind::U16,
@@ -513,6 +539,7 @@ impl fmt::Display for InkArgValueKind {
                 InkArgValueKind::Bool => "bool".to_owned(),
                 InkArgValueKind::Path(path_kind) => match path_kind {
                     InkArgValuePathKind::Environment => "impl Environment".to_owned(),
+                    // TODO: Update to ink_sandbox::Sandbox for >= 5.1.x
                     InkArgValuePathKind::Sandbox => "impl drink::Sandbox".to_owned(),
                     _ => "Path".to_owned(),
                 },
@@ -551,8 +578,14 @@ impl InkArgValueKind {
             InkArgValueKind::String(InkArgValueStringKind::Hex) => {
                 "A 32 byte hex string.".to_owned()
             }
+            InkArgValueKind::String(InkArgValueStringKind::Abi) => {
+                r#"The ABI (Application Binary Interface), either "ink" or "sol"."#.to_owned()
+            }
             InkArgValueKind::String(InkArgValueStringKind::Identifier) => {
                 "A valid Rust identifier.".to_owned()
+            }
+            InkArgValueKind::String(InkArgValueStringKind::IdentifierLike) => {
+                "A valid Rust or Solidity identifier.".to_owned()
             }
             InkArgValueKind::String(InkArgValueStringKind::SpaceList) => {
                 "A space separated list.".to_owned()
