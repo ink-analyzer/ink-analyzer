@@ -48,11 +48,13 @@ pub fn read_source_code(location: &str) -> String {
 /// `location` is the relative path of the source file minus the `.rs` extension.
 pub fn source_uri(location: &str) -> lsp_types::Uri {
     lsp_types::Uri::from_str(
-        Path::new(&format!("../../test-fixtures/{location}/lib.rs"))
-            .canonicalize()
-            .unwrap()
-            .to_str()
-            .unwrap(),
+        url::Url::from_file_path(
+            Path::new(&format!("../../test-fixtures/{location}/lib.rs"))
+                .canonicalize()
+                .unwrap(),
+        )
+        .unwrap()
+        .as_str(),
     )
     .unwrap()
 }

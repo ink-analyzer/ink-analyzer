@@ -2,6 +2,7 @@
 
 #![cfg(test)]
 
+use std::path::Path;
 use std::str::FromStr;
 
 use ink_analyzer::Version;
@@ -11,11 +12,15 @@ use crate::utils;
 
 /// Returns uri for a test document.
 pub fn document_uri() -> lsp_types::Uri {
-    lsp_types::Uri::from_str(if cfg!(windows) {
-        r#"C:\tmp\file.rs"#
-    } else {
-        "/tmp/file.rs"
-    })
+    lsp_types::Uri::from_str(
+        url::Url::from_file_path(&Path::new(if cfg!(windows) {
+            r#"C:\tmp\file.rs"#
+        } else {
+            "/tmp/file.rs"
+        }))
+        .unwrap()
+        .as_str(),
+    )
     .unwrap()
 }
 

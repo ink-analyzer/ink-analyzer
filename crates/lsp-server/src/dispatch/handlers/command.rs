@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use ink_analyzer::{MinorVersion, Version};
@@ -41,22 +41,16 @@ pub fn handle_create_project(
     name: &str,
     root: &lsp_types::Uri,
 ) -> anyhow::Result<CreateProjectResponse> {
-    let base_path = Path::new(root.as_str());
-    let Some(Ok(lib_uri)) = base_path
+    let create_error = |_| anyhow::format_err!("Failed to create ink! project: {name}");
+    let base_path = utils::uri_to_url(root)?;
+    let lib_uri = base_path
         .join("lib.rs")
-        .to_str()
-        .map(lsp_types::Uri::from_str)
-    else {
-        return Err(anyhow::format_err!("Failed to create ink! project: {name}"));
-    };
-    let Some(Ok(cargo_uri)) = base_path
+        .map(|url| utils::url_to_uri(&url))
+        .map_err(create_error)??;
+    let cargo_uri = base_path
         .join("Cargo.toml")
-        .to_str()
-        .map(lsp_types::Uri::from_str)
-    else {
-        return Err(anyhow::format_err!("Failed to create ink! project: {name}"));
-    };
-
+        .map(|url| utils::url_to_uri(&url))
+        .map_err(create_error)??;
     let Ok(project) = ink_analyzer::new_project(name.to_owned(), Version::V5(MinorVersion::Latest))
     else {
         return Err(anyhow::format_err!(
@@ -570,20 +564,9 @@ mod tests {
         assert_eq!(resp.name, project_name);
         assert_eq!(resp.uri, project_uri);
         // Verifies project files and their contents.
-        let lib_uri = lsp_types::Uri::from_str(
-            Path::new(project_uri.as_str())
-                .join("lib.rs")
-                .to_str()
-                .unwrap(),
-        )
-        .unwrap();
-        let cargo_uri = lsp_types::Uri::from_str(
-            Path::new(project_uri.as_str())
-                .join("Cargo.toml")
-                .to_str()
-                .unwrap(),
-        )
-        .unwrap();
+        let base_path = utils::uri_to_url(&project_uri).unwrap();
+        let lib_uri = utils::url_to_uri(&base_path.join("lib.rs").unwrap()).unwrap();
+        let cargo_uri = utils::url_to_uri(&base_path.join("Cargo.toml").unwrap()).unwrap();
         let lib_content = resp.files.get(&lib_uri).unwrap();
         let cargo_content = resp.files.get(&cargo_uri).unwrap();
         assert!(resp.files.contains_key(&lib_uri));

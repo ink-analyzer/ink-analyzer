@@ -2,7 +2,6 @@
 
 mod utils;
 
-use std::path::Path;
 use std::str::FromStr;
 
 // Tests the create new project command.
@@ -77,17 +76,19 @@ fn create_project_command_works() {
     .unwrap();
     // Verifies that `lib.rs` and `Cargo.toml` files are created and contain expected content.
     let lib_uri = lsp_types::Uri::from_str(
-        Path::new(project_uri.as_str())
+        url::Url::parse(project_uri.as_str())
+            .unwrap()
             .join("lib.rs")
-            .to_str()
-            .unwrap(),
+            .unwrap()
+            .as_str(),
     )
     .unwrap();
     let cargo_uri = lsp_types::Uri::from_str(
-        Path::new(project_uri.as_str())
+        url::Url::parse(project_uri.as_str())
+            .unwrap()
             .join("Cargo.toml")
-            .to_str()
-            .unwrap(),
+            .unwrap()
+            .as_str(),
     )
     .unwrap();
     let contains_file_create = |uri: &lsp_types::Uri| {

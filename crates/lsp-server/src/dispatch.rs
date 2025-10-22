@@ -6,7 +6,7 @@ mod routers;
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use crossbeam_channel::Sender;
@@ -215,10 +215,10 @@ impl<'a> Dispatcher<'a> {
                     .strip_prefix(INITIALIZE_PROJECT_ID_PREFIX)
                     .and_then(|suffix| lsp_types::Uri::from_str(suffix).ok())
                 {
-                    let lib_uri = Path::new(project_uri.as_str())
-                        .join("lib.rs")
-                        .to_str()
-                        .map(lsp_types::Uri::from_str);
+                    let lib_uri = utils::uri_to_url(&project_uri)
+                        .ok()
+                        .and_then(|url| url.join("lib.rs").ok())
+                        .map(|url| utils::url_to_uri(&url));
                     if let Some(Ok(lib_uri)) = lib_uri {
                         let params = lsp_types::ShowDocumentParams {
                             uri: lib_uri.clone(),
@@ -425,28 +425,28 @@ impl<'a> Dispatcher<'a> {
 
 /// Parses the ink! project version from the `Cargo.toml` file for a given `*.rs` file (if possible).
 fn parse_ink_project_version(doc_uri: &lsp_types::Uri) -> Option<InkProjectVersion> {
-    let path = PathBuf::from(doc_uri.as_str());
+    let doc_url = utils::uri_to_url(doc_uri).ok()?;
+    let path = doc_url.to_file_path().ok()?;
     if path.extension().is_some_and(|ext| ext == "rs") {
         // Finds `Cargo.toml` for file (if any).
-        if let Some(cargo_toml_path) = utils::find_cargo_toml(path) {
-            let project_version = parse_ink_project_version_inner(&cargo_toml_path, false);
+        let cargo_toml_path = utils::find_cargo_toml(path)?;
+        let project_version = parse_ink_project_version_inner(&cargo_toml_path, false);
 
-            // Handles workspace dependencies.
-            let is_workspace_dependency = project_version.as_ref().is_some_and(|it| it.workspace);
-            if is_workspace_dependency {
-                // Finds `Cargo.toml` in workspace root directory (if any).
-                let mut parent_dir = cargo_toml_path.clone();
-                parent_dir.pop();
-                if let Some(workspace_cargo_toml_path) = utils::find_cargo_toml(parent_dir) {
-                    let workspace_project_version =
-                        parse_ink_project_version_inner(&workspace_cargo_toml_path, true);
-                    if workspace_project_version.is_some() {
-                        return workspace_project_version;
-                    }
+        // Handles workspace dependencies.
+        let is_workspace_dependency = project_version.as_ref().is_some_and(|it| it.workspace);
+        if is_workspace_dependency {
+            // Finds `Cargo.toml` in workspace root directory (if any).
+            let mut parent_dir = cargo_toml_path.clone();
+            parent_dir.pop();
+            if let Some(workspace_cargo_toml_path) = utils::find_cargo_toml(parent_dir) {
+                let workspace_project_version =
+                    parse_ink_project_version_inner(&workspace_cargo_toml_path, true);
+                if workspace_project_version.is_some() {
+                    return workspace_project_version;
                 }
             }
-            return project_version;
         }
+        return project_version;
     }
     return None;
 

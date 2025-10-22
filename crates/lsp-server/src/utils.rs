@@ -2,9 +2,11 @@
 
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use lsp_server::RequestId;
 use lsp_types::{ClientCapabilities, CodeActionKind, PositionEncodingKind};
+use url::Url;
 
 pub const COMMAND_CREATE_PROJECT: &str = "createProject";
 pub const COMMAND_MIGRATE_PROJECT: &str = "migrateProject";
@@ -159,6 +161,18 @@ pub fn find_cargo_toml(path: PathBuf) -> Option<PathBuf> {
     }
 
     cargo_toml_path.is_file().then_some(cargo_toml_path)
+}
+
+/// Converts `lsp_types::Uri` to `url::Url`.
+pub fn uri_to_url(uri: &lsp_types::Uri) -> anyhow::Result<Url> {
+    Url::parse(uri.as_str())
+        .map_err(|_| anyhow::format_err!("Failed to convert uri to url: {}", uri.as_str()))
+}
+
+/// Converts `url::Url` to `lsp_types::Uri`.
+pub fn url_to_uri(url: &Url) -> anyhow::Result<lsp_types::Uri> {
+    lsp_types::Uri::from_str(url.as_str())
+        .map_err(|_| anyhow::format_err!("Failed to convert url to uri: {url}"))
 }
 
 #[cfg(test)]
