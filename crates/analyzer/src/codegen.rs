@@ -3,10 +3,11 @@
 pub mod snippets;
 
 use crate::codegen::snippets::{
-    CARGO_TOML_PLAIN_V5, CARGO_TOML_SNIPPET_V5, CONTRACT_PLAIN_V5, CONTRACT_SNIPPET_V5,
+    CARGO_TOML_PLAIN, CARGO_TOML_PLAIN_V4, CARGO_TOML_PLAIN_V5, CARGO_TOML_SNIPPET,
+    CARGO_TOML_SNIPPET_V4, CARGO_TOML_SNIPPET_V5, CONTRACT_PLAIN, CONTRACT_PLAIN_V4,
+    CONTRACT_PLAIN_V5, CONTRACT_SNIPPET, CONTRACT_SNIPPET_V4, CONTRACT_SNIPPET_V5,
 };
 use crate::{utils, Version};
-use snippets::{CARGO_TOML_PLAIN, CARGO_TOML_SNIPPET, CONTRACT_PLAIN, CONTRACT_SNIPPET};
 
 /// Code stubs/snippets for creating an ink! project
 /// (i.e. code stubs/snippets for `lib.rs` and `Cargo.toml`).
@@ -68,7 +69,9 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
     Ok(Project {
         // Generates `lib.rs`.
         lib: ProjectFile {
-            plain: if version.is_v5() {
+            plain: if version.is_v4() {
+                CONTRACT_PLAIN_V4
+            } else if version.is_v5() {
                 CONTRACT_PLAIN_V5
             } else {
                 CONTRACT_PLAIN
@@ -76,7 +79,9 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
             .replace("my_contract", &module_name)
             .replace("MyContract", &struct_name),
             snippet: Some(
-                if version.is_v5() {
+                if version.is_v4() {
+                    CONTRACT_SNIPPET_V4
+                } else if version.is_v5() {
                     CONTRACT_SNIPPET_V5
                 } else {
                     CONTRACT_SNIPPET
@@ -87,14 +92,18 @@ pub fn new_project(name: String, version: Version) -> Result<Project, Error> {
         },
         // Generates `Cargo.toml`.
         cargo: ProjectFile {
-            plain: if version.is_v5() {
+            plain: if version.is_v4() {
+                CARGO_TOML_PLAIN_V4
+            } else if version.is_v5() {
                 CARGO_TOML_PLAIN_V5
             } else {
                 CARGO_TOML_PLAIN
             }
             .replace("my_contract", &name),
             snippet: Some(
-                if version.is_v5() {
+                if version.is_v4() {
+                    CARGO_TOML_SNIPPET_V4
+                } else if version.is_v5() {
                     CARGO_TOML_SNIPPET_V5
                 } else {
                     CARGO_TOML_SNIPPET
@@ -149,7 +158,7 @@ mod tests {
 
     #[test]
     fn new_project_works() {
-        for version in [Version::V4, Version::V5(MinorVersion::Latest)] {
+        for version in [Version::V4, Version::V5(MinorVersion::Latest), Version::V6] {
             // Generates an ink! contract project.
             let result = new_project("hello_world".to_owned(), version);
             assert!(result.is_ok());
@@ -157,10 +166,12 @@ mod tests {
             // Verifies the generated code stub and `Cargo.toml` file.
             let project = result.unwrap();
             let cargo_toml = project.cargo.plain;
-            assert!(cargo_toml.contains(if version.is_v5() {
+            assert!(cargo_toml.contains(if version.is_v4() {
+                r#"ink = { version = "4"#
+            } else if version.is_v5() {
                 r#"ink = { version = "5"#
             } else {
-                r#"ink = { version = "4"#
+                r#"version = "6"#
             }));
             let contract_code = project.lib.plain;
             let analysis = Analysis::new(&contract_code, version);

@@ -133,7 +133,7 @@ pub mod my_contract {
         type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
         #[ink_e2e::test]
-        async fn it_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+        async fn it_works<Client: E2EBackend>(mut client: Client) -> E2EResult<()> {
             todo!();
 
             Ok(())
@@ -178,8 +178,8 @@ pub mod ${1:my_contract} {
         type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
         #[ink_e2e::test]
-        async fn ${12:it_works}(${13:mut client: ink_e2e::Client<C, E>}) -> ${14:E2EResult<()>} {
-            ${15:todo!();}
+        async fn ${12:it_works}<${13:Client: E2EBackend}>(${14:mut client: Client}) -> ${15:E2EResult<()>} {
+            ${16:todo!();}
 
             Ok(())
         }
@@ -269,6 +269,95 @@ pub mod ${1:my_contract} {
         #[ink_e2e::test]
         async fn ${12:it_works}<${13:Client: E2EBackend}>(${14:mut client: Client}) -> ${15:E2EResult<()>} {
             ${16:todo!();}
+
+            Ok(())
+        }
+    }
+}"#;
+
+pub const CONTRACT_PLAIN_V4: &str = r#"#![cfg_attr(not(feature = "std"), no_std)]
+
+#[ink::contract]
+pub mod my_contract {
+    #[ink(storage)]
+    pub struct MyContract {}
+
+    impl MyContract {
+        #[ink(constructor)]
+        pub fn new() -> Self {
+            todo!()
+        }
+
+        #[ink(message)]
+        pub fn my_message(&self) {
+            todo!()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[ink::test]
+        fn it_works() {
+            todo!()
+        }
+    }
+
+    #[cfg(all(test, feature = "e2e-tests"))]
+    mod e2e_tests {
+        use super::*;
+
+        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+        #[ink_e2e::test]
+        async fn it_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
+            todo!();
+
+            Ok(())
+        }
+    }
+}"#;
+pub const CONTRACT_SNIPPET_V4: &str = r#"#![cfg_attr(not(feature = "std"), no_std)]
+
+#[ink::contract]
+pub mod ${1:my_contract} {
+    #[ink(storage)]
+    pub struct ${2:MyContract} {
+        $3
+    }
+
+    impl ${2:MyContract} {
+        #[ink(constructor)]
+        pub fn ${4:new}() -> ${5:Self} {
+            ${6:todo!()}
+        }
+
+        #[ink(message)]
+        pub fn ${7:my_message}(&${8:self}) {
+            ${9:todo!()}
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[ink::test]
+        fn ${10:it_works}() {
+            ${11:todo!()}
+        }
+    }
+
+    #[cfg(all(test, feature = "e2e-tests"))]
+    mod e2e_tests {
+        use super::*;
+
+        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+        #[ink_e2e::test]
+        async fn ${12:it_works}(${13:mut client: ink_e2e::Client<C, E>}) -> ${14:E2EResult<()>} {
+            ${15:todo!();}
 
             Ok(())
         }
@@ -498,16 +587,13 @@ pub const CARGO_TOML_PLAIN: &str = r#"[package]
 name = "my_contract"
 version = "0.1.0"
 authors = ["[your_name] <[your_email]>"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-ink = { version = "4.3.0", default-features = false }
-
-scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
-scale-info = { version = "2.6", default-features = false, features = ["derive"], optional = true }
+ink = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false, features = ["unstable-hostfn"] }
 
 [dev-dependencies]
-ink_e2e = "4.3.0"
+ink_e2e = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4" }
 
 [lib]
 path = "lib.rs"
@@ -520,21 +606,27 @@ std = [
     "scale-info/std",
 ]
 ink-as-dependency = []
-e2e-tests = []"#;
+e2e-tests = []
+
+[package.metadata.ink-lang]
+abi = "ink"
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = [
+    'cfg(ink_abi, values("ink", "sol", "all"))'
+]"#;
 pub const CARGO_TOML_SNIPPET: &str = r#"[package]
 name = "${1:my_contract}"
 version = "0.1.0"
 authors = ["${2:[your_name]} <${3:[your_email]}>"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-ink = { version = "4.3.0", default-features = false }
-
-scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
-scale-info = { version = "2.6", default-features = false, features = ["derive"], optional = true }
+ink = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false, features = ["unstable-hostfn"] }
 
 [dev-dependencies]
-ink_e2e = "4.3.0"
+ink_e2e = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4" }
 
 [lib]
 path = "lib.rs"
@@ -547,7 +639,16 @@ std = [
     "scale-info/std",
 ]
 ink-as-dependency = []
-e2e-tests = []"#;
+e2e-tests = []
+
+[package.metadata.ink-lang]
+abi = "${4:ink}"
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = [
+    'cfg(ink_abi, values("ink", "sol", "all"))'
+]"#;
 
 pub const CARGO_TOML_PLAIN_V5: &str = r#"[package]
 name = "my_contract"
@@ -590,6 +691,62 @@ path = "lib.rs"
 default = ["std"]
 std = [
     "ink/std",
+]
+ink-as-dependency = []
+e2e-tests = []"#;
+
+pub const CARGO_TOML_PLAIN_V4: &str = r#"[package]
+name = "my_contract"
+version = "0.1.0"
+authors = ["[your_name] <[your_email]>"]
+edition = "2021"
+
+[dependencies]
+ink = { version = "4.3.0", default-features = false }
+
+scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2.6", default-features = false, features = ["derive"], optional = true }
+
+[dev-dependencies]
+ink_e2e = "4.3.0"
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info/std",
+]
+ink-as-dependency = []
+e2e-tests = []"#;
+
+pub const CARGO_TOML_SNIPPET_V4: &str = r#"[package]
+name = "${1:my_contract}"
+version = "0.1.0"
+authors = ["${2:[your_name]} <${3:[your_email]}>"]
+edition = "2021"
+
+[dependencies]
+ink = { version = "4.3.0", default-features = false }
+
+scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2.6", default-features = false, features = ["derive"], optional = true }
+
+[dev-dependencies]
+ink_e2e = "4.3.0"
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info/std",
 ]
 ink-as-dependency = []
 e2e-tests = []"#;
