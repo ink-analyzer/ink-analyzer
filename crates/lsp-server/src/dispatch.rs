@@ -261,9 +261,7 @@ impl<'a> Dispatcher<'a> {
                             .and_then(parse_ink_project_version)
                             .as_ref()
                             .map(InkProjectVersion::guess_version)
-                            // FIXME: We default to v4 for now because v5 is super new,
-                            // but this should be changed at some point.
-                            .unwrap_or(Version::V4)
+                            .unwrap_or(Version::V6)
                     };
                     let lang_version = if self.version_check_fuel > 0 {
                         self.version_check_fuel -= 1;
@@ -511,7 +509,10 @@ fn parse_ink_project_version(doc_uri: &lsp_types::Uri) -> Option<InkProjectVersi
 }
 
 /// Represents the ink! project version details as parsed from a `Cargo.toml` file.
+///
+/// Ref: <https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html>
 #[derive(Debug)]
+#[allow(dead_code)] // `path` and `git` are now unused, but will likely be used again.
 struct InkProjectVersion {
     version: Option<String>,
     path: Option<String>,
@@ -521,45 +522,43 @@ struct InkProjectVersion {
 
 impl InkProjectVersion {
     // Returns the best guess for the ink! project version.
-    // FIXME: We default to v4 for now because v5 is super new, but this should be changed at some point.
     fn guess_version(&self) -> Version {
         self.version
             .as_ref()
             .map(|version| {
-                if is_gte_v5_1_version_string(version) || version.trim().starts_with('*') {
+                if is_legacy_version_string(version) {
+                    // We only support v4 and upwards.
+                    Version::V4
+                } else if is_gte_v5_1_version_string(version) {
+                    // v5.1 introduced some IDE relevant differences.
                     Version::V5(MinorVersion::Latest)
                 } else if is_v5_version_string(version) {
                     Version::V5(MinorVersion::V5_0)
                 } else {
-                    Version::V4
+                    Version::V6
                 }
             })
-            .unwrap_or_else(|| {
-                if self.path.is_some() || self.git.is_some() {
-                    // Use latest version for git and path dependencies.
-                    Version::V5(MinorVersion::Latest)
-                } else {
-                    Version::V4
-                }
-            })
+            .unwrap_or(Version::V6)
     }
 }
 
-/// Returns true if the version string matches `version >= 5.x.x`.
-///
-/// Ref: <https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html>
-///
-/// NOTE: We intentionally match `>5.x.x` to v5, because no version greater than v5 currently exists.
-fn is_v5_version_string(text: &str) -> bool {
-    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(^|\b)(([\^~>=])|(>=))?(\s)*5\.").unwrap());
-    RE.is_match(text)
+/// Returns true if the version string matches v4 or earlier.
+fn is_legacy_version_string(text: &str) -> bool {
+    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(([\^~>=])|(>=))?(\s)*[01234]\.").unwrap());
+    RE.is_match(text.trim())
 }
 
-/// Returns true if the version string matches `version >= 5.1.x`.
+/// Returns true if the version string matches v5.
+fn is_v5_version_string(text: &str) -> bool {
+    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(([\^~>=])|(>=))?(\s)*5\.").unwrap());
+    RE.is_match(text.trim())
+}
+
+/// Returns true if the version string matches version v5, but with a minimum minor release of v5.1
 fn is_gte_v5_1_version_string(text: &str) -> bool {
     static RE: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"(^|\b)(([\^~>=])|(>=))?(\s)*5\.[123456789]").unwrap());
-    RE.is_match(text)
+        Lazy::new(|| Regex::new(r"^(([\^~>=])|(>=))?(\s)*5\.[123456789]").unwrap());
+    RE.is_match(text.trim())
 }
 
 #[cfg(test)]
