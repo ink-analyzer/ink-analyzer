@@ -370,10 +370,11 @@ impl InkArgKind {
 
     /// Returns extra details/docs about the ink! attribute argument kind.
     pub fn detail(&self, version: Version) -> &str {
+        const CHAIN_EXT_DEPRECATION_NOTICE: &str = "ink! chain extensions are deprecated. See https://github.com/use-ink/ink/pull/2621 for details.";
         match self {
             InkArgKind::Abi if version.is_v6() => "Specifies the ABI (Application Binary Interface) of the target.",
-            InkArgKind::AdditionalContracts if version.is_gte_v5() => "ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.",
-            InkArgKind::AdditionalContracts => "Tells the ink! e2e test runner which additional contracts to build before executing the test.",
+            InkArgKind::AdditionalContracts if version.is_legacy() => "Tells the ink! e2e test runner which additional contracts to build before executing the test.",
+            InkArgKind::AdditionalContracts => "ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.",
             InkArgKind::Anonymous => "Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.",
             InkArgKind::Backend if version.is_gte_v5() => "Tells the ink! e2e test runner which type of architecture to use to execute the test.",
             InkArgKind::Constructor => "Flags a function for the ink! storage `struct` as a constructor making it available to the API for instantiating the contract.",
@@ -384,10 +385,13 @@ impl InkArgKind {
             InkArgKind::Env => "Tells the ink! code generator which environment to use for the ink! smart contract.",
             InkArgKind::Environment => "Tells the ink! e2e test runner which environment to use to execute the test.",
             InkArgKind::Event => "Defines an ink! event.",
-            InkArgKind::Extension if version.is_gte_v5() => "Determines the unique ID of the chain extension.",
-            InkArgKind::Extension => "Determines the unique function ID of the chain extension function.",
-            InkArgKind::Function if version.is_gte_v5() => "Determines the unique function ID of the chain extension function.",
-            InkArgKind::HandleStatus => "Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.",
+            InkArgKind::Extension if version.is_legacy() => "Determines the unique function ID of the chain extension function.",
+            InkArgKind::Extension if version.is_v5() => "Determines the unique ID of the chain extension.",
+            InkArgKind::Extension => CHAIN_EXT_DEPRECATION_NOTICE,
+            InkArgKind::Function if version.is_v5() => "Determines the unique function ID of the chain extension function.",
+            InkArgKind::Function if version.is_gte_v6() => CHAIN_EXT_DEPRECATION_NOTICE,
+            InkArgKind::HandleStatus if version.is_legacy() || version.is_v5() => "Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.",
+            InkArgKind::HandleStatus => CHAIN_EXT_DEPRECATION_NOTICE,
             InkArgKind::Impl => "Tells the ink! codegen that some implementation block shall be granted access to ink! internals even without it containing any ink! messages or ink! constructors.",
             InkArgKind::KeepAttr => "Tells the ink! code generator which attributes should be passed to call builders.",
             InkArgKind::Message => "Flags a method for the ink! storage `struct` as a message making it available to the API for calling the contract.",
@@ -565,6 +569,7 @@ impl InkArgValueKind {
     ///
     /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L49-L85>.
     pub fn detail(&self) -> String {
+        // TODO: Make version aware
         match self {
             InkArgValueKind::Path(InkArgValuePathKind::Environment) => {
                 "A `ink::env::Environment` implementation.".to_owned()

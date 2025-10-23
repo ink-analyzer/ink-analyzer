@@ -143,6 +143,239 @@ mod tests {
 
     #[test]
     fn actions_works() {
+        let fixtures_gte_v5 = vec![
+            (
+                r#"
+                #[ink::event]
+                pub struct MyStruct {
+                }
+                "#,
+                Some("<-#["),
+                vec![
+                    TestResultAction {
+                        label: "Extract",
+                        edits: vec![],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "(anonymous)",
+                            start_pat: Some("#[ink::event"),
+                            end_pat: Some("#[ink::event"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#"(signature_topic = "")"#,
+                            start_pat: Some("#[ink::event"),
+                            end_pat: Some("#[ink::event"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink(event)]
+                pub struct MyStruct {
+                }
+                "#,
+                Some("<-#["),
+                vec![
+                    TestResultAction {
+                        label: "Extract",
+                        edits: vec![],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", anonymous",
+                            start_pat: Some("<-)]"),
+                            end_pat: Some("<-)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#", signature_topic = """#,
+                            start_pat: Some("<-)]"),
+                            end_pat: Some("<-)]"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink(event)]
+                pub struct MyStruct {
+                }
+                "#,
+                Some("ink("),
+                vec![
+                    TestResultAction {
+                        label: "Extract",
+                        edits: vec![],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", anonymous",
+                            start_pat: Some("<-)]"),
+                            end_pat: Some("<-)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#", signature_topic = """#,
+                            start_pat: Some("<-)]"),
+                            end_pat: Some("<-)]"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink(event)]
+                pub struct MyStruct {
+                }
+                "#,
+                Some("event)]"),
+                vec![
+                    TestResultAction {
+                        label: "Extract",
+                        edits: vec![],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: ", anonymous",
+                            start_pat: Some("<-)]"),
+                            end_pat: Some("<-)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#", signature_topic = """#,
+                            start_pat: Some("<-)]"),
+                            end_pat: Some("<-)]"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink(event,)]
+                pub struct MyStruct {
+                }
+                "#,
+                Some("<-#["),
+                vec![
+                    TestResultAction {
+                        label: "Extract",
+                        edits: vec![],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "anonymous",
+                            start_pat: Some("<-)]"),
+                            end_pat: Some("<-)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#"signature_topic = """#,
+                            start_pat: Some("<-)]"),
+                            end_pat: Some("<-)]"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink_e2e::test]
+                fn it_works() {
+                }
+                "#,
+                Some("<-#["),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "(backend(node))",
+                            start_pat: Some("<-]"),
+                            end_pat: Some("<-]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "(environment = ink::env::DefaultEnvironment)",
+                            start_pat: Some("<-]"),
+                            end_pat: Some("<-]"),
+                        }],
+                    },
+                ],
+            ),
+        ];
+        let fixtures_v5_only = vec![
+            (
+                r#"
+                #[ink::chain_extension]
+                pub trait MyTrait {
+                }
+                "#,
+                Some("<-#["),
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "(extension = 1)",
+                        start_pat: Some("#[ink::chain_extension"),
+                        end_pat: Some("#[ink::chain_extension"),
+                    }],
+                }],
+            ),
+            (
+                r#"
+                #[ink(function=1)]
+                pub fn my_fn() {
+                }
+                "#,
+                Some("<-#["),
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: ", handle_status = true",
+                        start_pat: Some("<-)]"),
+                        end_pat: Some("<-)]"),
+                    }],
+                }],
+            ),
+            (
+                r#"
+                #[ink::chain_extension]
+                pub trait MyChainExtension {
+                    #[ink(function=1)]
+                    fn function_1(&self);
+
+                    #[ink(handle_status=true)]
+                    fn function_2(&self);
+                }
+                "#,
+                Some("<-#[ink(handle_status=true)]"),
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "function = 2,",
+                        start_pat: Some("#[ink(->"),
+                        end_pat: Some("#[ink(->"),
+                    }],
+                }],
+            ),
+        ];
         for (version, fixtures) in [
             (
                 Version::Legacy,
@@ -295,157 +528,23 @@ mod tests {
             ),
             (
                 Version::V5(MinorVersion::Base),
-                vec![
-                    (
-                        r#"
-                        #[ink::event]
-                        pub struct MyStruct {
-                        }
-                        "#,
-                        Some("<-#["),
-                        vec![
-                            TestResultAction {
-                                label: "Extract",
-                                edits: vec![],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "(anonymous)",
-                                    start_pat: Some("#[ink::event"),
-                                    end_pat: Some("#[ink::event"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: r#"(signature_topic = "")"#,
-                                    start_pat: Some("#[ink::event"),
-                                    end_pat: Some("#[ink::event"),
-                                }],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                        #[ink(event)]
-                        pub struct MyStruct {
-                        }
-                        "#,
-                        Some("<-#["),
-                        vec![
-                            TestResultAction {
-                                label: "Extract",
-                                edits: vec![],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: ", anonymous",
-                                    start_pat: Some("<-)]"),
-                                    end_pat: Some("<-)]"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: r#", signature_topic = """#,
-                                    start_pat: Some("<-)]"),
-                                    end_pat: Some("<-)]"),
-                                }],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                        #[ink(event)]
-                        pub struct MyStruct {
-                        }
-                        "#,
-                        Some("ink("),
-                        vec![
-                            TestResultAction {
-                                label: "Extract",
-                                edits: vec![],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: ", anonymous",
-                                    start_pat: Some("<-)]"),
-                                    end_pat: Some("<-)]"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: r#", signature_topic = """#,
-                                    start_pat: Some("<-)]"),
-                                    end_pat: Some("<-)]"),
-                                }],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                        #[ink(event)]
-                        pub struct MyStruct {
-                        }
-                        "#,
-                        Some("event)]"),
-                        vec![
-                            TestResultAction {
-                                label: "Extract",
-                                edits: vec![],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: ", anonymous",
-                                    start_pat: Some("<-)]"),
-                                    end_pat: Some("<-)]"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: r#", signature_topic = """#,
-                                    start_pat: Some("<-)]"),
-                                    end_pat: Some("<-)]"),
-                                }],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                        #[ink(event,)]
-                        pub struct MyStruct {
-                        }
-                        "#,
-                        Some("<-#["),
-                        vec![
-                            TestResultAction {
-                                label: "Extract",
-                                edits: vec![],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "anonymous",
-                                    start_pat: Some("<-)]"),
-                                    end_pat: Some("<-)]"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: r#"signature_topic = """#,
-                                    start_pat: Some("<-)]"),
-                                    end_pat: Some("<-)]"),
-                                }],
-                            },
-                        ],
-                    ),
+                fixtures_gte_v5
+                    .clone()
+                    .into_iter()
+                    .chain(fixtures_v5_only.clone())
+                    .collect(),
+            ),
+            (
+                Version::V5(MinorVersion::Latest),
+                fixtures_gte_v5
+                    .clone()
+                    .into_iter()
+                    .chain(fixtures_v5_only.clone())
+                    .collect(),
+            ),
+            (
+                Version::V6,
+                [
                     (
                         r#"
                         #[ink::chain_extension]
@@ -453,14 +552,16 @@ mod tests {
                         }
                         "#,
                         Some("<-#["),
-                        vec![TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "(extension = 1)",
-                                start_pat: Some("#[ink::chain_extension"),
-                                end_pat: Some("#[ink::chain_extension"),
-                            }],
-                        }],
+                        vec![],
+                    ),
+                    (
+                        r#"
+                        #[ink(extension=1)]
+                        pub fn my_fn() {
+                        }
+                        "#,
+                        Some("<-#["),
+                        vec![],
                     ),
                     (
                         r#"
@@ -469,40 +570,7 @@ mod tests {
                         }
                         "#,
                         Some("<-#["),
-                        vec![TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", handle_status = true",
-                                start_pat: Some("<-)]"),
-                                end_pat: Some("<-)]"),
-                            }],
-                        }],
-                    ),
-                    (
-                        r#"
-                        #[ink_e2e::test]
-                        fn it_works() {
-                        }
-                        "#,
-                        Some("<-#["),
-                        vec![
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "(backend(node))",
-                                    start_pat: Some("<-]"),
-                                    end_pat: Some("<-]"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "(environment = ink::env::DefaultEnvironment)",
-                                    start_pat: Some("<-]"),
-                                    end_pat: Some("<-]"),
-                                }],
-                            },
-                        ],
+                        vec![],
                     ),
                     (
                         r#"
@@ -516,16 +584,12 @@ mod tests {
                         }
                         "#,
                         Some("<-#[ink(handle_status=true)]"),
-                        vec![TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "function = 2,",
-                                start_pat: Some("#[ink(->"),
-                                end_pat: Some("#[ink(->"),
-                            }],
-                        }],
+                        vec![],
                     ),
-                ],
+                ]
+                .into_iter()
+                .chain(fixtures_gte_v5)
+                .collect(),
             ),
         ] {
             for (code, pat, expected_results) in [

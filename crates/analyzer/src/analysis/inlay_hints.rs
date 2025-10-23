@@ -55,8 +55,19 @@ pub fn inlay_hints(file: &InkFile, range: Option<TextRange>, version: Version) -
     // Iterates over all ink! attributes in the file.
     for attr in file.tree().ink_attrs_in_scope() {
         // Returns inlay hints for all ink! attribute arguments with values in the selection range.
+        let is_constructor = *attr.kind() == InkAttributeKind::Arg(InkArgKind::Constructor);
         for arg in attr.args() {
-            let is_constructor = *attr.kind() == InkAttributeKind::Arg(InkArgKind::Constructor);
+            // For ink! >= 6.x, chain extensions are deprecated.
+            // Ref: <https://github.com/use-ink/ink/pull/2621>
+            if version.is_gte_v6()
+                && matches!(
+                    arg.kind(),
+                    InkArgKind::Extension | InkArgKind::Function | InkArgKind::HandleStatus
+                )
+            {
+                continue;
+            }
+
             process_inlay_hint(arg, is_constructor);
 
             let mut nested_arg = None;
@@ -78,6 +89,115 @@ mod tests {
 
     #[test]
     fn inlay_hints_works() {
+        let fixtures_gte_v5 = vec![
+            (
+                "#[ink(message, default, payable, selector=1)]",
+                None,
+                vec![(
+                    "u32 | _ | @",
+                    Some("selector"),
+                    (Some("<-selector"), Some("selector")),
+                )],
+            ),
+            (
+                "#[ink(constructor, default, payable, selector=1)]",
+                None,
+                vec![(
+                    "u32 | _",
+                    Some("selector"),
+                    (Some("<-selector"), Some("selector")),
+                )],
+            ),
+            (
+                r#"#[ink::event(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#,
+                None,
+                vec![(
+                    "&str",
+                    Some("signature_topic"),
+                    (Some("<-signature_topic"), Some("signature_topic")),
+                )],
+            ),
+            (
+                r#"#[ink(event, signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#,
+                None,
+                vec![(
+                    "&str",
+                    Some("signature_topic"),
+                    (Some("<-signature_topic"), Some("signature_topic")),
+                )],
+            ),
+            (
+                r#"#[ink_e2e::test(
+                environment=ink::env::DefaultEnvironment,
+                backend(node(url="ws://127.0.0.1:9000"))
+                )]"#,
+                None,
+                vec![
+                    (
+                        "impl Environment",
+                        Some("environment"),
+                        (Some("<-environment"), Some("environment")),
+                    ),
+                    (
+                        "node | runtime_only",
+                        Some("backend"),
+                        (Some("<-backend"), Some("backend")),
+                    ),
+                    ("&str", Some("url"), (Some("<-url"), Some("url"))),
+                ],
+            ),
+            (
+                r#"#[ink_e2e::test(
+                environment=ink::env::DefaultEnvironment,
+                backend(runtime_only(sandbox=ink_e2e::MinimalSandbox))
+                )]"#,
+                None,
+                vec![
+                    (
+                        "impl Environment",
+                        Some("environment"),
+                        (Some("<-environment"), Some("environment")),
+                    ),
+                    (
+                        "node | runtime_only",
+                        Some("backend"),
+                        (Some("<-backend"), Some("backend")),
+                    ),
+                    (
+                        "impl drink::Sandbox",
+                        Some("sandbox"),
+                        (Some("<-sandbox"), Some("sandbox")),
+                    ),
+                ],
+            ),
+        ];
+        let fixtures_v5_only = vec![
+            (
+                "#[ink::chain_extension(extension=1)]",
+                None,
+                vec![(
+                    "u16",
+                    Some("extension->"),
+                    (Some("<-extension->"), Some("extension->")),
+                )],
+            ),
+            (
+                "#[ink(function=1, handle_status=true)]",
+                None,
+                vec![
+                    (
+                        "u16",
+                        Some("function"),
+                        (Some("<-function"), Some("function")),
+                    ),
+                    (
+                        "bool",
+                        Some("handle_status"),
+                        (Some("<-handle_status"), Some("handle_status")),
+                    ),
+                ],
+            ),
+        ];
         for (version, fixtures) in [
             (
                 Version::Legacy,
@@ -136,113 +256,29 @@ mod tests {
             ),
             (
                 Version::V5(MinorVersion::Base),
-                vec![
-                    (
-                        "#[ink(message, default, payable, selector=1)]",
-                        None,
-                        vec![(
-                            "u32 | _ | @",
-                            Some("selector"),
-                            (Some("<-selector"), Some("selector")),
-                        )],
-                    ),
-                    (
-                        "#[ink(constructor, default, payable, selector=1)]",
-                        None,
-                        vec![(
-                            "u32 | _",
-                            Some("selector"),
-                            (Some("<-selector"), Some("selector")),
-                        )],
-                    ),
-                    (
-                        r#"#[ink::event(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#,
-                        None,
-                        vec![(
-                            "&str",
-                            Some("signature_topic"),
-                            (Some("<-signature_topic"), Some("signature_topic")),
-                        )],
-                    ),
-                    (
-                        r#"#[ink(event, signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#,
-                        None,
-                        vec![(
-                            "&str",
-                            Some("signature_topic"),
-                            (Some("<-signature_topic"), Some("signature_topic")),
-                        )],
-                    ),
-                    (
-                        "#[ink::chain_extension(extension=1)]",
-                        None,
-                        vec![(
-                            "u16",
-                            Some("extension->"),
-                            (Some("<-extension->"), Some("extension->")),
-                        )],
-                    ),
-                    (
-                        "#[ink(function=1, handle_status=true)]",
-                        None,
-                        vec![
-                            (
-                                "u16",
-                                Some("function"),
-                                (Some("<-function"), Some("function")),
-                            ),
-                            (
-                                "bool",
-                                Some("handle_status"),
-                                (Some("<-handle_status"), Some("handle_status")),
-                            ),
-                        ],
-                    ),
-                    (
-                        r#"#[ink_e2e::test(
-                        environment=ink::env::DefaultEnvironment,
-                        backend(node(url="ws://127.0.0.1:9000"))
-                        )]"#,
-                        None,
-                        vec![
-                            (
-                                "impl Environment",
-                                Some("environment"),
-                                (Some("<-environment"), Some("environment")),
-                            ),
-                            (
-                                "node | runtime_only",
-                                Some("backend"),
-                                (Some("<-backend"), Some("backend")),
-                            ),
-                            ("&str", Some("url"), (Some("<-url"), Some("url"))),
-                        ],
-                    ),
-                    (
-                        r#"#[ink_e2e::test(
-                        environment=ink::env::DefaultEnvironment,
-                        backend(runtime_only(sandbox=ink_e2e::MinimalSandbox))
-                        )]"#,
-                        None,
-                        vec![
-                            (
-                                "impl Environment",
-                                Some("environment"),
-                                (Some("<-environment"), Some("environment")),
-                            ),
-                            (
-                                "node | runtime_only",
-                                Some("backend"),
-                                (Some("<-backend"), Some("backend")),
-                            ),
-                            (
-                                "impl drink::Sandbox",
-                                Some("sandbox"),
-                                (Some("<-sandbox"), Some("sandbox")),
-                            ),
-                        ],
-                    ),
-                ],
+                fixtures_gte_v5
+                    .clone()
+                    .into_iter()
+                    .chain(fixtures_v5_only.clone())
+                    .collect(),
+            ),
+            (
+                Version::V5(MinorVersion::Latest),
+                fixtures_gte_v5
+                    .clone()
+                    .into_iter()
+                    .chain(fixtures_v5_only.clone())
+                    .collect(),
+            ),
+            (
+                Version::V6,
+                [
+                    ("#[ink::chain_extension(extension=1)]", None, vec![]),
+                    ("#[ink(function=1, handle_status=true)]", None, vec![]),
+                ]
+                .into_iter()
+                .chain(fixtures_gte_v5)
+                .collect(),
             ),
         ] {
             for (code, selection_range_pat, expected_results) in [
@@ -264,7 +300,7 @@ mod tests {
                         fn my_fn(a: bool, b: u8) {
                         }
                     }
-                "#,
+                    "#,
                     None,
                     vec![],
                 ),

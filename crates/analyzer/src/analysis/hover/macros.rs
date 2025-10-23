@@ -1,5 +1,10 @@
 //! Hover content for ink! attribute macros.
 
+/// Ref: https://github.com/use-ink/ink/pull/2621
+pub const CHAIN_EXTENSION_DOC_DEPRECATED: &str = r#"
+ink! chain extensions are deprecated. See https://github.com/use-ink/ink/pull/2621 for details.
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L897-L1337>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html>.

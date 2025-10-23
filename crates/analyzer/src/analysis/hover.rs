@@ -109,9 +109,14 @@ pub fn content(
             InkArgKind::Env | InkArgKind::Environment => args::ENV_DOC,
             InkArgKind::Event => args::EVENT_DOC,
             InkArgKind::Extension if version.is_legacy() => args::EXTENSION_DOC_V4,
-            InkArgKind::Extension => args::EXTENSION_DOC,
-            InkArgKind::Function if version.is_gte_v5() => args::FUNCTION_DOC,
-            InkArgKind::HandleStatus => args::HANDLE_STATUS_DOC,
+            InkArgKind::Extension if version.is_v5() => args::EXTENSION_DOC,
+            InkArgKind::Extension => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
+            InkArgKind::Function if version.is_v5() => args::FUNCTION_DOC,
+            InkArgKind::Function if version.is_gte_v6() => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
+            InkArgKind::HandleStatus if version.is_legacy() || version.is_v5() => {
+                args::HANDLE_STATUS_DOC
+            }
+            InkArgKind::HandleStatus => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
             InkArgKind::Impl => args::IMPL_DOC,
             InkArgKind::KeepAttr if version.is_legacy() => args::KEEP_ATTR_DOC_V4,
             InkArgKind::KeepAttr
@@ -137,7 +142,8 @@ pub fn content(
         },
         InkAttributeKind::Macro(macro_kind) => match macro_kind {
             InkMacroKind::ChainExtension if version.is_legacy() => macros::CHAIN_EXTENSION_DOC_V4,
-            InkMacroKind::ChainExtension => macros::CHAIN_EXTENSION_DOC,
+            InkMacroKind::ChainExtension if version.is_v5() => macros::CHAIN_EXTENSION_DOC,
+            InkMacroKind::ChainExtension => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
             InkMacroKind::Contract => macros::CONTRACT_DOC,
             InkMacroKind::Event if version.is_gte_v5() => macros::EVENT_DOC,
             InkMacroKind::ScaleDerive if version.is_gte_v5() => macros::SCALE_DERIVE_DOC,

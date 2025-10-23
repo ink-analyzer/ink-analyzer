@@ -62,8 +62,13 @@ pub fn actions(file: &InkFile, range: TextRange, version: Version) -> Vec<Action
 impl Action {
     /// Removes an ink! attribute.
     pub(crate) fn remove_attribute(attr: &InkAttribute) -> Self {
+        Self::remove_attribute_with_label(attr, format!("Remove `{}` attribute.", attr.syntax()))
+    }
+
+    /// Removes an ink! attribute, and uses the given label for the action.
+    pub(crate) fn remove_attribute_with_label(attr: &InkAttribute, label: String) -> Self {
         Self {
-            label: format!("Remove `{}` attribute.", attr.syntax()),
+            label,
             kind: ActionKind::QuickFix,
             range: attr.syntax().text_range(),
             edits: vec![TextEdit::delete(attr.syntax().text_range())],
@@ -72,8 +77,13 @@ impl Action {
 
     /// Removes an item.
     pub(crate) fn remove_item(item: &SyntaxNode) -> Self {
+        Self::remove_item_with_label(item, "Remove item.".to_owned())
+    }
+
+    /// Removes an item, and uses the given label for the action.
+    pub(crate) fn remove_item_with_label(item: &SyntaxNode, label: String) -> Self {
         Self {
-            label: "Remove item.".to_owned(),
+            label,
             kind: ActionKind::QuickFix,
             range: item.text_range(),
             edits: vec![TextEdit::delete(item.text_range())],

@@ -149,10 +149,22 @@ pub fn macro_completions(
                                         InkMacroKind::TraitDefinition,
                                         InkMacroKind::E2ETest,
                                     ]
-                                } else {
+                                } else if version.is_v5() {
                                     vec![
                                         InkMacroKind::ChainExtension,
                                         InkMacroKind::Contract,
+                                        InkMacroKind::Event,
+                                        InkMacroKind::ScaleDerive,
+                                        InkMacroKind::StorageItem,
+                                        InkMacroKind::Test,
+                                        InkMacroKind::TraitDefinition,
+                                        InkMacroKind::E2ETest,
+                                    ]
+                                } else {
+                                    vec![
+                                        InkMacroKind::Contract,
+                                        InkMacroKind::ContractRef,
+                                        InkMacroKind::Error,
                                         InkMacroKind::Event,
                                         InkMacroKind::ScaleDerive,
                                         InkMacroKind::StorageItem,
@@ -385,7 +397,7 @@ pub fn argument_completions(
                                             InkArgKind::Storage,
                                             InkArgKind::Topic,
                                         ]
-                                    } else {
+                                    } else if version.is_v5() {
                                         vec![
                                             InkArgKind::Anonymous,
                                             InkArgKind::Constructor,
@@ -393,6 +405,21 @@ pub fn argument_completions(
                                             InkArgKind::Event,
                                             InkArgKind::Function,
                                             InkArgKind::HandleStatus,
+                                            InkArgKind::Impl,
+                                            InkArgKind::Message,
+                                            InkArgKind::Namespace,
+                                            InkArgKind::Payable,
+                                            InkArgKind::Selector,
+                                            InkArgKind::SignatureTopic,
+                                            InkArgKind::Storage,
+                                            InkArgKind::Topic,
+                                        ]
+                                    } else {
+                                        vec![
+                                            InkArgKind::Anonymous,
+                                            InkArgKind::Constructor,
+                                            InkArgKind::Default,
+                                            InkArgKind::Event,
                                             InkArgKind::Impl,
                                             InkArgKind::Message,
                                             InkArgKind::Namespace,
@@ -891,18 +918,20 @@ pub fn entity_completions(
             });
         }
 
-        // Adds ink! chain extension.
-        if is_line_affix_of(&["trait", "chain", "extension", "chain_extension"]) {
-            results.push(Completion {
-                label: format!(
-                    "#[ink::chain_extension{}]..pub trait ChainExtension {{...}}",
-                    if version.is_legacy() { "" } else { "(...)" }
-                ),
-                range,
-                edit: text_edit::add_chain_extension(range, None, version),
-                detail: Some("ink! chain extension".to_owned()),
-                kind: CompletionKind::Trait,
-            });
+        if version.is_legacy() || version.is_v5() {
+            // Adds ink! chain extension.
+            if is_line_affix_of(&["trait", "chain", "extension", "chain_extension"]) {
+                results.push(Completion {
+                    label: format!(
+                        "#[ink::chain_extension{}]..pub trait ChainExtension {{...}}",
+                        if version.is_legacy() { "" } else { "(...)" }
+                    ),
+                    range,
+                    edit: text_edit::add_chain_extension(range, None, version),
+                    detail: Some("ink! chain extension".to_owned()),
+                    kind: CompletionKind::Trait,
+                });
+            }
         }
 
         // Adds ink! combine extensions definition.
@@ -1013,6 +1042,21 @@ mod tests {
                 vec!["ink::event", "ink::scale_derive", "ink::storage_item"],
                 vec!["::event", "::scale_derive", "::storage_item"],
             ),
+            (
+                Version::V6,
+                vec![
+                    "::contract",
+                    "::contract_ref",
+                    "::error",
+                    "::event",
+                    "::scale_derive",
+                    "::storage_item",
+                    "::test",
+                    "::trait_definition",
+                ],
+                vec!["ink::event", "ink::scale_derive", "ink::storage_item"],
+                vec!["::event", "::scale_derive", "::storage_item"],
+            ),
         ] {
             for (code, pat, expected_results) in [
                 // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
@@ -1098,7 +1142,11 @@ mod tests {
                 "#,
                     Some("["),
                     vec![
-                        ("ink::chain_extension", Some("["), Some("<-]")),
+                        if version.is_legacy() || version.is_v5() {
+                            ("ink::chain_extension", Some("["), Some("<-]"))
+                        } else {
+                            ("ink::contract_ref", Some("["), Some("<-]"))
+                        },
                         ("ink::trait_definition", Some("["), Some("<-]")),
                     ],
                 ),
@@ -1109,7 +1157,11 @@ mod tests {
                 "#,
                     Some("i"),
                     vec![
-                        ("ink::chain_extension", Some("<-i"), Some("i")),
+                        if version.is_legacy() || version.is_v5() {
+                            ("ink::chain_extension", Some("<-i"), Some("i"))
+                        } else {
+                            ("ink::contract_ref", Some("<-i"), Some("i"))
+                        },
                         ("ink::trait_definition", Some("<-i"), Some("i")),
                     ],
                 ),
@@ -1120,7 +1172,11 @@ mod tests {
                 "#,
                     Some("i"),
                     vec![
-                        ("ink::chain_extension", Some("<-ink"), Some("ink")),
+                        if version.is_legacy() || version.is_v5() {
+                            ("ink::chain_extension", Some("<-ink"), Some("ink"))
+                        } else {
+                            ("ink::contract_ref", Some("<-ink"), Some("ink"))
+                        },
                         ("ink::trait_definition", Some("<-ink"), Some("ink")),
                     ],
                 ),
@@ -1131,17 +1187,25 @@ mod tests {
                 "#,
                     Some("::"),
                     vec![
-                        ("::chain_extension", Some("<-:"), Some("<-]")),
+                        if version.is_legacy() || version.is_v5() {
+                            ("::chain_extension", Some("<-:"), Some("<-]"))
+                        } else {
+                            ("::contract_ref", Some("<-:"), Some("<-]"))
+                        },
                         ("::trait_definition", Some("<-:"), Some("<-]")),
                     ],
                 ),
                 (
                     r#"
-                    #[ink::ch]
+                    #[ink::c]
                     trait MyTrait {}
                 "#,
                     Some(":c"),
-                    vec![("chain_extension", Some("::"), Some("<-]"))],
+                    if version.is_legacy() || version.is_v5() {
+                        vec![("chain_extension", Some("::"), Some("<-]"))]
+                    } else {
+                        vec![("contract_ref", Some("::"), Some("<-]"))]
+                    },
                 ),
                 (
                     r#"
@@ -1283,6 +1347,84 @@ mod tests {
 
     #[test]
     fn argument_completions_works() {
+        let fixtures_gte_v5 = vec![
+            (
+                "#[ink::event(",
+                Some("("),
+                vec![
+                    ("anonymous", Some("("), Some("(")),
+                    (r#"signature_topic="""#, Some("("), Some("(")),
+                ],
+            ),
+            (
+                "#[ink::scale_derive(",
+                Some("("),
+                vec![
+                    ("Encode", Some("("), Some("(")),
+                    ("Decode", Some("("), Some("(")),
+                    ("TypeInfo", Some("("), Some("(")),
+                ],
+            ),
+            (
+                "#[ink_e2e::test(backend",
+                Some("backend"),
+                vec![
+                    ("(node)", Some("backend"), Some("backend")),
+                    ("(runtime_only)", Some("backend"), Some("backend")),
+                ],
+            ),
+            (
+                "#[ink_e2e::test(backend(",
+                Some("(->"),
+                vec![
+                    ("(node)", Some("<-(->"), Some("(->")),
+                    ("(runtime_only)", Some("<-(->"), Some("(->")),
+                ],
+            ),
+            (
+                "#[ink_e2e::test(backend()",
+                Some("(->"),
+                vec![
+                    ("(node)", Some("<-(->"), Some(")->")),
+                    ("(runtime_only)", Some("<-(->"), Some(")->")),
+                ],
+            ),
+            (
+                "#[ink_e2e::test(backend(run",
+                Some("run"),
+                vec![("(runtime_only)", Some("<-(run"), Some("run"))],
+            ),
+            (
+                "#[ink_e2e::test(backend(node",
+                Some("node"),
+                vec![(r#"(url="ws://127.0.0.1:9000")"#, Some("node"), Some("node"))],
+            ),
+            (
+                "#[ink_e2e::test(backend(node(",
+                Some("(->"),
+                vec![(r#"(url="ws://127.0.0.1:9000")"#, Some("<-(->"), Some("(->"))],
+            ),
+        ];
+        let fixtures_gte_v5_1 = vec![
+            (
+                "#[ink_e2e::test(backend(runtime_only",
+                Some("runtime_only"),
+                vec![(
+                    "(sandbox=ink_e2e::DefaultSandbox)",
+                    Some("runtime_only"),
+                    Some("runtime_only"),
+                )],
+            ),
+            (
+                "#[ink_e2e::test(backend(runtime_only(",
+                Some("(->"),
+                vec![(
+                    "(sandbox=ink_e2e::DefaultSandbox)",
+                    Some("<-(->"),
+                    Some("(->"),
+                )],
+            ),
+        ];
         for (
             version,
             standalone_args,
@@ -1340,7 +1482,20 @@ mod tests {
                     "environment=ink::env::DefaultEnvironment",
                     r#"keep_attr="""#,
                 ],
-                vec![],
+                vec![(
+                    r#"
+                            #[ink::chain_extension]
+                            pub trait MyChainExtension {
+                                #[ink(extension=1)]
+                                fn extension_1(&self);
+
+                                #[ink(ext)]
+                                fn extension_2(&self);
+                            }
+                        "#,
+                    Some("#[ink(ext->"),
+                    vec![("extension=2", Some("#[ink(->"), Some("#[ink(ext->"))],
+                )],
             ),
             (
                 Version::V5(MinorVersion::Base),
@@ -1386,62 +1541,20 @@ mod tests {
                 vec!["anonymous", r#"signature_topic="""#],
                 vec!["function=1", "handle_status=true"],
                 vec!["backend(node)", "environment=ink::env::DefaultEnvironment"],
-                vec![
+                [
                     (
-                        "#[ink::event(",
-                        Some("("),
-                        vec![
-                            ("anonymous", Some("("), Some("(")),
-                            (r#"signature_topic="""#, Some("("), Some("(")),
-                        ],
-                    ),
-                    (
-                        "#[ink::scale_derive(",
-                        Some("("),
-                        vec![
-                            ("Encode", Some("("), Some("(")),
-                            ("Decode", Some("("), Some("(")),
-                            ("TypeInfo", Some("("), Some("(")),
-                        ],
-                    ),
-                    (
-                        "#[ink_e2e::test(backend",
-                        Some("backend"),
-                        vec![
-                            ("(node)", Some("backend"), Some("backend")),
-                            ("(runtime_only)", Some("backend"), Some("backend")),
-                        ],
-                    ),
-                    (
-                        "#[ink_e2e::test(backend(",
-                        Some("(->"),
-                        vec![
-                            ("(node)", Some("<-(->"), Some("(->")),
-                            ("(runtime_only)", Some("<-(->"), Some("(->")),
-                        ],
-                    ),
-                    (
-                        "#[ink_e2e::test(backend()",
-                        Some("(->"),
-                        vec![
-                            ("(node)", Some("<-(->"), Some(")->")),
-                            ("(runtime_only)", Some("<-(->"), Some(")->")),
-                        ],
-                    ),
-                    (
-                        "#[ink_e2e::test(backend(run",
-                        Some("run"),
-                        vec![("(runtime_only)", Some("<-(run"), Some("run"))],
-                    ),
-                    (
-                        "#[ink_e2e::test(backend(node",
-                        Some("node"),
-                        vec![(r#"(url="ws://127.0.0.1:9000")"#, Some("node"), Some("node"))],
-                    ),
-                    (
-                        "#[ink_e2e::test(backend(node(",
-                        Some("(->"),
-                        vec![(r#"(url="ws://127.0.0.1:9000")"#, Some("<-(->"), Some("(->"))],
+                        r#"
+                            #[ink::chain_extension]
+                            pub trait MyChainExtension {
+                                #[ink(function=1)]
+                                fn function_1(&self);
+
+                                #[ink(fun)]
+                                fn function_2(&self);
+                            }
+                        "#,
+                        Some("#[ink(fun->"),
+                        vec![("function=2", Some("#[ink(->"), Some("#[ink(fun->"))],
                     ),
                     (
                         "#[ink_e2e::test(backend(runtime_only",
@@ -1461,7 +1574,112 @@ mod tests {
                             Some("(->"),
                         )],
                     ),
+                ]
+                .into_iter()
+                .chain(fixtures_gte_v5.clone())
+                .collect(),
+            ),
+            (
+                Version::V5(MinorVersion::Latest),
+                vec![
+                    "anonymous",
+                    "constructor",
+                    "default",
+                    "event",
+                    "function=1",
+                    "handle_status=true",
+                    "impl",
+                    "message",
+                    r#"namespace="my_namespace""#,
+                    "payable",
+                    "selector=1",
+                    r#"signature_topic="""#,
+                    "storage",
+                    "topic",
                 ],
+                vec![
+                    "anonymous",
+                    "constructor",
+                    "default",
+                    "event",
+                    "impl",
+                    "message",
+                    r#"namespace="my_namespace""#,
+                    "payable",
+                    "selector=1",
+                    r#"signature_topic="""#,
+                    "storage",
+                ],
+                vec!["anonymous", "event", r#"signature_topic="""#, "storage"],
+                vec![
+                    "constructor",
+                    "default",
+                    "function=1",
+                    "handle_status=true",
+                    "message",
+                    "payable",
+                    "selector=1",
+                ],
+                vec!["anonymous", r#"signature_topic="""#],
+                vec!["function=1", "handle_status=true"],
+                vec!["backend(node)", "environment=ink::env::DefaultEnvironment"],
+                [(
+                    r#"
+                            #[ink::chain_extension]
+                            pub trait MyChainExtension {
+                                #[ink(function=1)]
+                                fn function_1(&self);
+
+                                #[ink(fun)]
+                                fn function_2(&self);
+                            }
+                        "#,
+                    Some("#[ink(fun->"),
+                    vec![("function=2", Some("#[ink(->"), Some("#[ink(fun->"))],
+                )]
+                .into_iter()
+                .chain(fixtures_gte_v5.clone())
+                .chain(fixtures_gte_v5_1.clone())
+                .collect(),
+            ),
+            (
+                Version::V6,
+                vec![
+                    "anonymous",
+                    "constructor",
+                    "default",
+                    "event",
+                    "impl",
+                    "message",
+                    r#"namespace="my_namespace""#,
+                    "payable",
+                    "selector=1",
+                    r#"signature_topic="""#,
+                    "storage",
+                    "topic",
+                ],
+                vec![
+                    "anonymous",
+                    "constructor",
+                    "default",
+                    "event",
+                    "impl",
+                    "message",
+                    r#"namespace="my_namespace""#,
+                    "payable",
+                    "selector=1",
+                    r#"signature_topic="""#,
+                    "storage",
+                ],
+                vec!["anonymous", "event", r#"signature_topic="""#, "storage"],
+                vec!["constructor", "default", "message", "payable", "selector=1"],
+                vec!["anonymous", r#"signature_topic="""#],
+                vec![],
+                vec!["backend(node)", "environment=ink::env::DefaultEnvironment"],
+                fixtures_gte_v5
+                    .into_iter()
+                    .chain(fixtures_gte_v5_1)
+                    .collect(),
             ),
         ] {
             for (code, pat, expected_results) in [
@@ -1556,13 +1774,22 @@ mod tests {
                     ],
                 ),
                 (
-                    if version.is_legacy() {
-                        "#[ink(extension = 1,"
-                    } else {
-                        "#[ink(function = 1,"
-                    },
+                    "#[ink(extension = 1,",
                     None,
-                    vec![("handle_status=true", Some(","), Some(","))],
+                    if version.is_legacy() {
+                        vec![("handle_status=true", Some(","), Some(","))]
+                    } else {
+                        vec![]
+                    },
+                ),
+                (
+                    "#[ink(function = 1,",
+                    None,
+                    if version.is_v5() {
+                        vec![("handle_status=true", Some(","), Some(","))]
+                    } else {
+                        vec![]
+                    },
                 ),
                 (
                     "#[ink(impl,",
@@ -1886,37 +2113,6 @@ mod tests {
                         Some("#[ink(message, sel->"),
                     )],
                 ),
-                if version.is_legacy() {
-                    (
-                        r#"
-                            #[ink::chain_extension]
-                            pub trait MyChainExtension {
-                                #[ink(extension=1)]
-                                fn extension_1(&self);
-
-                                #[ink(ext)]
-                                fn extension_2(&self);
-                            }
-                        "#,
-                        Some("#[ink(ext->"),
-                        vec![("extension=2", Some("#[ink(->"), Some("#[ink(ext->"))],
-                    )
-                } else {
-                    (
-                        r#"
-                            #[ink::chain_extension]
-                            pub trait MyChainExtension {
-                                #[ink(function=1)]
-                                fn function_1(&self);
-
-                                #[ink(fun)]
-                                fn function_2(&self);
-                            }
-                        "#,
-                        Some("#[ink(fun->"),
-                        vec![("function=2", Some("#[ink(->"), Some("#[ink(fun->"))],
-                    )
-                },
             ]
             .into_iter()
             .chain(fixtures)
@@ -1953,7 +2149,11 @@ mod tests {
 
     #[test]
     fn entity_completions_works() {
-        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
+        for version in [
+            Version::Legacy,
+            Version::V5(MinorVersion::Base),
+            Version::V6,
+        ] {
             for (code, pat, expected_results) in [
                 // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
                 // code = source code,
@@ -2067,10 +2267,14 @@ pub mod contract1 {
                 (
                     "trait",
                     Some("trait"),
-                    vec![
-                        ("#[ink::trait_definition]", Some("<-trait"), Some("trait")),
-                        ("#[ink::chain_extension", Some("<-trait"), Some("trait")),
-                    ],
+                    if version.is_legacy() || version.is_v5() {
+                        vec![
+                            ("#[ink::trait_definition]", Some("<-trait"), Some("trait")),
+                            ("#[ink::chain_extension", Some("<-trait"), Some("trait")),
+                        ]
+                    } else {
+                        vec![("#[ink::trait_definition]", Some("<-trait"), Some("trait"))]
+                    },
                 ),
                 (
                     "trait_def",
@@ -2084,7 +2288,11 @@ pub mod contract1 {
                 (
                     "chain",
                     Some("chain"),
-                    vec![("#[ink::chain_extension", Some("<-chain"), Some("chain"))],
+                    if version.is_legacy() || version.is_v5() {
+                        vec![("#[ink::chain_extension", Some("<-chain"), Some("chain"))]
+                    } else {
+                        vec![]
+                    },
                 ),
                 (
                     "extension",
@@ -2095,7 +2303,7 @@ pub mod contract1 {
                             Some("<-extension"),
                             Some("extension"),
                         )]
-                    } else {
+                    } else if version.is_v5() {
                         vec![
                             (
                                 "#[ink::chain_extension",
@@ -2108,6 +2316,8 @@ pub mod contract1 {
                                 Some("extension"),
                             ),
                         ]
+                    } else {
+                        vec![]
                     },
                 ),
                 (
@@ -2119,14 +2329,22 @@ pub trait MyTrait {
 
 trait",
                     Some("trait->"),
-                    vec![
-                        (
+                    if version.is_legacy() || version.is_v5() {
+                        vec![
+                            (
+                                "#[ink::trait_definition]",
+                                Some("<-trait->"),
+                                Some("trait->"),
+                            ),
+                            ("#[ink::chain_extension", Some("<-trait->"), Some("trait->")),
+                        ]
+                    } else {
+                        vec![(
                             "#[ink::trait_definition]",
                             Some("<-trait->"),
                             Some("trait->"),
-                        ),
-                        ("#[ink::chain_extension", Some("<-trait->"), Some("trait->")),
-                    ],
+                        )]
+                    },
                 ),
                 (
                     r"
@@ -2137,18 +2355,26 @@ pub trait MyTrait1 {
 
 trait MyTrait2",
                     Some("MyTrait2"),
-                    vec![
-                        (
+                    if version.is_legacy() || version.is_v5() {
+                        vec![
+                            (
+                                "#[ink::trait_definition]",
+                                Some("<-trait->"),
+                                Some("MyTrait2"),
+                            ),
+                            (
+                                "#[ink::chain_extension",
+                                Some("<-trait->"),
+                                Some("MyTrait2"),
+                            ),
+                        ]
+                    } else {
+                        vec![(
                             "#[ink::trait_definition]",
                             Some("<-trait->"),
                             Some("MyTrait2"),
-                        ),
-                        (
-                            "#[ink::chain_extension",
-                            Some("<-trait->"),
-                            Some("MyTrait2"),
-                        ),
-                    ],
+                        )]
+                    },
                 ),
                 (
                     r"
@@ -2159,10 +2385,14 @@ pub trait MyTrait {
 
 }",
                     Some("trait"),
-                    vec![
-                        ("#[ink::trait_definition]", Some("<-trait"), Some("trait")),
-                        ("#[ink::chain_extension", Some("<-trait"), Some("trait")),
-                    ],
+                    if version.is_legacy() || version.is_v5() {
+                        vec![
+                            ("#[ink::trait_definition]", Some("<-trait"), Some("trait")),
+                            ("#[ink::chain_extension", Some("<-trait"), Some("trait")),
+                        ]
+                    } else {
+                        vec![("#[ink::trait_definition]", Some("<-trait"), Some("trait"))]
+                    },
                 ),
                 (
                     r"
@@ -2173,14 +2403,22 @@ pub trait MyTrait2 {
 
 }",
                     Some("MyTrait1"),
-                    vec![
-                        (
+                    if version.is_legacy() || version.is_v5() {
+                        vec![
+                            (
+                                "#[ink::trait_definition]",
+                                Some("<-trait"),
+                                Some("MyTrait1"),
+                            ),
+                            ("#[ink::chain_extension", Some("<-trait"), Some("MyTrait1")),
+                        ]
+                    } else {
+                        vec![(
                             "#[ink::trait_definition]",
                             Some("<-trait"),
                             Some("MyTrait1"),
-                        ),
-                        ("#[ink::chain_extension", Some("<-trait"), Some("MyTrait1")),
-                    ],
+                        )]
+                    },
                 ),
                 (
                     r"
@@ -2191,14 +2429,22 @@ pub trait MyChainExtension {
 
 trait",
                     Some("trait->"),
-                    vec![
-                        (
+                    if version.is_legacy() || version.is_v5() {
+                        vec![
+                            (
+                                "#[ink::trait_definition]",
+                                Some("<-trait->"),
+                                Some("trait->"),
+                            ),
+                            ("#[ink::chain_extension", Some("<-trait->"), Some("trait->")),
+                        ]
+                    } else {
+                        vec![(
                             "#[ink::trait_definition]",
                             Some("<-trait->"),
                             Some("trait->"),
-                        ),
-                        ("#[ink::chain_extension", Some("<-trait->"), Some("trait->")),
-                    ],
+                        )]
+                    },
                 ),
                 // `struct`.
                 (

@@ -365,11 +365,7 @@ impl InkMacroKind {
     /// (e.g `ink` for `#[ink::contract]` or `ink_e2e` for `#[ink_e2e::test]`).
     pub fn crate_name(&self) -> &str {
         match self {
-            // `#[ink::chain_extension]`
-            // `#[ink::contract]`
-            // `#[ink::storage_item]`
-            // `#[ink::test]`
-            // `#[ink::trait_definition]`
+            // All `#[ink::*]` attribute macros
             InkMacroKind::ChainExtension
             | InkMacroKind::Contract
             | InkMacroKind::ContractRef

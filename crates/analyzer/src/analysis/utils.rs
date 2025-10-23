@@ -31,12 +31,12 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/chain_extension.rs#L601-L613>
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L897-L1337>
                 // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html>
-                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L188-L197>.
-                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L848-L1280>.
-                InkMacroKind::ChainExtension if version.is_legacy() => Vec::new(),
-                InkMacroKind::ChainExtension => {
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L188-L197>
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L848-L1280>
+                InkMacroKind::ChainExtension if version.is_v5() => {
                     vec![InkArgKind::Extension]
                 }
+                InkMacroKind::ChainExtension => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
                 InkMacroKind::Contract => vec![InkArgKind::Env, InkArgKind::KeepAttr],
@@ -122,7 +122,7 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/chain_extension.rs#L601-L613>
                 InkArgKind::Extension if version.is_legacy() => vec![InkArgKind::HandleStatus],
                 InkArgKind::Extension => Vec::new(),
-                InkArgKind::Function if version.is_gte_v5() => {
+                InkArgKind::Function if version.is_v5() => {
                     vec![InkArgKind::HandleStatus]
                 }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
@@ -141,7 +141,7 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // See `extension` pattern above for references.
                 InkArgKind::HandleStatus if version.is_legacy() => vec![InkArgKind::Extension],
                 // See `function` pattern above for references.
-                InkArgKind::HandleStatus => vec![InkArgKind::Function],
+                InkArgKind::HandleStatus if version.is_v5() => vec![InkArgKind::Function],
                 // See `constructor` and `message` patterns above for references.
                 InkArgKind::Payable => vec![
                     InkArgKind::Constructor,
@@ -188,9 +188,10 @@ pub fn valid_quasi_direct_descendant_ink_args(
                 InkMacroKind::ChainExtension if version.is_legacy() => {
                     vec![InkArgKind::Extension, InkArgKind::HandleStatus]
                 }
-                InkMacroKind::ChainExtension => {
+                InkMacroKind::ChainExtension if version.is_v5() => {
                     vec![InkArgKind::Function, InkArgKind::HandleStatus]
                 }
+                InkMacroKind::ChainExtension => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/mod.rs#L58-L116>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
                 InkMacroKind::Contract if version.is_legacy() => vec![
@@ -299,29 +300,43 @@ pub fn valid_quasi_direct_descendant_ink_macros(
         InkAttributeKind::Macro(macro_kind) => {
             match macro_kind {
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
-                InkMacroKind::Contract => {
-                    if version.is_legacy() {
-                        vec![
-                            InkMacroKind::ChainExtension,
-                            InkMacroKind::StorageItem,
-                            InkMacroKind::Test,
-                            InkMacroKind::TraitDefinition,
-                            InkMacroKind::E2ETest,
-                        ]
-                    } else {
-                        vec![
-                            InkMacroKind::ChainExtension,
-                            InkMacroKind::Event,
-                            InkMacroKind::ScaleDerive,
-                            InkMacroKind::StorageItem,
-                            InkMacroKind::Test,
-                            InkMacroKind::TraitDefinition,
-                            InkMacroKind::E2ETest,
-                        ]
-                    }
+                InkMacroKind::Contract if version.is_legacy() => {
+                    vec![
+                        InkMacroKind::ChainExtension,
+                        InkMacroKind::StorageItem,
+                        InkMacroKind::Test,
+                        InkMacroKind::TraitDefinition,
+                        InkMacroKind::E2ETest,
+                    ]
                 }
-                // All v5 macros that are either applied to `fn` items or can have associated `fn` items
-                // can have scale_derive as a descendant (essentially everything except `event`, `scale_derive` and `storage_item`).
+                InkMacroKind::Contract if version.is_v5() => {
+                    vec![
+                        InkMacroKind::ChainExtension,
+                        InkMacroKind::Event,
+                        InkMacroKind::ScaleDerive,
+                        InkMacroKind::StorageItem,
+                        InkMacroKind::Test,
+                        InkMacroKind::TraitDefinition,
+                        InkMacroKind::E2ETest,
+                    ]
+                }
+                InkMacroKind::Contract => {
+                    vec![
+                        InkMacroKind::ContractRef,
+                        InkMacroKind::Error,
+                        InkMacroKind::Event,
+                        InkMacroKind::ScaleDerive,
+                        InkMacroKind::StorageItem,
+                        InkMacroKind::Test,
+                        InkMacroKind::TraitDefinition,
+                        InkMacroKind::E2ETest,
+                    ]
+                }
+                // All ink! >= 5.x macros that are either applied to `fn` items or
+                // can have associated `fn` items can have `scale_derive` as a descendant
+                // (essentially everything except `event`, `scale_derive` and `storage_item`).
+                // But chain extensions are deprecated in ink! >= 6.x, so we special case that.
+                InkMacroKind::ChainExtension if version.is_gte_v6() => Vec::new(),
                 InkMacroKind::ChainExtension
                 | InkMacroKind::TraitDefinition
                 | InkMacroKind::Test
@@ -398,11 +413,18 @@ pub fn valid_ink_args_by_syntax_kind(syntax_kind: SyntaxKind, version: Version) 
             InkArgKind::Payable,
             InkArgKind::Selector,
         ],
-        SyntaxKind::FN | SyntaxKind::FN_KW => vec![
+        SyntaxKind::FN | SyntaxKind::FN_KW if version.is_v5() => vec![
             InkArgKind::Constructor,
             InkArgKind::Default,
             InkArgKind::Function,
             InkArgKind::HandleStatus,
+            InkArgKind::Message,
+            InkArgKind::Payable,
+            InkArgKind::Selector,
+        ],
+        SyntaxKind::FN | SyntaxKind::FN_KW => vec![
+            InkArgKind::Constructor,
+            InkArgKind::Default,
             InkArgKind::Message,
             InkArgKind::Payable,
             InkArgKind::Selector,
@@ -422,8 +444,11 @@ pub fn valid_ink_macros_by_syntax_kind(
 ) -> Vec<InkMacroKind> {
     match syntax_kind {
         SyntaxKind::MODULE | SyntaxKind::MOD_KW => vec![InkMacroKind::Contract],
-        SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => {
+        SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW if version.is_legacy() || version.is_v5() => {
             vec![InkMacroKind::ChainExtension, InkMacroKind::TraitDefinition]
+        }
+        SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => {
+            vec![InkMacroKind::ContractRef, InkMacroKind::TraitDefinition]
         }
         SyntaxKind::ENUM
         | SyntaxKind::ENUM_KW
@@ -524,7 +549,13 @@ pub fn primary_ink_attribute_kind_suggestions(
                     InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
                     InkAttributeKind::Macro(InkMacroKind::E2ETest),
                 ],
-                InkArgKind::HandleStatus => vec![InkAttributeKind::Arg(InkArgKind::Extension)],
+                InkArgKind::HandleStatus if version.is_legacy() => {
+                    vec![InkAttributeKind::Arg(InkArgKind::Extension)]
+                }
+                InkArgKind::HandleStatus if version.is_v5() => {
+                    vec![InkAttributeKind::Arg(InkArgKind::Function)]
+                }
+                InkArgKind::HandleStatus => Vec::new(),
                 InkArgKind::Namespace => vec![
                     InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
                     InkAttributeKind::Arg(InkArgKind::Impl),
@@ -645,10 +676,25 @@ pub fn remove_invalid_ink_arg_suggestions_for_parent_ink_scope(
     attr_parent: &SyntaxNode,
     version: Version,
 ) {
+    let mut has_chain_extension_parent = false;
     let parent_ink_scope_valid_ink_args: Vec<InkArgKind> =
         ink_analyzer_ir::ink_attrs_closest_ancestors(attr_parent)
-            .flat_map(|attr| valid_quasi_direct_descendant_ink_args(*attr.kind(), version))
+            .flat_map(|attr| {
+                if *attr.kind() == InkAttributeKind::Macro(InkMacroKind::ChainExtension) {
+                    has_chain_extension_parent = true;
+                }
+                valid_quasi_direct_descendant_ink_args(*attr.kind(), version)
+            })
             .collect();
+
+    // For ink! >= 6.x, chain extensions are deprecated, so we invalidate any "child" suggestions.
+    if version.is_gte_v6()
+        && has_chain_extension_parent
+        && parent_ink_scope_valid_ink_args.is_empty()
+    {
+        *suggestions = Vec::new();
+        return;
+    }
 
     // Filters out invalid arguments for the parent ink! scope (if any).
     if !parent_ink_scope_valid_ink_args.is_empty() {

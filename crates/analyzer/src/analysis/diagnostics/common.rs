@@ -597,6 +597,82 @@ fn validate_entity_attributes(
                 }
             }
 
+            // For ink! >= 6.x, chain extensions are deprecated.
+            // Ref: <https://github.com/use-ink/ink/pull/2621>
+            if version.is_gte_v6()
+                && matches!(
+                    primary_ink_attr_candidate.kind(),
+                    InkAttributeKind::Macro(InkMacroKind::ChainExtension)
+                        | InkAttributeKind::Arg(
+                            InkArgKind::Extension | InkArgKind::Function | InkArgKind::HandleStatus
+                        )
+                )
+            {
+                match primary_ink_attr_candidate.kind() {
+                    InkAttributeKind::Macro(_) => {
+                        results.push(Diagnostic {
+                            message: "ink! chain extensions are deprecated. \
+                                See https://github.com/use-ink/ink/pull/2621 for details."
+                                .to_owned(),
+                            range: primary_ink_attr_candidate.syntax().text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(
+                                ink_analyzer_ir::parent_ast_item(
+                                    primary_ink_attr_candidate.syntax(),
+                                )
+                                .map(|item| {
+                                    vec![
+                                        Action::remove_attribute_with_label(
+                                            &primary_ink_attr_candidate,
+                                            "Remove deprecated ink! `chain extension` attribute."
+                                                .to_owned(),
+                                        ),
+                                        Action::remove_item_with_label(
+                                            item.syntax(),
+                                            "Remove deprecated ink! `chain extension` item."
+                                                .to_owned(),
+                                        ),
+                                    ]
+                                })
+                                .unwrap_or_else(|| {
+                                    vec![Action::remove_attribute_with_label(
+                                        &primary_ink_attr_candidate,
+                                        "Remove deprecated ink! `chain extension` attribute."
+                                            .to_owned(),
+                                    )]
+                                }),
+                            ),
+                        });
+                    }
+                    InkAttributeKind::Arg(arg_kind) => {
+                        if let Some(extension_arg) = find_arg(*arg_kind) {
+                            // Edit range for quickfix.
+                            let edit_range =
+                                utils::ink_arg_and_delimiter_removal_range(extension_arg, None);
+                            results.push(Diagnostic {
+                                message: "ink! chain extensions are deprecated. \
+                                See https://github.com/use-ink/ink/pull/2621 for details."
+                                    .to_owned(),
+                                range: extension_arg.text_range(),
+                                severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: format!(
+                                        "Remove deprecated ink! `{}` attribute argument.",
+                                        extension_arg.kind()
+                                    ),
+                                    kind: ActionKind::QuickFix,
+                                    range: extension_arg.text_range(),
+                                    edits: vec![TextEdit::delete(edit_range)],
+                                }]),
+                            });
+                        }
+                    }
+                }
+
+                // Bail if the primary attribute is deprecated.
+                return;
+            }
+
             // `chain_extension` macro without an `extension` argument is incomplete.
             // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html#macro-attributes>
             // Ref: <https://github.com/paritytech/ink/pull/1958>
@@ -639,11 +715,13 @@ fn validate_entity_attributes(
                 });
             }
 
-            // `extension` argument for chain extension functions was replaced by `function`.
+            // For ink! v5 only, `extension` argument for chain extension functions was replaced by `function`.
             // Ref: <https://paritytech.github.io/ink/ink/attr.chain_extension.html#method-attributes>
             // Ref: <https://github.com/paritytech/ink/pull/1958>
             // NOTE: This is different from the new `extension` argument now use with the `chain_extension` attribute macro.
-            if *primary_ink_attr_candidate.kind() == InkAttributeKind::Arg(InkArgKind::Extension)
+            if version.is_v5()
+                && *primary_ink_attr_candidate.kind()
+                    == InkAttributeKind::Arg(InkArgKind::Extension)
                 && has_chain_extension_parent(primary_ink_attr_candidate.syntax())
             {
                 if let Some(extension_arg) = find_arg(InkArgKind::Extension) {
@@ -3473,6 +3551,28 @@ mod tests {
                             }],
                         }],
                     ),
+                    (
+                        "#[ink(extension=1, env=my::env::Types)]", // conflicting `env`.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-, env"),
+                                end_pat: Some("env=my::env::Types"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink(handle_status=true)]", // missing `extension`.
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "extension = 1, ",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            }],
+                        }],
+                    ),
                 ],
             ),
             (
@@ -3730,6 +3830,105 @@ mod tests {
                             }],
                         }],
                     ),
+                    (
+                        "#[ink(extension=1, env=my::env::Types)]", // conflicting `env`.
+                        vec![TestResultAction {
+                            label: "Remove",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-, env"),
+                                end_pat: Some("env=my::env::Types"),
+                            }],
+                        }],
+                    ),
+                    (
+                        "#[ink(handle_status=true)]", // missing `function`.
+                        vec![TestResultAction {
+                            label: "Add",
+                            edits: vec![TestResultTextRange {
+                                text: "function = 1, ",
+                                start_pat: Some("#[ink("),
+                                end_pat: Some("#[ink("),
+                            }],
+                        }],
+                    ),
+                ],
+            ),
+            (
+                Version::V6,
+                vec![
+                    (
+                        // `chain_extension` is deprecated.
+                        "#[ink::chain_extension]",
+                        vec![TestResultAction {
+                            label: "Remove deprecated",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some(""),
+                                end_pat: Some("#[ink::chain_extension]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        // `chain_extension` is deprecated.
+                        r"#[ink::chain_extension]
+                        pub trait MyExtension {}
+                        ",
+                        vec![
+                            TestResultAction {
+                                label: "Remove deprecated",
+                                edits: vec![TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(""),
+                                    end_pat: Some("#[ink::chain_extension]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Remove deprecated",
+                                edits: vec![TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some(""),
+                                    end_pat: Some("pub trait MyExtension {}"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        // `extension` is deprecated.
+                        "#[ink(extension=1)]",
+                        vec![TestResultAction {
+                            label: "Remove deprecated",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some(""),
+                                end_pat: Some("#[ink(extension=1)]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        // `function` is deprecated.
+                        "#[ink(function=1)]",
+                        vec![TestResultAction {
+                            label: "Remove deprecated",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some(""),
+                                end_pat: Some("#[ink(function=1)]"),
+                            }],
+                        }],
+                    ),
+                    (
+                        // `handle_status` is deprecated.
+                        "#[ink(handle_status=true)]",
+                        vec![TestResultAction {
+                            label: "Remove deprecated",
+                            edits: vec![TestResultTextRange {
+                                text: "",
+                                start_pat: Some(""),
+                                end_pat: Some("#[ink(handle_status=true)]"),
+                            }],
+                        }],
+                    ),
                 ],
             ),
         ] {
@@ -3831,17 +4030,6 @@ mod tests {
                             text: "",
                             start_pat: Some("<-, namespace"),
                             end_pat: Some(r#"namespace="my_namespace""#),
-                        }],
-                    }],
-                ),
-                (
-                    "#[ink(extension=1, env=my::env::Types)]", // conflicting `env`.
-                    vec![TestResultAction {
-                        label: "Remove",
-                        edits: vec![TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-, env"),
-                            end_pat: Some("env=my::env::Types"),
                         }],
                     }],
                 ),
@@ -4056,17 +4244,6 @@ mod tests {
                     }],
                 ),
                 // Incomplete and/or ambiguous.
-                (
-                    "#[ink(handle_status=true)]", // missing `extension`.
-                    vec![TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "extension = 1, ",
-                            start_pat: Some("#[ink("),
-                            end_pat: Some("#[ink("),
-                        }],
-                    }],
-                ),
                 (
                     "#[ink(payable, default, selector=1)]", // incomplete and ambiguous.
                     vec![

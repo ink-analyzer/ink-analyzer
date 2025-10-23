@@ -479,22 +479,24 @@ fn item_ink_entity_actions(
                                     );
                                 }
 
-                                // Add `ErrorCode` type (if it doesn't exist).
-                                if chain_extension.error_code().is_none() {
-                                    add_result_opt!(entity::add_error_code(
+                                if version.is_legacy() || version.is_v5() {
+                                    // Add `ErrorCode` type (if it doesn't exist).
+                                    if chain_extension.error_code().is_none() {
+                                        add_result_opt!(entity::add_error_code(
+                                            &chain_extension,
+                                            ActionKind::Refactor,
+                                            range_option,
+                                        ));
+                                    }
+
+                                    // Adds ink! extension.
+                                    add_result_opt!(entity::add_extension(
                                         &chain_extension,
                                         ActionKind::Refactor,
                                         range_option,
+                                        version,
                                     ));
                                 }
-
-                                // Adds ink! extension.
-                                add_result_opt!(entity::add_extension(
-                                    &chain_extension,
-                                    ActionKind::Refactor,
-                                    range_option,
-                                    version,
-                                ));
                             }
                         }
                         InkMacroKind::TraitDefinition => {
@@ -634,22 +636,24 @@ fn root_ink_entity_actions(
         None,
     ));
 
-    // Adds ink! chain extension.
-    results.push(entity::add_chain_extension(
-        range,
-        ActionKind::Refactor,
-        None,
-        version,
-    ));
-
-    // Adds ink! combine extensions definition.
-    if version.is_v5() {
-        results.push(entity::add_combine_extensions(
+    if version.is_legacy() || version.is_v5() {
+        // Adds ink! chain extension.
+        results.push(entity::add_chain_extension(
             range,
             ActionKind::Refactor,
             None,
-            Some(file),
+            version,
         ));
+
+        // Adds ink! combine extensions definition.
+        if version.is_v5() {
+            results.push(entity::add_combine_extensions(
+                range,
+                ActionKind::Refactor,
+                None,
+                Some(file),
+            ));
+        }
     }
 
     // Adds ink! storage item.
@@ -833,29 +837,270 @@ mod tests {
     macro_rules! versioned_extension_fn {
         ($version: expr, $offset: literal) => {
             if $version.is_legacy() {
-                [TestResultAction {
+                TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
                         text: "#[ink(extension = 1)]",
                         start_pat: Some($offset),
                         end_pat: Some($offset),
                     }],
-                }]
+                }
             } else {
-                [TestResultAction {
+                TestResultAction {
                     label: "Add",
                     edits: vec![TestResultTextRange {
                         text: "#[ink(function = 1)]",
                         start_pat: Some($offset),
                         end_pat: Some($offset),
                     }],
-                }]
+                }
             }
         };
     }
 
     #[test]
     fn actions_works() {
+        let fixtures_gte_v5 = vec![
+            (
+                r#"
+                #[ink::event]
+                struct MyEvent {
+                }
+                "#,
+                Some("<-struct"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "(anonymous)",
+                            start_pat: Some("#[ink::event"),
+                            end_pat: Some("#[ink::event"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#"(signature_topic = "")"#,
+                            start_pat: Some("#[ink::event"),
+                            end_pat: Some("#[ink::event"),
+                        }],
+                    },
+                    // Adds ink! topic `field`.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("struct MyEvent {"),
+                            end_pat: Some("struct MyEvent {"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Extract",
+                        edits: vec![],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink::event(anonymous)]
+                struct MyEvent {
+                    my_field: u8,
+                }
+                "#,
+                Some("<-struct"),
+                vec![
+                    // Adds ink! topic `field`.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("my_field: u8,"),
+                            end_pat: Some("my_field: u8,"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Extract",
+                        edits: vec![],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink(anonymous)]
+                #[ink::event]
+                struct MyEvent {
+                    my_field: u8,
+                }
+                "#,
+                Some("<-struct"),
+                vec![
+                    TestResultAction {
+                        label: "Flatten",
+                        edits: vec![
+                            TestResultTextRange {
+                                text: "#[ink::event(anonymous)]",
+                                start_pat: Some("<-#[ink::event]"),
+                                end_pat: Some("#[ink::event]"),
+                            },
+                            TestResultTextRange {
+                                text: "",
+                                start_pat: Some("<-#[ink(anonymous)]"),
+                                end_pat: Some("#[ink(anonymous)]"),
+                            },
+                        ],
+                    },
+                    // Adds ink! topic `field`.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("my_field: u8,"),
+                            end_pat: Some("my_field: u8,"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Extract",
+                        edits: vec![],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink::event(anonymous)]
+                struct MyEvent {
+                    my_field: u8,
+                }
+                "#,
+                Some("<-my_field"),
+                vec![
+                    // Adds ink! topic attribute argument.
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(topic)]",
+                            start_pat: Some("<-my_field"),
+                            end_pat: Some("<-my_field"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink_e2e::test]
+                fn my_fn() {
+                }
+                "#,
+                Some("<-fn"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "(backend(node))",
+                            start_pat: Some("#[ink_e2e::test"),
+                            end_pat: Some("#[ink_e2e::test"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "(environment = ink::env::DefaultEnvironment)",
+                            start_pat: Some("#[ink_e2e::test"),
+                            end_pat: Some("#[ink_e2e::test"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                #[ink_e2e::test]
+                #[ink(backend(node))]
+                #[ink(environment=ink::env::DefaultEnvironment)]
+                fn my_fn() {
+                }
+                "#,
+                Some("<-fn"),
+                vec![TestResultAction {
+                    label: "Flatten",
+                    edits: vec![
+                        TestResultTextRange {
+                            text: "#[ink_e2e::test(\
+                                    backend(node), \
+                                    environment = ink::env::DefaultEnvironment\
+                                    )]",
+                            start_pat: Some("<-#[ink_e2e::test]"),
+                            end_pat: Some("#[ink_e2e::test]"),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(backend(node))]"),
+                            end_pat: Some("#[ink(backend(node))]"),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(environment=ink::env::DefaultEnvironment)]"),
+                            end_pat: Some("#[ink(environment=ink::env::DefaultEnvironment)]"),
+                        },
+                    ],
+                }],
+            ),
+        ];
+        let fixtures_v5_only = vec![
+            (
+                r#"
+                    #[ink::chain_extension]
+                    pub trait MyTrait {
+                    }
+                    "#,
+                Some("<-pub"),
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "(extension = 1)",
+                            start_pat: Some("#[ink::chain_extension"),
+                            end_pat: Some("#[ink::chain_extension"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "type ErrorCode",
+                            start_pat: Some("pub trait MyTrait {"),
+                            end_pat: Some("pub trait MyTrait {"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink(function = 1)]",
+                            start_pat: Some("pub trait MyTrait {"),
+                            end_pat: Some("pub trait MyTrait {"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                r#"
+                        #[ink::chain_extension]
+                        pub trait MyChainExtension {
+                            #[ink(function=1)]
+                            fn function_1(&self);
+
+                            #[ink(handle_status=true)]
+                            fn function_2(&self);
+                        }
+                        "#,
+                Some("<-fn function_2(&self);"),
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "function = 2, ",
+                        start_pat: Some("#[ink(->"),
+                        end_pat: Some("#[ink(->"),
+                    }],
+                }],
+            ),
+        ];
         for (version, root_entities, adt_attrs, struct_attrs, fixtures) in [
             (
                 Version::Legacy,
@@ -1022,226 +1267,81 @@ mod tests {
                     r#"#[ink(signature_topic = "")]"#,
                     "#[ink(storage)]",
                 ],
+                fixtures_gte_v5
+                    .clone()
+                    .into_iter()
+                    .chain(fixtures_v5_only.clone())
+                    .collect(),
+            ),
+            (
+                Version::V5(MinorVersion::Latest),
                 vec![
+                    "#[ink::contract]",
+                    "#[ink::event]",
+                    "#[ink::trait_definition]",
+                    "#[ink::chain_extension(extension = 1)]",
+                    "ink::combine_extensions!",
+                    "#[ink::storage_item]",
+                    "pub enum MyEnvironment {}",
+                ],
+                vec!["#[ink::scale_derive]", "#[ink::storage_item]"],
+                vec![
+                    "#[ink::event]",
+                    "#[ink::scale_derive]",
+                    "#[ink::storage_item]",
+                    "#[ink(anonymous)]",
+                    "#[ink(event)]",
+                    r#"#[ink(signature_topic = "")]"#,
+                    "#[ink(storage)]",
+                ],
+                fixtures_gte_v5
+                    .clone()
+                    .into_iter()
+                    .chain(fixtures_v5_only)
+                    .collect(),
+            ),
+            (
+                Version::V6,
+                vec![
+                    "#[ink::contract]",
+                    "#[ink::event]",
+                    "#[ink::trait_definition]",
+                    "#[ink::storage_item]",
+                    "pub enum MyEnvironment {}",
+                ],
+                vec!["#[ink::scale_derive]", "#[ink::storage_item]"],
+                vec![
+                    "#[ink::event]",
+                    "#[ink::scale_derive]",
+                    "#[ink::storage_item]",
+                    "#[ink(anonymous)]",
+                    "#[ink(event)]",
+                    r#"#[ink(signature_topic = "")]"#,
+                    "#[ink(storage)]",
+                ],
+                [
                     (
                         r#"
-                        #[ink::event]
-                        struct MyEvent {
+                        #[ink::chain_extension]
+                        pub trait MyTrait {
                         }
                         "#,
-                        Some("<-struct"),
-                        vec![
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "(anonymous)",
-                                    start_pat: Some("#[ink::event"),
-                                    end_pat: Some("#[ink::event"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: r#"(signature_topic = "")"#,
-                                    start_pat: Some("#[ink::event"),
-                                    end_pat: Some("#[ink::event"),
-                                }],
-                            },
-                            // Adds ink! topic `field`.
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(topic)]",
-                                    start_pat: Some("struct MyEvent {"),
-                                    end_pat: Some("struct MyEvent {"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Extract",
-                                edits: vec![],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                        #[ink::event(anonymous)]
-                        struct MyEvent {
-                            my_field: u8,
-                        }
-                        "#,
-                        Some("<-struct"),
-                        vec![
-                            // Adds ink! topic `field`.
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(topic)]",
-                                    start_pat: Some("my_field: u8,"),
-                                    end_pat: Some("my_field: u8,"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Extract",
-                                edits: vec![],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                        #[ink(anonymous)]
-                        #[ink::event]
-                        struct MyEvent {
-                            my_field: u8,
-                        }
-                        "#,
-                        Some("<-struct"),
-                        vec![
-                            TestResultAction {
-                                label: "Flatten",
-                                edits: vec![
-                                    TestResultTextRange {
-                                        text: "#[ink::event(anonymous)]",
-                                        start_pat: Some("<-#[ink::event]"),
-                                        end_pat: Some("#[ink::event]"),
-                                    },
-                                    TestResultTextRange {
-                                        text: "",
-                                        start_pat: Some("<-#[ink(anonymous)]"),
-                                        end_pat: Some("#[ink(anonymous)]"),
-                                    },
-                                ],
-                            },
-                            // Adds ink! topic `field`.
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(topic)]",
-                                    start_pat: Some("my_field: u8,"),
-                                    end_pat: Some("my_field: u8,"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Extract",
-                                edits: vec![],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                        #[ink::event(anonymous)]
-                        struct MyEvent {
-                            my_field: u8,
-                        }
-                        "#,
-                        Some("<-my_field"),
-                        vec![
-                            // Adds ink! topic attribute argument.
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(topic)]",
-                                    start_pat: Some("<-my_field"),
-                                    end_pat: Some("<-my_field"),
-                                }],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                    #[ink::chain_extension]
-                    pub trait MyTrait {
-                    }
-                    "#,
                         Some("<-pub"),
-                        vec![
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "(extension = 1)",
-                                    start_pat: Some("#[ink::chain_extension"),
-                                    end_pat: Some("#[ink::chain_extension"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "type ErrorCode",
-                                    start_pat: Some("pub trait MyTrait {"),
-                                    end_pat: Some("pub trait MyTrait {"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(function = 1)]",
-                                    start_pat: Some("pub trait MyTrait {"),
-                                    end_pat: Some("pub trait MyTrait {"),
-                                }],
-                            },
-                        ],
+                        vec![],
                     ),
                     (
                         r#"
-                        #[ink_e2e::test]
-                        fn my_fn() {
+                        #[ink::chain_extension]
+                        pub trait MyChainExtension {
+                            #[ink(extension=1)]
+                            fn function_1(&self);
+
+                            #[ink(handle_status=true)]
+                            fn function_2(&self);
                         }
                         "#,
-                        Some("<-fn"),
-                        vec![
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "(backend(node))",
-                                    start_pat: Some("#[ink_e2e::test"),
-                                    end_pat: Some("#[ink_e2e::test"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "(environment = ink::env::DefaultEnvironment)",
-                                    start_pat: Some("#[ink_e2e::test"),
-                                    end_pat: Some("#[ink_e2e::test"),
-                                }],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"
-                        #[ink_e2e::test]
-                        #[ink(backend(node))]
-                        #[ink(environment=ink::env::DefaultEnvironment)]
-                        fn my_fn() {
-                        }
-                        "#,
-                        Some("<-fn"),
-                        vec![TestResultAction {
-                            label: "Flatten",
-                            edits: vec![
-                                TestResultTextRange {
-                                    text: "#[ink_e2e::test(\
-                                    backend(node), \
-                                    environment = ink::env::DefaultEnvironment\
-                                    )]",
-                                    start_pat: Some("<-#[ink_e2e::test]"),
-                                    end_pat: Some("#[ink_e2e::test]"),
-                                },
-                                TestResultTextRange {
-                                    text: "",
-                                    start_pat: Some("<-#[ink(backend(node))]"),
-                                    end_pat: Some("#[ink(backend(node))]"),
-                                },
-                                TestResultTextRange {
-                                    text: "",
-                                    start_pat: Some(
-                                        "<-#[ink(environment=ink::env::DefaultEnvironment)]",
-                                    ),
-                                    end_pat: Some(
-                                        "#[ink(environment=ink::env::DefaultEnvironment)]",
-                                    ),
-                                },
-                            ],
-                        }],
+                        Some("<-fn function_2(&self);"),
+                        vec![],
                     ),
                     (
                         r#"
@@ -1255,16 +1355,12 @@ mod tests {
                         }
                         "#,
                         Some("<-fn function_2(&self);"),
-                        vec![TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "function = 2, ",
-                                start_pat: Some("#[ink(->"),
-                                end_pat: Some("#[ink(->"),
-                            }],
-                        }],
+                        vec![],
                     ),
-                ],
+                ]
+                .into_iter()
+                .chain(fixtures_gte_v5)
+                .collect(),
             ),
         ] {
             for (code, pat, expected_results) in [
@@ -1642,7 +1738,11 @@ mod tests {
                         TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
-                                text: "#[ink::chain_extension]",
+                                text: if version.is_legacy() || version.is_v5() {
+                                    "#[ink::chain_extension]"
+                                } else {
+                                    "#[ink::contract_ref]"
+                                },
                                 start_pat: Some("<-pub"),
                                 end_pat: Some("<-pub"),
                             }],
@@ -1998,16 +2098,22 @@ mod tests {
                                 }],
                             },
                         ],
-                        versioned_extension_fn!(version, "<-fn"),
+                        if version.is_legacy() || version.is_v5() {
+                            vec![
+                                versioned_extension_fn!(version, "<-fn"),
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink(handle_status = true)]",
+                                        start_pat: Some("<-fn"),
+                                        end_pat: Some("<-fn"),
+                                    }],
+                                },
+                            ]
+                        } else {
+                            vec![]
+                        },
                         [
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(handle_status = true)]",
-                                    start_pat: Some("<-fn"),
-                                    end_pat: Some("<-fn"),
-                                }],
-                            },
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
@@ -2071,16 +2177,22 @@ mod tests {
                                 }],
                             },
                         ],
-                        versioned_extension_fn!(version, "<-fn"),
+                        if version.is_legacy() || version.is_v5() {
+                            vec![
+                                versioned_extension_fn!(version, "<-fn"),
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink(handle_status = true)]",
+                                        start_pat: Some("<-fn"),
+                                        end_pat: Some("<-fn"),
+                                    }],
+                                },
+                            ]
+                        } else {
+                            vec![]
+                        },
                         [
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(handle_status = true)]",
-                                    start_pat: Some("<-fn"),
-                                    end_pat: Some("<-fn"),
-                                }],
-                            },
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
@@ -2152,16 +2264,22 @@ mod tests {
                                 }],
                             },
                         ],
-                        versioned_extension_fn!(version, "<-fn"),
+                        if version.is_legacy() || version.is_v5() {
+                            vec![
+                                versioned_extension_fn!(version, "<-fn"),
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink(handle_status = true)]",
+                                        start_pat: Some("<-fn"),
+                                        end_pat: Some("<-fn"),
+                                    }],
+                                },
+                            ]
+                        } else {
+                            vec![]
+                        },
                         [
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink(handle_status = true)]",
-                                    start_pat: Some("<-fn"),
-                                    end_pat: Some("<-fn"),
-                                }],
-                            },
                             TestResultAction {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
