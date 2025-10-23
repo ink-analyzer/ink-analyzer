@@ -204,7 +204,7 @@ mod tests {
         for (version, items) in [
             (Version::Legacy, quote! {}),
             (
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 quote! {
                     #[ink::event]
                     pub struct MyEvent {
@@ -268,7 +268,7 @@ mod tests {
         };
         let contract = InkFile::parse(&code);
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &contract, version);
 

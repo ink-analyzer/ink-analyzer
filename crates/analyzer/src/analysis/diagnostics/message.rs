@@ -870,7 +870,7 @@ mod tests {
                 #code
             });
 
-            for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+            for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
                 let mut results = Vec::new();
                 common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                     &mut results,
@@ -898,7 +898,7 @@ mod tests {
         };
         let message = parse_first_message(&code);
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             let mut results = Vec::new();
             common::ensure_valid_quasi_direct_ink_descendants_by_kind(
                 &mut results,
@@ -967,7 +967,7 @@ mod tests {
 
             for version in [
                 Version::Legacy,
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 Version::V6,
             ] {
                 let mut results = Vec::new();

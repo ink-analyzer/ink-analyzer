@@ -989,7 +989,7 @@ mod tests {
                 #code
             });
 
-            for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+            for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
                 let mut results = Vec::new();
                 ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
                 assert!(results.is_empty());
@@ -1012,7 +1012,7 @@ mod tests {
         };
         let trait_definition = parse_first_trait_definition(&code);
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
             // 1 diagnostic each for `constructor` and `event`.

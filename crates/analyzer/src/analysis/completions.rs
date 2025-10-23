@@ -1000,7 +1000,7 @@ mod tests {
                 vec!["::storage_item"],
             ),
             (
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 vec![
                     "::chain_extension",
                     "::contract",
@@ -1343,7 +1343,7 @@ mod tests {
                 vec![],
             ),
             (
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 vec![
                     "anonymous",
                     "constructor",
@@ -1953,7 +1953,7 @@ mod tests {
 
     #[test]
     fn entity_completions_works() {
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             for (code, pat, expected_results) in [
                 // (code, [(pat, [(edit, pat_start, pat_end)])]) where:
                 // code = source code,

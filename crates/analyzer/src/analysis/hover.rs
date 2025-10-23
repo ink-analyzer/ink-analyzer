@@ -159,7 +159,7 @@ mod tests {
     fn content(attr_kind: &InkAttributeKind) -> (&str, &str) {
         (
             super::content(attr_kind, Version::Legacy, None),
-            super::content(attr_kind, Version::V5(MinorVersion::V5_0), None),
+            super::content(attr_kind, Version::V5(MinorVersion::Base), None),
         )
     }
 
@@ -533,7 +533,7 @@ mod tests {
                 let result_v5 = hover(
                     &InkFile::parse(code),
                     range,
-                    Version::V5(MinorVersion::V5_0),
+                    Version::V5(MinorVersion::Base),
                 );
 
                 assert_eq!(

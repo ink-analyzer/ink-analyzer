@@ -257,7 +257,7 @@ mod tests {
     fn non_pub_struct_fails() {
         for (version, attr) in [
             (Version::Legacy, quote! { #[ink(event)] }),
-            (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
+            (Version::V5(MinorVersion::Base), quote! { #[ink::event] }),
         ] {
             for (vis, expected_quickfixes) in vec![
                 (
@@ -462,7 +462,7 @@ mod tests {
     fn struct_with_generics_fails() {
         for (version, attr) in [
             (Version::Legacy, quote! { #[ink(event)] }),
-            (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
+            (Version::V5(MinorVersion::Base), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {
                 #attr
@@ -528,7 +528,7 @@ mod tests {
     fn non_topic_ink_field_fails() {
         for (version, attr) in [
             (Version::Legacy, quote! { #[ink(event)] }),
-            (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
+            (Version::V5(MinorVersion::Base), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {
                 #attr
@@ -595,7 +595,7 @@ mod tests {
     fn cfg_field_fails() {
         for (version, attr) in [
             (Version::Legacy, quote! { #[ink(event)] }),
-            (Version::V5(MinorVersion::V5_0), quote! { #[ink::event] }),
+            (Version::V5(MinorVersion::Base), quote! { #[ink::event] }),
         ] {
             let code = quote_as_pretty_string! {
                 #attr

@@ -2122,7 +2122,7 @@ mod tests {
         };
         let contract = parse_first_contract(&code);
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &contract, version);
 

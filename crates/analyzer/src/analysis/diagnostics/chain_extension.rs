@@ -888,7 +888,7 @@ mod tests {
                 quote! {},
             ),
             (
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 "function",
                 quote! { function },
                 quote! { (extension=1) },
@@ -1386,7 +1386,7 @@ mod tests {
         for (version, id_arg_kind, macro_args) in [
             (Version::Legacy, quote! { extension }, quote! {}),
             (
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 quote! { function },
                 quote! { (extension=1) },
             ),
@@ -1485,7 +1485,7 @@ mod tests {
         };
         let chain_extension = parse_first_chain_extension(&code);
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &chain_extension, version);
 

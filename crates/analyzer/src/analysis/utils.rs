@@ -908,7 +908,7 @@ pub fn ink_arg_insert_text(
             ),
             InkArgKind::Sandbox => match version {
                 Version::Legacy => (String::new(), String::new()),
-                Version::V5(MinorVersion::V5_0) => (
+                Version::V5(MinorVersion::Base) => (
                     "ink_e2e::MinimalSandbox".to_owned(),
                     "${{1:ink_e2e::MinimalSandbox}}".to_owned(),
                 ),

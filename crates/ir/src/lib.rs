@@ -127,11 +127,12 @@ pub enum Version {
 
 /// ink! language minor version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MinorVersion {
     /// Latest minor version.
     Latest,
-    /// version == 5.0.x
-    V5_0,
+    /// Base minor version (e.g. 5.0.x).
+    Base,
 }
 
 impl Version {
@@ -157,7 +158,7 @@ impl Version {
 
     /// Returns true if `version == 5.0.x`
     pub fn is_v5_0_x(&self) -> bool {
-        *self == Version::V5(MinorVersion::V5_0)
+        *self == Version::V5(MinorVersion::Base)
     }
 
     /// Returns true if `version >= 5.1.x`

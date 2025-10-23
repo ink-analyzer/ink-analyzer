@@ -117,7 +117,7 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             // Initializes snapshots with test document.
             let (snapshots, uri) = init_snapshots(String::from(""), &client_capabilities, version);
 

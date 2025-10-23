@@ -52,7 +52,7 @@ mod tests {
         // Creates client capabilities.
         let client_capabilities = simple_client_config();
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             // Creates test document snapshot.
             let uri = document_uri();
             let mut snapshots = HashMap::new();

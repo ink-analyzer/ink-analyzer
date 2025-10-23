@@ -8,7 +8,7 @@ use ink_analyzer::{MinorVersion, Version};
 /// (we leave that to the language server - which doesn't need this hack).
 pub fn ink_version_from_path(path: &str) -> Version {
     if path.contains("v5") {
-        Version::V5(MinorVersion::V5_0)
+        Version::V5(MinorVersion::Base)
     } else {
         Version::Legacy
     }

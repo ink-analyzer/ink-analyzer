@@ -314,7 +314,7 @@ mod tests {
     fn invalid_fn_fails() {
         for (version, id_arg_kind) in [
             (Version::Legacy, quote! { extension }),
-            (Version::V5(MinorVersion::V5_0), quote! { function }),
+            (Version::V5(MinorVersion::Base), quote! { function }),
         ] {
             for (code, expected_quickfixes) in [
                 // Generic params fails.
@@ -489,7 +489,7 @@ mod tests {
     fn self_receiver_fails() {
         for (version, id_arg_kind) in [
             (Version::Legacy, quote! { extension }),
-            (Version::V5(MinorVersion::V5_0), quote! { function }),
+            (Version::V5(MinorVersion::Base), quote! { function }),
         ] {
             for (code, start_pat, end_pat) in [
                 (
@@ -611,7 +611,7 @@ mod tests {
                 }],
             ),
             (
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 quote! { function },
                 vec![TestResultAction {
                     label: "Derive `scale::Encode`, `scale::Decode`, `scale_info::TypeInfo`",
@@ -805,7 +805,7 @@ mod tests {
     fn ink_descendants_fails() {
         for (version, id_arg_kind) in [
             (Version::Legacy, quote! { extension }),
-            (Version::V5(MinorVersion::V5_0), quote! { function }),
+            (Version::V5(MinorVersion::Base), quote! { function }),
         ] {
             let code = quote_as_pretty_string! {
                 #[ink(#id_arg_kind=1)]

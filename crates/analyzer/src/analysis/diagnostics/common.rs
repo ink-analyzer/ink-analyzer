@@ -2726,7 +2726,7 @@ mod tests {
                 ],
             ),
             (
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 vec![
                     (
                         "#[ink(constructor, selector=@)]", // wildcard complement selector is invalid for constructors.
@@ -3476,7 +3476,7 @@ mod tests {
                 ],
             ),
             (
-                Version::V5(MinorVersion::V5_0),
+                Version::V5(MinorVersion::Base),
                 vec![
                     (
                         "#[ink(anonymous)]", // missing `event`.

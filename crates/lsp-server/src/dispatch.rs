@@ -533,7 +533,7 @@ impl InkProjectVersion {
                     // v5.1 introduced some IDE relevant differences.
                     Version::V5(MinorVersion::Latest)
                 } else if is_v5_version_string(version) {
-                    Version::V5(MinorVersion::V5_0)
+                    Version::V5(MinorVersion::Base)
                 } else {
                     Version::V6
                 }

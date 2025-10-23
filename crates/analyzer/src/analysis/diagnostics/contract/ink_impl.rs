@@ -1774,7 +1774,7 @@ mod tests {
             };
             let ink_impl = parse_first_ink_impl(&code);
 
-            for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+            for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
                 let mut results = Vec::new();
                 ensure_trait_definition_impl_invariants(&mut results, &ink_impl, version);
 
@@ -1827,7 +1827,7 @@ mod tests {
         };
         let ink_impl = parse_first_ink_impl(&code);
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::V5_0)] {
+        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
             let mut results = Vec::new();
             ensure_valid_quasi_direct_ink_descendants(&mut results, &ink_impl, version);
 
