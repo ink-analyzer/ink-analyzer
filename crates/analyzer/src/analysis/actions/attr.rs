@@ -24,7 +24,7 @@ pub fn actions(results: &mut Vec<Action>, file: &InkFile, range: TextRange, vers
                 return;
             }
 
-            if version == Version::Legacy
+            if version.is_legacy()
                 && matches!(
                     ink_attr.kind(),
                     InkAttributeKind::Macro(
@@ -118,7 +118,7 @@ mod tests {
 
     macro_rules! prepend_migrate {
         ($version: expr, $list: expr) => {
-            if $version == Version::Legacy {
+            if $version.is_legacy() {
                 vec![TestResultAction {
                     label: "Migrate",
                     edits: vec![],

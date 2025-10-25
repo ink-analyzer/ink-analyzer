@@ -608,7 +608,7 @@ mod tests {
 
     #[test]
     fn impl_scale_codec_traits_works() {
-        for (version, error_codes) in versioned_fixtures!(valid_error_codes) {
+        for (version, error_codes) in versioned_fixtures!(@legacy valid_error_codes) {
             for code in error_codes {
                 let chain_extension = parse_first_ink_entity_of_type(&code);
 

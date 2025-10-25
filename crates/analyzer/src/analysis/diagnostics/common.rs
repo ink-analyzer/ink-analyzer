@@ -803,15 +803,22 @@ fn validate_entity_attributes(
         // Used to suppress conflict errors for deprecated attributes/arguments,
         // that should already be reported as such at this point.
         let is_already_reported_as_deprecated = |arg: &InkArg| {
-            // deprecated `extension` on chain extension functions is typically the "primary" attribute,
-            // so it early returns and doesn't need to be checked here.
-            version.is_gte_v5()
+            // For ink! v5, deprecated `extension` on chain extension functions is typically
+            // the "primary" attribute, so it early returns and doesn't need to be checked here.
+            // For ink! >= 6.x, we only get here with chain extension args
+            // (i.e. `extension`, `function` and `handle_status`) if they're not "primary" attribute.
+            (version.is_gte_v5()
                 && *primary_ink_attr_candidate.kind()
                     == InkAttributeKind::Macro(InkMacroKind::E2ETest)
                 && matches!(
                     arg.kind(),
                     InkArgKind::AdditionalContracts | InkArgKind::KeepAttr
-                )
+                ))
+                || (version.is_gte_v6()
+                    && matches!(
+                        arg.kind(),
+                        InkArgKind::Extension | InkArgKind::Function | InkArgKind::HandleStatus
+                    ))
         };
 
         // Determines the insertion offset for creating a valid "primary" attribute as the first attribute.
@@ -2234,7 +2241,7 @@ pub fn ensure_impl_scale_codec_traits(
         let (insert_text, insert_range, insert_snippet) = target_attr
             .as_ref()
             .map(|attr| {
-                let meta_prefix = if version == Version::Legacy {
+                let meta_prefix = if version.is_legacy() {
                     standalone_derive_meta.as_ref().map(|meta| {
                         format!(
                             "{meta}{}",
@@ -2411,8 +2418,51 @@ mod tests {
                     #[ink_e2e::test(keep_attr="foo,bar")]
                 },
             ]
+            .into_iter()
+            .chain(valid_attributes_versioned!(@lte v5))
         };
         (v5) => {
+            [
+                // Chain extension API changes.
+                // Ref: <https://github.com/paritytech/ink/pull/1958>
+                quote_as_str! {
+                    #[ink::chain_extension(extension = 1)]
+                },
+                quote_as_str! {
+                    #[ink::chain_extension(extension = 0x1)]
+                },
+                quote_as_str! {
+                    #[ink(function = 1)]
+                },
+                quote_as_str! {
+                    #[ink(function = 0x1)]
+                },
+                quote_as_str! {
+                    #[ink(function=1, handle_status=true)] // `handle_status` is incomplete without `function`.
+                },
+
+            ]
+            .into_iter()
+            .chain(valid_attributes_versioned!(@lte v5))
+            .chain(valid_attributes_versioned!(@gte v5))
+        };
+        (v6) => {
+            valid_attributes_versioned!(@gte v5)
+        };
+        (@lte v5) => {
+            [
+                // Deprecated in v6.
+                // Chain extensions are deprecated.
+                // Ref: <https://github.com/use-ink/ink/pull/2621>
+                quote_as_str! {
+                    #[ink(extension=1)]
+                },
+                quote_as_str! {
+                    #[ink(extension=0xA)] // hex encoded.
+                },
+            ]
+        };
+        (@gte v5) => {
             [
                 // Wildcard complement selector.
                 // Ref: <https://github.com/paritytech/ink/pull/1708>
@@ -2436,23 +2486,6 @@ mod tests {
                 },
                 quote_as_str! {
                     #[ink::event(signature_topic = "0x1111111111111111111111111111111111111111111111111111111111111111")]
-                },
-                // Chain extension API changes.
-                // Ref: <https://github.com/paritytech/ink/pull/1958>
-                quote_as_str! {
-                    #[ink::chain_extension(extension = 1)]
-                },
-                quote_as_str! {
-                    #[ink::chain_extension(extension = 0x1)]
-                },
-                quote_as_str! {
-                    #[ink(function = 1)]
-                },
-                quote_as_str! {
-                    #[ink(function = 0x1)]
-                },
-                quote_as_str! {
-                    #[ink(function=1, handle_status=true)] // `handle_status` is incomplete without `function`.
                 },
                 // E2E testing backends.
                 quote_as_str! {
@@ -2513,12 +2546,6 @@ mod tests {
                 },
                 // ... See "Compound arguments" section for `anonymous`, `default` and `payable`.
                 // Arguments that should have an integer (`u32` to be specific) value.
-                quote_as_str! {
-                    #[ink(extension=1)]
-                },
-                quote_as_str! {
-                    #[ink(extension=0xA)] // hex encoded.
-                },
                 quote_as_str! {
                     #[ink(message, selector=1)] // message is required, otherwise this would be incomplete.
                 },
@@ -2588,7 +2615,7 @@ mod tests {
             .chain(valid_attributes_versioned!($version))
         };
         () => {
-            valid_attributes!(v4)
+            valid_attributes!(v6)
         };
     }
 

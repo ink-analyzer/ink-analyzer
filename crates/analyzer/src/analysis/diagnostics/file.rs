@@ -32,7 +32,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile, version: Versi
     }
 
     // Runs ink! chain extension diagnostics for ink! <= 5.x, see `chain_extension::diagnostics` doc.
-    if version.is_legacy() || version.is_v5() {
+    if version.is_lte_v5() {
         for item in file.chain_extensions() {
             chain_extension::diagnostics(results, item, version);
         }

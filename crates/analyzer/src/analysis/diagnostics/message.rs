@@ -119,7 +119,7 @@ fn ensure_receiver_is_self_ref(fn_item: &ast::Fn) -> Option<Diagnostic> {
 ///
 /// Ref: <https://github.com/use-ink/ink/pull/2535>.
 fn ensure_immutable_not_payable(message: &Message) -> Option<Diagnostic> {
-    // Bails if message isn't payable or it doesn't have a self reference receiver.
+    // Bails if message isn't payable, or it doesn't have a self reference receiver.
     let payable_arg = message.payable_arg()?;
     let fn_item = message.fn_item()?;
     let self_receiver = fn_item
@@ -973,7 +973,7 @@ mod tests {
                 let mut results = Vec::new();
                 diagnostics(&mut results, &message, version);
 
-                if version == Version::V6 && code.contains("payable") && code.contains("&self") {
+                if version.is_v6() && code.contains("payable") && code.contains("&self") {
                     // For ink! >= 6.x, immutable messages can't be payable.
                     // Verifies diagnostics.
                     assert_eq!(results.len(), 1, "message: {code}");

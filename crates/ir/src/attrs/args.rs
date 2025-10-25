@@ -390,7 +390,7 @@ impl InkArgKind {
             InkArgKind::Extension => CHAIN_EXT_DEPRECATION_NOTICE,
             InkArgKind::Function if version.is_v5() => "Determines the unique function ID of the chain extension function.",
             InkArgKind::Function if version.is_gte_v6() => CHAIN_EXT_DEPRECATION_NOTICE,
-            InkArgKind::HandleStatus if version.is_legacy() || version.is_v5() => "Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.",
+            InkArgKind::HandleStatus if version.is_lte_v5() => "Assumes that the returned status code of the chain extension function always indicates success and therefore always loads and decodes the output buffer of the call.",
             InkArgKind::HandleStatus => CHAIN_EXT_DEPRECATION_NOTICE,
             InkArgKind::Impl => "Tells the ink! codegen that some implementation block shall be granted access to ink! internals even without it containing any ink! messages or ink! constructors.",
             InkArgKind::KeepAttr => "Tells the ink! code generator which attributes should be passed to call builders.",
@@ -402,7 +402,7 @@ impl InkArgKind {
             InkArgKind::Namespace => "Changes the resulting selectors of all the ink! messages and ink! constructors within the trait implementation.",
             InkArgKind::Node if version.is_gte_v5() => "Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.",
             InkArgKind::Payable => "Allows receiving value as part of the call of the ink! message.",
-            InkArgKind::RuntimeOnly if version.is_v5_0_x() => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.",
+            InkArgKind::RuntimeOnly if version.is_v5_0() => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.",
             InkArgKind::RuntimeOnly if version.is_gte_v5_1() => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` in the same process as the test.",
             InkArgKind::Sandbox if version.is_gte_v5() => "Tells the ink! e2e test runner which runtime emulator to use when executing the test.",
             InkArgKind::Selector => "The `u32` variant specifies a concrete dispatch selector for the flagged entity, \

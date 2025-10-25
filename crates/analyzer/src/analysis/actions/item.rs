@@ -316,7 +316,7 @@ fn item_ink_entity_actions(
                 .and_then(ink_analyzer_ir::ink_attr_to_entity::<Contract>)
             {
                 Some(contract) => {
-                    if version == Version::Legacy {
+                    if version.is_legacy() {
                         // Adds ink! 4.x project to ink! 5.0 action.
                         add_migrate(results, utils::contract_declaration_range(&contract));
                     }
@@ -471,7 +471,7 @@ fn item_ink_entity_actions(
                             if let Some(chain_extension) =
                                 ink_analyzer_ir::ink_attr_to_entity::<ChainExtension>(attr)
                             {
-                                if version == Version::Legacy {
+                                if version.is_legacy() {
                                     // Adds ink! 4.x project to ink! 5.0 action.
                                     add_migrate(
                                         results,
@@ -479,7 +479,7 @@ fn item_ink_entity_actions(
                                     );
                                 }
 
-                                if version.is_legacy() || version.is_v5() {
+                                if version.is_lte_v5() {
                                     // Add `ErrorCode` type (if it doesn't exist).
                                     if chain_extension.error_code().is_none() {
                                         add_result_opt!(entity::add_error_code(
@@ -503,7 +503,7 @@ fn item_ink_entity_actions(
                             if let Some(trait_definition) =
                                 ink_analyzer_ir::ink_attr_to_entity::<TraitDefinition>(attr)
                             {
-                                if version == Version::Legacy {
+                                if version.is_legacy() {
                                     // Adds ink! 4.x project to ink! 5.0 action.
                                     add_migrate(
                                         results,
@@ -564,7 +564,7 @@ fn item_ink_entity_actions(
                     utils::ast_item_declaration_range(&ast::Item::Struct(struct_item.clone()))
                         .unwrap_or_else(|| struct_item.syntax().text_range());
                 add_extract_event(results, range);
-            } else if version == Version::Legacy {
+            } else if version.is_legacy() {
                 let is_storage_item = ink_analyzer_ir::ink_attrs(struct_item.syntax())
                     .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
                 if is_storage_item {
@@ -576,7 +576,7 @@ fn item_ink_entity_actions(
                 }
             }
         }
-        ast::Item::Enum(enum_item) if version == Version::Legacy => {
+        ast::Item::Enum(enum_item) if version.is_legacy() => {
             let is_storage_item = ink_analyzer_ir::ink_attrs(enum_item.syntax())
                 .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
             if is_storage_item {
@@ -586,7 +586,7 @@ fn item_ink_entity_actions(
                 add_migrate(results, range);
             }
         }
-        ast::Item::Union(union_item) if version == Version::Legacy => {
+        ast::Item::Union(union_item) if version.is_legacy() => {
             let is_storage_item = ink_analyzer_ir::ink_attrs(union_item.syntax())
                 .any(|attr| *attr.kind() == InkAttributeKind::Macro(InkMacroKind::StorageItem));
             if is_storage_item {
@@ -609,7 +609,7 @@ fn root_ink_entity_actions(
     range: TextRange,
     version: Version,
 ) {
-    if version == Version::Legacy {
+    if version.is_legacy() {
         // Adds ink! 4.x project to ink! 5.0 action.
         add_migrate(results, range);
     }
@@ -636,7 +636,7 @@ fn root_ink_entity_actions(
         None,
     ));
 
-    if version.is_legacy() || version.is_v5() {
+    if version.is_lte_v5() {
         // Adds ink! chain extension.
         results.push(entity::add_chain_extension(
             range,
@@ -772,7 +772,7 @@ mod tests {
 
     macro_rules! prepend_migrate {
         ($version: expr, $list: expr) => {
-            if $version == Version::Legacy {
+            if $version.is_legacy() {
                 vec![TestResultAction {
                     label: "Migrate",
                     edits: vec![],
@@ -1738,7 +1738,7 @@ mod tests {
                         TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
-                                text: if version.is_legacy() || version.is_v5() {
+                                text: if version.is_lte_v5() {
                                     "#[ink::chain_extension]"
                                 } else {
                                     "#[ink::contract_ref]"
@@ -2098,7 +2098,7 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version.is_legacy() || version.is_v5() {
+                        if version.is_lte_v5() {
                             vec![
                                 versioned_extension_fn!(version, "<-fn"),
                                 TestResultAction {
@@ -2177,7 +2177,7 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version.is_legacy() || version.is_v5() {
+                        if version.is_lte_v5() {
                             vec![
                                 versioned_extension_fn!(version, "<-fn"),
                                 TestResultAction {
@@ -2264,7 +2264,7 @@ mod tests {
                                 }],
                             },
                         ],
-                        if version.is_legacy() || version.is_v5() {
+                        if version.is_lte_v5() {
                             vec![
                                 versioned_extension_fn!(version, "<-fn"),
                                 TestResultAction {

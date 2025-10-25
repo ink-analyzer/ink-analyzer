@@ -88,7 +88,7 @@ pub fn content(
             | InkArgKind::Url
             | InkArgKind::RuntimeOnly
             | InkArgKind::Sandbox
-                if version.is_v5_0_x() =>
+                if version.is_v5_0() =>
             {
                 args::BACKEND_DOC_V5_0
             }
@@ -113,9 +113,7 @@ pub fn content(
             InkArgKind::Extension => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
             InkArgKind::Function if version.is_v5() => args::FUNCTION_DOC,
             InkArgKind::Function if version.is_gte_v6() => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
-            InkArgKind::HandleStatus if version.is_legacy() || version.is_v5() => {
-                args::HANDLE_STATUS_DOC
-            }
+            InkArgKind::HandleStatus if version.is_lte_v5() => args::HANDLE_STATUS_DOC,
             InkArgKind::HandleStatus => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
             InkArgKind::Impl => args::IMPL_DOC,
             InkArgKind::KeepAttr if version.is_legacy() => args::KEEP_ATTR_DOC_V4,
@@ -162,417 +160,398 @@ mod tests {
     use ink_analyzer_ir::{syntax::TextSize, InkArgKind, InkMacroKind, MinorVersion};
     use test_utils::parse_offset_at;
 
-    fn content(attr_kind: &InkAttributeKind) -> (&str, &str) {
-        (
-            super::content(attr_kind, Version::Legacy, None),
-            super::content(attr_kind, Version::V5(MinorVersion::Base), None),
-        )
-    }
-
     #[test]
     fn hover_works() {
-        for (code, test_cases) in [
-            // (code, pat, [(text, pat_start, pat_end)]) where:
-            // code = source code,
-            // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
-            // text = text expected to be present in the hover content (represented without whitespace for simplicity),
-            // pat_start = substring used to find the start of the hover offset (see `test_utils::parse_offset_at` doc),
-            // pat_end = substring used to find the end of the hover offset (see `test_utils::parse_offset_at` doc).
+        for version in [
+            Version::Legacy,
+            Version::V5(MinorVersion::Base),
+            Version::V5(MinorVersion::Latest),
+            Version::V6,
+        ] {
+            for (code, test_cases) in [
+                // (code, pat, [(text, pat_start, pat_end)]) where:
+                // code = source code,
+                // pat = substring used to find the cursor offset (see `test_utils::parse_offset_at` doc),
+                // text = text expected to be present in the hover content (represented without whitespace for simplicity),
+                // pat_start = substring used to find the start of the hover offset (see `test_utils::parse_offset_at` doc),
+                // pat_end = substring used to find the end of the hover offset (see `test_utils::parse_offset_at` doc).
 
-            // ink! attribute macros.
-            (
-                "#[ink::contract]",
-                vec![
-                    (
-                        Some("<-#"),
-                        Some("<-#"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                // ink! attribute macros.
+                (
+                    "#[ink::contract]",
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                        (
                             Some("<-contract"),
                             Some("contract"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("ink"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
-                            Some("<-contract"),
-                            Some("contract"),
-                        )),
-                    ),
-                    (
-                        Some("<-contract"),
-                        Some("contract"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
-                            Some("<-contract"),
-                            Some("contract"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("]"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
-                            Some("<-contract"),
-                            Some("contract"),
-                        )),
-                    ),
-                ],
-            ),
-            (
-                r#"
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                    ],
+                ),
+                (
+                    r#"
                     #[ink::contract(env=my::env::Types, keep_attr="foo,bar")]
-                "#,
-                vec![
-                    (
-                        Some("<-#"),
-                        Some("<-#"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
+                    "#,
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                        (
                             Some("<-contract"),
                             Some("contract"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("ink"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
-                            Some("<-contract"),
-                            Some("contract"),
-                        )),
-                    ),
-                    (
-                        Some("<-contract"),
-                        Some("contract"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
-                            Some("<-contract"),
-                            Some("contract"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("]"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
-                            Some("<-contract"),
-                            Some("contract"),
-                        )),
-                    ),
-                    (
-                        Some("<-env="),
-                        Some("(env"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Env)),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                        (
                             Some("<-env="),
                             Some("(env"),
-                        )),
-                    ),
-                    (
-                        Some("<-my::env::Types"),
-                        Some("my::env::Types"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Env)),
-                            Some("<-env="),
-                            Some("(env"),
-                        )),
-                    ),
-                    (
-                        Some("<-,"),
-                        Some(","),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::Contract)),
-                            Some("<-contract"),
-                            Some("contract"),
-                        )),
-                    ),
-                    (
-                        Some("<-keep_attr"),
-                        Some("keep_attr"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::KeepAttr)),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Env),
+                                Some("<-env="),
+                                Some("(env"),
+                            )),
+                        ),
+                        (
+                            Some("<-my::env::Types"),
+                            Some("my::env::Types"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Env),
+                                Some("<-env="),
+                                Some("(env"),
+                            )),
+                        ),
+                        (
+                            Some("<-,"),
+                            Some(","),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::Contract),
+                                Some("<-contract"),
+                                Some("contract"),
+                            )),
+                        ),
+                        (
                             Some("<-keep_attr"),
                             Some("keep_attr"),
-                        )),
-                    ),
-                    (
-                        Some(r#"<-"foo,bar""#),
-                        Some(r#""foo,bar""#),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::KeepAttr)),
-                            Some("<-keep_attr"),
-                            Some("keep_attr"),
-                        )),
-                    ),
-                ],
-            ),
-            (
-                "#[ink_e2e::test]",
-                vec![
-                    (
-                        Some("<-#"),
-                        Some("<-#"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::KeepAttr),
+                                Some("<-keep_attr"),
+                                Some("keep_attr"),
+                            )),
+                        ),
+                        (
+                            Some(r#"<-"foo,bar""#),
+                            Some(r#""foo,bar""#),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::KeepAttr),
+                                Some("<-keep_attr"),
+                                Some("keep_attr"),
+                            )),
+                        ),
+                    ],
+                ),
+                (
+                    "#[ink_e2e::test]",
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::E2ETest),
+                                Some("<-test"),
+                                Some("test"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::E2ETest),
+                                Some("<-test"),
+                                Some("test"),
+                            )),
+                        ),
+                        (
                             Some("<-test"),
                             Some("test"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("ink"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
-                            Some("<-test"),
-                            Some("test"),
-                        )),
-                    ),
-                    (
-                        Some("<-test"),
-                        Some("test"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
-                            Some("<-test"),
-                            Some("test"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("]"),
-                        Some((
-                            content(&InkAttributeKind::Macro(InkMacroKind::E2ETest)),
-                            Some("<-test"),
-                            Some("test"),
-                        )),
-                    ),
-                ],
-            ),
-            // ink! attribute arguments.
-            (
-                "#[ink(storage)]",
-                vec![
-                    (
-                        Some("<-#"),
-                        Some("<-#"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Storage)),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::E2ETest),
+                                Some("<-test"),
+                                Some("test"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            Some((
+                                InkAttributeKind::Macro(InkMacroKind::E2ETest),
+                                Some("<-test"),
+                                Some("test"),
+                            )),
+                        ),
+                    ],
+                ),
+                // ink! attribute arguments.
+                (
+                    "#[ink(storage)]",
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Storage),
+                                Some("<-storage"),
+                                Some("storage"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Storage),
+                                Some("<-storage"),
+                                Some("storage"),
+                            )),
+                        ),
+                        (
                             Some("<-storage"),
                             Some("storage"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("ink"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Storage)),
-                            Some("<-storage"),
-                            Some("storage"),
-                        )),
-                    ),
-                    (
-                        Some("<-storage"),
-                        Some("storage"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Storage)),
-                            Some("<-storage"),
-                            Some("storage"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("]"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Storage)),
-                            Some("<-storage"),
-                            Some("storage"),
-                        )),
-                    ),
-                ],
-            ),
-            (
-                "#[ink(message, default, payable, selector=_)]",
-                vec![
-                    (
-                        Some("<-#"),
-                        Some("<-#"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Message)),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Storage),
+                                Some("<-storage"),
+                                Some("storage"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Storage),
+                                Some("<-storage"),
+                                Some("storage"),
+                            )),
+                        ),
+                    ],
+                ),
+                (
+                    "#[ink(message, default, payable, selector=_)]",
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Message),
+                                Some("<-message"),
+                                Some("message"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Message),
+                                Some("<-message"),
+                                Some("message"),
+                            )),
+                        ),
+                        (
                             Some("<-message"),
                             Some("message"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("ink"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Message)),
-                            Some("<-message"),
-                            Some("message"),
-                        )),
-                    ),
-                    (
-                        Some("<-message"),
-                        Some("message"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Message)),
-                            Some("<-message"),
-                            Some("message"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("]"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Message)),
-                            Some("<-message"),
-                            Some("message"),
-                        )),
-                    ),
-                    (
-                        Some("<-payable"),
-                        Some("payable"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Payable)),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Message),
+                                Some("<-message"),
+                                Some("message"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Message),
+                                Some("<-message"),
+                                Some("message"),
+                            )),
+                        ),
+                        (
                             Some("<-payable"),
                             Some("payable"),
-                        )),
-                    ),
-                    (
-                        Some("<-selector"),
-                        Some("selector"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Selector)),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Payable),
+                                Some("<-payable"),
+                                Some("payable"),
+                            )),
+                        ),
+                        (
                             Some("<-selector"),
                             Some("selector"),
-                        )),
-                    ),
-                    (
-                        Some("<-_"),
-                        Some("_"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Selector)),
-                            Some("<-selector"),
-                            Some("selector"),
-                        )),
-                    ),
-                ],
-            ),
-            (
-                "#[ink(extension=1, handle_status=true)]",
-                vec![
-                    (
-                        Some("<-#"),
-                        Some("<-#"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Selector),
+                                Some("<-selector"),
+                                Some("selector"),
+                            )),
+                        ),
+                        (
+                            Some("<-_"),
+                            Some("_"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Selector),
+                                Some("<-selector"),
+                                Some("selector"),
+                            )),
+                        ),
+                    ],
+                ),
+                (
+                    "#[ink(extension=1, handle_status=true)]",
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Extension),
+                                Some("<-extension"),
+                                Some("extension"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Extension),
+                                Some("<-extension"),
+                                Some("extension"),
+                            )),
+                        ),
+                        (
                             Some("<-extension"),
                             Some("extension"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("ink"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
-                            Some("<-extension"),
-                            Some("extension"),
-                        )),
-                    ),
-                    (
-                        Some("<-extension"),
-                        Some("extension"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
-                            Some("<-extension"),
-                            Some("extension"),
-                        )),
-                    ),
-                    (
-                        Some("<-#"),
-                        Some("]"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
-                            Some("<-extension"),
-                            Some("extension"),
-                        )),
-                    ),
-                    (
-                        Some("<-1"),
-                        Some("1"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::Extension)),
-                            Some("<-extension"),
-                            Some("extension"),
-                        )),
-                    ),
-                    (
-                        Some("<-handle_status"),
-                        Some("handle_status"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::HandleStatus)),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Extension),
+                                Some("<-extension"),
+                                Some("extension"),
+                            )),
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Extension),
+                                Some("<-extension"),
+                                Some("extension"),
+                            )),
+                        ),
+                        (
+                            Some("<-1"),
+                            Some("1"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Extension),
+                                Some("<-extension"),
+                                Some("extension"),
+                            )),
+                        ),
+                        (
                             Some("<-handle_status"),
                             Some("handle_status"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::HandleStatus),
+                                Some("<-handle_status"),
+                                Some("handle_status"),
+                            )),
+                        ),
+                        (
+                            Some("<-true"),
+                            Some("true"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::HandleStatus),
+                                Some("<-handle_status"),
+                                Some("handle_status"),
+                            )),
+                        ),
+                    ],
+                ),
+            ] {
+                for (pat_start, pat_end, expect_result) in test_cases {
+                    let range = TextRange::new(
+                        TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
+                        TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32),
+                    );
+
+                    let result = hover(&InkFile::parse(code), range, version);
+
+                    assert_eq!(
+                        result.as_ref().map(|hover_result| (
+                            hover_result.content.as_str(),
+                            hover_result.range
                         )),
-                    ),
-                    (
-                        Some("<-true"),
-                        Some("true"),
-                        Some((
-                            content(&InkAttributeKind::Arg(InkArgKind::HandleStatus)),
-                            Some("<-handle_status"),
-                            Some("handle_status"),
+                        expect_result.map(|(attr_kind, pat_start, pat_end)| (
+                            content(&attr_kind, version, None),
+                            TextRange::new(
+                                TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
+                                TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
+                            )
                         )),
-                    ),
-                ],
-            ),
-        ] {
-            for (pat_start, pat_end, expect_result) in test_cases {
-                let range = TextRange::new(
-                    TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
-                    TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32),
-                );
-
-                let result_v4 = hover(&InkFile::parse(code), range, Version::Legacy);
-                let result_v5 = hover(
-                    &InkFile::parse(code),
-                    range,
-                    Version::V5(MinorVersion::Base),
-                );
-
-                assert_eq!(
-                    result_v4
-                        .as_ref()
-                        .map(|hover_result| (hover_result.content.as_str(), hover_result.range)),
-                    expect_result.map(|((content_v4, _), pat_start, pat_end)| (
-                        content_v4,
-                        TextRange::new(
-                            TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
-                            TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
-                        )
-                    )),
-                    "code: {code}, start: {:?}, end: {:?}",
-                    pat_start,
-                    pat_end
-                );
-
-                assert_eq!(
-                    result_v5
-                        .as_ref()
-                        .map(|hover_result| (hover_result.content.as_str(), hover_result.range)),
-                    expect_result.map(|((_, content_v5), pat_start, pat_end)| (
-                        content_v5,
-                        TextRange::new(
-                            TextSize::from(parse_offset_at(code, pat_start).unwrap() as u32),
-                            TextSize::from(parse_offset_at(code, pat_end).unwrap() as u32)
-                        )
-                    )),
-                    "code: {code}, start: {:?}, end: {:?}",
-                    pat_start,
-                    pat_end
-                );
+                        "code: {code}, start: {:?}, end: {:?}, version: {:?}",
+                        pat_start,
+                        pat_end,
+                        version,
+                    );
+                }
             }
         }
     }

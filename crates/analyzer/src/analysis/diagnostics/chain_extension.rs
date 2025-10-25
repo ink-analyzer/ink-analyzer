@@ -539,7 +539,7 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L923-L940>.
     macro_rules! valid_chain_extensions {
         () => {
-            valid_chain_extensions!(v4)
+            valid_chain_extensions!(v5)
         };
         (v4) => {
             valid_chain_extensions!(extension, derive(scale::Encode, scale::Decode, scale_info::TypeInfo))
@@ -861,7 +861,7 @@ mod tests {
 
     #[test]
     fn valid_trait_items_works() {
-        for (version, chain_extensions) in versioned_fixtures!(valid_chain_extensions) {
+        for (version, chain_extensions) in versioned_fixtures!(@legacy valid_chain_extensions) {
             for code in chain_extensions {
                 let chain_extension = parse_first_chain_extension(quote_as_str! {
                     #code
@@ -1363,7 +1363,7 @@ mod tests {
 
     #[test]
     fn non_overlapping_ids_works() {
-        for (version, chain_extensions) in versioned_fixtures!(valid_chain_extensions) {
+        for (version, chain_extensions) in versioned_fixtures!(@legacy valid_chain_extensions) {
             for code in chain_extensions {
                 let chain_extension = parse_first_chain_extension(quote_as_str! {
                     #code
@@ -1453,7 +1453,7 @@ mod tests {
 
     #[test]
     fn valid_quasi_direct_descendant_works() {
-        for (version, chain_extensions) in versioned_fixtures!(valid_chain_extensions) {
+        for (version, chain_extensions) in versioned_fixtures!(@legacy valid_chain_extensions) {
             for code in chain_extensions {
                 let chain_extension = parse_first_chain_extension(quote_as_str! {
                     #code
@@ -1554,7 +1554,7 @@ mod tests {
 
     #[test]
     fn compound_diagnostic_works() {
-        for (version, chain_extensions) in versioned_fixtures!(valid_chain_extensions) {
+        for (version, chain_extensions) in versioned_fixtures!(@legacy valid_chain_extensions) {
             for code in chain_extensions {
                 let chain_extension = parse_first_chain_extension(quote_as_str! {
                     #code

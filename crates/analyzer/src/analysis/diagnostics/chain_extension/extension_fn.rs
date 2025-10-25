@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn valid_fn_works() {
-        for (version, extensions) in versioned_fixtures!(valid_extensions) {
+        for (version, extensions) in versioned_fixtures!(@legacy valid_extensions) {
             for code in extensions {
                 let mut results = Vec::new();
                 if version.is_legacy() {
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn no_self_receiver_works() {
-        for (version, extensions) in versioned_fixtures!(valid_extensions) {
+        for (version, extensions) in versioned_fixtures!(@legacy valid_extensions) {
             for code in extensions {
                 let result = if version.is_legacy() {
                     let extension: Extension = parse_first_ink_entity_of_type(quote_as_str! {
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn no_custom_types_or_impl_scale_codec_traits_works() {
-        for (version, extensions) in versioned_fixtures!(valid_extensions) {
+        for (version, extensions) in versioned_fixtures!(@legacy valid_extensions) {
             for code in extensions {
                 let mut results = Vec::new();
                 if version.is_legacy() {
@@ -766,7 +766,7 @@ mod tests {
 
     #[test]
     fn no_ink_descendants_works() {
-        for (version, extensions) in versioned_fixtures!(valid_extensions) {
+        for (version, extensions) in versioned_fixtures!(@legacy valid_extensions) {
             for code in extensions {
                 let mut results = Vec::new();
                 if version.is_legacy() {
@@ -894,7 +894,7 @@ mod tests {
 
     #[test]
     fn compound_diagnostic_works() {
-        for (version, extensions) in versioned_fixtures!(valid_extensions) {
+        for (version, extensions) in versioned_fixtures!(@legacy valid_extensions) {
             for code in extensions {
                 let mut results = Vec::new();
                 if version.is_legacy() {

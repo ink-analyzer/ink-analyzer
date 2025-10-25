@@ -30,7 +30,7 @@ where
         results.push(diagnostic);
     }
 
-    if version == Version::Legacy
+    if version.is_legacy()
         || event
             .ink_attr()
             .is_some_and(|attr| *attr.kind() == InkAttributeKind::Arg(InkArgKind::Event))
@@ -153,7 +153,7 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L251-L257>.
     macro_rules! valid_events {
         () => {
-            valid_events!(v4)
+            valid_events!(v6)
         };
         (v4) => {
             valid_events!([
@@ -203,6 +203,9 @@ mod tests {
                     }
                 })
             )
+        };
+        (v6) => {
+            valid_events!(v5)
         };
         ($attrs: expr) => {
             [quote! {

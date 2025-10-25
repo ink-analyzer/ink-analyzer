@@ -444,7 +444,7 @@ pub fn valid_ink_macros_by_syntax_kind(
 ) -> Vec<InkMacroKind> {
     match syntax_kind {
         SyntaxKind::MODULE | SyntaxKind::MOD_KW => vec![InkMacroKind::Contract],
-        SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW if version.is_legacy() || version.is_v5() => {
+        SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW if version.is_lte_v5() => {
             vec![InkMacroKind::ChainExtension, InkMacroKind::TraitDefinition]
         }
         SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => {

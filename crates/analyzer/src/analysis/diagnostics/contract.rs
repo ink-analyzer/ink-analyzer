@@ -713,10 +713,10 @@ mod tests {
                         pub struct MyContract {}
 
                         impl MyContract {
-                            #[ink(constructor, payable, default, selector=_)]
+                            #[ink(constructor, selector=_)]
                             pub fn new() -> Self {}
 
-                            #[ink(message, payable, default, selector=_)]
+                            #[ink(message, selector=_)]
                             pub fn message(&self) {}
                         }
                     }
@@ -727,35 +727,65 @@ mod tests {
                         pub struct MyContract {}
 
                         impl MyContract {
-                            #[ink(constructor, payable, default)]
+                            #[ink(constructor)]
                             pub fn new() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=_)]
+                            #[ink(constructor, selector=_)]
                             pub fn new2() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=3)]
+                            #[ink(constructor, selector=3)]
                             pub fn new3() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=0x4)]
+                            #[ink(constructor, selector=0x4)]
                             pub fn new4() -> Self {}
 
-                            #[ink(message, payable, default)]
+                            #[ink(message)]
                             pub fn message(&self) {}
 
-                            #[ink(message, payable, default, selector=_)]
+                            #[ink(message, selector=_)]
                             pub fn message2(&self) {}
 
-                            #[ink(message, payable, default, selector=3)]
+                            #[ink(message, selector=3)]
                             pub fn message3(&self) {}
 
-                            #[ink(message, payable, default, selector=0x4)]
+                            #[ink(message, selector=0x4)]
                             pub fn message4(&self) {}
                         }
                     }
                 },
             ]
+            .into_iter()
+            .chain(valid_contracts_versioned!(@lte v5))
         };
         (v5) => {
+            valid_contracts_versioned!(@lte v5)
+            .into_iter()
+            .chain(valid_contracts_versioned!(@gte v5))
+        };
+        (v6) => {
+            valid_contracts_versioned!(@gte v5)
+        };
+        (@lte v5) => {
+            [
+                // Since ink! >= 6.x, immutable messages cannot be payable.
+                // Ref: <https://github.com/use-ink/ink/pull/2535>.
+                quote! {
+                    mod my_contract {
+                        #[ink(storage)]
+                        pub struct MyContract {}
+
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message, payable)]
+                            pub fn message(&self) {}
+                        }
+                    }
+                },
+            ]
+        };
+        (@gte v5) => {
             [
                 quote! {
                     mod my_contract {
@@ -763,13 +793,13 @@ mod tests {
                         pub struct MyContract {}
 
                         impl MyContract {
-                            #[ink(constructor, payable, default, selector=_)]
+                            #[ink(constructor, selector=_)]
                             pub fn new() -> Self {}
 
-                            #[ink(message, payable, default, selector=_)]
+                            #[ink(message, selector=_)]
                             pub fn fallback(&self) {}
 
-                            #[ink(message, payable, default, selector=@)]
+                            #[ink(message, selector=@)]
                             pub fn handler(&self) {}
                         }
                     }
@@ -780,16 +810,16 @@ mod tests {
                         pub struct MyContract {}
 
                         impl MyContract {
-                            #[ink(constructor, payable, default, selector=_)]
+                            #[ink(constructor, selector=_)]
                             pub fn new() -> Self {}
 
-                            #[ink(message, payable, default, selector=_)]
+                            #[ink(message, selector=_)]
                             pub fn fallback(&self) {}
 
                             // Uses `IIP2_WILDCARD_COMPLEMENT_SELECTOR` directly
                             // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/prelude/src/lib.rs#L34-L38>
                             // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/item_mod.rs#L978-L1000>
-                            #[ink(message, payable, default, selector=0x9BAE9D5E)]
+                            #[ink(message, selector=0x9BAE9D5E)]
                             pub fn handler(&self) {}
                         }
                     }
@@ -800,22 +830,22 @@ mod tests {
                         pub struct MyContract {}
 
                         impl MyContract {
-                            #[ink(constructor, payable, default)]
+                            #[ink(constructor)]
                             pub fn new() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=_)]
+                            #[ink(constructor, selector=_)]
                             pub fn new2() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=3)]
+                            #[ink(constructor, selector=3)]
                             pub fn new3() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=0x4)]
+                            #[ink(constructor, selector=0x4)]
                             pub fn new4() -> Self {}
 
-                            #[ink(message, payable, default, selector=_)]
+                            #[ink(message, selector=_)]
                             pub fn fallback(&self) {}
 
-                            #[ink(message, payable, default, selector=@)]
+                            #[ink(message, selector=@)]
                             pub fn handler(&self) {}
                         }
                     }
@@ -825,7 +855,7 @@ mod tests {
     }
     macro_rules! valid_contracts {
         () => {
-            valid_contracts!(v4)
+            valid_contracts!(v6)
         };
         ($version: tt) => {
             [
@@ -878,8 +908,11 @@ mod tests {
                             #[ink(constructor, payable, default, selector=1)]
                             pub fn new() -> Self {}
 
-                            #[ink(message, payable, default, selector=1)]
+                            #[ink(message, default, selector=1)]
                             pub fn minimal_message(&self) {}
+
+                            #[ink(message, payable, selector=2)]
+                            pub fn payble_message(&mut self) {}
                         }
                     }
                 },
@@ -898,8 +931,11 @@ mod tests {
                             #[ink(constructor, payable, default, selector=0x1)]
                             pub fn new() -> Self {}
 
-                            #[ink(message, payable, default, selector=0x1)]
+                            #[ink(message, default, selector=0x1)]
                             pub fn minimal_message(&self) {}
+
+                            #[ink(message, payable, selector=0x2)]
+                            pub fn payble_message(&mut self) {}
                         }
                     }
                 },
@@ -921,14 +957,14 @@ mod tests {
                             #[ink(constructor, payable, default, selector=1)]
                             pub fn new() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=2)]
+                            #[ink(constructor, payable, selector=2)]
                             pub fn new2() -> Self {}
 
-                            #[ink(message, payable, default, selector=1)]
+                            #[ink(message, default, selector=1)]
                             pub fn minimal_message(&self) {}
 
-                            #[ink(message, payable, default, selector=2)]
-                            pub fn minimal_message2(&self) {}
+                            #[ink(message, payable, selector=2)]
+                            pub fn minimal_message2(&mut self) {}
                         }
                     }
                 },
@@ -947,14 +983,14 @@ mod tests {
                             #[ink(constructor, payable, default, selector=0x1)]
                             pub fn new() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=0x2)]
+                            #[ink(constructor, payable, selector=0x2)]
                             pub fn new2() -> Self {}
 
-                            #[ink(message, payable, default, selector=0x1)]
+                            #[ink(message, default, selector=0x1)]
                             pub fn minimal_message(&self) {}
 
-                            #[ink(message, payable, default, selector=0x2)]
-                            pub fn minimal_message2(&self) {}
+                            #[ink(message, payable, selector=0x2)]
+                            pub fn minimal_message2(&mut self) {}
                         }
                     }
                 },
@@ -974,77 +1010,68 @@ mod tests {
                             #[ink(constructor, payable, default)]
                             pub fn new() -> Self {}
 
-                            #[ink(message, payable, default)]
-                            pub fn minimal_message(&self) {}
-
-                            #[ink(constructor, payable, default)]
+                            #[ink(constructor, payable)]
                             pub fn new2() -> Self {}
 
-                            #[ink(message, payable, default)]
-                            pub fn minimal_message2(&self) {}
-
-                            #[ink(constructor, payable, default, selector=3)]
+                            #[ink(constructor, payable, selector=3)]
                             pub fn new3() -> Self {}
 
-                            #[ink(constructor, payable, default, selector=0x4)]
+                            #[ink(constructor, payable, selector=0x4)]
                             pub fn new4() -> Self {}
 
-                            #[ink(message, payable, default, selector=3)]
+                            #[ink(message, default)]
+                            pub fn minimal_message(&self) {}
+
+                            #[ink(message, payable)]
+                            pub fn minimal_message2(&mut self) {}
+
+                            #[ink(message, selector=3)]
                             pub fn minimal_message3(&self) {}
 
-                            #[ink(message, payable, default, selector=0x4)]
-                            pub fn minimal_message4(&self) {}
+                            #[ink(message, payable, selector=0x4)]
+                            pub fn minimal_message4(&mut self) {}
                         }
 
                         impl MyTrait for Minimal {
-                            #[ink(constructor, payable, default)]
-                            fn new5() -> Self {}
-
-                            #[ink(message, payable, default)]
+                            #[ink(message)]
                             fn minimal_message5(&self) {}
                         }
 
                         impl ::my_full::long_path::MyTrait for Minimal {
-                            #[ink(constructor, payable, default)]
-                            fn new6() -> Self {}
-
-                            #[ink(message, payable, default)]
-                            fn minimal_message6(&self) {}
+                            #[ink(message, payable)]
+                            fn minimal_message6(&mut self) {}
                         }
 
                         impl relative_path::MyTrait for Minimal {
-                            #[ink(constructor, payable, default)]
-                            fn new7() -> Self {}
-
-                            #[ink(message, payable, default)]
+                            #[ink(message)]
                             fn minimal_message7(&self) {}
                         }
 
                         #[ink(namespace="my_namespace")]
                         impl Minimal {
-                            #[ink(constructor, payable, default)]
+                            #[ink(constructor)]
                             pub fn new8() -> Self {}
 
-                            #[ink(message, payable, default)]
+                            #[ink(message)]
                             pub fn minimal_message8(&self) {}
                         }
 
                         #[ink(impl)]
                         impl Minimal {
-                            #[ink(constructor, payable, default)]
+                            #[ink(constructor)]
                             pub fn new9() -> Self {}
 
-                            #[ink(message, payable, default)]
+                            #[ink(message)]
                             pub fn minimal_message9(&self) {}
                         }
 
                         #[ink(impl, namespace="my_namespace")]
                         impl Minimal {
-                            #[ink(constructor, payable, default)]
+                            #[ink(constructor)]
                             pub fn new10() -> Self {}
 
-                            #[ink(message, payable, default)]
-                            pub fn minimal_message10(&self) {}
+                            #[ink(message, payable)]
+                            pub fn minimal_message10(&mut self) {}
                         }
 
                         // An ink! impl with no ink! constructors or ink! messages is valid
@@ -1592,7 +1619,7 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_mod.rs#L883-L902>.
     fn one_or_no_wildcard_selectors_works() {
         for code in valid_contracts!() {
-            // At most one wildcard is allowed for each group i.e there can be messages and constructors
+            // At most one wildcard is allowed for each group i.e. there can be messages and constructors
             let contract = parse_first_contract(quote_as_str! {
                 #code
             });
@@ -1671,8 +1698,8 @@ mod tests {
     // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/item_mod.rs#L978-L1000>
     // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/item_mod.rs#L1002-L1024>
     fn valid_wildcard_complement_selectors_works() {
-        for code in valid_contracts!(v5) {
-            // At most one wildcard is allowed for each group i.e there can be messages and constructors
+        for code in valid_contracts!() {
+            // At most one wildcard is allowed for each group i.e. there can be messages and constructors
             let contract = parse_first_contract(quote_as_str! {
                 #code
             });

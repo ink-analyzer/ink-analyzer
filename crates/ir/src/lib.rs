@@ -146,27 +146,32 @@ impl Version {
         matches!(self, Version::V5(..))
     }
 
-    /// Returns true if `version >= 6.x.x`
+    /// Returns true if `version == 6.x.x`
     pub fn is_v6(&self) -> bool {
         *self == Version::V6
     }
 
-    /// Returns true if `version >= 5.1.x`
+    /// Returns true if `version <= 5`
+    pub fn is_lte_v5(&self) -> bool {
+        matches!(self, Version::Legacy | Version::V5(..))
+    }
+
+    /// Returns true if `version >= 5`
     pub fn is_gte_v5(&self) -> bool {
         matches!(self, Version::V5(..) | Version::V6)
     }
 
     /// Returns true if `version == 5.0.x`
-    pub fn is_v5_0_x(&self) -> bool {
+    pub fn is_v5_0(&self) -> bool {
         *self == Version::V5(MinorVersion::Base)
     }
 
-    /// Returns true if `version >= 5.1.x`
+    /// Returns true if `version >= 5.1`
     pub fn is_gte_v5_1(&self) -> bool {
         matches!(self, Version::V5(MinorVersion::Latest) | Version::V6)
     }
 
-    /// Returns true if `version >= 5.1.x`
+    /// Returns true if `version >= 6`
     pub fn is_gte_v6(&self) -> bool {
         self.is_v6()
     }

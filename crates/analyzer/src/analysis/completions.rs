@@ -918,7 +918,7 @@ pub fn entity_completions(
             });
         }
 
-        if version.is_legacy() || version.is_v5() {
+        if version.is_lte_v5() {
             // Adds ink! chain extension.
             if is_line_affix_of(&["trait", "chain", "extension", "chain_extension"]) {
                 results.push(Completion {
@@ -1142,7 +1142,7 @@ mod tests {
                 "#,
                     Some("["),
                     vec![
-                        if version.is_legacy() || version.is_v5() {
+                        if version.is_lte_v5() {
                             ("ink::chain_extension", Some("["), Some("<-]"))
                         } else {
                             ("ink::contract_ref", Some("["), Some("<-]"))
@@ -1157,7 +1157,7 @@ mod tests {
                 "#,
                     Some("i"),
                     vec![
-                        if version.is_legacy() || version.is_v5() {
+                        if version.is_lte_v5() {
                             ("ink::chain_extension", Some("<-i"), Some("i"))
                         } else {
                             ("ink::contract_ref", Some("<-i"), Some("i"))
@@ -1172,7 +1172,7 @@ mod tests {
                 "#,
                     Some("i"),
                     vec![
-                        if version.is_legacy() || version.is_v5() {
+                        if version.is_lte_v5() {
                             ("ink::chain_extension", Some("<-ink"), Some("ink"))
                         } else {
                             ("ink::contract_ref", Some("<-ink"), Some("ink"))
@@ -1187,7 +1187,7 @@ mod tests {
                 "#,
                     Some("::"),
                     vec![
-                        if version.is_legacy() || version.is_v5() {
+                        if version.is_lte_v5() {
                             ("::chain_extension", Some("<-:"), Some("<-]"))
                         } else {
                             ("::contract_ref", Some("<-:"), Some("<-]"))
@@ -1201,7 +1201,7 @@ mod tests {
                     trait MyTrait {}
                 "#,
                     Some(":c"),
-                    if version.is_legacy() || version.is_v5() {
+                    if version.is_lte_v5() {
                         vec![("chain_extension", Some("::"), Some("<-]"))]
                     } else {
                         vec![("contract_ref", Some("::"), Some("<-]"))]
@@ -2267,7 +2267,7 @@ pub mod contract1 {
                 (
                     "trait",
                     Some("trait"),
-                    if version.is_legacy() || version.is_v5() {
+                    if version.is_lte_v5() {
                         vec![
                             ("#[ink::trait_definition]", Some("<-trait"), Some("trait")),
                             ("#[ink::chain_extension", Some("<-trait"), Some("trait")),
@@ -2288,7 +2288,7 @@ pub mod contract1 {
                 (
                     "chain",
                     Some("chain"),
-                    if version.is_legacy() || version.is_v5() {
+                    if version.is_lte_v5() {
                         vec![("#[ink::chain_extension", Some("<-chain"), Some("chain"))]
                     } else {
                         vec![]
@@ -2329,7 +2329,7 @@ pub trait MyTrait {
 
 trait",
                     Some("trait->"),
-                    if version.is_legacy() || version.is_v5() {
+                    if version.is_lte_v5() {
                         vec![
                             (
                                 "#[ink::trait_definition]",
@@ -2355,7 +2355,7 @@ pub trait MyTrait1 {
 
 trait MyTrait2",
                     Some("MyTrait2"),
-                    if version.is_legacy() || version.is_v5() {
+                    if version.is_lte_v5() {
                         vec![
                             (
                                 "#[ink::trait_definition]",
@@ -2385,7 +2385,7 @@ pub trait MyTrait {
 
 }",
                     Some("trait"),
-                    if version.is_legacy() || version.is_v5() {
+                    if version.is_lte_v5() {
                         vec![
                             ("#[ink::trait_definition]", Some("<-trait"), Some("trait")),
                             ("#[ink::chain_extension", Some("<-trait"), Some("trait")),
@@ -2403,7 +2403,7 @@ pub trait MyTrait2 {
 
 }",
                     Some("MyTrait1"),
-                    if version.is_legacy() || version.is_v5() {
+                    if version.is_lte_v5() {
                         vec![
                             (
                                 "#[ink::trait_definition]",
@@ -2429,7 +2429,7 @@ pub trait MyChainExtension {
 
 trait",
                     Some("trait->"),
-                    if version.is_legacy() || version.is_v5() {
+                    if version.is_lte_v5() {
                         vec![
                             (
                                 "#[ink::trait_definition]",
