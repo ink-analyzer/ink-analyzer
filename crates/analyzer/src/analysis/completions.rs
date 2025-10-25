@@ -422,6 +422,7 @@ pub fn argument_completions(
                                             InkArgKind::Event,
                                             InkArgKind::Impl,
                                             InkArgKind::Message,
+                                            InkArgKind::Name,
                                             InkArgKind::Namespace,
                                             InkArgKind::Payable,
                                             InkArgKind::Selector,
@@ -1349,14 +1350,6 @@ mod tests {
     fn argument_completions_works() {
         let fixtures_gte_v5 = vec![
             (
-                "#[ink::event(",
-                Some("("),
-                vec![
-                    ("anonymous", Some("("), Some("(")),
-                    (r#"signature_topic="""#, Some("("), Some("(")),
-                ],
-            ),
-            (
                 "#[ink::scale_derive(",
                 Some("("),
                 vec![
@@ -1425,6 +1418,14 @@ mod tests {
                 )],
             ),
         ];
+        let fixtures_v5_only = vec![(
+            "#[ink::event(",
+            Some("("),
+            vec![
+                ("anonymous", Some("("), Some("(")),
+                (r#"signature_topic="""#, Some("("), Some("(")),
+            ],
+        )];
         for (
             version,
             standalone_args,
@@ -1576,6 +1577,7 @@ mod tests {
                     ),
                 ]
                 .into_iter()
+                .chain(fixtures_v5_only.clone())
                 .chain(fixtures_gte_v5.clone())
                 .collect(),
             ),
@@ -1638,6 +1640,7 @@ mod tests {
                     vec![("function=2", Some("#[ink(->"), Some("#[ink(fun->"))],
                 )]
                 .into_iter()
+                .chain(fixtures_v5_only)
                 .chain(fixtures_gte_v5.clone())
                 .chain(fixtures_gte_v5_1.clone())
                 .collect(),
@@ -1651,6 +1654,7 @@ mod tests {
                     "event",
                     "impl",
                     "message",
+                    r#"name="name""#,
                     r#"namespace="my_namespace""#,
                     "payable",
                     "selector=1",
@@ -1665,21 +1669,44 @@ mod tests {
                     "event",
                     "impl",
                     "message",
+                    r#"name="name""#,
                     r#"namespace="my_namespace""#,
                     "payable",
                     "selector=1",
                     r#"signature_topic="""#,
                     "storage",
                 ],
-                vec!["anonymous", "event", r#"signature_topic="""#, "storage"],
-                vec!["constructor", "default", "message", "payable", "selector=1"],
-                vec!["anonymous", r#"signature_topic="""#],
+                vec![
+                    "anonymous",
+                    "event",
+                    r#"name="name""#,
+                    r#"signature_topic="""#,
+                    "storage",
+                ],
+                vec![
+                    "constructor",
+                    "default",
+                    "message",
+                    r#"name="name""#,
+                    "payable",
+                    "selector=1",
+                ],
+                vec!["anonymous", r#"name="name""#, r#"signature_topic="""#],
                 vec![],
                 vec!["backend(node)", "environment=ink::env::DefaultEnvironment"],
-                fixtures_gte_v5
-                    .into_iter()
-                    .chain(fixtures_gte_v5_1)
-                    .collect(),
+                [(
+                    "#[ink::event(",
+                    Some("("),
+                    vec![
+                        ("anonymous", Some("("), Some("(")),
+                        (r#"name="name""#, Some("("), Some("(")),
+                        (r#"signature_topic="""#, Some("("), Some("(")),
+                    ],
+                )]
+                .into_iter()
+                .chain(fixtures_gte_v5)
+                .chain(fixtures_gte_v5_1)
+                .collect(),
             ),
         ] {
             for (code, pat, expected_results) in [
@@ -1758,20 +1785,38 @@ mod tests {
                 (
                     "#[ink(constructor,",
                     None,
-                    vec![
-                        ("default", Some(","), Some(",")),
-                        ("payable", Some(","), Some(",")),
-                        ("selector=1", Some(","), Some(",")),
-                    ],
+                    if version.is_lte_v5() {
+                        vec![
+                            ("default", Some(","), Some(",")),
+                            ("payable", Some(","), Some(",")),
+                            ("selector=1", Some(","), Some(",")),
+                        ]
+                    } else {
+                        vec![
+                            ("default", Some(","), Some(",")),
+                            (r#"name="name""#, Some(","), Some(",")),
+                            ("payable", Some(","), Some(",")),
+                            ("selector=1", Some(","), Some(",")),
+                        ]
+                    },
                 ),
                 (
                     "#[ink(message,",
                     None,
-                    vec![
-                        ("default", Some(","), Some(",")),
-                        ("payable", Some(","), Some(",")),
-                        ("selector=1", Some(","), Some(",")),
-                    ],
+                    if version.is_lte_v5() {
+                        vec![
+                            ("default", Some(","), Some(",")),
+                            ("payable", Some(","), Some(",")),
+                            ("selector=1", Some(","), Some(",")),
+                        ]
+                    } else {
+                        vec![
+                            ("default", Some(","), Some(",")),
+                            (r#"name="name""#, Some(","), Some(",")),
+                            ("payable", Some(","), Some(",")),
+                            ("selector=1", Some(","), Some(",")),
+                        ]
+                    },
                 ),
                 (
                     "#[ink(extension = 1,",
@@ -1916,11 +1961,20 @@ mod tests {
                         pub fn my_fn() {}
                     "#,
                     Some("ink(->"),
-                    vec![
-                        ("default", Some("ink(->"), Some("ink(->")),
-                        ("payable", Some("ink(->"), Some("ink(->")),
-                        ("selector=1", Some("ink(->"), Some("ink(->")),
-                    ],
+                    if version.is_lte_v5() {
+                        vec![
+                            ("default", Some("ink(->"), Some("ink(->")),
+                            ("payable", Some("ink(->"), Some("ink(->")),
+                            ("selector=1", Some("ink(->"), Some("ink(->")),
+                        ]
+                    } else {
+                        vec![
+                            ("default", Some("ink(->"), Some("ink(->")),
+                            (r#"name="name""#, Some("ink(->"), Some("ink(->")),
+                            ("payable", Some("ink(->"), Some("ink(->")),
+                            ("selector=1", Some("ink(->"), Some("ink(->")),
+                        ]
+                    },
                 ),
                 // Impl context.
                 (
@@ -1992,13 +2046,24 @@ mod tests {
                         }
                     "#,
                     Some("("),
-                    vec![
-                        ("constructor", Some("("), Some("(")),
-                        ("default", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector=1", Some("("), Some("(")),
-                    ],
+                    if version.is_lte_v5() {
+                        vec![
+                            ("constructor", Some("("), Some("(")),
+                            ("default", Some("("), Some("(")),
+                            ("message", Some("("), Some("(")),
+                            ("payable", Some("("), Some("(")),
+                            ("selector=1", Some("("), Some("(")),
+                        ]
+                    } else {
+                        vec![
+                            ("constructor", Some("("), Some("(")),
+                            ("default", Some("("), Some("(")),
+                            ("message", Some("("), Some("(")),
+                            (r#"name="name""#, Some("("), Some("(")),
+                            ("payable", Some("("), Some("(")),
+                            ("selector=1", Some("("), Some("(")),
+                        ]
+                    },
                 ),
                 // Chain extension scope.
                 (
@@ -2031,12 +2096,22 @@ mod tests {
                         }
                     "#,
                     Some("("),
-                    vec![
-                        ("default", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector=1", Some("("), Some("(")),
-                    ],
+                    if version.is_lte_v5() {
+                        vec![
+                            ("default", Some("("), Some("(")),
+                            ("message", Some("("), Some("(")),
+                            ("payable", Some("("), Some("(")),
+                            ("selector=1", Some("("), Some("(")),
+                        ]
+                    } else {
+                        vec![
+                            ("default", Some("("), Some("(")),
+                            ("message", Some("("), Some("(")),
+                            (r#"name="name""#, Some("("), Some("(")),
+                            ("payable", Some("("), Some("(")),
+                            ("selector=1", Some("("), Some("(")),
+                        ]
+                    },
                 ),
                 (
                     r#"
@@ -2047,12 +2122,22 @@ mod tests {
                         }
                     "#,
                     Some("("),
-                    vec![
-                        ("default", Some("("), Some("(")),
-                        ("message", Some("("), Some("(")),
-                        ("payable", Some("("), Some("(")),
-                        ("selector=1", Some("("), Some("(")),
-                    ],
+                    if version.is_lte_v5() {
+                        vec![
+                            ("default", Some("("), Some("(")),
+                            ("message", Some("("), Some("(")),
+                            ("payable", Some("("), Some("(")),
+                            ("selector=1", Some("("), Some("(")),
+                        ]
+                    } else {
+                        vec![
+                            ("default", Some("("), Some("(")),
+                            ("message", Some("("), Some("(")),
+                            (r#"name="name""#, Some("("), Some("(")),
+                            ("payable", Some("("), Some("(")),
+                            ("selector=1", Some("("), Some("(")),
+                        ]
+                    },
                 ),
                 // Unique ids.
                 (

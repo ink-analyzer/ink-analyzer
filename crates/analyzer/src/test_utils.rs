@@ -120,3 +120,34 @@ pub fn parse_source(code: &str) -> SourceFile {
     // TODO: Do we need an edition args?
     SourceFile::parse(code, Edition::Edition2021).tree()
 }
+
+macro_rules! prepend_migrate {
+    ($version: expr, $list: expr) => {
+        if $version.is_legacy() {
+            vec![TestResultAction {
+                label: "Migrate",
+                edits: vec![],
+            }]
+        } else {
+            vec![]
+        }
+        .into_iter()
+        .chain($list)
+        .collect::<Vec<TestResultAction>>()
+    };
+    ($list: expr) => {
+        prepend_migrate!(Version::Legacy, $list)
+    };
+    () => {
+        vec![TestResultAction {
+            label: "Migrate",
+            edits: vec![],
+        }]
+    };
+}
+
+macro_rules! chain_results {
+    ($start: expr $(, $other: expr)+ $(,)?) => {
+        $start.into_iter()$(.chain($other))*.collect::<Vec<TestResultAction>>()
+    };
+}

@@ -43,8 +43,15 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/event/mod.rs#L129-L141>
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>
                 // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
-                InkMacroKind::Event if version.is_gte_v5() => {
+                InkMacroKind::Event if version.is_v5() => {
                     vec![InkArgKind::Anonymous, InkArgKind::SignatureTopic]
+                }
+                InkMacroKind::Event if version.is_gte_v6() => {
+                    vec![
+                        InkArgKind::Anonymous,
+                        InkArgKind::Name,
+                        InkArgKind::SignatureTopic,
+                    ]
                 }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L772-L799>.
@@ -85,32 +92,57 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/event/mod.rs#L129-L141>
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item/event.rs#L88-L98>.
                 InkArgKind::Event if version.is_legacy() => vec![InkArgKind::Anonymous],
-                InkArgKind::Event => {
+                InkArgKind::Event if version.is_v5() => {
                     vec![InkArgKind::Anonymous, InkArgKind::SignatureTopic]
                 }
-                InkArgKind::SignatureTopic if version.is_gte_v5() => {
+                InkArgKind::Event => {
+                    vec![
+                        InkArgKind::Anonymous,
+                        InkArgKind::Name,
+                        InkArgKind::SignatureTopic,
+                    ]
+                }
+                InkArgKind::SignatureTopic if version.is_v5() => {
                     vec![InkArgKind::Event]
                 }
-                InkArgKind::Anonymous => vec![InkArgKind::Event],
+                InkArgKind::SignatureTopic if version.is_gte_v6() => {
+                    vec![InkArgKind::Event, InkArgKind::Name]
+                }
+                InkArgKind::Anonymous if version.is_lte_v5() => {
+                    vec![InkArgKind::Event]
+                }
+                InkArgKind::Anonymous => vec![InkArgKind::Event, InkArgKind::Name],
                 InkArgKind::Topic => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L301-L315>.
                 InkArgKind::Impl => vec![InkArgKind::Namespace],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L136-L148>.
                 // Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/constructor.rs#L136-L149>.
+                // NOTE: While ink! docs "claim" that "ink! constructors are always implicitly payable and thus cannot be flagged as such",
+                // Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L316-L317>,
+                // the `ink_ir` crate currently accepts `payable` annotations for ink! constructors,
+                // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L143>,
+                // so we follow the implementation (not the documentation) and thus allow `payable` annotations for ink! constructors.
+                InkArgKind::Constructor if version.is_lte_v5() => vec![
+                    InkArgKind::Default,
+                    InkArgKind::Payable,
+                    InkArgKind::Selector,
+                ],
                 InkArgKind::Constructor => vec![
                     InkArgKind::Default,
-                    // NOTE: While ink! docs "claim" that "ink! constructors are always implicitly payable and thus cannot be flagged as such",
-                    // Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L316-L317>,
-                    // the `ink_ir` crate currently accepts `payable` annotations for ink! constructors,
-                    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/constructor.rs#L143>,
-                    // so we follow the implementation (not the documentation) and thus allow `payable` annotations for ink! constructors.
+                    InkArgKind::Name,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
                 ],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/message.rs#L182-L194>.
                 // Ref: <https://github.com/paritytech/ink/blob/master/crates/ink/ir/src/ir/item_impl/message.rs#L182-L195>.
+                InkArgKind::Message if version.is_lte_v5() => vec![
+                    InkArgKind::Default,
+                    InkArgKind::Payable,
+                    InkArgKind::Selector,
+                ],
                 InkArgKind::Message => vec![
                     InkArgKind::Default,
+                    InkArgKind::Name,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
                 ],
@@ -125,6 +157,7 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 InkArgKind::Function if version.is_v5() => {
                     vec![InkArgKind::HandleStatus]
                 }
+                InkArgKind::Function => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
                 InkArgKind::Derive => Vec::new(),
 
@@ -132,6 +165,12 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // `keep_attr` is ambiguous because it can be used with both `contract` and `trait_definition` macros.
                 // See `contract`, `trait_definition` and `env` patterns above for references.
                 InkArgKind::KeepAttr => vec![InkArgKind::Env, InkArgKind::Namespace],
+                // `name` is ambiguous because it can be used with `message`, `constructor` and `event`.
+                InkArgKind::Name if version.is_gte_v6() => vec![
+                    InkArgKind::Constructor,
+                    InkArgKind::Event,
+                    InkArgKind::Message,
+                ],
                 // Similar to `keep_attr` above, `namespace` can be used with
                 // `trait_definition` macro and `impl` argument.
                 // But additionally, it can also be a standalone argument on an `impl` block as long as it's not a trait `impl` block.
@@ -142,23 +181,45 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 InkArgKind::HandleStatus if version.is_legacy() => vec![InkArgKind::Extension],
                 // See `function` pattern above for references.
                 InkArgKind::HandleStatus if version.is_v5() => vec![InkArgKind::Function],
+                InkArgKind::HandleStatus => Vec::new(),
                 // See `constructor` and `message` patterns above for references.
-                InkArgKind::Payable => vec![
+                InkArgKind::Payable if version.is_lte_v5() => vec![
                     InkArgKind::Constructor,
                     InkArgKind::Default,
                     InkArgKind::Message,
                     InkArgKind::Selector,
                 ],
-                InkArgKind::Default => vec![
+                InkArgKind::Payable => vec![
+                    InkArgKind::Constructor,
+                    InkArgKind::Default,
+                    InkArgKind::Name,
+                    InkArgKind::Message,
+                    InkArgKind::Selector,
+                ],
+                InkArgKind::Default if version.is_lte_v5() => vec![
                     InkArgKind::Constructor,
                     InkArgKind::Message,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
                 ],
+                InkArgKind::Default => vec![
+                    InkArgKind::Constructor,
+                    InkArgKind::Message,
+                    InkArgKind::Name,
+                    InkArgKind::Payable,
+                    InkArgKind::Selector,
+                ],
+                InkArgKind::Selector if version.is_lte_v5() => vec![
+                    InkArgKind::Constructor,
+                    InkArgKind::Default,
+                    InkArgKind::Message,
+                    InkArgKind::Payable,
+                ],
                 InkArgKind::Selector => vec![
                     InkArgKind::Constructor,
                     InkArgKind::Default,
                     InkArgKind::Message,
+                    InkArgKind::Name,
                     InkArgKind::Payable,
                 ],
                 _ => Vec::new(),
@@ -206,6 +267,19 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::Selector,
                     InkArgKind::Storage,
                 ],
+                InkMacroKind::Contract if version.is_v5() => vec![
+                    InkArgKind::Anonymous,
+                    InkArgKind::Constructor,
+                    InkArgKind::Default,
+                    InkArgKind::Event,
+                    InkArgKind::Impl,
+                    InkArgKind::Message,
+                    InkArgKind::Namespace,
+                    InkArgKind::Payable,
+                    InkArgKind::Selector,
+                    InkArgKind::SignatureTopic,
+                    InkArgKind::Storage,
+                ],
                 InkMacroKind::Contract => vec![
                     InkArgKind::Anonymous,
                     InkArgKind::Constructor,
@@ -213,6 +287,7 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::Event,
                     InkArgKind::Impl,
                     InkArgKind::Message,
+                    InkArgKind::Name,
                     InkArgKind::Namespace,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
@@ -228,9 +303,16 @@ pub fn valid_quasi_direct_descendant_ink_args(
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L163-L164>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L290-L296>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L597-L643>.
+                InkMacroKind::TraitDefinition if version.is_lte_v5() => vec![
+                    InkArgKind::Default,
+                    InkArgKind::Message,
+                    InkArgKind::Payable,
+                    InkArgKind::Selector,
+                ],
                 InkMacroKind::TraitDefinition => vec![
                     InkArgKind::Default,
                     InkArgKind::Message,
+                    InkArgKind::Name,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
                 ],
@@ -254,6 +336,20 @@ pub fn valid_quasi_direct_descendant_ink_args(
                 // `env` is used with the `contract` macro while `keep_attr` is ambiguous because
                 // it can be used with both `contract` and `trait_definition` macro.
                 // See `contract`, `trait_definition` patterns above for references.
+                InkArgKind::Env | InkArgKind::KeepAttr if version.is_lte_v5() => {
+                    vec![
+                        InkArgKind::Anonymous,
+                        InkArgKind::Constructor,
+                        InkArgKind::Default,
+                        InkArgKind::Event,
+                        InkArgKind::Impl,
+                        InkArgKind::Message,
+                        InkArgKind::Namespace,
+                        InkArgKind::Payable,
+                        InkArgKind::Selector,
+                        InkArgKind::Storage,
+                    ]
+                }
                 InkArgKind::Env | InkArgKind::KeepAttr => vec![
                     InkArgKind::Anonymous,
                     InkArgKind::Constructor,
@@ -261,6 +357,7 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::Event,
                     InkArgKind::Impl,
                     InkArgKind::Message,
+                    InkArgKind::Name,
                     InkArgKind::Namespace,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
@@ -272,13 +369,26 @@ pub fn valid_quasi_direct_descendant_ink_args(
                 // But additionally, `namespace` can also be a standalone argument on an `impl` block as long as it's not a trait `impl` block.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L316-L321>.
                 // See `trait_definition` patterns above for more `namespace` references.
+                InkArgKind::Impl | InkArgKind::Namespace if version.is_lte_v5() => {
+                    vec![
+                        InkArgKind::Constructor,
+                        InkArgKind::Default,
+                        InkArgKind::Message,
+                        InkArgKind::Payable,
+                        InkArgKind::Selector,
+                    ]
+                }
                 InkArgKind::Impl | InkArgKind::Namespace => vec![
                     InkArgKind::Constructor,
                     InkArgKind::Default,
                     InkArgKind::Message,
+                    InkArgKind::Name,
                     InkArgKind::Payable,
                     InkArgKind::Selector,
                 ],
+                // `name` is ambiguous because it can be used with `message`, `constructor` and `event`.
+                // This particular suggestion is for events.
+                InkArgKind::Name if version.is_gte_v6() => vec![InkArgKind::Topic],
                 // All other ink! attribute arguments can't have ink! descendants.
                 _ => Vec::new(),
             }
@@ -394,9 +504,16 @@ pub fn valid_ink_args_by_syntax_kind(syntax_kind: SyntaxKind, version: Version) 
             InkArgKind::Event,
             InkArgKind::Storage,
         ],
+        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW if version.is_v5() => vec![
+            InkArgKind::Anonymous,
+            InkArgKind::Event,
+            InkArgKind::SignatureTopic,
+            InkArgKind::Storage,
+        ],
         SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW => vec![
             InkArgKind::Anonymous,
             InkArgKind::Event,
+            InkArgKind::Name,
             InkArgKind::SignatureTopic,
             InkArgKind::Storage,
         ],
@@ -426,6 +543,7 @@ pub fn valid_ink_args_by_syntax_kind(syntax_kind: SyntaxKind, version: Version) 
             InkArgKind::Constructor,
             InkArgKind::Default,
             InkArgKind::Message,
+            InkArgKind::Name,
             InkArgKind::Payable,
             InkArgKind::Selector,
         ],
@@ -541,6 +659,10 @@ pub fn primary_ink_attribute_kind_suggestions(
                 {
                     vec![InkAttributeKind::Macro(InkMacroKind::ScaleDerive)]
                 }
+                InkArgKind::Default | InkArgKind::Payable | InkArgKind::Selector => vec![
+                    InkAttributeKind::Arg(InkArgKind::Constructor),
+                    InkAttributeKind::Arg(InkArgKind::Message),
+                ],
                 InkArgKind::Environment => {
                     vec![InkAttributeKind::Macro(InkMacroKind::E2ETest)]
                 }
@@ -560,8 +682,10 @@ pub fn primary_ink_attribute_kind_suggestions(
                     InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
                     InkAttributeKind::Arg(InkArgKind::Impl),
                 ],
-                InkArgKind::Payable | InkArgKind::Default | InkArgKind::Selector => vec![
+                InkArgKind::Name if version.is_gte_v6() => vec![
                     InkAttributeKind::Arg(InkArgKind::Constructor),
+                    InkAttributeKind::Macro(InkMacroKind::Event),
+                    InkAttributeKind::Arg(InkArgKind::Event),
                     InkAttributeKind::Arg(InkArgKind::Message),
                 ],
                 InkArgKind::SignatureTopic if version.is_gte_v5() => {
@@ -948,6 +1072,7 @@ pub fn ink_arg_insert_text(
                 let id = suggest_unique_id(None, &unavailable_ids).unwrap_or(1);
                 (format!("{id}"), format!("${{1:{id}}}"))
             }
+            InkArgKind::Name => (r#""name""#.to_owned(), r#""${1:name}""#.to_owned()),
             InkArgKind::Namespace => (
                 r#""my_namespace""#.to_owned(),
                 r#""${1:my_namespace}""#.to_owned(),

@@ -273,6 +273,26 @@ mod tests {
             (
                 Version::V6,
                 [
+                    (
+                        r#"#[ink(message, name="name")]"#,
+                        None,
+                        vec![("&str", Some("name"), (Some("<-name"), Some("name")))],
+                    ),
+                    (
+                        r#"#[ink(constructor, name="name")]"#,
+                        None,
+                        vec![("&str", Some("name"), (Some("<-name"), Some("name")))],
+                    ),
+                    (
+                        r#"#[ink::event(name="name")]"#,
+                        None,
+                        vec![("&str", Some("name"), (Some("<-name"), Some("name")))],
+                    ),
+                    (
+                        r#"#[ink(event, name="name")]"#,
+                        None,
+                        vec![("&str", Some("name"), (Some("<-name"), Some("name")))],
+                    ),
                     ("#[ink::chain_extension(extension=1)]", None, vec![]),
                     ("#[ink(function=1, handle_status=true)]", None, vec![]),
                 ]

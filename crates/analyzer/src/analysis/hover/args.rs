@@ -925,6 +925,48 @@ mod my_contract {
 ```
 "#;
 
+/// Ref: <https://use.ink/docs/v6/macros-attributes/name>.
+///
+/// Ref: <https://github.com/use-ink/ink/pull/2577/>.
+pub const NAME_DOC: &str = r#"
+# Attribute
+
+`#[ink(constructor, name = N: string)]` or `#[ink(message, name = N: string)]` or `#[ink::event(name = N: string)]` or `#[ink(event, name = N: string)]`
+
+# Description
+
+Applicable to ink! messages, ink! constructors and ink! events.
+
+Specifies a name/identifier override that is used in place of the item's name/identifier for:
+- Selector computation for ink! messages and ink! constructors
+- Signature topic computation for ink! events
+- Contract metadata generation for the ink! messages, ink! constructors or ink! events
+
+In general, `name` overrides should mainly be used to:
+- Implement contracts compliant with Ethereum/Solidity contract standards (i.e. ERCs)
+  that require/use overloaded interfaces
+- Define interfaces (e.g. via trait definitions) for interacting with
+  existing Solidity ABI encoded contracts with overloaded interfaces
+- As a more transparent alternative to custom selectors for the
+  "name-changing while maintaining the same selector" use case for ink! ABI contracts
+
+# Example
+
+```rust
+#[ink(message, name = "myConstructor")]
+fn my_constructor(&self) {}
+
+#[ink(message, name = "myMessage")]
+fn my_message(&self) {}
+
+#[ink::event(name = "MyEvent")]
+pub struct Event { ... }
+```
+
+This changes the resulting selectors of the ink! message and ink! constructor,
+and the signature topic for the ink! event, as well as their names in contract metadata.
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L602-L620>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.trait_definition.html>.

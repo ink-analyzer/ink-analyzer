@@ -116,34 +116,35 @@ mod tests {
     use ink_analyzer_ir::{syntax::TextSize, MinorVersion};
     use test_utils::{parse_offset_at, TestResultAction, TestResultTextRange};
 
-    macro_rules! prepend_migrate {
-        ($version: expr, $list: expr) => {
-            if $version.is_legacy() {
-                vec![TestResultAction {
-                    label: "Migrate",
-                    edits: vec![],
-                }]
-            } else {
-                vec![]
-            }
-            .into_iter()
-            .chain($list)
-            .collect::<Vec<TestResultAction>>()
-        };
-        ($list: expr) => {
-            prepend_migrate!(Version::Legacy, $list)
-        };
-        () => {
-            vec![TestResultAction {
-                label: "Migrate",
-                edits: vec![],
-            }]
-        };
-    }
-
     #[test]
     fn actions_works() {
-        let fixtures_gte_v5 = vec![
+        let fixtures_gte_v5 = vec![(
+            r#"
+                #[ink_e2e::test]
+                fn it_works() {
+                }
+                "#,
+            Some("<-#["),
+            vec![
+                TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "(backend(node))",
+                        start_pat: Some("<-]"),
+                        end_pat: Some("<-]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "(environment = ink::env::DefaultEnvironment)",
+                        start_pat: Some("<-]"),
+                        end_pat: Some("<-]"),
+                    }],
+                },
+            ],
+        )];
+        let fixtures_v5_only = vec![
             (
                 r#"
                 #[ink::event]
@@ -294,34 +295,6 @@ mod tests {
                     },
                 ],
             ),
-            (
-                r#"
-                #[ink_e2e::test]
-                fn it_works() {
-                }
-                "#,
-                Some("<-#["),
-                vec![
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "(backend(node))",
-                            start_pat: Some("<-]"),
-                            end_pat: Some("<-]"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Add",
-                        edits: vec![TestResultTextRange {
-                            text: "(environment = ink::env::DefaultEnvironment)",
-                            start_pat: Some("<-]"),
-                            end_pat: Some("<-]"),
-                        }],
-                    },
-                ],
-            ),
-        ];
-        let fixtures_v5_only = vec![
             (
                 r#"
                 #[ink::chain_extension]
@@ -545,6 +518,196 @@ mod tests {
             (
                 Version::V6,
                 [
+                    (
+                        r#"
+                        #[ink::event]
+                        pub struct MyStruct {
+                        }
+                        "#,
+                        Some("<-#["),
+                        vec![
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(anonymous)",
+                                    start_pat: Some("#[ink::event"),
+                                    end_pat: Some("#[ink::event"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(name = "name")"#,
+                                    start_pat: Some("#[ink::event"),
+                                    end_pat: Some("#[ink::event"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(signature_topic = "")"#,
+                                    start_pat: Some("#[ink::event"),
+                                    end_pat: Some("#[ink::event"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink(event)]
+                        pub struct MyStruct {
+                        }
+                        "#,
+                        Some("<-#["),
+                        vec![
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", anonymous",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", signature_topic = """#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink(event)]
+                        pub struct MyStruct {
+                        }
+                        "#,
+                        Some("ink("),
+                        vec![
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", anonymous",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", signature_topic = """#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink(event)]
+                        pub struct MyStruct {
+                        }
+                        "#,
+                        Some("event)]"),
+                        vec![
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", anonymous",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", signature_topic = """#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink(event,)]
+                        pub struct MyStruct {
+                        }
+                        "#,
+                        Some("<-#["),
+                        vec![
+                            TestResultAction {
+                                label: "Extract",
+                                edits: vec![],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "anonymous",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"name = "name""#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"signature_topic = """#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                        ],
+                    ),
                     (
                         r#"
                         #[ink::chain_extension]
@@ -927,32 +1090,46 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", default",
                                 start_pat: Some("<-)]"),
                                 end_pat: Some("<-)]"),
                             }],
+                        },],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            }]
                         },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", payable",
-                                start_pat: Some("<-)]"),
-                                end_pat: Some("<-)]"),
-                            }],
-                        },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", selector = 1",
-                                start_pat: Some("<-)]"),
-                                end_pat: Some("<-)]"),
-                            }],
-                        },
-                    ],
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", payable",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", selector = 1",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                        ]
+                    ),
                 ),
                 (
                     r#"
@@ -961,24 +1138,36 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", default",
                                 start_pat: Some("<-)]"),
                                 end_pat: Some("<-)]"),
                             }],
+                        },],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            }]
                         },
-                        TestResultAction {
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", selector = 1",
                                 start_pat: Some("<-)]"),
                                 end_pat: Some("<-)]"),
                             }],
-                        },
-                    ],
+                        },]
+                    ),
                 ),
                 (
                     r#"
@@ -988,24 +1177,36 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", default",
                                 start_pat: Some("<-)]"),
                                 end_pat: Some("<-)]"),
                             }],
+                        }],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            }]
                         },
-                        TestResultAction {
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", selector = 1",
                                 start_pat: Some("<-)]"),
                                 end_pat: Some("<-)]"),
                             }],
-                        },
-                    ],
+                        }]
+                    ),
                 ),
                 (
                     r#"
@@ -1015,24 +1216,36 @@ mod tests {
                     }
                     "#,
                     Some("<-#[->"),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", default",
                                 start_pat: Some("<-)]->"),
                                 end_pat: Some("<-)]->"),
                             }],
+                        }],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("<-)]->"),
+                                    end_pat: Some("<-)]->"),
+                                }],
+                            }]
                         },
-                        TestResultAction {
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", selector = 1",
                                 start_pat: Some("<-)]->"),
                                 end_pat: Some("<-)]->"),
                             }],
-                        },
-                    ],
+                        }]
+                    ),
                 ),
                 (
                     r#"
@@ -1041,32 +1254,46 @@ mod tests {
                     }
                     "#,
                     Some("<-#["),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", default",
                                 start_pat: Some("<-)]"),
                                 end_pat: Some("<-)]"),
                             }],
+                        },],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            }]
                         },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", payable",
-                                start_pat: Some("<-)]"),
-                                end_pat: Some("<-)]"),
-                            }],
-                        },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", selector = 1",
-                                start_pat: Some("<-)]"),
-                                end_pat: Some("<-)]"),
-                            }],
-                        },
-                    ],
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", payable",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", selector = 1",
+                                    start_pat: Some("<-)]"),
+                                    end_pat: Some("<-)]"),
+                                }],
+                            }
+                        ]
+                    ),
                 ),
                 // Unique ids.
                 (
@@ -1083,32 +1310,46 @@ mod tests {
                     }
                     "#,
                     Some("<-#[ink(constructor)]"),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", default",
                                 start_pat: Some("#[ink(constructor->"),
                                 end_pat: Some("#[ink(constructor->"),
                             }],
+                        },],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("#[ink(constructor->"),
+                                    end_pat: Some("#[ink(constructor->"),
+                                }],
+                            }]
                         },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", payable",
-                                start_pat: Some("#[ink(constructor->"),
-                                end_pat: Some("#[ink(constructor->"),
-                            }],
-                        },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", selector = 2",
-                                start_pat: Some("#[ink(constructor->"),
-                                end_pat: Some("#[ink(constructor->"),
-                            }],
-                        },
-                    ],
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", payable",
+                                    start_pat: Some("#[ink(constructor->"),
+                                    end_pat: Some("#[ink(constructor->"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", selector = 2",
+                                    start_pat: Some("#[ink(constructor->"),
+                                    end_pat: Some("#[ink(constructor->"),
+                                }],
+                            }
+                        ]
+                    ),
                 ),
                 (
                     r#"
@@ -1124,32 +1365,46 @@ mod tests {
                     }
                     "#,
                     Some("<-#[ink(message)]"),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", default",
                                 start_pat: Some("#[ink(message->"),
                                 end_pat: Some("#[ink(message->"),
                             }],
+                        },],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("#[ink(message->"),
+                                    end_pat: Some("#[ink(message->"),
+                                }],
+                            }]
                         },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", payable",
-                                start_pat: Some("#[ink(message->"),
-                                end_pat: Some("#[ink(message->"),
-                            }],
-                        },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", selector = 2",
-                                start_pat: Some("#[ink(message->"),
-                                end_pat: Some("#[ink(message->"),
-                            }],
-                        },
-                    ],
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", payable",
+                                    start_pat: Some("#[ink(message->"),
+                                    end_pat: Some("#[ink(message->"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", selector = 2",
+                                    start_pat: Some("#[ink(message->"),
+                                    end_pat: Some("#[ink(message->"),
+                                }],
+                            }
+                        ]
+                    ),
                 ),
                 (
                     r#"
@@ -1163,32 +1418,46 @@ mod tests {
                     }
                     "#,
                     Some("<-#[ink(message)]"),
-                    vec![
-                        TestResultAction {
+                    chain_results!(
+                        [TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
                                 text: ", default",
                                 start_pat: Some("#[ink(message->"),
                                 end_pat: Some("#[ink(message->"),
                             }],
+                        },],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#", name = "name""#,
+                                    start_pat: Some("#[ink(message->"),
+                                    end_pat: Some("#[ink(message->"),
+                                }],
+                            }]
                         },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", payable",
-                                start_pat: Some("#[ink(message->"),
-                                end_pat: Some("#[ink(message->"),
-                            }],
-                        },
-                        TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: ", selector = 2",
-                                start_pat: Some("#[ink(message->"),
-                                end_pat: Some("#[ink(message->"),
-                            }],
-                        },
-                    ],
+                        [
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", payable",
+                                    start_pat: Some("#[ink(message->"),
+                                    end_pat: Some("#[ink(message->"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: ", selector = 2",
+                                    start_pat: Some("#[ink(message->"),
+                                    end_pat: Some("#[ink(message->"),
+                                }],
+                            }
+                        ]
+                    ),
                 ),
             ]
             .into_iter()

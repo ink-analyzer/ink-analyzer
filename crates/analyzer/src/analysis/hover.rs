@@ -127,6 +127,7 @@ pub fn content(
             }
             InkArgKind::KeepAttr => args::KEEP_ATTR_DOC,
             InkArgKind::Message => args::MESSAGE_DOC,
+            InkArgKind::Name if version.is_gte_v6() => args::NAME_DOC,
             InkArgKind::Namespace => args::NAMESPACE_DOC,
             InkArgKind::Payable => args::PAYABLE_DOC,
             InkArgKind::Selector if version.is_legacy() => args::SELECTOR_DOC_V4,
@@ -390,7 +391,7 @@ mod tests {
                     ],
                 ),
                 (
-                    "#[ink(message, default, payable, selector=_)]",
+                    r#"#[ink(message, default, payable, selector=_, name = "name")]"#,
                     vec![
                         (
                             Some("<-#"),
@@ -454,6 +455,32 @@ mod tests {
                                 Some("<-selector"),
                                 Some("selector"),
                             )),
+                        ),
+                        (
+                            Some("<-name"),
+                            Some("name"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Arg(InkArgKind::Name),
+                                    Some("<-name"),
+                                    Some("name"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some(r#"<-"name""#),
+                            Some(r#""name""#),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Arg(InkArgKind::Name),
+                                    Some("<-name"),
+                                    Some("name"),
+                                ))
+                            },
                         ),
                     ],
                 ),

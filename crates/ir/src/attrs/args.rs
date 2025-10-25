@@ -590,7 +590,10 @@ impl InkArgValueKind {
                 "A valid Rust identifier.".to_owned()
             }
             InkArgValueKind::String(InkArgValueStringKind::IdentifierLike) => {
-                "A valid Rust or Solidity identifier.".to_owned()
+                "An \"identifier-like\" string i.e. \
+                must begin with an alphabetic character, underscore or dollar sign, \
+                and only contain alphanumeric characters, underscores and dollar signs."
+                    .to_owned()
             }
             InkArgValueKind::String(InkArgValueStringKind::SpaceList) => {
                 "A space separated list.".to_owned()
