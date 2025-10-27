@@ -583,6 +583,20 @@ pub const FROM_STATUS_CODE_IMPL_SNIPPET: &str = r#"impl ink::env::chain_extensio
     }
 }"#;
 
+pub const ERROR_ENUM_PLAIN: &str = r#"#[ink::error]
+pub enum Error {}"#;
+pub const ERROR_ENUM_SNIPPET: &str = r#"#[ink::error]
+pub ${1:enum} ${2:Error} {
+    $3
+}"#;
+
+pub const ERROR_STRUCT_PLAIN: &str = r#"#[ink::error]
+pub struct Error {}"#;
+pub const ERROR_STRUCT_SNIPPET: &str = r#"#[ink::error]
+pub ${1:struct} ${2:Error} {
+    $3
+}"#;
+
 pub const CARGO_TOML_PLAIN: &str = r#"[package]
 name = "my_contract"
 version = "0.1.0"

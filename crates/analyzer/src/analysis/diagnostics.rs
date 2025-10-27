@@ -31,6 +31,7 @@ mod file;
 mod chain_extension;
 mod contract;
 mod environment;
+mod error;
 mod event;
 mod ink_e2e_test;
 mod ink_test;

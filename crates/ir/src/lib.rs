@@ -39,6 +39,7 @@ mod attrs;
 mod chain_extension;
 mod constructor;
 mod contract;
+mod error;
 mod event;
 mod event_v2;
 mod extension;
@@ -72,6 +73,7 @@ pub use self::{
     constructor::Constructor,
     contract::Contract,
     environment::{EnvArg, Environment},
+    error::Error,
     event::Event,
     event_v2::EventV2,
     extension::Extension,

@@ -144,6 +144,7 @@ pub fn content(
             InkMacroKind::ChainExtension if version.is_v5() => macros::CHAIN_EXTENSION_DOC,
             InkMacroKind::ChainExtension => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
             InkMacroKind::Contract => macros::CONTRACT_DOC,
+            InkMacroKind::Error if version.is_gte_v6() => macros::ERROR_DOC,
             InkMacroKind::Event if version.is_gte_v5() => macros::EVENT_DOC,
             InkMacroKind::ScaleDerive if version.is_gte_v5() => macros::SCALE_DERIVE_DOC,
             InkMacroKind::StorageItem => macros::STORAGE_ITEM_DOC,
@@ -304,6 +305,63 @@ mod tests {
                                 Some("<-keep_attr"),
                                 Some("keep_attr"),
                             )),
+                        ),
+                    ],
+                ),
+                (
+                    "#[ink::error]",
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::Error),
+                                    Some("<-error"),
+                                    Some("error"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::Error),
+                                    Some("<-error"),
+                                    Some("error"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-error"),
+                            Some("error"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::Error),
+                                    Some("<-error"),
+                                    Some("error"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::Error),
+                                    Some("<-error"),
+                                    Some("error"),
+                                ))
+                            },
                         ),
                     ],
                 ),

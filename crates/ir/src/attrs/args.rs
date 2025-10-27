@@ -372,7 +372,7 @@ impl InkArgKind {
     pub fn detail(&self, version: Version) -> &str {
         const CHAIN_EXT_DEPRECATION_NOTICE: &str = "ink! chain extensions are deprecated. See https://github.com/use-ink/ink/pull/2621 for details.";
         match self {
-            InkArgKind::Abi if version.is_v6() => "Specifies the ABI (Application Binary Interface) of the target.",
+            InkArgKind::Abi if version.is_gte_v6() => "Specifies the ABI (Application Binary Interface) of the target.",
             InkArgKind::AdditionalContracts if version.is_legacy() => "Tells the ink! e2e test runner which additional contracts to build before executing the test.",
             InkArgKind::AdditionalContracts => "ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.",
             InkArgKind::Anonymous => "Tells the ink! codegen to treat the ink! event as anonymous which omits the event signature as topic upon emitting.",

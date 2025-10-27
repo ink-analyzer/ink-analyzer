@@ -2,7 +2,9 @@
 
 use ra_ap_syntax::{Edition, SourceFile};
 
-use crate::{ChainExtension, Contract, EventV2, InkE2ETest, InkTest, StorageItem, TraitDefinition};
+use crate::{
+    ChainExtension, Contract, Error, EventV2, InkE2ETest, InkTest, StorageItem, TraitDefinition,
+};
 
 /// An ink! file.
 #[ink_analyzer_macro::entity]
@@ -16,6 +18,9 @@ pub struct InkFile {
     // Ref: <https://github.com/paritytech/ink/pull/1827>
     #[initializer(peek_macro = Contract)]
     events_v2: Vec<EventV2>,
+    // ink! errors.
+    #[initializer(peek_macro = Contract)]
+    errors: Vec<Error>,
     // ink! trait definitions.
     #[initializer(peek_macro = Contract)]
     trait_definitions: Vec<TraitDefinition>,
@@ -55,6 +60,9 @@ mod tests {
             pub struct MyEvent {
             }
 
+            #[ink::error]
+            pub struct Error;
+
             #[ink::trait_definition]
             pub trait MyTrait {
             }
@@ -88,6 +96,9 @@ mod tests {
 
         // 1 event.
         assert_eq!(file.events_v2().len(), 1);
+
+        // 1 error.
+        assert_eq!(file.errors().len(), 1);
 
         // 1 trait definition.
         assert_eq!(file.trait_definitions().len(), 1);

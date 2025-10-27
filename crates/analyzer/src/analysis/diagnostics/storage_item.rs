@@ -171,7 +171,7 @@ mod tests {
 
         let mut results = Vec::new();
         common::ensure_no_ink_descendants(&mut results, &storage_item, SCOPE_NAME, false);
-        // 1 diagnostics for `event` and `topic`.
+        // 2 diagnostics for `event` and `topic`.
         assert_eq!(results.len(), 2);
         // All diagnostics should be errors.
         assert_eq!(

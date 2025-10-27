@@ -2914,8 +2914,8 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
                                     text: "#[ink(event)]",
-                                    start_pat: Some("<-\n\n    /// The ERC-20 error types."),
-                                    end_pat: Some("<-\n\n    /// The ERC-20 error types."),
+                                    start_pat: Some("<-\n\n    /// The ERC-20 result type."),
+                                    end_pat: Some("<-\n\n    /// The ERC-20 result type."),
                                 }],
                             },
                             TestResultAction {
@@ -2985,8 +2985,8 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
                                     text: "#[ink(event)]",
-                                    start_pat: Some("<-\n\n    /// The ERC-20 error types."),
-                                    end_pat: Some("<-\n\n    /// The ERC-20 error types."),
+                                    start_pat: Some("<-\n\n    /// The ERC-20 result type."),
+                                    end_pat: Some("<-\n\n    /// The ERC-20 result type."),
                                 }],
                             },
                             TestResultAction {
@@ -3324,8 +3324,8 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
                                     text: "#[ink(event)]",
-                                    start_pat: Some("<-\n\n    /// The ERC-20 error types."),
-                                    end_pat: Some("<-\n\n    /// The ERC-20 error types."),
+                                    start_pat: Some("<-\n\n    /// The ERC-20 result type."),
+                                    end_pat: Some("<-\n\n    /// The ERC-20 result type."),
                                 }],
                             },
                             TestResultAction {
@@ -3391,8 +3391,8 @@ pub fn actions_fixtures() -> Vec<TestGroup> {
                                 label: "Add",
                                 edits: vec![TestResultTextRange {
                                     text: "#[ink(event)]",
-                                    start_pat: Some("<-\n\n    /// The ERC-20 error types."),
-                                    end_pat: Some("<-\n\n    /// The ERC-20 error types."),
+                                    start_pat: Some("<-\n\n    /// The ERC-20 result type."),
+                                    end_pat: Some("<-\n\n    /// The ERC-20 result type."),
                                 }],
                             },
                             TestResultAction {

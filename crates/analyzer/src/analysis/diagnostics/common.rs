@@ -2489,6 +2489,9 @@ mod tests {
                 quote_as_str! {
                     #[ink::event(name="name")]
                 },
+                quote_as_str! {
+                    #[ink::error]
+                },
             ]
             .into_iter()
             .chain(valid_attributes_versioned!(@gte v5))
@@ -2862,7 +2865,8 @@ mod tests {
                         }],
                     ),
                     (
-                        r#"#[ink_e2e::contract(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment)]"#, // bad environment.
+                        // bad environment.
+                        r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml", environment)]"#,
                         vec![TestResultAction {
                             label: "argument value",
                             edits: vec![TestResultTextRange {
@@ -2878,7 +2882,8 @@ mod tests {
                 Version::V5(MinorVersion::Base),
                 vec![
                     (
-                        "#[ink(constructor, selector=@)]", // wildcard complement selector is invalid for constructors.
+                        // wildcard complement selector is invalid for constructors.
+                        "#[ink(constructor, selector=@)]",
                         vec![TestResultAction {
                             label: "argument value",
                             edits: vec![TestResultTextRange {
@@ -2944,7 +2949,7 @@ mod tests {
                         }],
                     ),
                     (
-                        r#"#[ink_e2e::contract(environment, backend(node))]"#, // bad environment.
+                        r#"#[ink_e2e::test(environment, backend(node))]"#, // bad environment.
                         vec![TestResultAction {
                             label: "argument value",
                             edits: vec![TestResultTextRange {
@@ -3918,7 +3923,8 @@ mod tests {
                         }],
                     ),
                     (
-                        r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#, // `additional_contracts` is deprecated.
+                        // `additional_contracts` is deprecated.
+                        r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#,
                         vec![TestResultAction {
                             label: "Remove",
                             edits: vec![TestResultTextRange {
@@ -3929,7 +3935,8 @@ mod tests {
                         }],
                     ),
                     (
-                        r#"#[ink_e2e::test(keep_attr="foo, bar")]"#, // `keep_attr` for `ink_e2e::test` macro is deprecated.
+                        // `keep_attr` for `ink_e2e::test` macro is deprecated.
+                        r#"#[ink_e2e::test(keep_attr="foo, bar")]"#,
                         vec![TestResultAction {
                             label: "Remove",
                             edits: vec![TestResultTextRange {
@@ -3940,7 +3947,8 @@ mod tests {
                         }],
                     ),
                     (
-                        r#"#[ink(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#, // `additional_contracts` is deprecated.
+                        // `additional_contracts` is deprecated.
+                        r#"#[ink(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#,
                         vec![TestResultAction {
                             label: "Remove",
                             edits: vec![TestResultTextRange {

@@ -40,6 +40,9 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
                 InkMacroKind::Contract => vec![InkArgKind::Env, InkArgKind::KeepAttr],
+                // Ref: <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/lib.rs#L1641-L1676>
+                // Ref: <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/error.rs>
+                InkMacroKind::Error if version.is_gte_v6() => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/ir/src/ir/event/mod.rs#L129-L141>
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>
                 // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
@@ -294,6 +297,9 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::SignatureTopic,
                     InkArgKind::Storage,
                 ],
+                // Ref: <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/lib.rs#L1641-L1676>
+                // Ref: <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/error.rs>
+                InkMacroKind::Error if version.is_gte_v6() => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>
                 // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
                 InkMacroKind::Event if version.is_gte_v5() => {
@@ -568,25 +574,36 @@ pub fn valid_ink_macros_by_syntax_kind(
         SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => {
             vec![InkMacroKind::ContractRef, InkMacroKind::TraitDefinition]
         }
-        SyntaxKind::ENUM
-        | SyntaxKind::ENUM_KW
-        | SyntaxKind::STRUCT
-        | SyntaxKind::STRUCT_KW
-        | SyntaxKind::UNION
-        | SyntaxKind::UNION_KW
-            if version.is_legacy() =>
-        {
+        SyntaxKind::FN | SyntaxKind::FN_KW => vec![InkMacroKind::Test, InkMacroKind::E2ETest],
+        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW if version.is_legacy() => {
             vec![InkMacroKind::StorageItem]
         }
-        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW => vec![
+        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW if version.is_v5() => vec![
             InkMacroKind::Event,
             InkMacroKind::ScaleDerive,
             InkMacroKind::StorageItem,
         ],
-        SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW => {
+        SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW => vec![
+            InkMacroKind::Event,
+            InkMacroKind::Error,
+            InkMacroKind::ScaleDerive,
+            InkMacroKind::StorageItem,
+        ],
+        SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW
+            if version.is_legacy() =>
+        {
+            vec![InkMacroKind::StorageItem]
+        }
+        SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW
+            if version.is_v5() =>
+        {
             vec![InkMacroKind::ScaleDerive, InkMacroKind::StorageItem]
         }
-        SyntaxKind::FN | SyntaxKind::FN_KW => vec![InkMacroKind::Test, InkMacroKind::E2ETest],
+        SyntaxKind::ENUM | SyntaxKind::ENUM_KW | SyntaxKind::UNION | SyntaxKind::UNION_KW => vec![
+            InkMacroKind::Error,
+            InkMacroKind::ScaleDerive,
+            InkMacroKind::StorageItem,
+        ],
         _ => Vec::new(),
     }
 }
@@ -1851,12 +1868,18 @@ pub fn item_insert_offset_end(item_list: &ast::ItemList) -> TextSize {
         .unwrap_or_else(|| item_insert_offset_start(item_list))
 }
 
-/// Returns the offset after the end of the last `struct` (if any) in an item list (e.g body of an AST item - i.e `mod` e.t.c).
-/// Defaults to the beginning of the item list if no `struct`s are present.
-pub fn item_insert_offset_after_last_struct_or_start(item_list: &ast::ItemList) -> TextSize {
+/// Returns the offset after the end of the last `ADT` (i.e. `struct`, `enum` or `union` - if any)
+/// in an item list (e.g. body of an AST item - i.e `mod` e.t.c).
+/// Defaults to the beginning of the item list if no `ADT`s are present.
+pub fn item_insert_offset_after_last_adt_or_start(item_list: &ast::ItemList) -> TextSize {
     item_list
         .items()
-        .filter(|it| matches!(it, ast::Item::Struct(_)))
+        .filter(|it| {
+            matches!(
+                it,
+                ast::Item::Struct(_) | ast::Item::Enum(_) | ast::Item::Union(_)
+            )
+        })
         .last()
         .map(|it| it.syntax().text_range().end())
         .unwrap_or_else(|| item_insert_offset_start(item_list))
@@ -1898,9 +1921,9 @@ pub fn item_insert_offset_by_scope_name(
     match ink_scope_name {
         // ink! storage is inserted at the beginning of the item list.
         "storage" => item_insert_offset_start(item_list),
-        // ink! events are inserted either after the last `struct` (if any) or at the beginning of the item list.
-        "event" => item_insert_offset_after_last_struct_or_start(item_list),
-        // ink! `impl` are inserted either after the last `impl` (if any), or after the last `struct` (if any),
+        // ink! events are inserted either after the last `ADT` (if any) or at the beginning of the item list.
+        "event" => item_insert_offset_after_last_adt_or_start(item_list),
+        // ink! `impl` are inserted either after the last `impl` (if any), or after the last `ADT` (if any),
         // or before the fist `mod` (if any), or at the end of the item list.
         "impl" => item_insert_offset_impl(item_list),
         // Everything else is inserted at the end of the item list.

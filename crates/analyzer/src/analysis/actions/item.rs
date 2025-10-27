@@ -388,6 +388,33 @@ fn item_ink_entity_actions(
                             ));
                         }
                     }
+
+                    if version.is_gte_v6() {
+                        // Insert range for ink! error.
+                        // Use provided range (if any), otherwise try to insert with following preference:
+                        // - After last ADT
+                        // - At beginning of `mod` body (i.e. after the `mod name {` declaration)
+                        // - Before the mod item (i.e. before the `#[ink::contract]` attribute)
+                        let range = range_option
+                            .or_else(|| {
+                                module
+                                    .item_list()
+                                    .as_ref()
+                                    .map(utils::item_insert_offset_after_last_adt_or_start)
+                                    .map(|offset| TextRange::new(offset, offset))
+                            })
+                            .unwrap_or_else(|| {
+                                TextRange::new(
+                                    contract.syntax().text_range().start(),
+                                    contract.syntax().text_range().start(),
+                                )
+                            });
+
+                        // Adds ink! error `enum`.
+                        results.push(entity::add_error_enum(range, ActionKind::Refactor, None));
+                        // Adds ink! error `struct`.
+                        results.push(entity::add_error_struct(range, ActionKind::Refactor, None));
+                    }
                 }
                 None => {
                     let is_cfg_test = module.attrs().any(|attr| utils::is_cfg_test_attr(&attr));
@@ -627,6 +654,13 @@ fn root_ink_entity_actions(
     if version.is_gte_v5() {
         // Adds ink! event 2.0.
         results.push(entity::add_event_v2(range, ActionKind::Refactor, None));
+    }
+
+    if version.is_gte_v6() {
+        // Adds ink! error `enum`.
+        results.push(entity::add_error_enum(range, ActionKind::Refactor, None));
+        // Adds ink! error `struct`.
+        results.push(entity::add_error_struct(range, ActionKind::Refactor, None));
     }
 
     // Adds ink! trait definition.
@@ -1016,10 +1050,10 @@ mod tests {
             ),
             (
                 r#"
-                    #[ink::chain_extension]
-                    pub trait MyTrait {
-                    }
-                    "#,
+                #[ink::chain_extension]
+                pub trait MyTrait {
+                }
+                "#,
                 Some("<-pub"),
                 vec![
                     TestResultAction {
@@ -1050,15 +1084,15 @@ mod tests {
             ),
             (
                 r#"
-                        #[ink::chain_extension]
-                        pub trait MyChainExtension {
-                            #[ink(function=1)]
-                            fn function_1(&self);
+                #[ink::chain_extension]
+                pub trait MyChainExtension {
+                    #[ink(function=1)]
+                    fn function_1(&self);
 
-                            #[ink(handle_status=true)]
-                            fn function_2(&self);
-                        }
-                        "#,
+                    #[ink(handle_status=true)]
+                    fn function_2(&self);
+                }
+                "#,
                 Some("<-fn function_2(&self);"),
                 vec![TestResultAction {
                     label: "Add",
@@ -1070,7 +1104,7 @@ mod tests {
                 }],
             ),
         ];
-        for (version, root_entities, adt_attrs, struct_attrs, fixtures) in [
+        for (version, root_entities, struct_attrs, enum_union_attrs, fixtures) in [
             (
                 Version::Legacy,
                 vec![
@@ -1080,13 +1114,13 @@ mod tests {
                     "#[ink::storage_item]",
                     "pub enum MyEnvironment {}",
                 ],
-                vec!["#[ink::storage_item]"],
                 vec![
                     "#[ink::storage_item]",
                     "#[ink(anonymous)]",
                     "#[ink(event)]",
                     "#[ink(storage)]",
                 ],
+                vec!["#[ink::storage_item]"],
                 vec![
                     (
                         r#"
@@ -1226,7 +1260,6 @@ mod tests {
                     "#[ink::storage_item]",
                     "pub enum MyEnvironment {}",
                 ],
-                vec!["#[ink::scale_derive]", "#[ink::storage_item]"],
                 vec![
                     "#[ink::event]",
                     "#[ink::scale_derive]",
@@ -1236,6 +1269,7 @@ mod tests {
                     r#"#[ink(signature_topic = "")]"#,
                     "#[ink(storage)]",
                 ],
+                vec!["#[ink::scale_derive]", "#[ink::storage_item]"],
                 fixtures_gte_v5
                     .clone()
                     .into_iter()
@@ -1253,7 +1287,6 @@ mod tests {
                     "#[ink::storage_item]",
                     "pub enum MyEnvironment {}",
                 ],
-                vec!["#[ink::scale_derive]", "#[ink::storage_item]"],
                 vec![
                     "#[ink::event]",
                     "#[ink::scale_derive]",
@@ -1263,6 +1296,7 @@ mod tests {
                     r#"#[ink(signature_topic = "")]"#,
                     "#[ink(storage)]",
                 ],
+                vec!["#[ink::scale_derive]", "#[ink::storage_item]"],
                 fixtures_gte_v5
                     .clone()
                     .into_iter()
@@ -1274,13 +1308,16 @@ mod tests {
                 vec![
                     "#[ink::contract]",
                     "#[ink::event]",
+                    // Twice for ink! error `enum` and `struct` entity suggestions.
+                    "#[ink::error]",
+                    "#[ink::error]",
                     "#[ink::trait_definition]",
                     "#[ink::storage_item]",
                     "pub enum MyEnvironment {}",
                 ],
-                vec!["#[ink::scale_derive]", "#[ink::storage_item]"],
                 vec![
                     "#[ink::event]",
+                    "#[ink::error]",
                     "#[ink::scale_derive]",
                     "#[ink::storage_item]",
                     "#[ink(anonymous)]",
@@ -1288,6 +1325,11 @@ mod tests {
                     r#"#[ink(name = "name")]"#,
                     r#"#[ink(signature_topic = "")]"#,
                     "#[ink(storage)]",
+                ],
+                vec![
+                    "#[ink::error]",
+                    "#[ink::scale_derive]",
+                    "#[ink::storage_item]",
                 ],
                 [
                     (
@@ -1717,7 +1759,29 @@ mod tests {
                                     end_pat: Some("mod my_contract {"),
                                 }],
                             },
-                        ]
+                        ],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink::error]\npub enum",
+                                        start_pat: Some("mod my_contract {"),
+                                        end_pat: Some("mod my_contract {"),
+                                    }],
+                                },
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink::error]\npub struct",
+                                        start_pat: Some("mod my_contract {"),
+                                        end_pat: Some("mod my_contract {"),
+                                    }],
+                                },
+                            ]
+                        },
                     ),
                 ),
                 (
@@ -1765,7 +1829,29 @@ mod tests {
                                         end_pat: Some("<-\n                    }"),
                                     }],
                                 },
-                            ]
+                            ],
+                            if version.is_lte_v5() {
+                                vec![]
+                            } else {
+                                vec![
+                                    TestResultAction {
+                                        label: "Add",
+                                        edits: vec![TestResultTextRange {
+                                            text: "#[ink::error]\npub enum",
+                                            start_pat: Some("<-\n                    }"),
+                                            end_pat: Some("<-\n                    }"),
+                                        }],
+                                    },
+                                    TestResultAction {
+                                        label: "Add",
+                                        edits: vec![TestResultTextRange {
+                                            text: "#[ink::error]\npub struct",
+                                            start_pat: Some("<-\n                    }"),
+                                            end_pat: Some("<-\n                    }"),
+                                        }],
+                                    },
+                                ]
+                            },
                         )
                     ),
                 ),
@@ -1841,7 +1927,29 @@ mod tests {
                                     end_pat: Some("mod my_contract {"),
                                 }],
                             },
-                        ]
+                        ],
+                        if version.is_lte_v5() {
+                            vec![]
+                        } else {
+                            vec![
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink::error]\npub enum",
+                                        start_pat: Some("mod my_contract {"),
+                                        end_pat: Some("mod my_contract {"),
+                                    }],
+                                },
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "#[ink::error]\npub struct",
+                                        start_pat: Some("mod my_contract {"),
+                                        end_pat: Some("mod my_contract {"),
+                                    }],
+                                },
+                            ]
+                        },
                     ),
                 ),
                 // Trait focus.
@@ -1966,7 +2074,7 @@ mod tests {
                     }
                     "#,
                     Some("<-enum"),
-                    list_results!(adt_attrs, "Add", Some("<-enum"), Some("<-enum")),
+                    list_results!(enum_union_attrs, "Add", Some("<-enum"), Some("<-enum")),
                 ),
                 (
                     r#"
@@ -1982,7 +2090,7 @@ mod tests {
                     }
                     "#,
                     Some("<-union"),
-                    list_results!(adt_attrs, "Add", Some("<-union"), Some("<-union")),
+                    list_results!(enum_union_attrs, "Add", Some("<-union"), Some("<-union")),
                 ),
                 (
                     r#"

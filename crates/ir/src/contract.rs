@@ -2,7 +2,7 @@
 
 use ra_ap_syntax::ast;
 
-use crate::{Constructor, Event, InkE2ETest, InkImpl, InkTest, Message, Storage};
+use crate::{Constructor, Error, Event, InkE2ETest, InkImpl, InkTest, Message, Storage};
 
 /// An ink! contract.
 #[ink_analyzer_macro::entity(macro_kind = Contract)]
@@ -14,6 +14,8 @@ pub struct Contract {
     storage: Option<Storage>,
     // ink! events.
     events: Vec<Event>,
+    // ink! errors.
+    errors: Vec<Error>,
     // ink! impl items.
     #[initializer(call = crate::tree::utils::ink_impl_closest_descendants)]
     impls: Vec<InkImpl>,
@@ -59,6 +61,9 @@ mod tests {
                 #[ink(event, anonymous)]
                 pub struct MyEvent2 {
                 }
+
+                #[ink::error]
+                pub struct Error;
 
                 impl MyContract {
                     #[ink(constructor, payable, default, selector=_)]
@@ -165,6 +170,9 @@ mod tests {
 
         // 2 events.
         assert_eq!(contract.events().len(), 2);
+
+        // 1 errors.
+        assert_eq!(contract.errors().len(), 1);
 
         // 8 impls.
         assert_eq!(contract.impls().len(), 8);

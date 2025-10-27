@@ -1338,6 +1338,50 @@ pub mod flipper {
 ```
 "#;
 
+/// # References
+///
+/// - <https://github.com/use-ink/ink/blob/master/crates/ink/macro/src/lib.rs#L1641-L1676>
+/// - <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/error.rs>
+/// - <https://use.ink/docs/v6/macros-attributes/error/>
+pub const ERROR_DOC: &str = r#"
+# Attribute
+
+`#[ink::error]`
+
+# Description
+
+Applicable on `struct` and `enum` definitions.
+
+It derives traits necessary for encoding/decoding a custom type as revert error data.
+
+The following traits are derived depending on the ABI mode:
+- In "ink" and "all" ABI mode:
+  - `scale::Encode` and `scale::Decode` for encoding/decoding ink! revert error data
+  - `scale_info::TypeInfo` for generating ink! contract metadata (gated behind the `std` feature)
+- In "sol" and "all" ABI mode:
+  - `SolErrorEncode` and `SolErrorDecode`
+    for encoding/decoding custom types as Solidity custom errors
+  - `SolErrorMetadata` for generating Solidity ABI metadata (gated behind the `std` feature)
+
+## Example
+
+```rust
+#[ink::error]
+struct UnitError;
+
+#[ink::error]
+enum MultipleErrors {
+    UnitError,
+    ErrorWithParams(bool, u8, String),
+    ErrorWithNamedParams {
+        status: bool,
+        count: u8,
+        reason: String,
+    }
+}
+```
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/blob/v5.0.0-rc.1/crates/ink/macro/src/lib.rs#L656-L692>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.event.html>.

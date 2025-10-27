@@ -16,7 +16,8 @@ use crate::codegen::snippets::{
     CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, CONTRACT_PLAIN, CONTRACT_PLAIN_V4, CONTRACT_PLAIN_V5,
     CONTRACT_SNIPPET, CONTRACT_SNIPPET_V4, CONTRACT_SNIPPET_V5, ENVIRONMENT_PLAIN,
     ENVIRONMENT_PLAIN_V4, ENVIRONMENT_SNIPPET, ENVIRONMENT_SNIPPET_V4, ERROR_CODE_PLAIN,
-    ERROR_CODE_SNIPPET, EVENT_PLAIN, EVENT_PLAIN_V2, EVENT_SNIPPET, EVENT_SNIPPET_V2,
+    ERROR_CODE_SNIPPET, ERROR_ENUM_PLAIN, ERROR_ENUM_SNIPPET, ERROR_STRUCT_PLAIN,
+    ERROR_STRUCT_SNIPPET, EVENT_PLAIN, EVENT_PLAIN_V2, EVENT_SNIPPET, EVENT_SNIPPET_V2,
     EXTENSION_FN_PLAIN, EXTENSION_FN_PLAIN_V4, EXTENSION_FN_SNIPPET, EXTENSION_FN_SNIPPET_V4,
     INK_E2E_TEST_PLAIN, INK_E2E_TEST_PLAIN_V4, INK_E2E_TEST_SNIPPET, INK_E2E_TEST_SNIPPET_V4,
     INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN, MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN,
@@ -435,6 +436,21 @@ pub fn add_environment(range: TextRange, indent: Option<&str>, version: Version)
         } else {
             ENVIRONMENT_SNIPPET
         }),
+        indent,
+    )
+}
+
+/// Creates text edit for ink! error `enum`.
+pub fn add_error_enum(range: TextRange, indent: Option<&str>) -> TextEdit {
+    text_edit_with_indent(ERROR_ENUM_PLAIN, range, Some(ERROR_ENUM_SNIPPET), indent)
+}
+
+/// Creates text edit for ink! error `struct`.
+pub fn add_error_struct(range: TextRange, indent: Option<&str>) -> TextEdit {
+    text_edit_with_indent(
+        ERROR_STRUCT_PLAIN,
+        range,
+        Some(ERROR_STRUCT_SNIPPET),
         indent,
     )
 }

@@ -14,7 +14,7 @@ use ink_analyzer_ir::{
     IsInkFn, Message, Selector, SelectorArg, Storage,
 };
 
-use super::{common, environment, event, ink_e2e_test, ink_test, message};
+use super::{common, environment, error, event, ink_e2e_test, ink_test, message};
 use crate::analysis::{actions::entity as entity_actions, text_edit::TextEdit, utils};
 use crate::{Action, ActionKind, Diagnostic, Severity, Version};
 
@@ -43,6 +43,11 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract, version: 
     // Runs ink! event diagnostics, see `event::diagnostics` doc.
     for item in contract.events() {
         event::diagnostics(results, item, version);
+    }
+
+    // Runs ink! error diagnostics, see `error::diagnostics` doc.
+    for item in contract.errors() {
+        error::diagnostics(results, item, version);
     }
 
     // Runs ink! impl diagnostics, see `ink_impl::diagnostics` doc.
@@ -763,7 +768,49 @@ mod tests {
             .chain(valid_contracts_versioned!(@gte v5))
         };
         (v6) => {
-            valid_contracts_versioned!(@gte v5)
+            [
+                // ink! v6 introduced an `error` attribute.
+                // Ref: <https://use.ink/docs/v6/macros-attributes/error/>
+                quote! {
+                        mod my_contract {
+                        #[ink(storage)]
+                        pub struct MyContract {}
+
+                        #[ink::error]
+                        pub struct Error;
+
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message)]
+                            pub fn message(&self) {}
+                        }
+                    }
+                },
+                quote! {
+                    mod my_contract {
+                        #[ink(storage)]
+                        pub struct MyContract {}
+
+                        #[ink::error]
+                        pub enum Error {
+                            Minor,
+                            Criticial
+                        }
+
+                        impl MyContract {
+                            #[ink(constructor)]
+                            pub fn new() -> Self {}
+
+                            #[ink(message)]
+                            pub fn message(&self) {}
+                        }
+                    }
+                }
+            ]
+            .into_iter()
+            .chain(valid_contracts_versioned!(@gte v5))
         };
         (@lte v5) => {
             [

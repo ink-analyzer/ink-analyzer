@@ -58,7 +58,7 @@ pub fn add_event_v1(
                 module
                     .item_list()
                     .as_ref()
-                    .map(utils::item_insert_offset_after_last_struct_or_start)
+                    .map(utils::item_insert_offset_after_last_adt_or_start)
                     .map(|offset| TextRange::new(offset, offset))
             })
             .map(|range| Action {
@@ -576,5 +576,25 @@ pub fn add_environment(
         kind,
         range,
         edits: vec![text_edit::add_environment(range, indent_option, version)],
+    }
+}
+
+/// Add an ink! error `enum`.
+pub fn add_error_enum(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
+    Action {
+        label: "Add ink! error `enum`.".to_owned(),
+        kind,
+        range,
+        edits: vec![text_edit::add_error_enum(range, indent_option)],
+    }
+}
+
+/// Add an ink! error `struct`.
+pub fn add_error_struct(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
+    Action {
+        label: "Add ink! error `struct`.".to_owned(),
+        kind,
+        range,
+        edits: vec![text_edit::add_error_struct(range, indent_option)],
     }
 }
