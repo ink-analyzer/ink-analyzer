@@ -282,6 +282,9 @@ fn validate_arg(
                     let is_valid_string = arg.value().is_some_and(|meta_value| {
                         if let Some(str_value) = meta_value.as_string() {
                             match str_kind {
+                                InkArgValueStringKind::Abi if version.is_gte_v6() => {
+                                    matches!(str_value.as_str(), "ink" | "sol")
+                                }
                                 InkArgValueStringKind::Hex => meta_value.as_hex_32().is_some(),
                                 InkArgValueStringKind::Identifier => {
                                     meta_value.as_ident().is_some()
@@ -2472,6 +2475,20 @@ mod tests {
         };
         (v6) => {
             [
+                // `contract_ref` attribute macro.
+                // Ref: <https://github.com/use-ink/ink/pull/2648>
+                quote_as_str! {
+                    #[ink::contract_ref]
+                },
+                quote_as_str! {
+                    #[ink::contract_ref(abi="ink")]
+                },
+                quote_as_str! {
+                    #[ink::contract_ref(abi="sol")]
+                },
+                quote_as_str! {
+                    #[ink::contract_ref(abi="sol", env=my::env::Types)]
+                },
                 // `name` attribute argument.
                 // Ref: <https://github.com/use-ink/ink/pull/2577/>
                 quote_as_str! {
@@ -2489,6 +2506,8 @@ mod tests {
                 quote_as_str! {
                     #[ink::event(name="name")]
                 },
+                // `error` attribute macro.
+                // Ref: <https://github.com/use-ink/ink/pull/2585>
                 quote_as_str! {
                     #[ink::error]
                 },
@@ -3072,6 +3091,17 @@ mod tests {
             (
                 Version::V6,
                 vec![
+                    (
+                        r#"#[ink::event(abi = "move")]"#, // invalid ABI.
+                        vec![TestResultAction {
+                            label: "argument value",
+                            edits: vec![TestResultTextRange {
+                                text: "abi = ",
+                                start_pat: Some("<-abi"),
+                                end_pat: Some(r#"abi = "move""#),
+                            }],
+                        }],
+                    ),
                     (
                         r#"#[ink(name = "")]"#, // not "identifier-like".
                         vec![TestResultAction {
@@ -4055,6 +4085,50 @@ mod tests {
                                 start_pat: Some(""),
                                 end_pat: Some("#[ink(handle_status=true)]"),
                             }],
+                        }],
+                    ),
+                    (
+                        // `contract_ref` should come first.
+                        r#"
+                        #[ink(abi="sol")]
+                        #[ink::contract_ref]
+                        "#,
+                        vec![TestResultAction {
+                            label: "first ink! attribute",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink::contract_ref]",
+                                    start_pat: Some("<-#[ink("),
+                                    end_pat: Some("<-#[ink("),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink::contract_ref]"),
+                                    end_pat: Some("#[ink::contract_ref]"),
+                                },
+                            ],
+                        }],
+                    ),
+                    (
+                        // `contract_ref` should come first.
+                        r#"
+                        #[ink(env=my::env::Types)]
+                        #[ink::contract_ref]
+                        "#,
+                        vec![TestResultAction {
+                            label: "first ink! attribute",
+                            edits: vec![
+                                TestResultTextRange {
+                                    text: "#[ink::contract_ref]",
+                                    start_pat: Some("<-#[ink("),
+                                    end_pat: Some("<-#[ink("),
+                                },
+                                TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-#[ink::contract_ref]"),
+                                    end_pat: Some("#[ink::contract_ref]"),
+                                },
+                            ],
                         }],
                     ),
                     (

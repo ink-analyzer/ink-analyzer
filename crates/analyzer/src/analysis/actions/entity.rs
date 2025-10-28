@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use ink_analyzer_ir::{
     ast::{self, HasName},
     syntax::{AstNode, TextRange},
-    ChainExtension, Constructor, Contract, InkEntity, InkFile, IsInkEvent, IsInkFn, IsInkTrait,
-    Message, TraitDefinition, Version,
+    ChainExtension, Constructor, Contract, ContractRef, InkEntity, InkFile, IsInkEvent, IsInkFn,
+    IsInkTrait, Message, TraitDefinition, Version,
 };
 
 use super::{Action, ActionKind};
@@ -373,6 +373,32 @@ pub fn add_message_to_trait_def(
     })
 }
 
+/// Adds an ink! message `fn` declaration to an ink! contract reference `trait` item.
+pub fn add_message_to_contract_ref(
+    contract_ref: &ContractRef,
+    kind: ActionKind,
+    range_option: Option<TextRange>,
+) -> Option<Action> {
+    contract_ref.trait_item().and_then(|trait_item| {
+        // Sets insert offset or defaults to inserting at the end of the
+        // associated items list (if possible).
+        range_option
+            .or_else(|| {
+                trait_item
+                    .assoc_item_list()
+                    .as_ref()
+                    .map(utils::assoc_item_insert_offset_end)
+                    .map(|offset| TextRange::new(offset, offset))
+            })
+            .map(|range| Action {
+                label: "Add ink! message `fn`.".to_owned(),
+                kind,
+                range: utils::ink_trait_declaration_range(contract_ref),
+                edits: vec![text_edit::add_message_to_contract_ref(contract_ref, range)],
+            })
+    })
+}
+
 /// Adds an `ErrorCode` type to an ink! chain extension `trait` item.
 pub fn add_error_code(
     chain_extension: &ChainExtension,
@@ -499,6 +525,16 @@ pub fn add_contract(
         kind,
         range,
         edits: vec![text_edit::add_contract(range, indent_option, version)],
+    }
+}
+
+/// Add an ink! contract reference `trait`.
+pub fn add_contract_ref(range: TextRange, kind: ActionKind, indent_option: Option<&str>) -> Action {
+    Action {
+        label: "Add ink! contract reference.".to_owned(),
+        kind,
+        range,
+        edits: vec![text_edit::add_contract_ref(range, indent_option)],
     }
 }
 

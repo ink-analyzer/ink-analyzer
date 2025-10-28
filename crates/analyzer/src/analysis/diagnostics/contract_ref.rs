@@ -1,212 +1,70 @@
-//! ink! trait definition diagnostics.
+//! ink! contract reference diagnostics.
 
-use ink_analyzer_ir::ast::AstNode;
-use ink_analyzer_ir::{
-    ast, InkArgKind, InkAttributeKind, InkEntity, InkMacroKind, IsInkTrait, Message,
-    TraitDefinition,
-};
+use ink_analyzer_ir::{ast, ContractRef, InkAttributeKind, InkEntity, InkMacroKind, IsInkTrait};
 
-use super::{common, message};
+use super::{common, message, trait_definition::ensure_trait_interface_item_invariants};
 use crate::analysis::actions::entity as entity_actions;
-use crate::analysis::text_edit::TextEdit;
 use crate::analysis::utils;
-use crate::{Action, ActionKind, Diagnostic, Severity, Version};
+use crate::{ActionKind, Diagnostic, Severity, Version};
 
-const SCOPE_NAME: &str = "trait definition";
+const SCOPE_NAME: &str = "contract reference";
 
-/// Runs all ink! trait definition diagnostics.
+/// Runs all ink! contract reference diagnostics.
 ///
-/// The entry point for finding ink! trait definition semantic rules is the `trait_def` module of the `ink_ir` crate.
+/// ink! contract references currently have the same semantic rules as ink! contract references,
+/// however, this is expected to change in the future.
 ///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/mod.rs#L42-L49>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L64-L84>.
-pub fn diagnostics(
-    results: &mut Vec<Diagnostic>,
-    trait_definition: &TraitDefinition,
-    version: Version,
-) {
+/// Ref: <https://github.com/use-ink/ink/pull/2648>
+pub fn diagnostics(results: &mut Vec<Diagnostic>, contract_ref: &ContractRef, version: Version) {
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
-    common::run_generic_diagnostics(results, trait_definition, version);
+    common::run_generic_diagnostics(results, contract_ref, version);
 
-    // Ensures that ink! trait definition is a `trait` item, see `utils::ensure_trait` doc.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L116>.
-    if let Some(diagnostic) = common::ensure_trait(trait_definition, SCOPE_NAME) {
+    // Ensures that ink! contract reference is a `trait` item, see `utils::ensure_trait` doc.
+    if let Some(diagnostic) = common::ensure_trait(contract_ref, SCOPE_NAME) {
         results.push(diagnostic);
     }
 
-    if let Some(trait_item) = trait_definition.trait_item() {
-        // Ensures that ink! trait definition `trait` item satisfies all common invariants of trait-based ink! entities,
+    if let Some(trait_item) = contract_ref.trait_item() {
+        // Ensures that ink! contract reference `trait` item satisfies all common invariants of trait-based ink! entities,
         // see `utils::ensure_trait_invariants` doc.
-        // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L108-L148>.
         common::ensure_trait_invariants(results, trait_item, SCOPE_NAME);
 
-        // Ensures that ink! trait definition `trait` item's associated items satisfy all invariants,
+        // Ensures that ink! contract reference `trait` item's associated items satisfy all invariants,
         // see `ensure_trait_item_invariants` doc.
         ensure_trait_interface_item_invariants(results, trait_item, SCOPE_NAME, version);
     }
 
     // Runs ink! message diagnostics, see `message::diagnostics` doc.
-    for item in trait_definition.messages() {
+    for item in contract_ref.messages() {
         message::diagnostics(results, item, version);
     }
 
     // Ensures that at least one ink! message, see `ensure_contains_message` doc.
-    if let Some(diagnostic) = ensure_contains_message(trait_definition) {
+    if let Some(diagnostic) = ensure_contains_message(contract_ref) {
         results.push(diagnostic);
     }
 
     // Ensures that only valid quasi-direct ink! attribute descendants (i.e ink! descendants without any ink! ancestors),
     // see `ensure_valid_quasi_direct_ink_descendants` doc.
-    ensure_valid_quasi_direct_ink_descendants(results, trait_definition, version);
-}
-
-/// Ensures that ink! trait definition or ink! contract reference is a `trait` item,
-/// whose associated items satisfy all invariants for ink! "interfaces".
-///
-/// See reference below for details about checked invariants.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L150-L208>.
-///
-/// See `utils::ensure_trait_item_invariants` doc for common invariants for all trait-based ink! entities that are handled by that utility.
-/// This utility also runs `message::diagnostics` on trait methods with an ink! message attribute.
-pub fn ensure_trait_interface_item_invariants(
-    results: &mut Vec<Diagnostic>,
-    trait_item: &ast::Trait,
-    macro_name: &str,
-    version: Version,
-) {
-    common::ensure_trait_item_invariants(
-        results,
-        trait_item,
-        macro_name,
-        |results, fn_item| {
-            // All trait methods should be ink! messages.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L210-L288>.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L298-L322>.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L290-L296>.
-            if let Some(message_item) = ink_analyzer_ir::ink_attrs(fn_item.syntax())
-                .find_map(ink_analyzer_ir::ink_attr_to_entity::<Message>)
-            {
-                // Runs ink! message diagnostics, see `message::diagnostics` doc.
-                message::diagnostics(results, &message_item, version);
-            } else {
-                // Determines the insertion offset and affixes for the quickfix.
-                let insert_offset = utils::first_ink_attribute_insert_offset(fn_item.syntax());
-                // Gets the declaration range for the item.
-                let range = utils::ast_item_declaration_range(&ast::Item::Fn(fn_item.clone()))
-                    .unwrap_or(fn_item.syntax().text_range());
-                results.push(Diagnostic {
-                    message: format!("All ink! {macro_name} methods must be ink! messages."),
-                    range,
-                    severity: Severity::Error,
-                    quickfixes: Some(vec![Action {
-                        label: "Add ink! message attribute.".to_owned(),
-                        kind: ActionKind::QuickFix,
-                        range,
-                        edits: [TextEdit::insert(
-                            "#[ink(message)]".to_owned(),
-                            insert_offset,
-                        )]
-                        .into_iter()
-                        .chain(
-                            ink_analyzer_ir::ink_attrs(fn_item.syntax()).filter_map(|attr| {
-                                // Remove attributes that aren't either `message`,
-                                // or a valid "sibling" arg for `message`.
-                                let is_message_or_sibling_attr = matches!(
-                                    attr.kind(),
-                                    InkAttributeKind::Arg(
-                                        InkArgKind::Message
-                                            | InkArgKind::Default
-                                            | InkArgKind::Payable
-                                            | InkArgKind::Selector
-                                    )
-                                );
-                                // For ink! >= 6.x, `name` is also a valid "sibling" arg for `message`.
-                                let is_name_attr =
-                                    *attr.kind() == InkAttributeKind::Arg(InkArgKind::Name);
-                                (!is_message_or_sibling_attr
-                                    && (version.is_lte_v5() || !is_name_attr))
-                                    .then(|| TextEdit::delete(attr.syntax().text_range()))
-                            }),
-                        )
-                        .collect(),
-                    }]),
-                });
-            }
-
-            // Wildcard selectors are not supported.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L80-L101>.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L304>.
-            for attr in ink_analyzer_ir::ink_attrs(fn_item.syntax()) {
-                for arg in attr.args() {
-                    if let Some(value) = arg.value() {
-                        if value.is_wildcard() {
-                            // Edit range for quickfix.
-                            let range =
-                                utils::ink_arg_and_delimiter_removal_range(arg, Some(&attr));
-                            results.push(Diagnostic {
-                                message: format!(
-                                    "Wildcard selectors (i.e `selector=_`) on \
-                                    ink! {macro_name} methods are not supported. \
-                                    They're only supported on inherent ink! messages and constructors."
-                                )
-                                .to_owned(),
-                                range: arg.text_range(),
-                                severity: Severity::Error,
-                                quickfixes: Some(vec![Action {
-                                    label: "Remove wildcard selector.".to_owned(),
-                                    kind: ActionKind::QuickFix,
-                                    range,
-                                    edits: vec![TextEdit::delete(range)],
-                                }]),
-                            });
-                        }
-                    }
-                }
-            }
-        },
-        |results, type_alias| {
-            results.push(Diagnostic {
-                message: format!(
-                    "Associated types in ink! {macro_name} are not {}.",
-                    if macro_name.contains("contract") && macro_name.contains("ref") {
-                        "allowed"
-                    } else {
-                        "yet supported"
-                    }
-                ),
-                range: type_alias.syntax().text_range(),
-                severity: Severity::Error,
-                quickfixes: Some(vec![Action {
-                    label: "Remove associated type.".to_owned(),
-                    kind: ActionKind::QuickFix,
-                    range: type_alias.syntax().text_range(),
-                    edits: vec![TextEdit::delete(type_alias.syntax().text_range())],
-                }]),
-            });
-        },
-    );
+    ensure_valid_quasi_direct_ink_descendants(results, contract_ref, version);
 }
 
 /// Ensures that at least one ink! message.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L73-L79>.
-fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnostic> {
+fn ensure_contains_message(contract_ref: &ContractRef) -> Option<Diagnostic> {
     // Gets the declaration range for the item.
-    let range = trait_definition
+    let range = contract_ref
         .trait_item()
         .and_then(|it| utils::ast_item_declaration_range(&ast::Item::Trait(it.clone())))
-        .unwrap_or(trait_definition.syntax().text_range());
+        .unwrap_or(contract_ref.syntax().text_range());
     common::ensure_at_least_one_item(
-        trait_definition.messages(),
+        contract_ref.messages(),
         Diagnostic {
-            message: "At least one ink! message must be defined for an ink! trait definition."
+            message: "At least one ink! message must be defined for an ink! contract reference."
                 .to_owned(),
             range,
             severity: Severity::Error,
-            quickfixes: entity_actions::add_message_to_trait_def(
-                trait_definition,
+            quickfixes: entity_actions::add_message_to_contract_ref(
+                contract_ref,
                 ActionKind::QuickFix,
                 None,
             )
@@ -216,21 +74,15 @@ fn ensure_contains_message(trait_definition: &TraitDefinition) -> Option<Diagnos
 }
 
 /// Ensures that only valid quasi-direct ink! attribute descendants (i.e. ink! descendants without any ink! ancestors).
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/trait_item.rs#L85-L99>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L163-L164>.
-///
-/// Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/item/mod.rs#L290-L296>.
 fn ensure_valid_quasi_direct_ink_descendants(
     results: &mut Vec<Diagnostic>,
-    trait_definition: &TraitDefinition,
+    contract_ref: &ContractRef,
     version: Version,
 ) {
     common::ensure_valid_quasi_direct_ink_descendants_by_kind(
         results,
-        trait_definition,
-        InkAttributeKind::Macro(InkMacroKind::TraitDefinition),
+        contract_ref,
+        InkAttributeKind::Macro(InkMacroKind::ContractRef),
         version,
         SCOPE_NAME,
     );
@@ -240,26 +92,19 @@ fn ensure_valid_quasi_direct_ink_descendants(
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use ink_analyzer_ir::{
-        syntax::{TextRange, TextSize},
-        MinorVersion,
-    };
+    use ink_analyzer_ir::syntax::{TextRange, TextSize};
     use quote::{format_ident, quote};
     use test_utils::{
         parse_offset_at, quote_as_pretty_string, quote_as_str, TestResultAction,
         TestResultTextRange,
     };
 
-    fn parse_first_trait_definition(code: &str) -> TraitDefinition {
+    fn parse_first_contract_ref(code: &str) -> ContractRef {
         parse_first_ink_entity_of_type(code)
     }
 
-    // List of valid minimal ink! trait definitions used for positive(`works`) tests for ink! trait definition verifying utilities.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L329-L334>.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L360-L365>.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L375-L380>.
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L391-L404>.
-    macro_rules! valid_traits {
+    // List of valid minimal ink! contract references used for positive(`works`) tests for ink! contract reference verifying utilities.
+    macro_rules! valid_contract_refs {
         () => {
             [
                 // Simple.
@@ -281,8 +126,6 @@ mod tests {
                 // Payable.
                 quote! {
                     #[ink(message, payable)]
-                    fn my_message(&self);
-                    #[ink(message, payable)]
                     fn my_message_mut(&mut self);
                 },
                 // Compound.
@@ -290,10 +133,10 @@ mod tests {
                     #[ink(message)]
                     fn my_message_1(&self);
 
-                    #[ink(message, payable)]
+                    #[ink(message, selector = 0xDEADBEEF)]
                     fn my_message_2(&self);
 
-                    #[ink(message, payable, selector = 0xDEADBEEF)]
+                    #[ink(message, name="myMessage3")]
                     fn my_message_3(&self);
 
                     #[ink(message)]
@@ -302,7 +145,7 @@ mod tests {
                     #[ink(message, payable)]
                     fn my_message_mut_2(&mut self);
 
-                    #[ink(message, payable, selector = 0xC0DEBEEF)]
+                    #[ink(message, payable, selector = 0xC0DEBEEF, name="myMessageMut3")]
                     fn my_message_mut_3(&mut self);
                 },
             ]
@@ -311,29 +154,35 @@ mod tests {
                 [
                     // Simple.
                     quote! {
-                        #[ink::trait_definition]
-                        pub trait MyTrait {
+                        #[ink::contract_ref]
+                        pub trait Callee {
                             #messages
                         }
                     },
-                    // Namespace.
+                    // ABI.
                     quote! {
-                        #[ink::trait_definition(namespace="my_namespace")]
-                        pub trait MyTrait {
+                        #[ink::contract_ref(abi="ink")]
+                        pub trait Callee {
+                            #messages
+                        }
+                    },
+                    quote! {
+                        #[ink::contract_ref(abi="sol")]
+                        pub trait Callee {
                             #messages
                         }
                     },
                     // Keep Attr.
                     quote! {
-                        #[ink::trait_definition(keep_attr="foo,bar")]
-                        pub trait MyTrait {
+                        #[ink::contract_ref(env=ink::env::DefaultEnvironment)]
+                        pub trait Callee {
                             #messages
                         }
                     },
                     // Compound.
                     quote! {
-                        #[ink::trait_definition(namespace="my_namespace", keep_attr="foo,bar")]
-                        pub trait MyTrait {
+                        #[ink::contract_ref(abi="sol", env=ink::env::DefaultEnvironment)]
+                        pub trait Callee {
                             #messages
                         }
                     },
@@ -344,18 +193,18 @@ mod tests {
 
     #[test]
     fn valid_trait_properties_works() {
-        for code in valid_traits!() {
-            let trait_definition = parse_first_trait_definition(quote_as_str! {
+        for code in valid_contract_refs!() {
+            let contract_ref = parse_first_contract_ref(quote_as_str! {
                 #code
             });
 
             let mut results = Vec::new();
             common::ensure_trait_invariants(
                 &mut results,
-                trait_definition.trait_item().unwrap(),
+                contract_ref.trait_item().unwrap(),
                 SCOPE_NAME,
             );
-            assert!(results.is_empty(), "trait definition: {code}");
+            assert!(results.is_empty(), "contract reference: {code}");
         }
     }
 
@@ -363,23 +212,22 @@ mod tests {
     fn invalid_trait_properties_fails() {
         for (code, expected_quickfixes) in [
             // Visibility.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L48-L58>.
             (
                 quote! {
-                    trait MyTrait {}
+                    trait Callee {}
                 },
                 vec![TestResultAction {
                     label: "`pub`",
                     edits: vec![TestResultTextRange {
                         text: "pub",
-                        start_pat: Some("<-trait MyTrait"),
-                        end_pat: Some("<-trait MyTrait"),
+                        start_pat: Some("<-trait Callee"),
+                        end_pat: Some("<-trait Callee"),
                     }],
                 }],
             ),
             (
                 quote! {
-                    pub(crate) trait MyTrait {}
+                    pub(crate) trait Callee {}
                 },
                 vec![TestResultAction {
                     label: "`pub`",
@@ -392,7 +240,7 @@ mod tests {
             ),
             (
                 quote! {
-                    pub(self) trait MyTrait {}
+                    pub(self) trait Callee {}
                 },
                 vec![TestResultAction {
                     label: "`pub`",
@@ -405,7 +253,7 @@ mod tests {
             ),
             (
                 quote! {
-                    pub(super) trait MyTrait {}
+                    pub(super) trait Callee {}
                 },
                 vec![TestResultAction {
                     label: "`pub`",
@@ -418,7 +266,7 @@ mod tests {
             ),
             (
                 quote! {
-                    pub(in my::path) trait MyTrait {}
+                    pub(in my::path) trait Callee {}
                 },
                 vec![TestResultAction {
                     label: "`pub`",
@@ -430,10 +278,9 @@ mod tests {
                 }],
             ),
             // Unsafe.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L32-L38>.
             (
                 quote! {
-                    pub unsafe trait MyTrait {}
+                    pub unsafe trait Callee {}
                 },
                 vec![TestResultAction {
                     label: "Remove `unsafe`",
@@ -445,10 +292,9 @@ mod tests {
                 }],
             ),
             // Auto.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L40-L46>.
             (
                 quote! {
-                    pub auto trait MyTrait {}
+                    pub auto trait Callee {}
                 },
                 vec![TestResultAction {
                     label: "Remove `auto`",
@@ -460,10 +306,9 @@ mod tests {
                 }],
             ),
             // Generic.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L60-L66>.
             (
                 quote! {
-                    pub trait MyTrait<T> {}
+                    pub trait Callee<T> {}
                 },
                 vec![TestResultAction {
                     label: "Remove generic",
@@ -475,10 +320,9 @@ mod tests {
                 }],
             ),
             // Supertrait.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L68-L74>.
             (
                 quote! {
-                    pub trait MyTrait: SuperTrait {}
+                    pub trait Callee: SuperTrait {}
                 },
                 vec![TestResultAction {
                     label: "Remove type",
@@ -491,24 +335,24 @@ mod tests {
             ),
         ] {
             let code = quote_as_pretty_string! {
-                #[ink::trait_definition]
+                #[ink::contract_ref]
                 #code
             };
-            let trait_definition = parse_first_trait_definition(&code);
+            let contract_ref = parse_first_contract_ref(&code);
 
             let mut results = Vec::new();
             common::ensure_trait_invariants(
                 &mut results,
-                trait_definition.trait_item().unwrap(),
+                contract_ref.trait_item().unwrap(),
                 SCOPE_NAME,
             );
 
             // Verifies diagnostics.
-            assert_eq!(results.len(), 1, "trait definition: {code}");
+            assert_eq!(results.len(), 1, "contract reference: {code}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
-                "trait definition: {code}"
+                "contract reference: {code}"
             );
             // Verifies quickfixes.
             verify_actions(
@@ -521,19 +365,19 @@ mod tests {
 
     #[test]
     fn valid_trait_items_works() {
-        for code in valid_traits!() {
-            let trait_definition = parse_first_trait_definition(quote_as_str! {
+        for code in valid_contract_refs!() {
+            let contract_ref = parse_first_contract_ref(quote_as_str! {
                 #code
             });
 
             let mut results = Vec::new();
             ensure_trait_interface_item_invariants(
                 &mut results,
-                trait_definition.trait_item().unwrap(),
+                contract_ref.trait_item().unwrap(),
                 SCOPE_NAME,
-                Version::Legacy,
+                Version::V6,
             );
-            assert!(results.is_empty(), "trait definition: {code}");
+            assert!(results.is_empty(), "contract reference: {code}");
         }
     }
 
@@ -541,7 +385,6 @@ mod tests {
     fn invalid_trait_items_fails() {
         for (items, expected_quickfixes) in [
             // Const.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L76-L84>.
             (
                 quote! {
                     const T: i32;
@@ -556,7 +399,6 @@ mod tests {
                 }],
             ),
             // Type.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L86-L94>.
             (
                 quote! {
                     type Type;
@@ -571,7 +413,6 @@ mod tests {
                 }],
             ),
             // Macro.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L96-L104>.
             (
                 quote! {
                     my_macro_call!();
@@ -586,7 +427,6 @@ mod tests {
                 }],
             ),
             // Non-flagged method.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L106-L126>.
             (
                 quote! {
                     fn non_flagged(&self);
@@ -614,7 +454,6 @@ mod tests {
                 }],
             ),
             // Default implementation.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L128-L144>.
             (
                 quote! {
                     #[ink(message)]
@@ -630,7 +469,6 @@ mod tests {
                 }],
             ),
             // Const method.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L146-L162>.
             (
                 quote! {
                     #[ink(message)]
@@ -646,7 +484,6 @@ mod tests {
                 }],
             ),
             // Async method.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L164-L180>.
             (
                 quote! {
                     #[ink(message)]
@@ -662,7 +499,6 @@ mod tests {
                 }],
             ),
             // Unsafe method.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L182-L198>.
             (
                 quote! {
                     #[ink(message)]
@@ -678,7 +514,6 @@ mod tests {
                 }],
             ),
             // Explicit ABI.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L200-L216>.
             (
                 quote! {
                     #[ink(message)]
@@ -694,7 +529,6 @@ mod tests {
                 }],
             ),
             // Variadic method.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L218-L234>.
             (
                 quote! {
                     #[ink(message)]
@@ -710,7 +544,6 @@ mod tests {
                 }],
             ),
             // Generic method.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L236-L252>.
             (
                 quote! {
                     #[ink(message)]
@@ -726,7 +559,6 @@ mod tests {
                 }],
             ),
             // Unsupported ink! attribute.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L254-L270>.
             (
                 quote! {
                     #[ink(constructor)]
@@ -797,7 +629,6 @@ mod tests {
                 }],
             ),
             // Invalid message.
-            // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L272-L295>.
             (
                 quote! {
                     #[ink(message)]
@@ -902,27 +733,27 @@ mod tests {
             ),
         ] {
             let code = quote_as_pretty_string! {
-                #[ink::trait_definition]
-                pub trait MyTrait {
+                #[ink::contract_ref]
+                pub trait Callee {
                     #items
                 }
             };
-            let trait_definition = parse_first_trait_definition(&code);
+            let contract_ref = parse_first_contract_ref(&code);
 
             let mut results = Vec::new();
             ensure_trait_interface_item_invariants(
                 &mut results,
-                trait_definition.trait_item().unwrap(),
+                contract_ref.trait_item().unwrap(),
                 SCOPE_NAME,
-                Version::Legacy,
+                Version::V6,
             );
 
             // Verifies diagnostics.
-            assert_eq!(results.len(), 1, "trait definition: {items}");
+            assert_eq!(results.len(), 1, "contract reference: {items}");
             assert_eq!(
                 results[0].severity,
                 Severity::Error,
-                "trait definition: {items}"
+                "contract reference: {items}"
             );
             // Verifies quickfixes.
             verify_actions(
@@ -935,16 +766,16 @@ mod tests {
 
     #[test]
     fn one_message_works() {
-        let trait_definition = parse_first_trait_definition(quote_as_str! {
-            #[ink::trait_definition]
-            pub trait MyTrait {
+        let contract_ref = parse_first_contract_ref(quote_as_str! {
+            #[ink::contract_ref]
+            pub trait Callee {
                 #[ink(message)]
                 fn my_message(&self) {
                 }
             }
         });
 
-        let result = ensure_contains_message(&trait_definition);
+        let result = ensure_contains_message(&contract_ref);
         assert!(result.is_none());
     }
 
@@ -963,29 +794,28 @@ mod tests {
             });
 
             // Creates contract with multiple messages.
-            let trait_definition = parse_first_trait_definition(quote_as_str! {
-                #[ink::trait_definition]
-                pub trait MyTrait {
+            let contract_ref = parse_first_contract_ref(quote_as_str! {
+                #[ink::contract_ref]
+                pub trait Callee {
                     #( #messages )*
                 }
             });
 
-            let result = ensure_contains_message(&trait_definition);
+            let result = ensure_contains_message(&contract_ref);
             assert!(result.is_none());
         }
     }
 
     #[test]
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L106-L126>.
     fn missing_message_fails() {
         let code = quote_as_pretty_string! {
-            #[ink::trait_definition]
-            pub trait MyTrait {
+            #[ink::contract_ref]
+            pub trait Callee {
             }
         };
-        let trait_definition = parse_first_trait_definition(&code);
+        let contract_ref = parse_first_contract_ref(&code);
 
-        let result = ensure_contains_message(&trait_definition);
+        let result = ensure_contains_message(&contract_ref);
 
         // Verifies diagnostics.
         assert!(result.is_some());
@@ -1003,25 +833,22 @@ mod tests {
 
     #[test]
     fn valid_quasi_direct_descendant_works() {
-        for code in valid_traits!() {
-            let trait_definition = parse_first_trait_definition(quote_as_str! {
+        for code in valid_contract_refs!() {
+            let contract_ref = parse_first_contract_ref(quote_as_str! {
                 #code
             });
 
-            for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
-                let mut results = Vec::new();
-                ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
-                assert!(results.is_empty());
-            }
+            let mut results = Vec::new();
+            ensure_valid_quasi_direct_ink_descendants(&mut results, &contract_ref, Version::V6);
+            assert!(results.is_empty());
         }
     }
 
     #[test]
-    // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/trait_def/tests.rs#L254-L270>.
     fn invalid_quasi_direct_descendant_fails() {
         let code = quote_as_pretty_string! {
-            #[ink::trait_definition]
-            pub trait MyTrait {
+            #[ink::contract_ref]
+            pub trait Callee {
                 #[ink(constructor)]
                 fn my_constructor() -> Self;
 
@@ -1029,77 +856,75 @@ mod tests {
                 fn unsupported_method(&self);
             }
         };
-        let trait_definition = parse_first_trait_definition(&code);
+        let contract_ref = parse_first_contract_ref(&code);
 
-        for version in [Version::Legacy, Version::V5(MinorVersion::Base)] {
-            let mut results = Vec::new();
-            ensure_valid_quasi_direct_ink_descendants(&mut results, &trait_definition, version);
-            // 1 diagnostic each for `constructor` and `event`.
-            assert_eq!(results.len(), 2);
-            // All diagnostics should be errors.
-            assert_eq!(
-                results
-                    .iter()
-                    .filter(|item| item.severity == Severity::Error)
-                    .count(),
-                2
-            );
-            // Verifies quickfixes.
-            let expected_quickfixes = [
-                vec![
-                    TestResultAction {
-                        label: "Remove `#[ink(constructor)]`",
-                        edits: vec![TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(constructor)]"),
-                            end_pat: Some("#[ink(constructor)]"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Remove item",
-                        edits: vec![TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(constructor)]"),
-                            end_pat: Some("fn my_constructor() -> Self;"),
-                        }],
-                    },
-                ],
-                vec![
-                    TestResultAction {
-                        label: "Remove `#[ink(event)]`",
-                        edits: vec![TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(event)]"),
-                            end_pat: Some("#[ink(event)]"),
-                        }],
-                    },
-                    TestResultAction {
-                        label: "Remove item",
-                        edits: vec![TestResultTextRange {
-                            text: "",
-                            start_pat: Some("<-#[ink(event)]"),
-                            end_pat: Some("fn unsupported_method(&self);"),
-                        }],
-                    },
-                ],
-            ];
-            for (idx, item) in results.iter().enumerate() {
-                let quickfixes = item.quickfixes.as_ref().unwrap();
-                verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
-            }
+        let mut results = Vec::new();
+        ensure_valid_quasi_direct_ink_descendants(&mut results, &contract_ref, Version::V6);
+        // 1 diagnostic each for `constructor` and `event`.
+        assert_eq!(results.len(), 2);
+        // All diagnostics should be errors.
+        assert_eq!(
+            results
+                .iter()
+                .filter(|item| item.severity == Severity::Error)
+                .count(),
+            2
+        );
+        // Verifies quickfixes.
+        let expected_quickfixes = [
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(constructor)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("#[ink(constructor)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(constructor)]"),
+                        end_pat: Some("fn my_constructor() -> Self;"),
+                    }],
+                },
+            ],
+            vec![
+                TestResultAction {
+                    label: "Remove `#[ink(event)]`",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("#[ink(event)]"),
+                    }],
+                },
+                TestResultAction {
+                    label: "Remove item",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(event)]"),
+                        end_pat: Some("fn unsupported_method(&self);"),
+                    }],
+                },
+            ],
+        ];
+        for (idx, item) in results.iter().enumerate() {
+            let quickfixes = item.quickfixes.as_ref().unwrap();
+            verify_actions(&code, quickfixes, &expected_quickfixes[idx]);
         }
     }
 
     #[test]
     fn compound_diagnostic_works() {
-        for code in valid_traits!() {
-            let trait_definition = parse_first_trait_definition(quote_as_str! {
+        for code in valid_contract_refs!() {
+            let contract_ref = parse_first_contract_ref(quote_as_str! {
                 #code
             });
 
             let mut results = Vec::new();
-            diagnostics(&mut results, &trait_definition, Version::Legacy);
-            assert!(results.is_empty(), "trait definition: {code}");
+            diagnostics(&mut results, &contract_ref, Version::V6);
+            assert!(results.is_empty(), "contract reference: {code}");
         }
     }
 }

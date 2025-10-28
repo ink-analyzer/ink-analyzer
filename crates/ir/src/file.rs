@@ -3,7 +3,8 @@
 use ra_ap_syntax::{Edition, SourceFile};
 
 use crate::{
-    ChainExtension, Contract, Error, EventV2, InkE2ETest, InkTest, StorageItem, TraitDefinition,
+    ChainExtension, Contract, ContractRef, Error, EventV2, InkE2ETest, InkTest, StorageItem,
+    TraitDefinition,
 };
 
 /// An ink! file.
@@ -21,6 +22,9 @@ pub struct InkFile {
     // ink! errors.
     #[initializer(peek_macro = Contract)]
     errors: Vec<Error>,
+    // ink! contract refs.
+    #[initializer(peek_macro = Contract)]
+    contract_refs: Vec<ContractRef>,
     // ink! trait definitions.
     #[initializer(peek_macro = Contract)]
     trait_definitions: Vec<TraitDefinition>,
@@ -63,6 +67,10 @@ mod tests {
             #[ink::error]
             pub struct Error;
 
+            #[ink::contract_ref]
+            pub trait Callee {
+            }
+
             #[ink::trait_definition]
             pub trait MyTrait {
             }
@@ -99,6 +107,9 @@ mod tests {
 
         // 1 error.
         assert_eq!(file.errors().len(), 1);
+
+        // 1 contract ref.
+        assert_eq!(file.contract_refs().len(), 1);
 
         // 1 trait definition.
         assert_eq!(file.trait_definitions().len(), 1);

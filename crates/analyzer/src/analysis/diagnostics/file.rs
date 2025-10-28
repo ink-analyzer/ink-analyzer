@@ -3,8 +3,8 @@
 use ink_analyzer_ir::{InkAttributeKind, InkFile, InkMacroKind};
 
 use super::{
-    chain_extension, common, contract, error, event, ink_e2e_test, ink_test, storage_item,
-    trait_definition,
+    chain_extension, common, contract, contract_ref, error, event, ink_e2e_test, ink_test,
+    storage_item, trait_definition,
 };
 use crate::{Diagnostic, Severity, Version};
 
@@ -24,6 +24,11 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile, version: Versi
     // ink! event 2.0 diagnostics.
     for item in file.events_v2() {
         event::diagnostics(results, item, version);
+    }
+
+    // Runs ink! contract reference diagnostics, see `contract_reference::diagnostics` doc.
+    for item in file.contract_refs() {
+        contract_ref::diagnostics(results, item, version);
     }
 
     // Runs ink! error diagnostics, see `error::diagnostics` doc.

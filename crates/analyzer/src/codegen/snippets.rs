@@ -49,6 +49,11 @@ fn my_message(&self);"#;
 pub const TRAIT_MESSAGE_SNIPPET: &str = r#"#[ink(message)]
 fn ${1:my_message}(&${2:self});"#;
 
+pub const CONTRACT_REF_MESSAGE_PLAIN: &str = r#"#[ink(message)]
+fn message(&self);"#;
+pub const CONTRACT_REF_MESSAGE_SNIPPET: &str = r#"#[ink(message)]
+fn ${1:message}(&${2:self});"#;
+
 pub const ERROR_CODE_PLAIN: &str = r#"type ErrorCode = ();"#;
 pub const ERROR_CODE_SNIPPET: &str = r#"type ErrorCode = ${1:()};"#;
 
@@ -362,6 +367,17 @@ pub mod ${1:my_contract} {
             Ok(())
         }
     }
+}"#;
+
+pub const CONTRACT_REF_PLAIN: &str = r#"#[ink::contract_ref]
+pub trait Callee {
+    #[ink(message)]
+    fn message(&self);
+}"#;
+pub const CONTRACT_REF_SNIPPET: &str = r#"#[ink::contract_ref]
+pub trait ${1:Callee} {
+    #[ink(message)]
+    fn ${2:message}(&${3:self});
 }"#;
 
 pub const TRAIT_DEFINITION_PLAIN: &str = r#"#[ink::trait_definition]

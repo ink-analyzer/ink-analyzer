@@ -30,6 +30,7 @@ mod file;
 
 mod chain_extension;
 mod contract;
+mod contract_ref;
 mod environment;
 mod error;
 mod event;

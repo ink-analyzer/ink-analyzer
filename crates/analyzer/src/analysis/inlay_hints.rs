@@ -293,6 +293,18 @@ mod tests {
                         None,
                         vec![("&str", Some("name"), (Some("<-name"), Some("name")))],
                     ),
+                    (
+                        r#"#[ink::contract_ref(name="name", env=my::env::Types)]"#,
+                        None,
+                        vec![
+                            ("&str", Some("name"), (Some("<-name"), Some("name"))),
+                            (
+                                "impl Environment",
+                                Some("env"),
+                                (Some("<-env"), Some("env")),
+                            ),
+                        ],
+                    ),
                     ("#[ink::chain_extension(extension=1)]", None, vec![]),
                     ("#[ink(function=1, handle_status=true)]", None, vec![]),
                 ]

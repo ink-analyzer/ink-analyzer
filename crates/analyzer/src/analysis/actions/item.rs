@@ -3,8 +3,8 @@
 use ink_analyzer_ir::ast::HasAttrs;
 use ink_analyzer_ir::syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange};
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, Event, EventV2, InkArgKind, InkAttributeKind, InkEntity,
-    InkFile, InkImpl, InkMacroKind, IsInkCallable, Message, TraitDefinition,
+    ast, ChainExtension, Contract, ContractRef, Event, EventV2, InkArgKind, InkAttributeKind,
+    InkEntity, InkFile, InkImpl, InkMacroKind, IsInkCallable, Message, TraitDefinition,
 };
 use itertools::Itertools;
 
@@ -546,6 +546,18 @@ fn item_ink_entity_actions(
                                 ));
                             }
                         }
+                        InkMacroKind::ContractRef if version.is_gte_v6() => {
+                            if let Some(contract_ref) =
+                                ink_analyzer_ir::ink_attr_to_entity::<ContractRef>(attr)
+                            {
+                                // Adds ink! message declaration.
+                                add_result_opt!(entity::add_message_to_contract_ref(
+                                    &contract_ref,
+                                    ActionKind::Refactor,
+                                    range_option,
+                                ));
+                            }
+                        }
                         // Ignores other macros.
                         _ => (),
                     }
@@ -657,6 +669,9 @@ fn root_ink_entity_actions(
     }
 
     if version.is_gte_v6() {
+        // Adds ink! contract ref.
+        results.push(entity::add_contract_ref(range, ActionKind::Refactor, None));
+
         // Adds ink! error `enum`.
         results.push(entity::add_error_enum(range, ActionKind::Refactor, None));
         // Adds ink! error `struct`.
@@ -1308,6 +1323,7 @@ mod tests {
                 vec![
                     "#[ink::contract]",
                     "#[ink::event]",
+                    "#[ink::contract_ref]",
                     // Twice for ink! error `enum` and `struct` entity suggestions.
                     "#[ink::error]",
                     "#[ink::error]",
@@ -1475,6 +1491,82 @@ mod tests {
                                     text: "#[ink(topic)]",
                                     start_pat: Some("<-my_field"),
                                     end_pat: Some("<-my_field"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink::contract_ref]
+                        pub trait Callee {
+                        }
+                        "#,
+                        Some("<-pub"),
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(abi = "sol")"#,
+                                    start_pat: Some("#[ink::contract_ref"),
+                                    end_pat: Some("#[ink::contract_ref"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("#[ink::contract_ref"),
+                                    end_pat: Some("#[ink::contract_ref"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("pub trait Callee {"),
+                                    end_pat: Some("pub trait Callee {"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
+                        #[ink(abi = "sol")]
+                        #[ink::contract_ref]
+                        pub trait Callee {
+                        }
+                        "#,
+                        Some("<-pub"),
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("#[ink::contract_ref"),
+                                    end_pat: Some("#[ink::contract_ref"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Flatten",
+                                edits: vec![
+                                    TestResultTextRange {
+                                        text: r#"#[ink::contract_ref(abi = "sol")]"#,
+                                        start_pat: Some("<-#[ink::contract_ref]"),
+                                        end_pat: Some("#[ink::contract_ref]"),
+                                    },
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some(r#"<-#[ink(abi = "sol")]"#),
+                                        end_pat: Some(r#"#[ink(abi = "sol")]"#),
+                                    },
+                                ],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "#[ink(message)]",
+                                    start_pat: Some("pub trait Callee {"),
+                                    end_pat: Some("pub trait Callee {"),
                                 }],
                             },
                         ],

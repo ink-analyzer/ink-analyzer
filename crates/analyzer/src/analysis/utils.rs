@@ -40,6 +40,12 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L111-L199>.
                 InkMacroKind::Contract => vec![InkArgKind::Env, InkArgKind::KeepAttr],
+                // References:
+                // - <https://github.com/use-ink/ink/blob/5174b68007c91bd44440c73a98a15c5009a0143b/crates/ink/macro/src/lib.rs#L662-L812>
+                // - <https://github.com/use-ink/ink/blob/5174b68007c91bd44440c73a98a15c5009a0143b/crates/ink/macro/src/contract_ref.rs>
+                InkMacroKind::ContractRef if version.is_gte_v6() => {
+                    vec![InkArgKind::Abi, InkArgKind::Env]
+                }
                 // Ref: <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/lib.rs#L1641-L1676>
                 // Ref: <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/error.rs>
                 InkMacroKind::Error if version.is_gte_v6() => Vec::new(),
@@ -150,7 +156,12 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                     InkArgKind::Selector,
                 ],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/config.rs#L39-L70>.
-                InkArgKind::Env => vec![InkArgKind::KeepAttr],
+                InkArgKind::Env if version.is_lte_v5() => vec![InkArgKind::KeepAttr],
+                // For ink >= 6.x, `env` is ambiguous because it can be used with both `contract` and `contract_ref` macros.
+                // Ref: <https://github.com/use-ink/ink/blob/5174b68007c91bd44440c73a98a15c5009a0143b/crates/ink/macro/src/lib.rs#L760-L812>
+                InkArgKind::Env => vec![InkArgKind::Abi, InkArgKind::KeepAttr],
+                // Ref: <https://github.com/use-ink/ink/blob/5174b68007c91bd44440c73a98a15c5009a0143b/crates/ink/macro/src/lib.rs#L736-L758>
+                InkArgKind::Abi if version.is_gte_v6() => vec![InkArgKind::Env],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/chain_extension.rs#L476-L487>.
                 // In ink! v5, `extension` is a sole/required attribute argument for the `chain_extension` macro attribute,
                 // see `chain_extension` macro pattern for details.
@@ -163,7 +174,6 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 InkArgKind::Function => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
                 InkArgKind::Derive => Vec::new(),
-
                 // Ambiguous `arg_kind`.
                 // `keep_attr` is ambiguous because it can be used with both `contract` and `trait_definition` macros.
                 // See `contract`, `trait_definition` and `env` patterns above for references.
@@ -297,6 +307,15 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::SignatureTopic,
                     InkArgKind::Storage,
                 ],
+                // Contract refs have similar descendants as trait definitions.
+                // Ref: <https://github.com/use-ink/ink/blob/5174b68007c91bd44440c73a98a15c5009a0143b/crates/ink/macro/src/contract_ref.rs#L42-L43>
+                InkMacroKind::ContractRef if version.is_gte_v6() => vec![
+                    InkArgKind::Default,
+                    InkArgKind::Message,
+                    InkArgKind::Name,
+                    InkArgKind::Payable,
+                    InkArgKind::Selector,
+                ],
                 // Ref: <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/lib.rs#L1641-L1676>
                 // Ref: <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/error.rs>
                 InkMacroKind::Error if version.is_gte_v6() => Vec::new(),
@@ -368,6 +387,14 @@ pub fn valid_quasi_direct_descendant_ink_args(
                     InkArgKind::Payable,
                     InkArgKind::Selector,
                     InkArgKind::Storage,
+                ],
+                // `abi` is used with `contract_ref` macro, see `contract_ref` pattern above for references.
+                InkArgKind::Abi if version.is_gte_v6() => vec![
+                    InkArgKind::Default,
+                    InkArgKind::Message,
+                    InkArgKind::Name,
+                    InkArgKind::Payable,
+                    InkArgKind::Selector,
                 ],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/item_impl/mod.rs#L118-L216>.
                 // `impl` can be used on `impl` blocks.
@@ -452,6 +479,7 @@ pub fn valid_quasi_direct_descendant_ink_macros(
                 // can have associated `fn` items can have `scale_derive` as a descendant
                 // (essentially everything except `event`, `scale_derive` and `storage_item`).
                 // But chain extensions are deprecated in ink! >= 6.x, so we special case that.
+                // NOTE: `contract_refs` are excluded because they can't have functions with bodies.
                 InkMacroKind::ChainExtension if version.is_gte_v6() => Vec::new(),
                 InkMacroKind::ChainExtension
                 | InkMacroKind::TraitDefinition
@@ -503,6 +531,7 @@ pub fn valid_ink_args_by_syntax_kind(syntax_kind: SyntaxKind, version: Version) 
         // `env` and `keep_attr` can only be applied to a `mod` as siblings of an `ink::contract` macro.
         SyntaxKind::MODULE | SyntaxKind::MOD_KW => Vec::new(),
         // `keep_attr` and `namespace` can only be applied to a `trait` as siblings of an `ink::trait_definition` macro.
+        // Also, for ink! >= 6.x, `abi` and `env` can only be applied to a trait as siblings of an `ink::contract_ref` macro.
         SyntaxKind::TRAIT | SyntaxKind::TRAIT_KW => Vec::new(),
         // `derive` can only be applied to an ADT (`enum`, `struct` or `union`) as a sibling of an `ink::storage_item` macro.
         SyntaxKind::STRUCT | SyntaxKind::STRUCT_KW if version.is_legacy() => vec![
@@ -1022,6 +1051,7 @@ pub fn ink_arg_insert_text(
         };
     let (text_value, snippet_value) = if insert_equal_token || insert_nested_value {
         match arg_kind {
+            InkArgKind::Abi => (r#""sol""#.to_owned(), r#""${1:sol}""#.to_owned()),
             InkArgKind::AdditionalContracts | InkArgKind::KeepAttr | InkArgKind::SignatureTopic => {
                 (r#""""#.to_owned(), r#""$1""#.to_owned())
             }

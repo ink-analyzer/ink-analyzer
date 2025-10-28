@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use ink_analyzer_ir::ast::{HasModuleItem, HasName};
 use ink_analyzer_ir::syntax::{AstNode, TextRange};
 use ink_analyzer_ir::{
-    ast, ChainExtension, Contract, Extension, InkEntity, InkFile, IsInkFn, IsInkTrait, Message,
-    TraitDefinition, Version,
+    ast, ChainExtension, Contract, ContractRef, Extension, InkEntity, InkFile, IsInkFn, IsInkTrait,
+    Message, TraitDefinition, Version,
 };
 
 use super::{utils, TextEdit};
@@ -14,11 +14,12 @@ use crate::codegen::snippets::{
     CHAIN_EXTENSION_PLAIN_V4, CHAIN_EXTENSION_PLAIN_V5, CHAIN_EXTENSION_SNIPPET_V4,
     CHAIN_EXTENSION_SNIPPET_V5, COMBINE_EXTENSIONS_PLAIN, COMBINE_EXTENSIONS_SNIPPET,
     CONSTRUCTOR_PLAIN, CONSTRUCTOR_SNIPPET, CONTRACT_PLAIN, CONTRACT_PLAIN_V4, CONTRACT_PLAIN_V5,
-    CONTRACT_SNIPPET, CONTRACT_SNIPPET_V4, CONTRACT_SNIPPET_V5, ENVIRONMENT_PLAIN,
-    ENVIRONMENT_PLAIN_V4, ENVIRONMENT_PLAIN_V5, ENVIRONMENT_SNIPPET, ENVIRONMENT_SNIPPET_V4,
-    ENVIRONMENT_SNIPPET_V5, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET, ERROR_ENUM_PLAIN,
-    ERROR_ENUM_SNIPPET, ERROR_STRUCT_PLAIN, ERROR_STRUCT_SNIPPET, EVENT_PLAIN, EVENT_PLAIN_V2,
-    EVENT_SNIPPET, EVENT_SNIPPET_V2, EXTENSION_FN_PLAIN, EXTENSION_FN_PLAIN_V4,
+    CONTRACT_REF_MESSAGE_PLAIN, CONTRACT_REF_MESSAGE_SNIPPET, CONTRACT_REF_PLAIN,
+    CONTRACT_REF_SNIPPET, CONTRACT_SNIPPET, CONTRACT_SNIPPET_V4, CONTRACT_SNIPPET_V5,
+    ENVIRONMENT_PLAIN, ENVIRONMENT_PLAIN_V4, ENVIRONMENT_PLAIN_V5, ENVIRONMENT_SNIPPET,
+    ENVIRONMENT_SNIPPET_V4, ENVIRONMENT_SNIPPET_V5, ERROR_CODE_PLAIN, ERROR_CODE_SNIPPET,
+    ERROR_ENUM_PLAIN, ERROR_ENUM_SNIPPET, ERROR_STRUCT_PLAIN, ERROR_STRUCT_SNIPPET, EVENT_PLAIN,
+    EVENT_PLAIN_V2, EVENT_SNIPPET, EVENT_SNIPPET_V2, EXTENSION_FN_PLAIN, EXTENSION_FN_PLAIN_V4,
     EXTENSION_FN_SNIPPET, EXTENSION_FN_SNIPPET_V4, INK_E2E_TEST_PLAIN, INK_E2E_TEST_PLAIN_V4,
     INK_E2E_TEST_SNIPPET, INK_E2E_TEST_SNIPPET_V4, INK_TEST_PLAIN, INK_TEST_SNIPPET, MESSAGE_PLAIN,
     MESSAGE_SNIPPET, STORAGE_ITEM_PLAIN, STORAGE_ITEM_SNIPPET, STORAGE_PLAIN, STORAGE_SNIPPET,
@@ -242,6 +243,16 @@ pub fn add_message_to_impl(impl_item: &ast::Impl, range: TextRange) -> TextEdit 
     )
 }
 
+/// Creates text edit for ink! contract reference.
+pub fn add_contract_ref(range: TextRange, indent: Option<&str>) -> TextEdit {
+    text_edit_with_indent(
+        CONTRACT_REF_PLAIN,
+        range,
+        Some(CONTRACT_REF_SNIPPET),
+        indent,
+    )
+}
+
 /// Creates text edit for ink! trait definition.
 pub fn add_trait_def(range: TextRange, indent: Option<&str>) -> TextEdit {
     text_edit_with_indent(
@@ -266,6 +277,30 @@ pub fn add_message_to_trait_def(trait_def: &TraitDefinition, range: TextRange) -
         TRAIT_MESSAGE_PLAIN,
         TRAIT_MESSAGE_SNIPPET,
         "my_message",
+        &names,
+    );
+
+    TextEdit::replace_with_snippet(
+        utils::apply_indenting(&text, &indent),
+        range,
+        Some(utils::apply_indenting(&snippet, &indent)),
+    )
+}
+
+/// Creates text edit for ink! contract reference message declaration.
+pub fn add_message_to_contract_ref(contract_ref: &ContractRef, range: TextRange) -> TextEdit {
+    // Sets insert indent and suggested name.
+    let indent = utils::item_children_indenting(contract_ref.syntax());
+    let names = contract_ref
+        .messages()
+        .iter()
+        .filter_map(Message::fn_item)
+        .filter_map(|fn_item| fn_item.name().as_ref().map(ToString::to_string))
+        .collect();
+    let (text, snippet) = unique_text_and_snippet(
+        CONTRACT_REF_MESSAGE_PLAIN,
+        CONTRACT_REF_MESSAGE_SNIPPET,
+        "message",
         &names,
     );
 

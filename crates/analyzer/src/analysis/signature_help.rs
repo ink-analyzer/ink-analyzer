@@ -1098,6 +1098,20 @@ mod tests {
                             1,
                         )],
                     ),
+                    ("#[ink::contract_ref]", None, vec![]),
+                    (
+                        "#[ink::contract_ref()]",
+                        Some("contract_ref("),
+                        vec![(
+                            "abi: &str, env: impl Environment",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-abi"), Some("&str")),
+                                (Some("<-env"), Some("impl Environment")),
+                            ],
+                            0,
+                        )],
+                    ),
                     (
                         "#[ink::chain_extension()]",
                         Some("chain_extension("),

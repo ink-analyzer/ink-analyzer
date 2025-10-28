@@ -710,6 +710,32 @@ mod tests {
                     ),
                     (
                         r#"
+                        #[ink::contract_ref]
+                        pub trait Callee {
+                        }
+                        "#,
+                        Some("<-#["),
+                        vec![
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: r#"(abi = "sol")"#,
+                                    start_pat: Some("#[ink::contract_ref"),
+                                    end_pat: Some("#[ink::contract_ref"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(env = ink::env::DefaultEnvironment)",
+                                    start_pat: Some("#[ink::contract_ref"),
+                                    end_pat: Some("#[ink::contract_ref"),
+                                }],
+                            },
+                        ],
+                    ),
+                    (
+                        r#"
                         #[ink::chain_extension]
                         pub trait MyTrait {
                         }

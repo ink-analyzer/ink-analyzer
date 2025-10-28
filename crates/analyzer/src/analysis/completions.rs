@@ -416,6 +416,7 @@ pub fn argument_completions(
                                         ]
                                     } else {
                                         vec![
+                                            InkArgKind::Abi,
                                             InkArgKind::Anonymous,
                                             InkArgKind::Constructor,
                                             InkArgKind::Default,
@@ -894,6 +895,7 @@ pub fn entity_completions(
         if file.contracts().is_empty()
             && is_line_affix_of(&["mod", "contract"])
             && !is_next_node_error()
+            && (version.is_lte_v5() || !is_line_affix_of(&["trait"]))
         {
             // Adds ink! contract.
             results.push(Completion {
@@ -907,6 +909,21 @@ pub fn entity_completions(
 
         // Adds ink! event 2.0.
         add_event_v2!();
+
+        if version.is_gte_v6() {
+            // Adds ink! contract reference.
+            if is_line_affix_of(&["trait", "contract", "ref", "reference", "contract_ref"])
+                && !is_line_affix_of(&["mod"])
+            {
+                results.push(Completion {
+                    label: "#[ink::contract_ref]..pub trait Callee {...}".to_owned(),
+                    range,
+                    edit: text_edit::add_contract_ref(range, None),
+                    detail: Some("ink! contract reference".to_owned()),
+                    kind: CompletionKind::Trait,
+                });
+            }
+        }
 
         // Adds ink! trait definition.
         if is_line_affix_of(&["trait", "definition", "trait_definition"]) {
@@ -1653,6 +1670,7 @@ mod tests {
             (
                 Version::V6,
                 vec![
+                    r#"abi="sol""#,
                     "anonymous",
                     "constructor",
                     "default",
@@ -1699,15 +1717,25 @@ mod tests {
                 vec!["anonymous", r#"name="name""#, r#"signature_topic="""#],
                 vec![],
                 vec!["backend(node)", "environment=ink::env::DefaultEnvironment"],
-                [(
-                    "#[ink::event(",
-                    Some("("),
-                    vec![
-                        ("anonymous", Some("("), Some("(")),
-                        (r#"name="name""#, Some("("), Some("(")),
-                        (r#"signature_topic="""#, Some("("), Some("(")),
-                    ],
-                )]
+                [
+                    (
+                        "#[ink::event(",
+                        Some("("),
+                        vec![
+                            ("anonymous", Some("("), Some("(")),
+                            (r#"name="name""#, Some("("), Some("(")),
+                            (r#"signature_topic="""#, Some("("), Some("(")),
+                        ],
+                    ),
+                    (
+                        "#[ink::contract_ref(",
+                        Some("("),
+                        vec![
+                            (r#"abi="sol""#, Some("("), Some("(")),
+                            ("env=ink::env::DefaultEnvironment", Some("("), Some("(")),
+                        ],
+                    ),
+                ]
                 .into_iter()
                 .chain(fixtures_gte_v5)
                 .chain(fixtures_gte_v5_1)
@@ -2268,7 +2296,14 @@ mod tests {
                 (
                     "contract",
                     Some("con"),
-                    vec![("#[ink::contract]", Some("<-contract"), Some("contract"))],
+                    if version.is_lte_v5() {
+                        vec![("#[ink::contract]", Some("<-contract"), Some("contract"))]
+                    } else {
+                        vec![
+                            ("#[ink::contract]", Some("<-contract"), Some("contract")),
+                            ("#[ink::contract_ref]", Some("<-contract"), Some("contract")),
+                        ]
+                    },
                 ),
                 (
                     "pub mod",
@@ -2363,7 +2398,23 @@ pub mod contract1 {
                             ("#[ink::chain_extension", Some("<-trait"), Some("trait")),
                         ]
                     } else {
-                        vec![("#[ink::trait_definition]", Some("<-trait"), Some("trait"))]
+                        vec![
+                            ("#[ink::contract_ref]", Some("<-trait"), Some("trait")),
+                            ("#[ink::trait_definition]", Some("<-trait"), Some("trait")),
+                        ]
+                    },
+                ),
+                (
+                    "contract_ref",
+                    Some("contract_ref"),
+                    if version.is_lte_v5() {
+                        vec![]
+                    } else {
+                        vec![(
+                            "#[ink::contract_ref]",
+                            Some("<-contract_ref"),
+                            Some("contract_ref"),
+                        )]
                     },
                 ),
                 (
@@ -2429,11 +2480,14 @@ trait",
                             ("#[ink::chain_extension", Some("<-trait->"), Some("trait->")),
                         ]
                     } else {
-                        vec![(
-                            "#[ink::trait_definition]",
-                            Some("<-trait->"),
-                            Some("trait->"),
-                        )]
+                        vec![
+                            ("#[ink::contract_ref]", Some("<-trait->"), Some("trait->")),
+                            (
+                                "#[ink::trait_definition]",
+                                Some("<-trait->"),
+                                Some("trait->"),
+                            ),
+                        ]
                     },
                 ),
                 (
@@ -2459,11 +2513,14 @@ trait MyTrait2",
                             ),
                         ]
                     } else {
-                        vec![(
-                            "#[ink::trait_definition]",
-                            Some("<-trait->"),
-                            Some("MyTrait2"),
-                        )]
+                        vec![
+                            ("#[ink::contract_ref]", Some("<-trait->"), Some("MyTrait2")),
+                            (
+                                "#[ink::trait_definition]",
+                                Some("<-trait->"),
+                                Some("MyTrait2"),
+                            ),
+                        ]
                     },
                 ),
                 (
@@ -2481,7 +2538,10 @@ pub trait MyTrait {
                             ("#[ink::chain_extension", Some("<-trait"), Some("trait")),
                         ]
                     } else {
-                        vec![("#[ink::trait_definition]", Some("<-trait"), Some("trait"))]
+                        vec![
+                            ("#[ink::contract_ref]", Some("<-trait"), Some("trait")),
+                            ("#[ink::trait_definition]", Some("<-trait"), Some("trait")),
+                        ]
                     },
                 ),
                 (
@@ -2503,11 +2563,14 @@ pub trait MyTrait2 {
                             ("#[ink::chain_extension", Some("<-trait"), Some("MyTrait1")),
                         ]
                     } else {
-                        vec![(
-                            "#[ink::trait_definition]",
-                            Some("<-trait"),
-                            Some("MyTrait1"),
-                        )]
+                        vec![
+                            ("#[ink::contract_ref]", Some("<-trait"), Some("MyTrait1")),
+                            (
+                                "#[ink::trait_definition]",
+                                Some("<-trait"),
+                                Some("MyTrait1"),
+                            ),
+                        ]
                     },
                 ),
                 (
@@ -2529,11 +2592,14 @@ trait",
                             ("#[ink::chain_extension", Some("<-trait->"), Some("trait->")),
                         ]
                     } else {
-                        vec![(
-                            "#[ink::trait_definition]",
-                            Some("<-trait->"),
-                            Some("trait->"),
-                        )]
+                        vec![
+                            ("#[ink::contract_ref]", Some("<-trait->"), Some("trait->")),
+                            (
+                                "#[ink::trait_definition]",
+                                Some("<-trait->"),
+                                Some("trait->"),
+                            ),
+                        ]
                     },
                 ),
                 // `struct`.

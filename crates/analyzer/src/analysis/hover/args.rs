@@ -5,6 +5,34 @@
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
+pub const ABI_DOC: &str = r#"
+# Attribute
+
+`#[ink::contract_ref(abi = S: string)]`
+
+# Description
+
+Specifies the ABI (Application Binary Interface) of the "callee" contract.
+
+# Usage
+
+Applicable to ink! contract references.
+
+# Example
+
+```
+#[ink::contract_ref(abi = "sol")]
+pub trait Callee {
+    // --snip--
+}
+```
+"#;
+
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/config.rs#L29-L30>.
+///
+/// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
 pub const ADDITIONAL_CONTRACTS_DOC_DEPRECATED: &str = r#"
 ink! attribute argument `additional_contracts` is deprecated. See https://github.com/paritytech/ink/pull/2098 for details.
 "#;
@@ -482,7 +510,7 @@ pub enum Error {}
 pub const ENV_DOC: &str = r#"
 # Attribute
 
-`#[ink::contract(env = E: impl Environment)]` or `#[ink_e2e::test(environment = E: impl Environment)]`
+`#[ink::contract(env = E: impl Environment)]` or `#[ink::contract_ref(env = E: impl Environment)]` or `#[ink_e2e::test(environment = E: impl Environment)]`
 
 # Description
 
@@ -492,7 +520,7 @@ The environment must implement the `Environment` (defined in `ink_env`) trait an
 
 # Usage
 
-Additional argument for ink! contract or ink! e2e test attribute macros.
+Additional argument for ink! contract, ink! contract ref or ink! e2e test attribute macros.
 
 When using a custom `Environment` implementation for a smart contract all types that it exposes to the ink! smart contract and the mirrored types used in the runtime must be aligned with respect to SCALE encoding and semantics.
 
@@ -522,6 +550,17 @@ A user might implement their ink! smart contract using the above custom `Environ
 ```
 #[ink::contract(env = MyEnvironment)]
 mod my_contract {
+    // --snip--
+}
+```
+
+OR
+
+A user might declare a smart contract reference using the above custom `Environment` implementation as demonstrated below:
+
+```
+#[ink::contract_ref(env = MyEnvironment)]
+pub trait Callee {
     // --snip--
 }
 ```

@@ -75,6 +75,7 @@ pub fn content(
 ) -> &'static str {
     match attr_kind {
         InkAttributeKind::Arg(arg_kind) => match arg_kind {
+            InkArgKind::Abi if version.is_gte_v6() => args::ABI_DOC,
             InkArgKind::AdditionalContracts if version.is_legacy() => {
                 args::ADDITIONAL_CONTRACTS_DOC_V4
             }
@@ -147,6 +148,7 @@ pub fn content(
             InkMacroKind::ChainExtension if version.is_v5() => macros::CHAIN_EXTENSION_DOC,
             InkMacroKind::ChainExtension => macros::CHAIN_EXTENSION_DOC_DEPRECATED,
             InkMacroKind::Contract => macros::CONTRACT_DOC,
+            InkMacroKind::ContractRef if version.is_gte_v6() => macros::CONTRACT_REF_DOC,
             InkMacroKind::Error if version.is_gte_v6() => macros::ERROR_DOC,
             InkMacroKind::Event if version.is_gte_v5() => macros::EVENT_DOC,
             InkMacroKind::ScaleDerive if version.is_gte_v5() => macros::SCALE_DERIVE_DOC,
@@ -307,6 +309,179 @@ mod tests {
                                 InkAttributeKind::Arg(InkArgKind::KeepAttr),
                                 Some("<-keep_attr"),
                                 Some("keep_attr"),
+                            )),
+                        ),
+                    ],
+                ),
+                (
+                    "#[ink::contract_ref]",
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-contract_ref"),
+                            Some("contract_ref"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                    ],
+                ),
+                (
+                    r#"
+                    #[ink::contract_ref(abi="sol", env=my::env::Types)]
+                    "#,
+                    vec![
+                        (
+                            Some("<-#"),
+                            Some("<-#"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("ink"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-contract_ref"),
+                            Some("contract_ref"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-#"),
+                            Some("]"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-abi"),
+                            Some("abi"),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Arg(InkArgKind::Abi),
+                                    Some("<-abi"),
+                                    Some("abi"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some(r#"<-"sol""#),
+                            Some(r#""sol""#),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Arg(InkArgKind::Abi),
+                                    Some("<-abi"),
+                                    Some("abi"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-,"),
+                            Some(","),
+                            if version.is_lte_v5() {
+                                None
+                            } else {
+                                Some((
+                                    InkAttributeKind::Macro(InkMacroKind::ContractRef),
+                                    Some("<-contract_ref"),
+                                    Some("contract_ref"),
+                                ))
+                            },
+                        ),
+                        (
+                            Some("<-env="),
+                            Some(", env"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Env),
+                                Some("<-env="),
+                                Some(", env"),
+                            )),
+                        ),
+                        (
+                            Some("<-my::env::Types"),
+                            Some("my::env::Types"),
+                            Some((
+                                InkAttributeKind::Arg(InkArgKind::Env),
+                                Some("<-env="),
+                                Some(", env"),
                             )),
                         ),
                     ],
