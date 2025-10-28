@@ -33,7 +33,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, ink_e2e_test: &InkE2ETest, ver
     );
 
     // Runs ink! environment diagnostics, see `environment::diagnostics` doc.
-    environment::diagnostics(results, ink_e2e_test);
+    environment::diagnostics(results, ink_e2e_test, version);
 }
 
 #[cfg(test)]

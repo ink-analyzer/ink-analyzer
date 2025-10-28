@@ -113,7 +113,7 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, contract: &Contract, version: 
     ensure_valid_quasi_direct_ink_descendants(results, contract, version);
 
     // Runs ink! environment diagnostics, see `environment::diagnostics` doc.
-    environment::diagnostics(results, contract);
+    environment::diagnostics(results, contract, version);
 }
 
 /// Ensures that ink! contract attribute is applied to an inline `mod` item.

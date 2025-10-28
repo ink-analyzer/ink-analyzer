@@ -106,6 +106,9 @@ pub fn content(
             InkArgKind::Default => args::DEFAULT_DOC,
             InkArgKind::Derive => args::DERIVE_DOC,
             InkArgKind::Encode if version.is_gte_v5() => args::ENCODE_DOC,
+            InkArgKind::Env | InkArgKind::Environment if version.is_lte_v5() => {
+                args::ENV_DOC_LTE_V5
+            }
             InkArgKind::Env | InkArgKind::Environment => args::ENV_DOC,
             InkArgKind::Event => args::EVENT_DOC,
             InkArgKind::Extension if version.is_legacy() => args::EXTENSION_DOC_V4,

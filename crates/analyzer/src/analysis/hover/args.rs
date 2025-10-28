@@ -472,6 +472,72 @@ pub enum Error {}
 ```
 "#;
 
+/// # References
+///
+/// - <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/lib.rs#L151-L207>.
+/// - <https://use-ink.github.io/ink/ink/attr.contract.html>.
+/// - <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/e2e/macro/src/config.rs#L89-L96>.
+/// - <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/e2e/macro/src/lib.rs#L41-L53>.
+/// - <https://use-ink.github.io/ink/ink_e2e_macro/attr.test.html>.
+pub const ENV_DOC: &str = r#"
+# Attribute
+
+`#[ink::contract(env = E: impl Environment)]` or `#[ink_e2e::test(environment = E: impl Environment)]`
+
+# Description
+
+Tells the ink! code generator which environment to use for the ink! smart contract.
+
+The environment must implement the `Environment` (defined in `ink_env`) trait and provides all the necessary fundamental type definitions for `Balance`, `AccountId` etc.
+
+# Usage
+
+Additional argument for ink! contract or ink! e2e test attribute macros.
+
+When using a custom `Environment` implementation for a smart contract all types that it exposes to the ink! smart contract and the mirrored types used in the runtime must be aligned with respect to SCALE encoding and semantics.
+
+**Default value:** `DefaultEnvironment` defined in `ink_env` crate.
+
+# Example
+
+Given a custom `Environment` implementation:
+
+```
+pub struct MyEnvironment;
+
+impl ink_env::Environment for MyEnvironment {
+    const NATIVE_TO_ETH_RATIO: u32 = 100_000_000;
+
+    type AccountId = [u8; 16];
+    type Balance = u128;
+    type Hash = [u8; 32];
+    type Timestamp = u64;
+    type BlockNumber = u32;
+    type EventRecord = ();
+}
+```
+
+A user might implement their ink! smart contract using the above custom `Environment` implementation as demonstrated below:
+
+```
+#[ink::contract(env = MyEnvironment)]
+mod my_contract {
+    // --snip--
+}
+```
+
+OR
+
+A user might write an end-to-end test using the above custom `Environment` implementation as demonstrated below:
+
+```
+#[ink_e2e::test(environment = MyEnvironment)]
+async fn it_works(mut client: ::ink_e2e::Client<C,E>) -> E2EResult<()> {
+    // --snip--
+}
+```
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L143-L199>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink/attr.contract.html>.
@@ -481,7 +547,7 @@ pub enum Error {}
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.1/crates/e2e/macro/src/lib.rs#L41-L45>.
 ///
 /// Ref: <https://paritytech.github.io/ink/ink_e2e_macro/attr.test.html>.
-pub const ENV_DOC: &str = r#"
+pub const ENV_DOC_LTE_V5: &str = r#"
 # Attribute
 
 `#[ink::contract(env = E: impl Environment)]` or `#[ink_e2e::test(environment = E: impl Environment)]`

@@ -490,6 +490,60 @@ pub const ENVIRONMENT_PLAIN: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MyEnvironment {}
 
 impl ink::env::Environment for MyEnvironment {
+    const NATIVE_TO_ETH_RATIO: u32 = 100_000_000;
+
+    type AccountId = ::ink::primitives::AccountId;
+    type Balance = u128;
+    type Hash = ::ink::primitives::Hash;
+    type Timestamp = u64;
+    type BlockNumber = u32;
+    type EventRecord = ();
+}"#;
+
+pub const ENVIRONMENT_SNIPPET: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+#[ink::scale_derive(TypeInfo)]
+pub ${1:enum} ${2:MyEnvironment} {
+    $3
+}
+
+impl ink::env::Environment for ${4:MyEnvironment} {
+    const NATIVE_TO_ETH_RATIO: u32 = ${5:100_000_000};
+
+    type AccountId = ${6:::ink::primitives::AccountId};
+    type Balance = ${7:u128};
+    type Hash = ${8:::ink::primitives::Hash};
+    type Timestamp = ${9:u64};
+    type BlockNumber = ${10:u32};
+    type EventRecord = ${11:()};
+}"#;
+
+pub const ENVIRONMENT_IMPL_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironment {
+    const NATIVE_TO_ETH_RATIO: u32 = 100_000_000;
+
+    type AccountId = ::ink::primitives::AccountId;
+    type Balance = u128;
+    type Hash = ::ink::primitives::Hash;
+    type Timestamp = u64;
+    type BlockNumber = u32;
+    type EventRecord = ();
+}"#;
+
+pub const ENVIRONMENT_IMPL_SNIPPET: &str = r#"impl ink::env::Environment for ${1:MyEnvironment} {
+    const NATIVE_TO_ETH_RATIO: u32 = ${2:100_000_000};
+
+    type AccountId = ${3:::ink::primitives::AccountId};
+    type Balance = ${4:u128};
+    type Hash = ${5:::ink::primitives::Hash};
+    type Timestamp = ${6:u64};
+    type BlockNumber = ${7:u32};
+    type EventRecord = ${8:()};
+}"#;
+
+pub const ENVIRONMENT_PLAIN_V5: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+#[ink::scale_derive(TypeInfo)]
+pub enum MyEnvironment {}
+
+impl ink::env::Environment for MyEnvironment {
     const MAX_EVENT_TOPICS: usize = 4;
 
     type AccountId = ::ink::primitives::AccountId;
@@ -500,7 +554,7 @@ impl ink::env::Environment for MyEnvironment {
     type ChainExtension = ::ink::env::NoChainExtension;
 }"#;
 
-pub const ENVIRONMENT_SNIPPET: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
+pub const ENVIRONMENT_SNIPPET_V5: &str = r#"#[derive(Debug, Clone, PartialEq, Eq)]
 #[ink::scale_derive(TypeInfo)]
 pub ${1:enum} ${2:MyEnvironment} {
     $3
@@ -549,7 +603,7 @@ impl ink::env::Environment for ${4:MyEnvironment} {
     type ChainExtension = ${11:::ink::env::NoChainExtension};
 }"#;
 
-pub const ENVIRONMENT_IMPL_PLAIN: &str = r#"impl ink::env::Environment for MyEnvironment {
+pub const ENVIRONMENT_IMPL_PLAIN_LTE_V5: &str = r#"impl ink::env::Environment for MyEnvironment {
     const MAX_EVENT_TOPICS: usize = 4;
 
     type AccountId = ::ink::primitives::AccountId;
@@ -560,7 +614,7 @@ pub const ENVIRONMENT_IMPL_PLAIN: &str = r#"impl ink::env::Environment for MyEnv
     type ChainExtension = ::ink::env::NoChainExtension;
 }"#;
 
-pub const ENVIRONMENT_IMPL_SNIPPET: &str = r#"impl ink::env::Environment for ${1:MyEnvironment} {
+pub const ENVIRONMENT_IMPL_SNIPPET_LTE_V5: &str = r#"impl ink::env::Environment for ${1:MyEnvironment} {
     const MAX_EVENT_TOPICS: usize = ${2:4};
 
     type AccountId = ${3:::ink::primitives::AccountId};

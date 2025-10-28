@@ -2,16 +2,19 @@
 
 use ink_analyzer_ir::ast::HasName;
 use ink_analyzer_ir::meta::MetaValue;
-use ink_analyzer_ir::{Environment, HasInkEnvironment};
+use ink_analyzer_ir::{Environment, HasInkEnvironment, Version};
 
 use super::common;
-use crate::codegen::snippets::{ENVIRONMENT_IMPL_PLAIN, ENVIRONMENT_IMPL_SNIPPET};
+use crate::codegen::snippets::{
+    ENVIRONMENT_IMPL_PLAIN, ENVIRONMENT_IMPL_PLAIN_LTE_V5, ENVIRONMENT_IMPL_SNIPPET,
+    ENVIRONMENT_IMPL_SNIPPET_LTE_V5,
+};
 use crate::{resolution, Action, ActionKind, Diagnostic, Severity, TextEdit};
 
 const INK_ENV_QUALIFIERS: [&str; 2] = ["ink::env", "ink_env"];
 
 /// Runs all ink! environment diagnostics.
-pub fn diagnostics<T>(results: &mut Vec<Diagnostic>, item: &T)
+pub fn diagnostics<T>(results: &mut Vec<Diagnostic>, item: &T, version: Version)
 where
     T: HasInkEnvironment,
 {
@@ -22,7 +25,7 @@ where
 
     // Ensures that ink! environment item satisfies the required trait bounds,
     // see `ensure_impl_environment` doc.
-    if let Some(diagnostic) = ensure_impl_environment(item) {
+    if let Some(diagnostic) = ensure_impl_environment(item, version) {
         results.push(diagnostic);
     }
 }
@@ -92,7 +95,7 @@ where
 }
 
 // Ensures that the ink! environment ADT item (i.e. struct, enum or union) implements the `ink::env::Environment` trait.
-fn ensure_impl_environment<T>(item: &T) -> Option<Diagnostic>
+fn ensure_impl_environment<T>(item: &T, version: Version) -> Option<Diagnostic>
 where
     T: HasInkEnvironment,
 {
@@ -109,8 +112,20 @@ where
         ),
         "Environment values must implement the `ink::env::Environment` trait.".to_owned(),
         format!("Add `ink::env::Environment` implementation for `{name}`."),
-        ENVIRONMENT_IMPL_PLAIN.replace("MyEnvironment", &name),
-        Some(ENVIRONMENT_IMPL_SNIPPET.replace("MyEnvironment", &name)),
+        if version.is_lte_v5() {
+            ENVIRONMENT_IMPL_PLAIN_LTE_V5
+        } else {
+            ENVIRONMENT_IMPL_PLAIN
+        }
+        .replace("MyEnvironment", &name),
+        Some(
+            if version.is_lte_v5() {
+                ENVIRONMENT_IMPL_SNIPPET_LTE_V5
+            } else {
+                ENVIRONMENT_IMPL_SNIPPET
+            }
+            .replace("MyEnvironment", &name),
+        ),
     )
 }
 
@@ -118,7 +133,7 @@ where
 mod tests {
     use super::*;
     use crate::test_utils::{parse_first_ink_entity_of_type, verify_actions};
-    use ink_analyzer_ir::{Contract, InkE2ETest};
+    use ink_analyzer_ir::{Contract, InkE2ETest, MinorVersion};
     use quote::quote;
     use test_utils::{
         quote_as_pretty_string, quote_as_string, TestResultAction, TestResultTextRange,
@@ -127,12 +142,39 @@ mod tests {
     // Custom environment definition.
     macro_rules! custom_env {
         () => {
+            custom_env!(v6)
+        };
+        (v4) => {
+            custom_env!(@lte v5)
+        };
+        (v5) => {
+            custom_env!(@lte v5)
+        };
+        (v6) => {
+            quote! {
+                #[derive(Clone)]
+                pub struct MyEnvironment;
+
+                impl ink::env::Environment for MyEnvironment {
+                    const NATIVE_TO_ETH_RATIO: u32 = 100_000_000;
+
+                    type AccountId = [u8; 16];
+                    type Balance = u128;
+                    type Hash = [u8; 32];
+                    type Timestamp = u64;
+                    type BlockNumber = u32;
+                    type EventRecord = ();
+                }
+            }
+        };
+        (@lte v5) => {
             quote! {
                 #[derive(Clone)]
                 pub struct MyEnvironment;
 
                 impl ink::env::Environment for MyEnvironment {
                     const MAX_EVENT_TOPICS: usize = 3;
+
                     type AccountId = [u8; 16];
                     type Balance = u128;
                     type Hash = [u8; 32];
@@ -183,6 +225,9 @@ mod tests {
 
     macro_rules! valid_envs {
         () => {
+            valid_envs!(v6)
+        };
+        ($version: tt) => {
             [
                 // No environment argument (i.e. default).
                 (
@@ -225,13 +270,13 @@ mod tests {
                 ),
                 // Custom environment.
                 (
-                    custom_env!(),
+                    custom_env!($version),
                     quote! { (env = crate::MyEnvironment) },
                     contract_macro_name!(),
                     contract_item!(),
                 ),
                 (
-                    custom_env!(),
+                    custom_env!($version),
                     quote! { (environment = crate::MyEnvironment) },
                     e2e_test_macro_name!(),
                     e2e_test_item!(),
@@ -248,6 +293,15 @@ mod tests {
             } else {
                 let item: InkE2ETest = parse_first_ink_entity_of_type(&$source);
                 $call(&item)
+            }
+        };
+        ($call: ident, $source: ident, $macro_name: ident, $version: expr) => {
+            if $macro_name.to_string().contains("contract") {
+                let item: Contract = parse_first_ink_entity_of_type(&$source);
+                $call(&item, $version)
+            } else {
+                let item: InkE2ETest = parse_first_ink_entity_of_type(&$source);
+                $call(&item, $version)
             }
         };
     }
@@ -374,82 +428,90 @@ mod tests {
 
     #[test]
     fn env_impl_environment_and_default_works() {
-        for (env, env_arg, macro_name, item) in valid_envs!() {
-            let code = quote_as_string! {
-                #[#macro_name #env_arg]
-                #item
+        for (version, fixtures) in versioned_fixtures!(@array valid_envs) {
+            for (env, env_arg, macro_name, item) in fixtures {
+                let code = quote_as_string! {
+                    #[#macro_name #env_arg]
+                    #item
 
-                #env
-            };
+                    #env
+                };
 
-            let result = run_diagnostic!(ensure_impl_environment, code, macro_name);
-            assert!(result.is_none(), "item: {code}");
+                let result = run_diagnostic!(ensure_impl_environment, code, macro_name, version);
+                assert!(result.is_none(), "item: {code}, version: {version:?}");
+            }
         }
     }
 
     #[test]
     fn env_no_impl_environment_fails() {
-        for (env, env_arg, macro_name, item, expected_quickfixes) in [
-            (
-                quote! {
-                    #[derive(Clone)]
-                    pub struct MyEnvironment;
-                },
-                quote! { (env = crate::MyEnvironment) },
-                contract_macro_name!(),
-                contract_item!(),
-                vec![TestResultAction {
-                    label: "Add `ink::env::Environment`",
-                    edits: vec![TestResultTextRange {
-                        text: "impl ink::env::Environment for ",
-                        start_pat: Some("pub struct MyEnvironment;"),
-                        end_pat: Some("pub struct MyEnvironment;"),
-                    }],
-                }],
-            ),
-            (
-                quote! {
-                    #[derive(Clone)]
-                    pub struct MyEnvironment;
-                },
-                quote! { (environment = crate::MyEnvironment) },
-                e2e_test_macro_name!(),
-                e2e_test_item!(),
-                vec![TestResultAction {
-                    label: "Add `ink::env::Environment`",
-                    edits: vec![TestResultTextRange {
-                        text: "impl ink::env::Environment for ",
-                        start_pat: Some("pub struct MyEnvironment;"),
-                        end_pat: Some("pub struct MyEnvironment;"),
-                    }],
-                }],
-            ),
+        for version in [
+            Version::Legacy,
+            Version::V5(MinorVersion::Base),
+            Version::V6,
         ] {
-            let code = quote_as_pretty_string! {
-                #[#macro_name #env_arg]
-                #item
+            for (env, env_arg, macro_name, item, expected_quickfixes) in [
+                (
+                    quote! {
+                        #[derive(Clone)]
+                        pub struct MyEnvironment;
+                    },
+                    quote! { (env = crate::MyEnvironment) },
+                    contract_macro_name!(),
+                    contract_item!(),
+                    vec![TestResultAction {
+                        label: "Add `ink::env::Environment`",
+                        edits: vec![TestResultTextRange {
+                            text: "impl ink::env::Environment for ",
+                            start_pat: Some("pub struct MyEnvironment;"),
+                            end_pat: Some("pub struct MyEnvironment;"),
+                        }],
+                    }],
+                ),
+                (
+                    quote! {
+                        #[derive(Clone)]
+                        pub struct MyEnvironment;
+                    },
+                    quote! { (environment = crate::MyEnvironment) },
+                    e2e_test_macro_name!(),
+                    e2e_test_item!(),
+                    vec![TestResultAction {
+                        label: "Add `ink::env::Environment`",
+                        edits: vec![TestResultTextRange {
+                            text: "impl ink::env::Environment for ",
+                            start_pat: Some("pub struct MyEnvironment;"),
+                            end_pat: Some("pub struct MyEnvironment;"),
+                        }],
+                    }],
+                ),
+            ] {
+                let code = quote_as_pretty_string! {
+                    #[#macro_name #env_arg]
+                    #item
 
-                #env
-            };
+                    #env
+                };
 
-            let result = run_diagnostic!(ensure_impl_environment, code, macro_name);
+                let result = run_diagnostic!(ensure_impl_environment, code, macro_name, version);
 
-            // Verifies diagnostics.
-            assert!(result.is_some(), "item: {code}");
-            assert_eq!(
-                result.as_ref().unwrap().severity,
-                Severity::Error,
-                "item: {code}"
-            );
-            // Verifies quickfixes.
-            let empty = Vec::new();
-            let quickfixes = result
-                .as_ref()
-                .unwrap()
-                .quickfixes
-                .as_ref()
-                .unwrap_or(&empty);
-            verify_actions(&code, quickfixes, &expected_quickfixes);
+                // Verifies diagnostics.
+                assert!(result.is_some(), "item: {code}");
+                assert_eq!(
+                    result.as_ref().unwrap().severity,
+                    Severity::Error,
+                    "item: {code}, version: {version:?}"
+                );
+                // Verifies quickfixes.
+                let empty = Vec::new();
+                let quickfixes = result
+                    .as_ref()
+                    .unwrap()
+                    .quickfixes
+                    .as_ref()
+                    .unwrap_or(&empty);
+                verify_actions(&code, quickfixes, &expected_quickfixes);
+            }
         }
     }
 }

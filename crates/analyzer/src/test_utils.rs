@@ -79,17 +79,24 @@ macro_rules! versioned_fixtures {
         [
             (crate::Version::Legacy, $call!(v4).collect::<Vec<_>>()),
             (
-                crate::Version::V5(MinorVersion::Base),
+                crate::Version::V5($crate::MinorVersion::Base),
                 $call!(v5).collect::<Vec<_>>(),
             ),
             (crate::Version::V6, $call!(v6).collect::<Vec<_>>()),
+        ]
+    };
+    (@array $call: tt) => {
+        [
+            (crate::Version::Legacy, $call!(v4)),
+            (crate::Version::V5($crate::MinorVersion::Base), $call!(v5)),
+            (crate::Version::V6, $call!(v6)),
         ]
     };
     (@legacy $call: tt) => {
         [
             (crate::Version::Legacy, $call!(v4).collect::<Vec<_>>()),
             (
-                crate::Version::V5(MinorVersion::Base),
+                crate::Version::V5($crate::MinorVersion::Base),
                 $call!(v5).collect::<Vec<_>>(),
             ),
         ]
