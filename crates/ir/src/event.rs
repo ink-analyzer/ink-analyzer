@@ -22,6 +22,8 @@ impl Event {
     impl_pub_ink_arg_getter!(anonymous_arg, Anonymous, anonymous);
 
     impl_pub_ink_arg_getter!(signature_arg, SignatureTopic, signature_topic);
+
+    impl_pub_ink_arg_getter!(name_arg, Name, name);
 }
 
 #[cfg(test)]
@@ -33,13 +35,14 @@ mod tests {
 
     #[test]
     fn cast_works() {
-        for (code, is_anonymous, signature, expected_n_topics) in [
+        for (code, is_anonymous, signature, name, expected_n_topics) in [
             (
                 quote_as_str! {
                     #[ink(event)]
                     pub struct MyEvent {}
                 },
                 false,
+                None,
                 None,
                 0,
             ),
@@ -49,6 +52,7 @@ mod tests {
                     pub struct MyEvent {}
                 },
                 true,
+                None,
                 None,
                 0,
             ),
@@ -60,6 +64,7 @@ mod tests {
                 },
                 true,
                 None,
+                None,
                 0,
             ),
             (
@@ -69,6 +74,17 @@ mod tests {
                 },
                 false,
                 Some("1111111111111111111111111111111111111111111111111111111111111111"),
+                None,
+                0,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(event, name = "Event")]
+                    pub struct MyEvent {}
+                },
+                false,
+                None,
+                Some("Event"),
                 0,
             ),
             (
@@ -80,6 +96,7 @@ mod tests {
                     }
                 },
                 false,
+                None,
                 None,
                 1,
             ),
@@ -94,6 +111,7 @@ mod tests {
                     }
                 },
                 false,
+                None,
                 None,
                 2,
             ),
@@ -115,6 +133,15 @@ mod tests {
                     .and_then(|arg| arg.value()?.as_string())
                     .as_deref(),
                 signature
+            );
+
+            // `name` argument value.
+            assert_eq!(
+                event
+                    .name_arg()
+                    .and_then(|arg| arg.value()?.as_string())
+                    .as_deref(),
+                name
             );
 
             // Checks the expected number of topics.

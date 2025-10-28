@@ -25,7 +25,7 @@ mod tests {
 
     #[test]
     fn cast_works() {
-        for (code, is_payable, has_selector, is_default) in [
+        for (code, is_payable, has_selector, is_default, has_name) in [
             (
                 quote_as_str! {
                     #[ink(message)]
@@ -34,12 +34,14 @@ mod tests {
                 false,
                 false,
                 false,
+                false,
             ),
             (
                 quote_as_str! {
-                    #[ink(message, payable, default, selector=1)]
+                    #[ink(message, payable, default, selector=1, name="myMessage")]
                     pub fn my_message(&self) {}
                 },
+                true,
                 true,
                 true,
                 true,
@@ -47,9 +49,10 @@ mod tests {
             (
                 quote_as_str! {
                     #[ink(message)]
-                    #[ink(payable, default, selector=1)]
+                    #[ink(payable, default, selector=1, name="myMessage")]
                     pub fn my_message(&self) {}
                 },
+                true,
                 true,
                 true,
                 true,
@@ -60,8 +63,10 @@ mod tests {
                     #[ink(payable)]
                     #[ink(default)]
                     #[ink(selector=1)]
+                    #[ink(name="myMessage")]
                     pub fn my_message(&self) {}
                 },
+                true,
                 true,
                 true,
                 true,
@@ -74,6 +79,7 @@ mod tests {
                 false,
                 true,
                 false,
+                false,
             ),
             (
                 quote_as_str! {
@@ -82,6 +88,17 @@ mod tests {
                 },
                 false,
                 true,
+                false,
+                false,
+            ),
+            (
+                quote_as_str! {
+                    #[ink(message, selector=@)]
+                    pub fn my_message(&self) {}
+                },
+                false,
+                true,
+                false,
                 false,
             ),
         ] {
@@ -97,6 +114,9 @@ mod tests {
 
             // `default` argument exists.
             assert_eq!(message.default_arg().is_some(), is_default);
+
+            // `name` argument exists.
+            assert_eq!(message.name_arg().is_some(), has_name);
 
             // composed selector exists.
             assert!(message.composed_selector().is_some());

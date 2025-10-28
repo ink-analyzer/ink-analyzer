@@ -12,6 +12,8 @@ pub trait IsInkCallable: IsInkFn {
 
     impl_ink_arg_getter!(payable_arg, Payable, payable);
 
+    impl_ink_arg_getter!(name_arg, Name, name);
+
     /// Returns the ink! selector argument (if any).
     fn selector_arg(&self) -> Option<SelectorArg> {
         utils::ink_arg_by_kind(self.syntax(), InkArgKind::Selector).and_then(SelectorArg::cast)
