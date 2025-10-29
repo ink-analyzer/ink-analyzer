@@ -456,7 +456,7 @@ dependencies = [
 
 [[package]]
 name = "ink-analyzer"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ink-analyzer-ir",
  "itertools 0.14.0",
@@ -470,7 +470,7 @@ dependencies = [
 
 [[package]]
 name = "ink-analyzer-ir"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "blake2",
  "impl-serde",
@@ -483,7 +483,7 @@ dependencies = [
 
 [[package]]
 name = "ink-analyzer-macro"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "darling",
  "ink-analyzer-ir",
@@ -494,7 +494,7 @@ dependencies = [
 
 [[package]]
 name = "ink-lsp-server"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
