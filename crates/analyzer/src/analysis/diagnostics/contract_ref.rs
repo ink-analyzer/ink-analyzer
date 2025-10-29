@@ -16,6 +16,11 @@ const SCOPE_NAME: &str = "contract reference";
 ///
 /// Ref: <https://github.com/use-ink/ink/pull/2648>
 pub fn diagnostics(results: &mut Vec<Diagnostic>, contract_ref: &ContractRef, version: Version) {
+    if version.is_lte_v5() {
+        // TODO: Add version warning for legacy ink! versions.
+        return;
+    }
+
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     common::run_generic_diagnostics(results, contract_ref, version);
 
