@@ -1,8 +1,11 @@
 # ink! Analyzer Proc-macros
 
-Procedural macros for [ink-analyzer](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer) and [ink-analyzer-ir](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/ir).
+Procedural macros for [ink-analyzer] and [ink-analyzer-ir].
 
-This library implements procedural macros used primarily by the [ink-analyzer-ir](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/ir) crate.
+This library implements procedural macros used primarily by the [ink-analyzer-ir] crate.
+
+[ink-analyzer]: https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer
+[ink-analyzer-ir]: https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/ir
 
 ## Installation
 
@@ -35,7 +38,7 @@ struct Contract {
 
 ## Documentation
 
-[https://docs.rs/ink-analyzer-macro/latest/ink_analyzer_macro/](https://docs.rs/ink-analyzer-macro/latest/ink_analyzer_macro/)
+<https://docs.rs/ink-analyzer-macro/latest/ink_analyzer_macro/>
 
 Or you can access documentation locally by running the following command from the project root
 
@@ -53,7 +56,10 @@ cargo test -p ink-analyzer-macro
 
 ## License
 
-Licensed under either [MIT](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-MIT) or [Apache-2.0](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-APACHE) license at your option.
+Licensed under either [MIT] or [Apache-2.0] license at your option.
+
+[MIT]: https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-MIT
+[Apache-2.0]: https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-APACHE
 
 ## Contribution
 

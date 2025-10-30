@@ -1,4 +1,6 @@
-//! Procedural macros for [ink! analyzer](https://docs.rs/ink-analyzer/latest/ink_analyzer/).
+//! Procedural macros for [ink! analyzer].
+//!
+//! [ink! analyzer]: https://docs.rs/ink-analyzer/latest/ink_analyzer/
 //!
 //! # Example
 //! Using `ink_analyzer_macro::entity` proc-macro to create a `Contract` type.

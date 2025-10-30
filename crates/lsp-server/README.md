@@ -1,14 +1,24 @@
 # ink! Language Server
 
-A [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) implementation for the [ink!](https://use.ink/) smart contract programming language.
+A [Language Server Protocol (LSP)][LSP] implementation for the [ink!] smart contract programming language.
 
-It implements the [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) and acts as a backend that provides language support features like diagnostic errors, code completion suggestions, code/intent actions and hover content to IDEs, code editors and other development tools.
+It implements the [Language Server Protocol (LSP)][LSP] and acts as a backend that provides language support features 
+like diagnostic errors, code completion suggestions, code/intent actions, inlay hints, signature help and hover content 
+to IDEs, code editors and other development tools.
 
-It uses the [semantic analyzer](https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer) as the engine for providing ink! language support features by:
+It uses the [semantic analyzer][analyzer] as the engine for providing ink! language support features by:
 - translating LSP requests into semantic analyzer interface calls.
 - translating semantic analysis results into corresponding LSP types.
 
-It additionally uses rust-analyzer's [lsp-server](https://docs.rs/lsp-server/latest/lsp_server/) crate to handle LSP protocol handshaking and parsing messages, and the [lsp-types](https://docs.rs/lsp-types/latest/lsp_types/) crate for LSP type definitions.
+It additionally uses [rust-analyzer]'s [lsp-server][ra-lsp-server] crate 
+to handle LSP protocol handshaking and parsing messages, and the [lsp-types] crate for LSP type definitions.
+
+[LSP]: https://microsoft.github.io/language-server-protocol/ 
+[ink!]: https://use.ink/
+[analyzer]: https://github.com/ink-analyzer/ink-analyzer/tree/master/crates/analyzer
+[rust-analyzer]: https://github.com/rust-lang/rust-analyzer
+[ra-lsp-server]: https://docs.rs/lsp-server/latest/lsp_server/
+[lsp-types]: https://docs.rs/lsp-types/latest/lsp_types/
 
 ## Installation
 
@@ -29,13 +39,21 @@ cd ink-analyzer
 cargo build --bin ink-lsp-server --release
 ```
 
-Copy the compiled binary (named `ink-lsp-server`) from the `target/release` directory to your preferred installation location, make sure the binary is executable and the installation location is included in the `PATH` environment variable.
+Copy the compiled binary (named `ink-lsp-server`) from the `target/release` directory 
+to your preferred installation location, make sure the binary is executable 
+and the installation location is included in the `PATH` environment variable.
 
 ## Usage
 
-The installed ink! Language Server binary can be used with any [LSP client](https://microsoft.github.io/language-server-protocol/implementors/tools/) that can be configured to launch an LSP server using an executable command (i.e. the path to the `ink-lsp-server` binary) and can use stdio (standard in/standard out) as the message transport.
+The installed ink! Language Server binary can be used with any [LSP client][LSP-client] 
+that can be configured to launch an LSP server using an executable command 
+(i.e. the path to the `ink-lsp-server` binary) and can use stdio (standard in/standard out) as the message transport.
 
-While a few editors/IDEs have native/built-in LSP clients (e.g. [Neovim](https://neovim.io/doc/user/lsp.html)), [most LSP clients are plugins/extensions for editors/IDEs](https://microsoft.github.io/language-server-protocol/implementors/tools/).
+While a few editors/IDEs have native/built-in LSP clients (e.g. [Neovim]), 
+[most LSP clients are plugins/extensions for editors/IDEs][LSP-client].
+
+[LSP-client]: https://microsoft.github.io/language-server-protocol/implementors/tools/
+[Neovim]: https://neovim.io/doc/user/lsp.html
 
 ## Documentation
 
@@ -54,7 +72,7 @@ Options:
 
 ### Library Documentation
 
-[https://docs.rs/ink-lsp-server/latest/ink_lsp_server/](https://docs.rs/ink-lsp-server/latest/ink_lsp_server/)
+<https://docs.rs/ink-lsp-server/latest/ink_lsp_server/>
 
 Or you can access the library documentation locally by running the following command from the project root
 
@@ -72,7 +90,10 @@ cargo test -p ink-lsp-server
 
 ## License
 
-Licensed under either [MIT](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-MIT) or [Apache-2.0](https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-APACHE) license at your option.
+Licensed under either [MIT] or [Apache-2.0] license at your option.
+
+[MIT]: https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-MIT
+[Apache-2.0]: https://github.com/ink-analyzer/ink-analyzer/blob/master/LICENSE-APACHE
 
 ## Contribution
 

@@ -1,5 +1,7 @@
-//! [ink!](https://use.ink/) intermediate representations (IRs) and abstractions
-//! for [ink! analyzer](https://docs.rs/ink-analyzer/latest/ink_analyzer/).
+//! [ink!] intermediate representations (IRs) and abstractions for [ink! analyzer].
+//!
+//! [ink!]: https://use.ink/
+//! [ink! analyzer]: https://docs.rs/ink-analyzer/latest/ink_analyzer/
 //!
 //! # Example
 //! Generate an IR of ink! smart contract code.
