@@ -674,10 +674,10 @@ authors = ["[your_name] <[your_email]>"]
 edition = "2024"
 
 [dependencies]
-ink = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false, features = ["unstable-hostfn"] }
+ink = { version = "6.0.0-beta", default-features = false, features = ["unstable-hostfn"] }
 
 [dev-dependencies]
-ink_e2e = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4" }
+ink_e2e = "6.0.0-beta"
 
 [lib]
 path = "lib.rs"
@@ -707,10 +707,10 @@ authors = ["${2:[your_name]} <${3:[your_email]}>"]
 edition = "2024"
 
 [dependencies]
-ink = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false, features = ["unstable-hostfn"] }
+ink = { version = "6.0.0-beta", default-features = false, features = ["unstable-hostfn"] }
 
 [dev-dependencies]
-ink_e2e = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4" }
+ink_e2e = "6.0.0-beta"
 
 [lib]
 path = "lib.rs"
