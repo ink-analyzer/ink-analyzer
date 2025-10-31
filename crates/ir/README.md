@@ -1,4 +1,4 @@
-# ink! Analyzer IR
+# ink! analyzer IR
 
 [ink!] intermediate representations (IRs) and abstractions for [ink! analyzer].
 

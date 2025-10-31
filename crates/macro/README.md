@@ -1,4 +1,4 @@
-# ink! Analyzer Proc-macros
+# ink! analyzer Proc-macros
 
 Procedural macros for [ink-analyzer] and [ink-analyzer-ir].
 

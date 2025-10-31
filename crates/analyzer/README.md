@@ -1,4 +1,4 @@
-# ![icon](https://raw.githubusercontent.com/ink-analyzer/ink-analyzer/master/images/iconx32.png "icon") ink! Analyzer
+# ink! analyzer
 
 A library for semantic analysis of [ink!] smart contracts.
 

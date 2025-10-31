@@ -1,4 +1,4 @@
-//! # ink! Analyzer
+//! # ink! analyzer
 //! A library for semantic analysis of [ink!] smart contracts.
 //!
 //! [ink!]: https://use.ink/

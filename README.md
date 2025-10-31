@@ -1,4 +1,4 @@
-# ![icon](/images/iconx32.png "icon") ink! Analyzer
+# ink! analyzer
 
 A collection of modular and reusable libraries and tools for semantic analysis of [ink!] smart contracts.
 
