@@ -1,4 +1,4 @@
-# ink! analyzer
+# <img src="./images/squink.svg" width="32px" height="32px" style="margin-bottom: -3px"> ink! analyzer
 
 A collection of modular and reusable libraries and tools for semantic analysis of [ink!] smart contracts.
 
