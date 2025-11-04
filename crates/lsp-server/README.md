@@ -1,4 +1,4 @@
-# ink! Language Server
+# <img src="https://raw.githubusercontent.com/ink-analyzer/ink-analyzer/master/images/squink.svg" width="32px" height="32px" style="margin-bottom: -3px"> ink! Language Server
 
 A [Language Server Protocol (LSP)][LSP] implementation for the [ink!] smart contract programming language.
 
