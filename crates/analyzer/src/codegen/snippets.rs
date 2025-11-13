@@ -674,10 +674,10 @@ authors = ["[your_name] <[your_email]>"]
 edition = "2024"
 
 [dependencies]
-ink = { version = "6.0.0-beta", default-features = false, features = ["unstable-hostfn"] }
+ink = { version = "6.0.0-beta.1", default-features = false, features = ["unstable-hostfn"] }
 
 [dev-dependencies]
-ink_e2e = "6.0.0-beta"
+ink_e2e = "6.0.0-beta.1"
 
 [lib]
 path = "lib.rs"
@@ -707,10 +707,10 @@ authors = ["${2:[your_name]} <${3:[your_email]}>"]
 edition = "2024"
 
 [dependencies]
-ink = { version = "6.0.0-beta", default-features = false, features = ["unstable-hostfn"] }
+ink = { version = "6.0.0-beta.1", default-features = false, features = ["unstable-hostfn"] }
 
 [dev-dependencies]
-ink_e2e = "6.0.0-beta"
+ink_e2e = "6.0.0-beta.1"
 
 [lib]
 path = "lib.rs"
