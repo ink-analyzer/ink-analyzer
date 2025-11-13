@@ -1108,6 +1108,38 @@ pub trait TraitDefinition {
 ```
 "#;
 
+/// Ref: <https://github.com/use-ink/ink/pull/2722>.
+///
+/// Ref: <https://paritytech.github.io/ink/ink/attr.storage_item.html>.
+pub const PACKED_DOC: &str = r#"
+# Attribute
+
+`#[ink::storage_item(packed)]`
+
+# Description
+
+A configuration flag for storage items that enables "packed" layout.
+
+# Usage
+
+Additional argument for ink! storage item attribute macro.
+
+**Default value:** not set.
+
+# Example
+
+```
+use ink::storage::Mapping;
+
+#[ink::storage_item(packed)]
+struct PackedGeneric<T: ink::storage::traits::Packed> {
+    s1: (u128, bool),
+    s2: Vec<T>,
+    s3: String,
+}
+```
+"#;
+
 /// Ref: <https://github.com/paritytech/ink/tree/v4.2.0#ink-macros--attributes-overview>.
 ///
 /// Ref: <https://github.com/paritytech/ink/blob/v4.2.0/crates/ink/macro/src/lib.rs#L310-L345>.

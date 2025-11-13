@@ -1020,14 +1020,35 @@ mod tests {
                     Some("<-#["),
                     prepend_migrate!(
                         version,
-                        [TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "(derive = true)",
-                                start_pat: Some("<-]"),
-                                end_pat: Some("<-]"),
-                            }],
-                        }]
+                        if version.is_lte_v5() {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(derive = true)",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            }]
+                        } else {
+                            vec![
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "(packed)",
+                                        start_pat: Some("<-]"),
+                                        end_pat: Some("<-]"),
+                                    }],
+                                },
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "(derive = true)",
+                                        start_pat: Some("<-]"),
+                                        end_pat: Some("<-]"),
+                                    }],
+                                },
+                            ]
+                        }
                     ),
                 ),
                 (
@@ -1039,14 +1060,35 @@ mod tests {
                     Some("<-#["),
                     prepend_migrate!(
                         version,
-                        [TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "(derive = true)",
-                                start_pat: Some("<-]"),
-                                end_pat: Some("<-]"),
-                            }],
-                        }]
+                        if version.is_lte_v5() {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(derive = true)",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            }]
+                        } else {
+                            vec![
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "(packed)",
+                                        start_pat: Some("<-]"),
+                                        end_pat: Some("<-]"),
+                                    }],
+                                },
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "(derive = true)",
+                                        start_pat: Some("<-]"),
+                                        end_pat: Some("<-]"),
+                                    }],
+                                },
+                            ]
+                        }
                     ),
                 ),
                 (
@@ -1058,14 +1100,35 @@ mod tests {
                     Some("<-#["),
                     prepend_migrate!(
                         version,
-                        [TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "(derive = true)",
-                                start_pat: Some("<-]"),
-                                end_pat: Some("<-]"),
-                            }],
-                        }]
+                        if version.is_lte_v5() {
+                            vec![TestResultAction {
+                                label: "Add",
+                                edits: vec![TestResultTextRange {
+                                    text: "(derive = true)",
+                                    start_pat: Some("<-]"),
+                                    end_pat: Some("<-]"),
+                                }],
+                            }]
+                        } else {
+                            vec![
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "(packed)",
+                                        start_pat: Some("<-]"),
+                                        end_pat: Some("<-]"),
+                                    }],
+                                },
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "(derive = true)",
+                                        start_pat: Some("<-]"),
+                                        end_pat: Some("<-]"),
+                                    }],
+                                },
+                            ]
+                        }
                     ),
                 ),
                 (

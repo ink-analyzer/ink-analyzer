@@ -1507,15 +1507,15 @@ mod tests {
                 ],
                 vec![(
                     r#"
-                            #[ink::chain_extension]
-                            pub trait MyChainExtension {
-                                #[ink(extension=1)]
-                                fn extension_1(&self);
+                    #[ink::chain_extension]
+                    pub trait MyChainExtension {
+                        #[ink(extension=1)]
+                        fn extension_1(&self);
 
-                                #[ink(ext)]
-                                fn extension_2(&self);
-                            }
-                        "#,
+                        #[ink(ext)]
+                        fn extension_2(&self);
+                    }
+                    "#,
                     Some("#[ink(ext->"),
                     vec![("extension=2", Some("#[ink(->"), Some("#[ink(ext->"))],
                 )],
@@ -1567,14 +1567,14 @@ mod tests {
                 [
                     (
                         r#"
-                            #[ink::chain_extension]
-                            pub trait MyChainExtension {
-                                #[ink(function=1)]
-                                fn function_1(&self);
+                        #[ink::chain_extension]
+                        pub trait MyChainExtension {
+                            #[ink(function=1)]
+                            fn function_1(&self);
 
-                                #[ink(fun)]
-                                fn function_2(&self);
-                            }
+                            #[ink(fun)]
+                            fn function_2(&self);
+                        }
                         "#,
                         Some("#[ink(fun->"),
                         vec![("function=2", Some("#[ink(->"), Some("#[ink(fun->"))],
@@ -1649,15 +1649,15 @@ mod tests {
                 vec!["backend(node)", "environment=ink::env::DefaultEnvironment"],
                 [(
                     r#"
-                            #[ink::chain_extension]
-                            pub trait MyChainExtension {
-                                #[ink(function=1)]
-                                fn function_1(&self);
+                    #[ink::chain_extension]
+                    pub trait MyChainExtension {
+                        #[ink(function=1)]
+                        fn function_1(&self);
 
-                                #[ink(fun)]
-                                fn function_2(&self);
-                            }
-                        "#,
+                        #[ink(fun)]
+                        fn function_2(&self);
+                    }
+                    "#,
                     Some("#[ink(fun->"),
                     vec![("function=2", Some("#[ink(->"), Some("#[ink(fun->"))],
                 )]
@@ -1779,36 +1779,36 @@ mod tests {
                 ),
                 (
                     r#"
-                        mod my_module {
-                            #[ink(
-                        }
+                    mod my_module {
+                        #[ink(
+                    }
                     "#,
                     Some("("),
                     list_results!(standalone_args, "(", "("),
                 ),
                 (
                     r#"
-                        mod my_module {
-                            #[ink()
-                        }
+                    mod my_module {
+                        #[ink()
+                    }
                     "#,
                     Some("("),
                     list_results!(standalone_args, "(", "("),
                 ),
                 (
                     r#"
-                        mod my_module {
-                            #[ink()]
-                        }
+                    mod my_module {
+                        #[ink()]
+                    }
                     "#,
                     Some("("),
                     list_results!(standalone_args, "(", "("),
                 ),
                 (
                     r#"
-                        mod my_module {
-                            #[ink(]
-                        }
+                    mod my_module {
+                        #[ink(]
+                    }
                     "#,
                     Some("("),
                     list_results!(standalone_args, "(", "("),
@@ -1906,7 +1906,14 @@ mod tests {
                 (
                     "#[ink::storage_item(",
                     None,
-                    vec![("derive=true", Some("("), Some("("))],
+                    if version.is_lte_v5() {
+                        vec![("derive=true", Some("("), Some("("))]
+                    } else {
+                        vec![
+                            ("packed", Some("("), Some("(")),
+                            ("derive=true", Some("("), Some("(")),
+                        ]
+                    },
                 ),
                 (
                     "#[ink::trait_definition(",
@@ -1941,8 +1948,8 @@ mod tests {
                 ),
                 (
                     r#"
-                        #[ink(]
-                        struct MyStruct {}
+                    #[ink(]
+                    struct MyStruct {}
                     "#,
                     Some("("),
                     list_results!(adt_args, "(", "("),
@@ -1951,29 +1958,29 @@ mod tests {
                 (
                     r#"
                     struct MyStruct {
-                            #[ink(
-                            value: bool,
-                        }
+                        #[ink(
+                        value: bool,
+                    }
                     "#,
                     Some("("),
                     vec![("topic", Some("("), Some("("))],
                 ),
                 (
                     r#"
-                        struct MyStruct {
-                            #[ink()]
-                            value: bool,
-                        }
+                    struct MyStruct {
+                        #[ink()]
+                        value: bool,
+                    }
                     "#,
                     Some("("),
                     vec![("topic", Some("("), Some("("))],
                 ),
                 (
                     r#"
-                        struct MyStruct {
-                            #[ink(]
-                            value: bool,
-                        }
+                    struct MyStruct {
+                        #[ink(]
+                        value: bool,
+                    }
                     "#,
                     Some("("),
                     vec![("topic", Some("("), Some("("))],
@@ -1981,17 +1988,17 @@ mod tests {
                 // Fn context.
                 (
                     r#"
-                        #[ink(
-                        pub fn my_fn() {}
+                    #[ink(
+                    pub fn my_fn() {}
                     "#,
                     Some("("),
                     list_results!(fn_args, "(", "("),
                 ),
                 (
                     r#"
-                        #[ink(constructor)]
-                        #[ink(
-                        pub fn my_fn() {}
+                    #[ink(constructor)]
+                    #[ink(
+                    pub fn my_fn() {}
                     "#,
                     Some("ink(->"),
                     if version.is_lte_v5() {
@@ -2012,8 +2019,8 @@ mod tests {
                 // Impl context.
                 (
                     r#"
-                        #[ink(
-                        impl MyImpl {}
+                    #[ink(
+                    impl MyImpl {}
                     "#,
                     Some("("),
                     vec![
@@ -2024,43 +2031,43 @@ mod tests {
                 // Contract scope.
                 (
                     r#"
-                        #[ink::contract]
-                        mod my_contract {
-                            #[ink(
-                        }
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(
+                    }
                     "#,
                     Some("("),
                     list_results!(contract_child_args, "(", "("),
                 ),
                 (
                     r#"
-                        #[ink::contract]
-                        mod my_contract {
-                            #[ink(
-                            pub struct MyContract {}
-                        }
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(
+                        pub struct MyContract {}
+                    }
                     "#,
                     Some("("),
                     list_results!(adt_args, "(", "("),
                 ),
                 (
                     r#"
-                        #[ink::contract]
-                        mod my_contract {
-                            #[ink(event,
-                            pub struct MyContract {}
-                        }
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(event,
+                        pub struct MyContract {}
+                    }
                     "#,
                     Some("("),
                     list_results!(event_args, "(", "("),
                 ),
                 (
                     r#"
-                        #[ink::contract]
-                        mod my_contract {
-                            #[ink(
-                            impl MyContract {}
-                        }
+                    #[ink::contract]
+                    mod my_contract {
+                        #[ink(
+                        impl MyContract {}
+                    }
                     "#,
                     Some("("),
                     vec![
@@ -2070,13 +2077,13 @@ mod tests {
                 ),
                 (
                     r#"
-                        #[ink::contract]
-                        mod my_contract {
-                            impl MyContract {
-                                #[ink(
-                                pub fn my_fn() {}
-                            }
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(
+                            pub fn my_fn() {}
                         }
+                    }
                     "#,
                     Some("("),
                     if version.is_lte_v5() {
@@ -2101,21 +2108,21 @@ mod tests {
                 // Chain extension scope.
                 (
                     r#"
-                        #[ink::chain_extension]
-                        pub trait MyChainExtension {
-                            #[ink(
-                        }
+                    #[ink::chain_extension]
+                    pub trait MyChainExtension {
+                        #[ink(
+                    }
                     "#,
                     Some("("),
                     list_results!(extension_args, "(", "("),
                 ),
                 (
                     r#"
-                        #[ink::chain_extension]
-                        pub trait MyChainExtension {
-                            #[ink(
-                            fn my_extension();
-                        }
+                    #[ink::chain_extension]
+                    pub trait MyChainExtension {
+                        #[ink(
+                        fn my_extension();
+                    }
                     "#,
                     Some("("),
                     list_results!(extension_args, "(", "("),
@@ -2123,10 +2130,10 @@ mod tests {
                 // Trait definition scope.
                 (
                     r#"
-                        #[ink::trait_definition]
-                        pub trait MyTrait {
-                            #[ink(
-                        }
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(
+                    }
                     "#,
                     Some("("),
                     if version.is_lte_v5() {
@@ -2148,11 +2155,11 @@ mod tests {
                 ),
                 (
                     r#"
-                        #[ink::trait_definition]
-                        pub trait MyTrait {
-                            #[ink(
-                            fn my_message(&self);
-                        }
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(
+                        fn my_message(&self);
+                    }
                     "#,
                     Some("("),
                     if version.is_lte_v5() {
@@ -2175,16 +2182,16 @@ mod tests {
                 // Unique ids.
                 (
                     r#"
-                        #[ink::contract]
-                        mod my_contract {
-                            impl MyContract {
-                                #[ink(constructor, selector=1)]
-                                pub fn constructor_1(&self) {}
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(constructor, selector=1)]
+                            pub fn constructor_1(&self) {}
 
-                                #[ink(constructor, sel)]
-                                pub fn constructor_2(&self) {}
-                            }
+                            #[ink(constructor, sel)]
+                            pub fn constructor_2(&self) {}
                         }
+                    }
                     "#,
                     Some("#[ink(constructor, sel->"),
                     vec![(
@@ -2195,16 +2202,16 @@ mod tests {
                 ),
                 (
                     r#"
-                        #[ink::contract]
-                        mod my_contract {
-                            impl MyContract {
-                                #[ink(message, selector=1)]
-                                pub fn message_1(&self) {}
+                    #[ink::contract]
+                    mod my_contract {
+                        impl MyContract {
+                            #[ink(message, selector=1)]
+                            pub fn message_1(&self) {}
 
-                                #[ink(message, sel)]
-                                pub fn message_2(&self) {}
-                            }
+                            #[ink(message, sel)]
+                            pub fn message_2(&self) {}
                         }
+                    }
                     "#,
                     Some("#[ink(message, sel->"),
                     vec![(
@@ -2215,14 +2222,14 @@ mod tests {
                 ),
                 (
                     r#"
-                        #[ink::trait_definition]
-                        pub trait MyTrait {
-                            #[ink(message, selector=1)]
-                            fn message_1(&self);
+                    #[ink::trait_definition]
+                    pub trait MyTrait {
+                        #[ink(message, selector=1)]
+                        fn message_1(&self);
 
-                            #[ink(message, sel)]
-                            fn message_2(&self);
-                        }
+                        #[ink(message, sel)]
+                        fn message_2(&self);
+                    }
                     "#,
                     Some("#[ink(message, sel->"),
                     vec![(

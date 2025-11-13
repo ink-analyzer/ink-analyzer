@@ -577,64 +577,19 @@ fn validate_entity_attributes(
                 .find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == arg_kind))
         };
 
-        // ink! >= 5.x-only pedantic validation (i.e. validation that cannot be properly expressed/declared
-        // using the existing generic utilities).
+        // Below is ink! version specific pedantic validation
+        // (i.e. validation that cannot be properly expressed/declared using the existing generic utilities).
         // NOTE: It's intentionally performed based on the primary attribute to keep diagnostics less noisy.
-        if version.is_gte_v5() {
-            // `anonymous` and `signature_topic` arguments conflict.
-            // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
-            if matches!(
-                primary_ink_attr_candidate.kind(),
-                InkAttributeKind::Macro(InkMacroKind::Event)
-                    | InkAttributeKind::Arg(
-                        InkArgKind::Event | InkArgKind::Anonymous | InkArgKind::SignatureTopic
-                    )
-            ) {
-                if let (Some(anonymous_arg), Some(signature_topic_arg)) = (
-                    find_arg(InkArgKind::Anonymous),
-                    find_arg(InkArgKind::SignatureTopic),
-                ) {
-                    let (first_arg, second_arg) = if anonymous_arg.text_range().start()
-                        < signature_topic_arg.text_range().start()
-                    {
-                        (anonymous_arg, signature_topic_arg)
-                    } else {
-                        (signature_topic_arg, anonymous_arg)
-                    };
-                    // Edit range for quickfix.
-                    let range = utils::ink_arg_and_delimiter_removal_range(second_arg, None);
-                    results.push(Diagnostic {
-                        message: format!(
-                            "ink! attribute argument `{}` conflicts with the ink! attribute argument `{}` for this item.",
-                            second_arg.kind(),
-                            first_arg.kind(),
-                        ),
-                        range: second_arg.text_range(),
-                        severity: Severity::Error,
-                        quickfixes: Some(vec![Action {
-                            label: format!(
-                                "Remove ink! `{}` attribute argument.",
-                                second_arg.kind()
-                            ),
-                            kind: ActionKind::QuickFix,
-                            range,
-                            edits: vec![TextEdit::delete(range)],
-                        }]),
-                    });
-                }
-            }
-
+        if version.is_gte_v6() {
             // For ink! >= 6.x, chain extensions are deprecated.
             // Ref: <https://github.com/use-ink/ink/pull/2621>
-            if version.is_gte_v6()
-                && matches!(
-                    primary_ink_attr_candidate.kind(),
-                    InkAttributeKind::Macro(InkMacroKind::ChainExtension)
-                        | InkAttributeKind::Arg(
-                            InkArgKind::Extension | InkArgKind::Function | InkArgKind::HandleStatus
-                        )
-                )
-            {
+            if matches!(
+                primary_ink_attr_candidate.kind(),
+                InkAttributeKind::Macro(InkMacroKind::ChainExtension)
+                    | InkAttributeKind::Arg(
+                        InkArgKind::Extension | InkArgKind::Function | InkArgKind::HandleStatus
+                    )
+            ) {
                 match primary_ink_attr_candidate.kind() {
                     InkAttributeKind::Macro(_) => {
                         results.push(Diagnostic {
@@ -698,6 +653,92 @@ fn validate_entity_attributes(
 
                 // Bail if the primary attribute is deprecated.
                 return;
+            }
+
+            // For ink! >= 6.x, `packed` and `derive=false` conflict.
+            // Ref: <https://github.com/use-ink/ink/pull/2722>
+            if matches!(
+                primary_ink_attr_candidate.kind(),
+                InkAttributeKind::Macro(InkMacroKind::StorageItem)
+                    | InkAttributeKind::Arg(InkArgKind::Packed | InkArgKind::Derive)
+            ) {
+                if let (Some(packed_arg), Some(derive_arg)) = (
+                    find_arg(InkArgKind::Packed),
+                    find_arg(InkArgKind::Derive).filter(|derive_arg| {
+                        derive_arg
+                            .value()
+                            .and_then(MetaValue::as_bool)
+                            .is_some_and(|flag| !flag)
+                    }),
+                ) {
+                    // Edit range for quickfix.
+                    let packed_range = utils::ink_arg_and_delimiter_removal_range(packed_arg, None);
+                    let derive_range = utils::ink_arg_and_delimiter_removal_range(derive_arg, None);
+                    results.push(Diagnostic {
+                        message: "cannot use `derive = false` with `packed` flag.".to_owned(),
+                        range: derive_arg.text_range(),
+                        severity: Severity::Error,
+                        quickfixes: Some(vec![
+                            Action {
+                                label: "Remove `derive=false` attribute argument.".to_owned(),
+                                kind: ActionKind::QuickFix,
+                                range: derive_range,
+                                edits: vec![TextEdit::delete(derive_range)],
+                            },
+                            Action {
+                                label: "Remove `packed` attribute argument.".to_owned(),
+                                kind: ActionKind::QuickFix,
+                                range: packed_range,
+                                edits: vec![TextEdit::delete(packed_range)],
+                            },
+                        ]),
+                    });
+                }
+            }
+        }
+
+        if version.is_gte_v5() {
+            // `anonymous` and `signature_topic` arguments conflict.
+            // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
+            if matches!(
+                primary_ink_attr_candidate.kind(),
+                InkAttributeKind::Macro(InkMacroKind::Event)
+                    | InkAttributeKind::Arg(
+                        InkArgKind::Event | InkArgKind::Anonymous | InkArgKind::SignatureTopic
+                    )
+            ) {
+                if let (Some(anonymous_arg), Some(signature_topic_arg)) = (
+                    find_arg(InkArgKind::Anonymous),
+                    find_arg(InkArgKind::SignatureTopic),
+                ) {
+                    let (first_arg, second_arg) = if anonymous_arg.text_range().start()
+                        < signature_topic_arg.text_range().start()
+                    {
+                        (anonymous_arg, signature_topic_arg)
+                    } else {
+                        (signature_topic_arg, anonymous_arg)
+                    };
+                    // Edit range for quickfix.
+                    let range = utils::ink_arg_and_delimiter_removal_range(second_arg, None);
+                    results.push(Diagnostic {
+                        message: format!(
+                            "ink! attribute argument `{}` conflicts with the ink! attribute argument `{}` for this item.",
+                            second_arg.kind(),
+                            first_arg.kind(),
+                        ),
+                        range: second_arg.text_range(),
+                        severity: Severity::Error,
+                        quickfixes: Some(vec![Action {
+                            label: format!(
+                                "Remove ink! `{}` attribute argument.",
+                                second_arg.kind()
+                            ),
+                            kind: ActionKind::QuickFix,
+                            range,
+                            edits: vec![TextEdit::delete(range)],
+                        }]),
+                    });
+                }
             }
 
             // `chain_extension` macro without an `extension` argument is incomplete.
@@ -2634,6 +2675,15 @@ mod tests {
                 quote_as_str! {
                     #[ink::error]
                 },
+                // `packed` attribute arg for `storage_item`.
+                // Ref: <https://github.com/use-ink/ink/pull/2722>
+                // Note: `packed` and `derive=false` conflict.
+                quote_as_str! {
+                    #[ink::storage_item(packed)]
+                },
+                quote_as_str! {
+                    #[ink::storage_item(packed, derive=true)]
+                },
             ]
             .into_iter()
             .chain(valid_attributes_versioned!(@gte v5))
@@ -4548,6 +4598,28 @@ mod tests {
                                 },
                             ],
                         }],
+                    ),
+                    (
+                        // `packed` and `derive=false` conflict.
+                        "#[ink::storage_item(packed, derive=false)]",
+                        vec![
+                            TestResultAction {
+                                label: "Remove",
+                                edits: vec![TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-, derive=false"),
+                                    end_pat: Some("derive=false"),
+                                }],
+                            },
+                            TestResultAction {
+                                label: "Remove",
+                                edits: vec![TestResultTextRange {
+                                    text: "",
+                                    start_pat: Some("<-packed"),
+                                    end_pat: Some("packed,"),
+                                }],
+                            },
+                        ],
                     ),
                 ],
             ),

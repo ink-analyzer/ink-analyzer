@@ -2193,21 +2193,49 @@ mod tests {
                     "#,
                     Some("<-struct"),
                     chain_results!(
-                        [TestResultAction {
-                            label: "Flatten",
-                            edits: vec![
-                                TestResultTextRange {
-                                    text: "#[ink::storage_item(derive = true)]",
-                                    start_pat: Some("<-#[ink::storage_item]"),
-                                    end_pat: Some("#[ink::storage_item]"),
+                        if version.is_lte_v5() {
+                            vec![TestResultAction {
+                                label: "Flatten",
+                                edits: vec![
+                                    TestResultTextRange {
+                                        text: "#[ink::storage_item(derive = true)]",
+                                        start_pat: Some("<-#[ink::storage_item]"),
+                                        end_pat: Some("#[ink::storage_item]"),
+                                    },
+                                    TestResultTextRange {
+                                        text: "",
+                                        start_pat: Some("<-#[ink(derive=true)]"),
+                                        end_pat: Some("#[ink(derive=true)]"),
+                                    },
+                                ],
+                            }]
+                        } else {
+                            vec![
+                                TestResultAction {
+                                    label: "Add",
+                                    edits: vec![TestResultTextRange {
+                                        text: "(packed)",
+                                        start_pat: Some("#[ink::storage_item"),
+                                        end_pat: Some("#[ink::storage_item"),
+                                    }],
                                 },
-                                TestResultTextRange {
-                                    text: "",
-                                    start_pat: Some("<-#[ink(derive=true)]"),
-                                    end_pat: Some("#[ink(derive=true)]"),
+                                TestResultAction {
+                                    label: "Flatten",
+                                    edits: vec![
+                                        TestResultTextRange {
+                                            text: "#[ink::storage_item(derive = true)]",
+                                            start_pat: Some("<-#[ink::storage_item]"),
+                                            end_pat: Some("#[ink::storage_item]"),
+                                        },
+                                        TestResultTextRange {
+                                            text: "",
+                                            start_pat: Some("<-#[ink(derive=true)]"),
+                                            end_pat: Some("#[ink(derive=true)]"),
+                                        },
+                                    ],
                                 },
-                            ],
-                        }],
+                            ]
+                        },
                         prepend_migrate!(version, [])
                     ),
                 ),

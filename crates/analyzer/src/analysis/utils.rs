@@ -64,7 +64,8 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 }
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L772-L799>.
-                InkMacroKind::StorageItem => vec![InkArgKind::Derive],
+                InkMacroKind::StorageItem if version.is_lte_v5() => vec![InkArgKind::Derive],
+                InkMacroKind::StorageItem => vec![InkArgKind::Packed, InkArgKind::Derive],
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/ink_test.rs#L27-L30>.
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/macro/src/lib.rs#L805-L846>.
                 InkMacroKind::Test => Vec::new(),
@@ -173,7 +174,8 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 }
                 InkArgKind::Function => Vec::new(),
                 // Ref: <https://github.com/paritytech/ink/blob/v4.1.0/crates/ink/ir/src/ir/storage_item/config.rs#L36-L59>.
-                InkArgKind::Derive => Vec::new(),
+                InkArgKind::Derive if version.is_lte_v5() => Vec::new(),
+                InkArgKind::Derive => vec![InkArgKind::Packed],
                 // Ambiguous `arg_kind`.
                 // `keep_attr` is ambiguous because it can be used with both `contract` and `trait_definition` macros.
                 // See `contract`, `trait_definition` and `env` patterns above for references.
@@ -195,6 +197,8 @@ pub fn valid_sibling_ink_args(attr_kind: InkAttributeKind, version: Version) -> 
                 // See `function` pattern above for references.
                 InkArgKind::HandleStatus if version.is_v5() => vec![InkArgKind::Function],
                 InkArgKind::HandleStatus => Vec::new(),
+                // Ref: <https://github.com/use-ink/ink/pull/2722>
+                InkArgKind::Packed if version.is_gte_v6() => vec![InkArgKind::Derive],
                 // See `constructor` and `message` patterns above for references.
                 InkArgKind::Payable if version.is_lte_v5() => vec![
                     InkArgKind::Constructor,

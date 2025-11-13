@@ -133,6 +133,7 @@ pub fn content(
             InkArgKind::Message => args::MESSAGE_DOC,
             InkArgKind::Name if version.is_gte_v6() => args::NAME_DOC,
             InkArgKind::Namespace => args::NAMESPACE_DOC,
+            InkArgKind::Packed if version.is_gte_v6() => args::PACKED_DOC,
             InkArgKind::Payable => args::PAYABLE_DOC,
             InkArgKind::Selector if version.is_legacy() => args::SELECTOR_DOC_V4,
             InkArgKind::Selector => args::SELECTOR_DOC,

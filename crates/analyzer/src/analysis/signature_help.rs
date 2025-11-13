@@ -1282,12 +1282,24 @@ mod tests {
                 (
                     "#[ink::storage_item(derive=true)]",
                     Some("#[ink::storage_item("),
-                    vec![(
-                        "derive: bool",
-                        (Some("("), Some("<-)")),
-                        vec![(Some("<-derive"), Some("bool"))],
-                        0,
-                    )],
+                    if version.is_lte_v5() {
+                        vec![(
+                            "derive: bool",
+                            (Some("("), Some("<-)")),
+                            vec![(Some("<-derive"), Some("bool"))],
+                            0,
+                        )]
+                    } else {
+                        vec![(
+                            "packed, derive: bool",
+                            (Some("("), Some("<-)")),
+                            vec![
+                                (Some("<-packed"), Some("packed")),
+                                (Some("<-derive"), Some("bool")),
+                            ],
+                            1,
+                        )]
+                    },
                 ),
                 ("#[ink::test()]", Some("test("), vec![]),
                 // ink! attribute arguments.
