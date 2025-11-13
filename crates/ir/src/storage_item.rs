@@ -13,6 +13,8 @@ pub struct StorageItem {
 impl StorageItem {
     impl_pub_ast_type_getter!(adt, Adt);
 
+    impl_pub_ink_arg_getter!(packed_arg, Packed, packed);
+
     impl_pub_ink_arg_getter!(derive_arg, Derive, derive);
 }
 
@@ -41,11 +43,14 @@ mod tests {
             },
         ] {
             let node = parse_first_syntax_node(quote_as_str! {
-                #[ink::storage_item(derive=false)]
+                #[ink::storage_item(packed, derive=false)]
                 #code
             });
 
             let storage_item = StorageItem::cast(node).unwrap();
+
+            // 1 `packed` argument exists.
+            assert!(storage_item.packed_arg().is_some());
 
             // 1 `derive` argument exists.
             assert!(storage_item.derive_arg().is_some());

@@ -487,11 +487,14 @@ mod tests {
             ),
             (
                 quote_as_str! {
-                    #[ink::storage_item(derive=true)]
+                    #[ink::storage_item(packed, derive=true)]
                 },
                 Some((
                     InkAttributeKind::Macro(InkMacroKind::StorageItem),
-                    vec![(InkArgKind::Derive, Some(SyntaxKind::TRUE_KW))],
+                    vec![
+                        (InkArgKind::Packed, None),
+                        (InkArgKind::Derive, Some(SyntaxKind::TRUE_KW)),
+                    ],
                 )),
             ),
             (
@@ -536,6 +539,15 @@ mod tests {
                 Some((
                     InkAttributeKind::Arg(InkArgKind::Anonymous),
                     vec![(InkArgKind::Anonymous, None)],
+                )),
+            ),
+            (
+                quote_as_str! {
+                    #[ink(packed)]
+                },
+                Some((
+                    InkAttributeKind::Arg(InkArgKind::Packed),
+                    vec![(InkArgKind::Packed, None)],
                 )),
             ),
             // Compound arguments with no value.

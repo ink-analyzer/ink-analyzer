@@ -137,6 +137,8 @@ pub enum InkArgKind {
     Namespace,
     /// `#[ink(node)]`
     Node,
+    /// `#[ink(packed)]`
+    Packed,
     /// `#[ink(payable)]`
     Payable,
     /// `#[ink(runtime_only)]`
@@ -205,6 +207,8 @@ impl From<&str> for InkArgKind {
             "namespace" => InkArgKind::Namespace,
             // `#[ink(node)]`
             "node" => InkArgKind::Node,
+            // `#[ink(packed)]`
+            "packed" => InkArgKind::Packed,
             // `#[ink(payable)]`
             "payable" => InkArgKind::Payable,
             // `#[ink(runtime_only)]`
@@ -277,6 +281,8 @@ impl fmt::Display for InkArgKind {
                 InkArgKind::Namespace => "namespace",
                 // `#[ink(node)]`
                 InkArgKind::Node => "node",
+                // `#[ink(packed)]`
+                InkArgKind::Packed => "packed",
                 // `#[ink(payable)]`
                 InkArgKind::Payable => "payable",
                 // `#[ink(runtime_only)]`
@@ -339,6 +345,7 @@ fn ink_arg_kind_sort_order(arg_kind: InkArgKind) -> u8 {
         | InkArgKind::Name
         | InkArgKind::Namespace
         | InkArgKind::Node
+        | InkArgKind::Packed
         | InkArgKind::Payable
         | InkArgKind::RuntimeOnly
         | InkArgKind::Sandbox
@@ -401,6 +408,7 @@ impl InkArgKind {
              - Contract metadata generation for the ink! messages, ink! constructors or ink! events",
             InkArgKind::Namespace => "Changes the resulting selectors of all the ink! messages and ink! constructors within the trait implementation.",
             InkArgKind::Node if version.is_gte_v5() => "Tells the ink! e2e test runner to use the standard approach of running dedicated single-node blockchain in a background process to execute the test.",
+            InkArgKind::Packed if version.is_gte_v6() => r#"A configuration flag for storage items that enables "packed" layout."#,
             InkArgKind::Payable => "Allows receiving value as part of the call of the ink! message.",
             InkArgKind::RuntimeOnly if version.is_v5_0() => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` (using drink! library) in the same process as the test.",
             InkArgKind::RuntimeOnly if version.is_gte_v5_1() => "Tells the ink! e2e test runner to use the lightweight approach of skipping the node layer by running a runtime emulator within `TestExternalities` in the same process as the test.",
