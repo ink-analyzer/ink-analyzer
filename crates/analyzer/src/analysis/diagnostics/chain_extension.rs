@@ -30,6 +30,12 @@ pub fn diagnostics(
     chain_extension: &ChainExtension,
     version: Version,
 ) {
+    // Chain extensions are deprecated in ink! >= 6.x
+    // Note: deprecation warnings are handled in `common::validate_entity_attributes`.
+    if version.is_gte_v6() {
+        return;
+    }
+
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     common::run_generic_diagnostics(results, chain_extension, version);
 

@@ -41,11 +41,9 @@ pub fn diagnostics(results: &mut Vec<Diagnostic>, file: &InkFile, version: Versi
         trait_definition::diagnostics(results, item, version);
     }
 
-    // Runs ink! chain extension diagnostics for ink! <= 5.x, see `chain_extension::diagnostics` doc.
-    if version.is_lte_v5() {
-        for item in file.chain_extensions() {
-            chain_extension::diagnostics(results, item, version);
-        }
+    // Runs ink! chain extension diagnostics, see `chain_extension::diagnostics` doc.
+    for item in file.chain_extensions() {
+        chain_extension::diagnostics(results, item, version);
     }
 
     // Runs ink! storage item diagnostics, see `storage_item::diagnostics` doc.

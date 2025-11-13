@@ -22,6 +22,12 @@ pub fn diagnostics(
     chain_extension: &ChainExtension,
     version: Version,
 ) {
+    // Chain extensions are deprecated in ink! >= 6.x
+    // Note: deprecation warnings are handled in `common::validate_entity_attributes`.
+    if version.is_gte_v6() {
+        return;
+    }
+
     // Ensures that ink! chain extension `ErrorCode` type can be resolved, see `ensure_resolvable` doc.
     if let Some(diagnostic) = ensure_resolvable(chain_extension) {
         results.push(diagnostic);

@@ -27,6 +27,12 @@ pub fn diagnostics<T>(results: &mut Vec<Diagnostic>, extension_fn: &T, version: 
 where
     T: IsChainExtensionFn,
 {
+    // Chain extensions are deprecated in ink! >= 6.x
+    // Note: deprecation warnings are handled in `common::validate_entity_attributes`.
+    if version.is_gte_v6() {
+        return;
+    }
+
     // Runs generic diagnostics, see `utils::run_generic_diagnostics` doc.
     common::run_generic_diagnostics(results, extension_fn, version);
 
