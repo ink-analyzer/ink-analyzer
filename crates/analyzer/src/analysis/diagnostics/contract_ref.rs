@@ -16,8 +16,9 @@ const SCOPE_NAME: &str = "contract reference";
 ///
 /// Ref: <https://github.com/use-ink/ink/pull/2648>
 pub fn diagnostics(results: &mut Vec<Diagnostic>, contract_ref: &ContractRef, version: Version) {
+    // `contract_ref` attributes is not supported in ink! <= 6.x
+    // Note: unsupported warnings are handled in `common::validate_entity_attributes`.
     if version.is_lte_v5() {
-        // TODO: Add version warning for legacy ink! versions.
         return;
     }
 

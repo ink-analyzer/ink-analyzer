@@ -571,16 +571,16 @@ fn validate_entity_attributes(
             version,
         );
 
-        // ink! >= 5.x only pedantic validation (i.e. validation that cannot be properly expressed/declared
+        let find_arg = |arg_kind: InkArgKind| {
+            attrs
+                .iter()
+                .find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == arg_kind))
+        };
+
+        // ink! >= 5.x-only pedantic validation (i.e. validation that cannot be properly expressed/declared
         // using the existing generic utilities).
         // NOTE: It's intentionally performed based on the primary attribute to keep diagnostics less noisy.
         if version.is_gte_v5() {
-            let find_arg = |arg_kind: InkArgKind| {
-                attrs
-                    .iter()
-                    .find_map(|attr| attr.args().iter().find(|arg| *arg.kind() == arg_kind))
-            };
-
             // `anonymous` and `signature_topic` arguments conflict.
             // Ref: <https://paritytech.github.io/ink/ink/attr.event.html>
             if matches!(
@@ -672,23 +672,23 @@ fn validate_entity_attributes(
                         });
                     }
                     InkAttributeKind::Arg(arg_kind) => {
-                        if let Some(extension_arg) = find_arg(*arg_kind) {
+                        if let Some(ext_arg) = find_arg(*arg_kind) {
                             // Edit range for quickfix.
                             let edit_range =
-                                utils::ink_arg_and_delimiter_removal_range(extension_arg, None);
+                                utils::ink_arg_and_delimiter_removal_range(ext_arg, None);
                             results.push(Diagnostic {
                                 message: "ink! chain extensions are deprecated. \
                                 See https://github.com/use-ink/ink/pull/2621 for details."
                                     .to_owned(),
-                                range: extension_arg.text_range(),
+                                range: ext_arg.text_range(),
                                 severity: Severity::Error,
                                 quickfixes: Some(vec![Action {
                                     label: format!(
                                         "Remove deprecated ink! `{}` attribute argument.",
-                                        extension_arg.kind()
+                                        ext_arg.kind()
                                     ),
                                     kind: ActionKind::QuickFix,
-                                    range: extension_arg.text_range(),
+                                    range: ext_arg.text_range(),
                                     edits: vec![TextEdit::delete(edit_range)],
                                 }]),
                             });
@@ -827,6 +827,128 @@ fn validate_entity_attributes(
             }
         }
 
+        // For ink! version <= 5.x, we add diagnostics for attributes that were introduced in ink! >= 6.x
+        if version.is_lte_v5() {
+            // Handles `contract_ref` attribute and it's `abi` arg.
+            // Ref: <https://github.com/use-ink/ink/pull/2648>
+            // Note: `env` arg is used by other attributes (e.g. `contract`),
+            // so we don't complain about it.
+            if matches!(
+                primary_ink_attr_candidate.kind(),
+                InkAttributeKind::Macro(InkMacroKind::ContractRef)
+                    | InkAttributeKind::Arg(InkArgKind::Abi)
+            ) {
+                match primary_ink_attr_candidate.kind() {
+                    InkAttributeKind::Macro(_) => {
+                        results.push(Diagnostic {
+                            message: "ink! `contract_ref` attribute requires ink! >= 6.x"
+                                .to_owned(),
+                            range: primary_ink_attr_candidate.syntax().text_range(),
+                            severity: Severity::Error,
+                            quickfixes: Some(
+                                ink_analyzer_ir::parent_ast_item(
+                                    primary_ink_attr_candidate.syntax(),
+                                )
+                                .map(|item| {
+                                    vec![
+                                        Action::remove_attribute_with_label(
+                                            &primary_ink_attr_candidate,
+                                            "Remove unsupported ink! `contract_ref` attribute."
+                                                .to_owned(),
+                                        ),
+                                        Action::remove_item_with_label(
+                                            item.syntax(),
+                                            "Remove unsupported ink! `contract_ref` item."
+                                                .to_owned(),
+                                        ),
+                                    ]
+                                })
+                                .unwrap_or_else(|| {
+                                    vec![Action::remove_attribute_with_label(
+                                        &primary_ink_attr_candidate,
+                                        "Remove unsupported ink! `contract_ref` item.".to_owned(),
+                                    )]
+                                }),
+                            ),
+                        });
+                    }
+                    InkAttributeKind::Arg(arg_kind) => {
+                        if let Some(ext_arg) = find_arg(*arg_kind) {
+                            // Edit range for quickfix.
+                            let edit_range =
+                                utils::ink_arg_and_delimiter_removal_range(ext_arg, None);
+                            results.push(Diagnostic {
+                                message: "ink! `abi` attribute requires ink! >= 6.x".to_owned(),
+                                range: ext_arg.text_range(),
+                                severity: Severity::Error,
+                                quickfixes: Some(vec![Action {
+                                    label: "Remove unsupported ink! `abi` attribute argument."
+                                        .to_owned(),
+                                    kind: ActionKind::QuickFix,
+                                    range: ext_arg.text_range(),
+                                    edits: vec![TextEdit::delete(edit_range)],
+                                }]),
+                            });
+                        }
+                    }
+                }
+
+                // Bail if the primary attribute is deprecated.
+                return;
+            }
+
+            // Handles `error` attribute.
+            // Ref: <https://github.com/use-ink/ink/pull/2585>
+            if *primary_ink_attr_candidate.kind() == InkAttributeKind::Macro(InkMacroKind::Error) {
+                results.push(Diagnostic {
+                    message: "ink! `error` attribute requires ink! >= 6.x".to_owned(),
+                    range: primary_ink_attr_candidate.syntax().text_range(),
+                    severity: Severity::Error,
+                    quickfixes: Some(
+                        ink_analyzer_ir::parent_ast_item(primary_ink_attr_candidate.syntax())
+                            .map(|item| {
+                                vec![
+                                    Action::remove_attribute_with_label(
+                                        &primary_ink_attr_candidate,
+                                        "Remove unsupported ink! `error` attribute.".to_owned(),
+                                    ),
+                                    Action::remove_item_with_label(
+                                        item.syntax(),
+                                        "Remove unsupported ink! `error` item.".to_owned(),
+                                    ),
+                                ]
+                            })
+                            .unwrap_or_else(|| {
+                                vec![Action::remove_attribute_with_label(
+                                    &primary_ink_attr_candidate,
+                                    "Remove unsupported ink! `error` item.".to_owned(),
+                                )]
+                            }),
+                    ),
+                });
+
+                // Bail if the primary attribute is deprecated.
+                return;
+            }
+
+            // Handles `name` arg.
+            if let Some(name_arg) = find_arg(InkArgKind::Name) {
+                // Edit range for quickfix.
+                let edit_range = utils::ink_arg_and_delimiter_removal_range(name_arg, None);
+                results.push(Diagnostic {
+                    message: "ink! `name` attribute requires ink! >= 6.x".to_owned(),
+                    range: name_arg.text_range(),
+                    severity: Severity::Error,
+                    quickfixes: Some(vec![Action {
+                        label: "Remove unsupported ink! `name` attribute argument.".to_owned(),
+                        kind: ActionKind::QuickFix,
+                        range: name_arg.text_range(),
+                        edits: vec![TextEdit::delete(edit_range)],
+                    }]),
+                });
+            }
+        }
+
         // Used to suppress conflict errors for deprecated attributes/arguments,
         // that should already be reported as such at this point.
         let is_already_reported_as_deprecated = |arg: &InkArg| {
@@ -846,6 +968,7 @@ fn validate_entity_attributes(
                         arg.kind(),
                         InkArgKind::Extension | InkArgKind::Function | InkArgKind::HandleStatus
                     ))
+                || (version.is_lte_v5() && *arg.kind() == InkArgKind::Name)
         };
 
         // Determines the insertion offset for creating a valid "primary" attribute as the first attribute.
@@ -3641,12 +3764,449 @@ mod tests {
     fn invalid_entity_attributes_fails() {
         // NOTE: Unknown attributes are ignored by this test,
         // See `ensure_no_duplicate_attributes_and_arguments` doc.
+        let fixtures_lte_v5 = [
+            (
+                // `contract_ref` is unsupported in ink! <= 5.x.
+                "#[ink::contract_ref]",
+                vec![TestResultAction {
+                    label: "Remove unsupported",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(""),
+                        end_pat: Some("#[ink::contract_ref]"),
+                    }],
+                }],
+            ),
+            (
+                // `contract_ref` is unsupported in ink! <= 5.x.
+                r#"#[ink::contract_ref(abi="sol")]
+                pub trait Callee {}
+                "#,
+                vec![
+                    TestResultAction {
+                        label: "Remove unsupported",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some(""),
+                            end_pat: Some(")]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove unsupported",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some(""),
+                            end_pat: Some("pub trait Callee {}"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                // `abi` is unsupported in ink! <= 5.x.
+                r#"#[ink(abi="sol")]"#,
+                vec![TestResultAction {
+                    label: "Remove unsupported",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(""),
+                        end_pat: Some(")]"),
+                    }],
+                }],
+            ),
+            (
+                // `error` is unsupported in ink! <= 5.x.
+                "#[ink::error]",
+                vec![TestResultAction {
+                    label: "Remove unsupported",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(""),
+                        end_pat: Some("#[ink::error]"),
+                    }],
+                }],
+            ),
+            (
+                // `error` is unsupported in ink! <= 5.x.
+                r"#[ink::error]
+                pub struct Error;
+                ",
+                vec![
+                    TestResultAction {
+                        label: "Remove unsupported",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some(""),
+                            end_pat: Some("#[ink::error]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Remove unsupported",
+                        edits: vec![TestResultTextRange {
+                            text: "",
+                            start_pat: Some(""),
+                            end_pat: Some("pub struct Error;"),
+                        }],
+                    },
+                ],
+            ),
+            (
+                // `name` is unsupported in ink! <= 5.x.
+                r#"#[ink(name="myName")]"#,
+                vec![TestResultAction {
+                    label: "Remove unsupported",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(""),
+                        end_pat: Some(")]"),
+                    }],
+                }],
+            ),
+            (
+                // `name` is unsupported in ink! <= 5.x.
+                r#"#[ink(constructor, name="myName")]"#,
+                vec![TestResultAction {
+                    label: "Remove unsupported",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-, name"),
+                        end_pat: Some(r#"name="myName""#),
+                    }],
+                }],
+            ),
+            (
+                // `name` is unsupported in ink! <= 5.x.
+                r#"#[ink(message, name="myName")]"#,
+                vec![TestResultAction {
+                    label: "Remove unsupported",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-, name"),
+                        end_pat: Some(r#"name="myName""#),
+                    }],
+                }],
+            ),
+            (
+                // `name` is unsupported in ink! <= 5.x.
+                r#"#[ink(event, name="myName")]"#,
+                vec![TestResultAction {
+                    label: "Remove unsupported",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-, name"),
+                        end_pat: Some(r#"name="myName""#),
+                    }],
+                }],
+            ),
+            (
+                // `name` is unsupported in ink! <= 5.x.
+                r#"#[ink::event(name="myName")]"#,
+                vec![TestResultAction {
+                    label: "Remove unsupported",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some(r#"<-(name="myName")"#),
+                        end_pat: Some(r#"(name="myName")"#),
+                    }],
+                }],
+            ),
+        ];
+        let fixtures_v5_only = [
+            (
+                // missing `event`.
+                "#[ink(anonymous)]",
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "#[ink::event(anonymous)]",
+                            start_pat: Some("<-#[ink(anonymous)]"),
+                            end_pat: Some("#[ink(anonymous)]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "event, ",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
+                        }],
+                    },
+                ],
+            ),
+            (
+                // missing `event`.
+                r#"#[ink(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#,
+                vec![
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: r#"#[ink::event(signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]"#,
+                            start_pat: Some("<-#[ink("),
+                            end_pat: Some(")]"),
+                        }],
+                    },
+                    TestResultAction {
+                        label: "Add",
+                        edits: vec![TestResultTextRange {
+                            text: "event, ",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
+                        }],
+                    },
+                ],
+            ),
+            (
+                // `anonymous` and `signature_topic` conflict.
+                r#"#[ink::event(anonymous, signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#,
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("#[ink::event(anonymous"),
+                        end_pat: Some("<-)]"),
+                    }],
+                }],
+            ),
+            (
+                // `anonymous` and `signature_topic` conflict.
+                r#"
+                #[ink(event)]
+                #[ink(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]
+                #[ink(anonymous)]
+                "#,
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#[ink(anonymous)]"),
+                        end_pat: Some("#[ink(anonymous)]"),
+                    }],
+                }],
+            ),
+            (
+                // `function` should come first.
+                "#[ink(handle_status=true, function=1)]",
+                vec![TestResultAction {
+                    label: "first argument",
+                    edits: vec![
+                        TestResultTextRange {
+                            text: "function",
+                            start_pat: Some("#[ink("),
+                            end_pat: Some("#[ink("),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-, function"),
+                            end_pat: Some("function=1"),
+                        },
+                    ],
+                }],
+            ),
+            (
+                // `function` should come first.
+                r#"
+                #[ink(handle_status=true)]
+                #[ink(function=1)]
+                "#,
+                vec![TestResultAction {
+                    label: "first ink! attribute",
+                    edits: vec![
+                        TestResultTextRange {
+                            text: "#[ink(function=1)]",
+                            start_pat: Some("<-#[ink(handle_status=true)]"),
+                            end_pat: Some("<-#[ink(handle_status=true)]"),
+                        },
+                        TestResultTextRange {
+                            text: "",
+                            start_pat: Some("<-#[ink(function=1)]"),
+                            end_pat: Some("#[ink(function=1)]"),
+                        },
+                    ],
+                }],
+            ),
+            (
+                // `chain_extension` macro requires an `extension` argument in v5.
+                "#[ink::chain_extension]",
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "(extension = 1)",
+                        start_pat: Some("#[ink::chain_extension"),
+                        end_pat: Some("#[ink::chain_extension"),
+                    }],
+                }],
+            ),
+            (
+                // conflicting `env`.
+                "#[ink::chain_extension(extension=1, env=my::env::Types)]",
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-, env"),
+                        end_pat: Some("my::env::Types"),
+                    }],
+                }],
+            ),
+            (
+                // `extension` was replaced with `function` for chain extension `fn`s in v5.
+                r#"
+                #[ink::chain_extension] // ink-test-skip
+                pub trait MyExtension {
+                    #[ink(extension=1)]
+                    fn my_extension();
+                }
+                "#,
+                vec![TestResultAction {
+                    label: "Replace",
+                    edits: vec![TestResultTextRange {
+                        text: "function",
+                        start_pat: Some("<-extension=1"),
+                        end_pat: Some("ink(extension"),
+                    }],
+                }],
+            ),
+            (
+                // `extension` was replaced with `function` for chain extension `fn`s in v5,
+                // so `handle_status` shouldn't be reported as an issue in this context.
+                r#"
+                #[ink::chain_extension] // ink-test-skip
+                pub trait MyExtension {
+                    #[ink(extension=1, handle_status=true)]
+                    fn my_extension();
+                }
+                "#,
+                vec![TestResultAction {
+                    label: "Replace",
+                    edits: vec![TestResultTextRange {
+                        text: "function",
+                        start_pat: Some("<-extension=1"),
+                        end_pat: Some("ink(extension"),
+                    }],
+                }],
+            ),
+            (
+                // `extension` was replaced with `function` for chain extension `fn`s in v5,
+                // so `handle_status` shouldn't be reported as an issue in this context.
+                r#"
+                #[ink::chain_extension] // ink-test-skip
+                pub trait MyExtension {
+                    #[ink(extension=1)]
+                    #[ink(handle_status=true)]
+                    fn my_extension();
+                }
+                "#,
+                vec![TestResultAction {
+                    label: "Replace",
+                    edits: vec![TestResultTextRange {
+                        text: "function",
+                        start_pat: Some("<-extension=1"),
+                        end_pat: Some("ink(extension"),
+                    }],
+                }],
+            ),
+            (
+                // `extension` was replaced with `function` for chain extension `fn`s in v5,
+                // so `handle_status` shouldn't be reported as an issue in this context.
+                r#"
+                #[ink::chain_extension] // ink-test-skip
+                pub trait MyExtension {
+                    #[ink(handle_status=true)]
+                    #[ink(extension=1)]
+                    fn my_extension();
+                }
+                "#,
+                vec![TestResultAction {
+                    label: "Replace",
+                    edits: vec![TestResultTextRange {
+                        text: "function",
+                        start_pat: Some("<-extension=1"),
+                        end_pat: Some("ink(extension"),
+                    }],
+                }],
+            ),
+            (
+                // `extension` was replaced with `function` in v5, but it's still
+                // a valid attribute for the `chain_extension` macro,
+                // so without additional context, `handle_status` is reported as a conflict here.
+                "#[ink(extension=1, handle_status=true)]",
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-, handle_status=true"),
+                        end_pat: Some("handle_status=true"),
+                    }],
+                }],
+            ),
+            (
+                // `additional_contracts` is deprecated.
+                r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#,
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("#[ink_e2e::test"),
+                        end_pat: Some("<-]"),
+                    }],
+                }],
+            ),
+            (
+                // `keep_attr` for `ink_e2e::test` macro is deprecated.
+                r#"#[ink_e2e::test(keep_attr="foo, bar")]"#,
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("#[ink_e2e::test"),
+                        end_pat: Some("<-]"),
+                    }],
+                }],
+            ),
+            (
+                // `additional_contracts` is deprecated.
+                r#"#[ink(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#,
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-#["),
+                        end_pat: Some(")]"),
+                    }],
+                }],
+            ),
+            (
+                // conflicting `env`.
+                "#[ink(extension=1, env=my::env::Types)]",
+                vec![TestResultAction {
+                    label: "Remove",
+                    edits: vec![TestResultTextRange {
+                        text: "",
+                        start_pat: Some("<-, env"),
+                        end_pat: Some("env=my::env::Types"),
+                    }],
+                }],
+            ),
+            (
+                // missing `function`.
+                "#[ink(handle_status=true)]",
+                vec![TestResultAction {
+                    label: "Add",
+                    edits: vec![TestResultTextRange {
+                        text: "function = 1, ",
+                        start_pat: Some("#[ink("),
+                        end_pat: Some("#[ink("),
+                    }],
+                }],
+            ),
+        ];
         for (version, fixtures) in [
             (
                 Version::Legacy,
-                vec![
+                [
                     (
-                        "#[ink(handle_status=true, extension=1)]", // `extension` should come first.
+                        // `extension` should come first.
+                        "#[ink(handle_status=true, extension=1)]",
                         vec![TestResultAction {
                             label: "first argument",
                             edits: vec![
@@ -3664,10 +4224,11 @@ mod tests {
                         }],
                     ),
                     (
+                        // `extension` should come first.
                         r#"
                         #[ink(handle_status=true)]
                         #[ink(extension=1)]
-                        "#, // `extension` should come first.
+                        "#,
                         vec![TestResultAction {
                             label: "first ink! attribute",
                             edits: vec![
@@ -3685,7 +4246,8 @@ mod tests {
                         }],
                     ),
                     (
-                        "#[ink(anonymous)]", // missing `event`.
+                        // missing `event`.
+                        "#[ink(anonymous)]",
                         vec![TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
@@ -3696,7 +4258,8 @@ mod tests {
                         }],
                     ),
                     (
-                        "#[ink::chain_extension(env=my::env::Types)]", // conflicting `env`.
+                        // conflicting `env`.
+                        "#[ink::chain_extension(env=my::env::Types)]",
                         vec![TestResultAction {
                             label: "Remove",
                             edits: vec![TestResultTextRange {
@@ -3707,7 +4270,8 @@ mod tests {
                         }],
                     ),
                     (
-                        "#[ink(extension=1, env=my::env::Types)]", // conflicting `env`.
+                        // conflicting `env`.
+                        "#[ink(extension=1, env=my::env::Types)]",
                         vec![TestResultAction {
                             label: "Remove",
                             edits: vec![TestResultTextRange {
@@ -3718,7 +4282,8 @@ mod tests {
                         }],
                     ),
                     (
-                        "#[ink(handle_status=true)]", // missing `extension`.
+                        // missing `extension`.
+                        "#[ink(handle_status=true)]",
                         vec![TestResultAction {
                             label: "Add",
                             edits: vec![TestResultTextRange {
@@ -3728,289 +4293,25 @@ mod tests {
                             }],
                         }],
                     ),
-                ],
+                ]
+                .into_iter()
+                .chain(fixtures_lte_v5.clone())
+                .collect(),
             ),
             (
                 Version::V5(MinorVersion::Base),
-                vec![
-                    (
-                        "#[ink(anonymous)]", // missing `event`.
-                        vec![
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "#[ink::event(anonymous)]",
-                                    start_pat: Some("<-#[ink(anonymous)]"),
-                                    end_pat: Some("#[ink(anonymous)]"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "event, ",
-                                    start_pat: Some("#[ink("),
-                                    end_pat: Some("#[ink("),
-                                }],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"#[ink(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#, // missing `event`.
-                        vec![
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: r#"#[ink::event(signature_topic = "1111111111111111111111111111111111111111111111111111111111111111")]"#,
-                                    start_pat: Some("<-#[ink("),
-                                    end_pat: Some(")]"),
-                                }],
-                            },
-                            TestResultAction {
-                                label: "Add",
-                                edits: vec![TestResultTextRange {
-                                    text: "event, ",
-                                    start_pat: Some("#[ink("),
-                                    end_pat: Some("#[ink("),
-                                }],
-                            },
-                        ],
-                    ),
-                    (
-                        r#"#[ink::event(anonymous, signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]"#, // `anonymous` and `signature_topic` conflict.
-                        vec![TestResultAction {
-                            label: "Remove",
-                            edits: vec![TestResultTextRange {
-                                text: "",
-                                start_pat: Some("#[ink::event(anonymous"),
-                                end_pat: Some("<-)]"),
-                            }],
-                        }],
-                    ),
-                    (
-                        r#"
-                        #[ink(event)]
-                        #[ink(signature_topic="1111111111111111111111111111111111111111111111111111111111111111")]
-                        #[ink(anonymous)]
-                        "#, // `anonymous` and `signature_topic` conflict.
-                        vec![TestResultAction {
-                            label: "Remove",
-                            edits: vec![TestResultTextRange {
-                                text: "",
-                                start_pat: Some("<-#[ink(anonymous)]"),
-                                end_pat: Some("#[ink(anonymous)]"),
-                            }],
-                        }],
-                    ),
-                    (
-                        "#[ink(handle_status=true, function=1)]", // `function` should come first.
-                        vec![TestResultAction {
-                            label: "first argument",
-                            edits: vec![
-                                TestResultTextRange {
-                                    text: "function",
-                                    start_pat: Some("#[ink("),
-                                    end_pat: Some("#[ink("),
-                                },
-                                TestResultTextRange {
-                                    text: "",
-                                    start_pat: Some("<-, function"),
-                                    end_pat: Some("function=1"),
-                                },
-                            ],
-                        }],
-                    ),
-                    (
-                        r#"
-                        #[ink(handle_status=true)]
-                        #[ink(function=1)]
-                        "#, // `function` should come first.
-                        vec![TestResultAction {
-                            label: "first ink! attribute",
-                            edits: vec![
-                                TestResultTextRange {
-                                    text: "#[ink(function=1)]",
-                                    start_pat: Some("<-#[ink(handle_status=true)]"),
-                                    end_pat: Some("<-#[ink(handle_status=true)]"),
-                                },
-                                TestResultTextRange {
-                                    text: "",
-                                    start_pat: Some("<-#[ink(function=1)]"),
-                                    end_pat: Some("#[ink(function=1)]"),
-                                },
-                            ],
-                        }],
-                    ),
-                    (
-                        "#[ink::chain_extension]", // `chain_extension` macro requires an `extension` argument in v5.
-                        vec![TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "(extension = 1)",
-                                start_pat: Some("#[ink::chain_extension"),
-                                end_pat: Some("#[ink::chain_extension"),
-                            }],
-                        }],
-                    ),
-                    (
-                        "#[ink::chain_extension(extension=1, env=my::env::Types)]", // conflicting `env`.
-                        vec![TestResultAction {
-                            label: "Remove",
-                            edits: vec![TestResultTextRange {
-                                text: "",
-                                start_pat: Some("<-, env"),
-                                end_pat: Some("my::env::Types"),
-                            }],
-                        }],
-                    ),
-                    (
-                        r#"
-                        #[ink::chain_extension] // ink-test-skip
-                        pub trait MyExtension {
-                            #[ink(extension=1)]
-                            fn my_extension();
-                        }
-                        "#, // `extension` was replaced with `function` for chain extension `fn`s in v5.
-                        vec![TestResultAction {
-                            label: "Replace",
-                            edits: vec![TestResultTextRange {
-                                text: "function",
-                                start_pat: Some("<-extension=1"),
-                                end_pat: Some("ink(extension"),
-                            }],
-                        }],
-                    ),
-                    (
-                        // `extension` was replaced with `function` for chain extension `fn`s in v5,
-                        // so `handle_status` shouldn't be reported as an issue in this context.
-                        r#"
-                        #[ink::chain_extension] // ink-test-skip
-                        pub trait MyExtension {
-                            #[ink(extension=1, handle_status=true)]
-                            fn my_extension();
-                        }
-                        "#,
-                        vec![TestResultAction {
-                            label: "Replace",
-                            edits: vec![TestResultTextRange {
-                                text: "function",
-                                start_pat: Some("<-extension=1"),
-                                end_pat: Some("ink(extension"),
-                            }],
-                        }],
-                    ),
-                    (
-                        // `extension` was replaced with `function` for chain extension `fn`s in v5,
-                        // so `handle_status` shouldn't be reported as an issue in this context.
-                        r#"
-                        #[ink::chain_extension] // ink-test-skip
-                        pub trait MyExtension {
-                            #[ink(extension=1)]
-                            #[ink(handle_status=true)]
-                            fn my_extension();
-                        }
-                        "#,
-                        vec![TestResultAction {
-                            label: "Replace",
-                            edits: vec![TestResultTextRange {
-                                text: "function",
-                                start_pat: Some("<-extension=1"),
-                                end_pat: Some("ink(extension"),
-                            }],
-                        }],
-                    ),
-                    (
-                        // `extension` was replaced with `function` for chain extension `fn`s in v5,
-                        // so `handle_status` shouldn't be reported as an issue in this context.
-                        r#"
-                        #[ink::chain_extension] // ink-test-skip
-                        pub trait MyExtension {
-                            #[ink(handle_status=true)]
-                            #[ink(extension=1)]
-                            fn my_extension();
-                        }
-                        "#,
-                        vec![TestResultAction {
-                            label: "Replace",
-                            edits: vec![TestResultTextRange {
-                                text: "function",
-                                start_pat: Some("<-extension=1"),
-                                end_pat: Some("ink(extension"),
-                            }],
-                        }],
-                    ),
-                    (
-                        // `extension` was replaced with `function` in v5, but it's still
-                        // a valid attribute for the `chain_extension` macro,
-                        // so without additional context, `handle_status` is reported as a conflict here.
-                        "#[ink(extension=1, handle_status=true)]",
-                        vec![TestResultAction {
-                            label: "Remove",
-                            edits: vec![TestResultTextRange {
-                                text: "",
-                                start_pat: Some("<-, handle_status=true"),
-                                end_pat: Some("handle_status=true"),
-                            }],
-                        }],
-                    ),
-                    (
-                        // `additional_contracts` is deprecated.
-                        r#"#[ink_e2e::test(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#,
-                        vec![TestResultAction {
-                            label: "Remove",
-                            edits: vec![TestResultTextRange {
-                                text: "",
-                                start_pat: Some("#[ink_e2e::test"),
-                                end_pat: Some("<-]"),
-                            }],
-                        }],
-                    ),
-                    (
-                        // `keep_attr` for `ink_e2e::test` macro is deprecated.
-                        r#"#[ink_e2e::test(keep_attr="foo, bar")]"#,
-                        vec![TestResultAction {
-                            label: "Remove",
-                            edits: vec![TestResultTextRange {
-                                text: "",
-                                start_pat: Some("#[ink_e2e::test"),
-                                end_pat: Some("<-]"),
-                            }],
-                        }],
-                    ),
-                    (
-                        // `additional_contracts` is deprecated.
-                        r#"#[ink(additional_contracts="adder/Cargo.toml flipper/Cargo.toml")]"#,
-                        vec![TestResultAction {
-                            label: "Remove",
-                            edits: vec![TestResultTextRange {
-                                text: "",
-                                start_pat: Some("<-#["),
-                                end_pat: Some(")]"),
-                            }],
-                        }],
-                    ),
-                    (
-                        "#[ink(extension=1, env=my::env::Types)]", // conflicting `env`.
-                        vec![TestResultAction {
-                            label: "Remove",
-                            edits: vec![TestResultTextRange {
-                                text: "",
-                                start_pat: Some("<-, env"),
-                                end_pat: Some("env=my::env::Types"),
-                            }],
-                        }],
-                    ),
-                    (
-                        "#[ink(handle_status=true)]", // missing `function`.
-                        vec![TestResultAction {
-                            label: "Add",
-                            edits: vec![TestResultTextRange {
-                                text: "function = 1, ",
-                                start_pat: Some("#[ink("),
-                                end_pat: Some("#[ink("),
-                            }],
-                        }],
-                    ),
-                ],
+                fixtures_v5_only
+                    .clone()
+                    .into_iter()
+                    .chain(fixtures_lte_v5.clone())
+                    .collect(),
+            ),
+            (
+                Version::V5(MinorVersion::Latest),
+                fixtures_v5_only
+                    .into_iter()
+                    .chain(fixtures_lte_v5)
+                    .collect(),
             ),
             (
                 Version::V6,
@@ -4132,7 +4433,8 @@ mod tests {
                         }],
                     ),
                     (
-                        r#"#[ink(name="name")]"#, // ambiguous.
+                        // ambiguous.
+                        r#"#[ink(name="name")]"#,
                         vec![
                             TestResultAction {
                                 label: "Add",
@@ -4169,7 +4471,8 @@ mod tests {
                         ],
                     ),
                     (
-                        r#"#[ink(name="name", constructor)]"#, // `constructor` should come first.
+                        // `constructor` should come first.
+                        r#"#[ink(name="name", constructor)]"#,
                         vec![TestResultAction {
                             label: "first argument",
                             edits: vec![
@@ -4187,7 +4490,8 @@ mod tests {
                         }],
                     ),
                     (
-                        r#"#[ink(name="name", message)]"#, // `message` should come first.
+                        // `message` should come first.
+                        r#"#[ink(name="name", message)]"#,
                         vec![TestResultAction {
                             label: "first argument",
                             edits: vec![
@@ -4205,7 +4509,8 @@ mod tests {
                         }],
                     ),
                     (
-                        r#"#[ink(name="name", event)]"#, // `event` should come first.
+                        // `event` should come first.
+                        r#"#[ink(name="name", event)]"#,
                         vec![TestResultAction {
                             label: "first argument",
                             edits: vec![
@@ -4250,7 +4555,8 @@ mod tests {
             for (code, expected_quickfixes) in [
                 // Single attributes.
                 (
-                    r#"#[ink::contract(namespace="my_namespace")]"#, // conflicting `namespace`.
+                    // conflicting `namespace`.
+                    r#"#[ink::contract(namespace="my_namespace")]"#,
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4261,7 +4567,8 @@ mod tests {
                     }],
                 ),
                 (
-                    r#"#[ink::storage_item(keep_attr="foo,bar")]"#, // conflicting `keep_attr`.
+                    // conflicting `keep_attr`.
+                    r#"#[ink::storage_item(keep_attr="foo,bar")]"#,
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4272,7 +4579,8 @@ mod tests {
                     }],
                 ),
                 (
-                    "#[ink::test(payable)]", // conflicting `payable`.
+                    // conflicting `payable`.
+                    "#[ink::test(payable)]",
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4283,7 +4591,8 @@ mod tests {
                     }],
                 ),
                 (
-                    "#[ink::trait_definition(derive=false)]", // conflicting `derive`.
+                    // conflicting `derive`.
+                    "#[ink::trait_definition(derive=false)]",
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4294,7 +4603,8 @@ mod tests {
                     }],
                 ),
                 (
-                    "#[ink(storage, anonymous)]", // conflicting `anonymous`.
+                    // conflicting `anonymous`.
+                    "#[ink(storage, anonymous)]",
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4305,7 +4615,8 @@ mod tests {
                     }],
                 ),
                 (
-                    "#[ink(event, default)]", // conflicting `default`.
+                    // conflicting `default`.
+                    "#[ink(event, default)]",
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4316,7 +4627,8 @@ mod tests {
                     }],
                 ),
                 (
-                    "#[ink(topic, selector=1)]", // conflicting `selector`.
+                    // conflicting `selector`.
+                    "#[ink(topic, selector=1)]",
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4327,7 +4639,8 @@ mod tests {
                     }],
                 ),
                 (
-                    "#[ink(constructor, derive=true)]", // conflicting `derive`.
+                    // conflicting `derive`.
+                    "#[ink(constructor, derive=true)]",
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4338,7 +4651,8 @@ mod tests {
                     }],
                 ),
                 (
-                    r#"#[ink(message, namespace="my_namespace")]"#, // conflicting `namespace`.
+                    // conflicting `namespace`.
+                    r#"#[ink(message, namespace="my_namespace")]"#,
                     vec![TestResultAction {
                         label: "Remove",
                         edits: vec![TestResultTextRange {
@@ -4428,7 +4742,8 @@ mod tests {
                 ),
                 // Wrong order of attributes and/or arguments.
                 (
-                    "#[ink(anonymous, event)]", // `event` should come first.
+                    // `event` should come first.
+                    "#[ink(anonymous, event)]",
                     vec![TestResultAction {
                         label: "first argument",
                         // Makes `event` the first argument.
@@ -4469,7 +4784,8 @@ mod tests {
                     }],
                 ),
                 (
-                    "#[ink(payable, message, default, selector=1)]", // `message` should come first.
+                    // `message` should come first.
+                    "#[ink(payable, message, default, selector=1)]",
                     vec![TestResultAction {
                         label: "first argument",
                         edits: vec![
@@ -4571,7 +4887,8 @@ mod tests {
                 ),
                 // Incomplete and/or ambiguous.
                 (
-                    "#[ink(payable, default, selector=1)]", // incomplete and ambiguous.
+                    // incomplete and ambiguous.
+                    "#[ink(payable, default, selector=1)]",
                     vec![
                         TestResultAction {
                             label: "Add",
@@ -4617,7 +4934,8 @@ mod tests {
                     ],
                 ),
                 (
-                    r#"#[ink(keep_attr="foo,bar")]"#, // incomplete and ambiguous.
+                    // incomplete and ambiguous.
+                    r#"#[ink(keep_attr="foo,bar")]"#,
                     vec![
                         TestResultAction {
                             label: "Add",
@@ -4647,10 +4965,11 @@ mod tests {
                 ),
                 // Namespace.
                 (
+                    // `trait_definition` should come first, and namespace should be an argument.
                     r#"
                     #[ink(namespace="my_namespace")]
                     #[ink::trait_definition]
-                    "#, // `trait_definition` should come first, and namespace should be an argument.
+                    "#,
                     vec![TestResultAction {
                         label: "first ink! attribute",
                         edits: vec![

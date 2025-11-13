@@ -14,8 +14,9 @@ const SCOPE_NAME: &str = "error";
 /// - <https://github.com/use-ink/ink/blob/master/crates/ink/macro/src/lib.rs#L1641-L1676>
 /// - <https://github.com/use-ink/ink/blob/v6.0.0-alpha.4/crates/ink/macro/src/error.rs>
 pub fn diagnostics(results: &mut Vec<Diagnostic>, error: &Error, version: Version) {
+    // `contract_ref` attributes is not supported in ink! <= 6.x
+    // Note: unsupported warnings are handled in `common::validate_entity_attributes`.
     if version.is_lte_v5() {
-        // TODO: Add version warning for legacy ink! versions.
         return;
     }
 
