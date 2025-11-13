@@ -177,7 +177,7 @@ pub fn handle_code_action_resolve(
             });
             Ok(code_action)
         }
-        _ => Err(anyhow::format_err!("Unsupported command: {}!", cmd)),
+        _ => Err(anyhow::format_err!("Unsupported command: {cmd}!")),
     }
 }
 
